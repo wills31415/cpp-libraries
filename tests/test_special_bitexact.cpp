@@ -152,6 +152,34 @@ int main()
     auto const log10_float = fingerprint([&](splitmix64& g) { return of_float(sp::log10(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0x7f7fffff)))); });
     auto const log1p_float = fingerprint([&](splitmix64& g) { return of_float(sp::log1p(static_cast<float>(log1p_input(g)))); });
 
+    // pow : x quelconque (bits aléatoires) ou proche de 1, y uniforme ; et bases
+    // négatives à exposant entier.
+    auto const pow_double = fingerprint([&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        double x = 0, y = 0;
+        if (choice & 1)
+        {
+            x = std::bit_cast<double>(g() & 0x7fefffffffffffff);
+            y = uniform(g, -3, 3);
+        }
+        else if (choice & 2)
+        {
+            x = uniform(g, 0.999, 1.001);
+            y = uniform(g, -5e5, 5e5);
+        }
+        else
+        {
+            x = uniform(g, -10, 10);
+            y = static_cast<double>(static_cast<std::int64_t>(g() % 601) - 300);
+        }
+        return of_double(sp::pow(x, y));
+    });
+    auto const pow_float = fingerprint([&](splitmix64& g) {
+        float const x = std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0x7f7fffff));
+        float const y = static_cast<float>(uniform(g, -3, 3));
+        return of_float(sp::pow(x, y));
+    });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -167,6 +195,8 @@ int main()
     ok &= check("log2 float", log2_float, 0x386f09ee6688ef03);
     ok &= check("log10 float", log10_float, 0x2feaf388eb377657);
     ok &= check("log1p float", log1p_float, 0x79935e48bb26c27c);
+    ok &= check("pow double", pow_double, 0x979387e8dfa097bb);
+    ok &= check("pow float", pow_float, 0x554a23153033bb57);
     assert(ok);
     return 0;
 }

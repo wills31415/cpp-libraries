@@ -3,7 +3,7 @@
 // Fonctions élémentaires bit-exactes : même résultat au bit près sur toute
 // plateforme (voir detail/fp.hpp pour les conditions), constexpr.
 //
-//   exp, exp2, expm1     log, log2, log10, log1p
+//   exp, exp2, expm1     log, log2, log10, log1p     pow
 //
 // En double, erreur < 0,51 ulp ; en float, calcul en double puis un seul arrondi
 // (erreur < 0,5 + 2^-28 ulp). Les erreurs maximales mesurées contre mpmath sont
@@ -20,6 +20,7 @@
 
 #include <concepts>
 #include <cstdint>
+#include <type_traits>
 
 namespace wsl::special
 {
@@ -199,6 +200,81 @@ namespace wsl::special
             return {s, (s_error + tail) + q};
         }
 
+        // log(x) en double-double précis à environ 2^-80 en absolu (2^-72 en
+        // relatif près de 1), pour pow : même réduction que log_kernel, mais −r²/2
+        // exact (produit de Dekker), le terme croisé −r_hi r_lo, le reste r³ (…)
+        // en Taylor jusqu'à r⁸ (reste < 2^-88), et des sommes exactes.
+        constexpr double_double log_accurate(std::uint64_t ix) noexcept
+        {
+            constexpr std::uint64_t half_sqrt2 = 0x3fe6a09e667f3bcd;
+            std::uint64_t const offset = ix - half_sqrt2;
+            auto const e = static_cast<int>(static_cast<std::int64_t>(offset) >> 52);
+            double const z = from_bits(ix - (offset & (std::uint64_t{0xfff} << 52)));
+
+            constexpr double shift = 0x1.8p52;
+            constexpr double scale = static_cast<double>(1 << log_table_bits);
+            double const t = fmul(z, scale) + shift;
+            auto const j = static_cast<int>(bits(t) - bits(shift));
+            double const c = fmul(t - shift, 1.0 / scale);
+            double const d = z - c;
+
+            auto const& entry = log_table[j - log_table_first];
+            double const inverse_c = entry[2];
+            double const r_hi = fmul(d, inverse_c);
+            auto const [r1, r2] = split(r_hi);
+            double const r_lo = fmul((d - fmul(r1, c)) - fmul(r2, c), inverse_c);
+
+            // log1p(r) = r − r²/2 + r³ [1/3 − r/4 + r²/5 − r³/6 + r⁴/7 − r⁵/8]
+            double const r = r_hi;
+            auto const [rr, rr_error] = two_product(r, r);
+            double const r2v = r * r;
+            double const c01 = 0x1.5555555555555p-2 + fmul(r, -0x1p-2);
+            double const c23 = 0x1.999999999999ap-3 + fmul(r, -0x1.5555555555555p-3);
+            double const c45 = 0x1.2492492492492p-3 + fmul(r, -0x1p-3);
+            double const cubic = fmul(r * r2v, (c01 + fmul(r2v, c23)) + fmul(r2v * r2v, c45));
+
+            double const ed = static_cast<double>(e);
+            double const w = fmul(ed, log_ln2_hi) + entry[0];      // exact
+            double const s1 = w + r_hi;
+            double const e1 = (w - s1) + r_hi;                      // exact : |w| >= |r_hi| ou w = 0
+            auto const [s2, e2] = two_sum(s1, fmul(-0.5, rr));      // −r²/2 : exact
+            double const small = (fmul(ed, log_ln2_lo) + entry[1]) + (r_lo - fmul(0.5, rr_error));
+            double const lo = ((e1 + e2) + small) + (cubic - fmul(r, r_lo));
+            double const hi = s2 + lo;
+            return {hi, (s2 - hi) + lo};                            // Fast2Sum
+        }
+
+        // 2^e 2^(j/N) exp(r + t) pour k = N e + j, t petit (|t| < 2^-40) :
+        // exp(r + t) − 1 ≈ p(r) + t + r t, le terme croisé r t valant jusqu'à une
+        // demi-ulp.
+        constexpr double exp_finish_dd(std::int64_t k, double r, double t) noexcept
+        {
+            double const r2 = r * r;
+            double const p = r + ((t + fmul(r, t)) + fmul(r2, 0x1p-1 + fmul(r, 0x1.5555555555555p-3
+                                       + fmul(r, 0x1.5555555555555p-5 + fmul(r, 0x1.1111111111111p-7)))));
+            int const j = exp_index(k);
+            double const t_hi = exp_table[j][0];
+            return scale_exp(t_hi, exp_table[j][1] + fmul(t_hi, p), exp_exponent(k));
+        }
+
+        // Entier ? Impair ? (y fini.)
+        struct integer_class
+        {
+            bool integer, odd;
+        };
+
+        constexpr integer_class classify_integer(double y) noexcept
+        {
+            double const a = y < 0 ? -y : y;
+            if (a >= 0x1p53)
+                return {true, false};                               // tous pairs
+            if (a >= 0x1p52)
+                return {true, (static_cast<std::int64_t>(a) & 1) != 0};
+            double const rounded = (a + 0x1p52) - 0x1p52;           // entier le plus proche
+            bool const integer = rounded == a;
+            return {integer, integer && (static_cast<std::int64_t>(a) & 1) != 0};
+        }
+
         // log(x) · (c_hi + c_lo), le produit en double-double, arrondi une fois.
         constexpr double log_times(double x, double c_hi, double c_lo) noexcept
         {
@@ -341,6 +417,81 @@ namespace wsl::special
     }
 
     // -----------------------------------------------------------------------
+    // pow
+    //
+    // x^y = exp(y log x). Une erreur relative ε sur log x devient une erreur
+    // absolue |y log x| ε, jusqu'à 709 ε, dans l'exposant : log x est donc
+    // calculé en double-double à 2^-72 près (log_accurate), y log x en
+    // double-double (produit de Dekker), et exp prend un argument double-double.
+    // Cas à part ceux de l'Annexe F de C : pow(x, ±0) = 1 et pow(1, y) = 1 même
+    // pour NaN ; base nulle ou infinie selon le signe et la parité de y ; base
+    // négative : NaN si y n'est pas entier, signe négatif si y est impair.
+    // -----------------------------------------------------------------------
+    constexpr double pow(double x, double y) noexcept
+    {
+        using namespace detail;
+
+        if (y == 0 || x == 1)
+            return 1.0;
+        if (!(x == x) || !(y == y))
+            return x + y;                                           // NaN
+
+        bool const x_negative = (bits(x) >> 63) != 0;
+        double const ax = x_negative ? -x : x;
+
+        if (y == infinity || y == -infinity)
+        {
+            if (ax == 1)
+                return 1.0;                                         // pow(−1, ±∞)
+            return ((ax < 1) == (y > 0)) ? 0.0 : infinity;
+        }
+
+        auto const [y_integer, y_odd] = classify_integer(y);
+        bool const negative_result = x_negative && y_odd;
+
+        if (x == 0)
+        {
+            if (y < 0)
+                return negative_result ? -infinity : infinity;
+            return negative_result ? -0.0 : 0.0;
+        }
+        if (ax == infinity)
+        {
+            if (y < 0)
+                return negative_result ? -0.0 : 0.0;
+            return negative_result ? -infinity : infinity;
+        }
+        if (x_negative && !y_integer)
+            return quiet_nan;
+
+        // Désormais ax > 0 fini, y fini non nul.
+        auto const with_sign = [negative_result](double v) { return negative_result ? -v : v; };
+        if (ax == 1)
+            return with_sign(1.0);                                  // pow(−1, y entier)
+
+        double const ay = y < 0 ? -y : y;
+        if (ay > 0x1p64)                                            // |y log x| > 2^11 : 0 ou ∞
+            return with_sign(((ax > 1) == (y > 0)) ? infinity : 0.0);
+
+        std::uint64_t ix = bits(ax);
+        if (ax < 0x1p-1022)
+            ix = bits(ax * 0x1p52) - (std::uint64_t{52} << 52);      // sous-normal
+        auto const [l_hi, l_lo] = log_accurate(ix);
+
+        auto const [a_hi0, a_error] = two_product(y, l_hi);
+        double const a_lo0 = a_error + fmul(y, l_lo);
+        double const a_hi = a_hi0 + a_lo0;
+        double const a_lo = (a_hi0 - a_hi) + a_lo0;                 // Fast2Sum
+
+        if (a_hi > 710.0)
+            return with_sign(infinity);
+        if (a_hi < -746.0)
+            return with_sign(0.0);
+        auto const [k, r_hi, r_lo] = reduce_exp(a_hi);
+        return with_sign(exp_finish_dd(k, r_hi, r_lo + a_lo));
+    }
+
+    // -----------------------------------------------------------------------
     // float : calcul en double, puis un seul arrondi vers float. L'erreur du
     // double (< 0,51 ulp double, soit < 2^-29 ulp float) ne change l'arrondi que
     // si la valeur exacte est à moins de 2^-29 ulp d'un milieu de deux floats :
@@ -364,6 +515,10 @@ namespace wsl::special
     constexpr float log2(float x) noexcept { return static_cast<float>(log2(static_cast<double>(x))); }
     constexpr float log10(float x) noexcept { return static_cast<float>(log10(static_cast<double>(x))); }
     constexpr float log1p(float x) noexcept { return static_cast<float>(log1p(static_cast<double>(x))); }
+    constexpr float pow(float x, float y) noexcept
+    {
+        return detail::to_float(pow(static_cast<double>(x), static_cast<double>(y)));
+    }
 
     // Entiers : comme <cmath>, traités en double.
     template <std::integral I> constexpr double exp(I x) noexcept { return exp(static_cast<double>(x)); }
@@ -374,6 +529,17 @@ namespace wsl::special
     template <std::integral I> constexpr double log10(I x) noexcept { return log10(static_cast<double>(x)); }
     template <std::integral I> constexpr double log1p(I x) noexcept { return log1p(static_cast<double>(x)); }
 
+    // pow à arguments mixtes (entier, float et double mêlés) : en double, comme <cmath>.
+    template <class A, class B>
+        requires std::is_arithmetic_v<A> && std::is_arithmetic_v<B>
+                 && (!std::same_as<A, long double>) && (!std::same_as<B, long double>)
+                 && (!(std::same_as<A, float> && std::same_as<B, float>))
+                 && (!(std::same_as<A, double> && std::same_as<B, double>))
+    constexpr double pow(A x, B y) noexcept
+    {
+        return pow(static_cast<double>(x), static_cast<double>(y));
+    }
+
     // long double n'a pas la même taille partout (64, 80 ou 128 bits) : aucun
     // résultat bit-exact n'est possible.
     long double exp(long double) = delete;
@@ -383,4 +549,5 @@ namespace wsl::special
     long double log2(long double) = delete;
     long double log10(long double) = delete;
     long double log1p(long double) = delete;
+    long double pow(long double, long double) = delete;
 }

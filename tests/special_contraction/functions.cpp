@@ -16,4 +16,5 @@ extern "C"
     double check_log2(double x) { return wsl::special::log2(x); }
     double check_log10(double x) { return wsl::special::log10(x); }
     double check_log1p(double x) { return wsl::special::log1p(x); }
+    double check_pow(double x, double y) { return wsl::special::pow(x, y); }
 }

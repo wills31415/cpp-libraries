@@ -17,6 +17,7 @@
 
 namespace sp = wsl::special;
 using reference_data::reference;
+using reference_data::reference2;
 
 namespace
 {
@@ -66,6 +67,30 @@ namespace
         assert(r.max_error < bound);
     }
 
+    // Fonctions à deux arguments.
+    template <class T, class F>
+    void check2(char const* name, std::span<reference2<T> const> references, F f, double bound)
+    {
+        report r;
+        for (auto const& ref : references)
+        {
+            T const v = f(ref.x, ref.y);
+            double const error = std::abs(double(v - ref.rounded) / double(ulp(ref.rounded)) - ref.offset);
+            if (v != ref.rounded)
+                ++r.not_rounded;
+            if (error > r.max_error)
+            {
+                r.max_error = error;
+                r.worst_x = double(ref.x);
+            }
+            ++r.points;
+        }
+        std::printf("%-12s %5zu points : erreur max %.4f ulp (x = %a), arrondi correct %.3f %%\n", name,
+                    r.points, r.max_error, r.worst_x,
+                    100.0 * double(r.points - r.not_rounded) / double(r.points));
+        assert(r.max_error < bound);
+    }
+
     constexpr double inf = std::numeric_limits<double>::infinity();
     constexpr float inff = std::numeric_limits<float>::infinity();
 
@@ -83,6 +108,7 @@ static_assert(sp::exp(0.0f) == 1.0f);
 static_assert(sp::log(1.0f) == 0.0f);
 static_assert(sp::exp2(10.0) == 1024.0 && sp::log2(1024.0) == 10.0 && sp::log10(1000.0) == 3.0);
 static_assert(sp::expm1(0x1p-60) == 0x1p-60 && sp::log1p(0x1p-60) == 0x1p-60);
+static_assert(sp::pow(2.0, 10.0) == 1024.0 && sp::pow(-3.0, 3.0) == -27.0);
 
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
@@ -104,6 +130,8 @@ int main()
     check<float>("log2 float", reference_data::log2_float, [](float x) { return sp::log2(x); }, 0.5 + 0x1p-28);
     check<float>("log10 float", reference_data::log10_float, [](float x) { return sp::log10(x); }, 0.5 + 0x1p-28);
     check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
+    check2<double>("pow double", reference_data::pow_double, [](double x, double y) { return sp::pow(x, y); }, 0.51);
+    check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -164,6 +192,31 @@ int main()
     assert(is_positive_zero(sp::log1p(0.0)) && std::signbit(sp::log1p(-0.0)) && sp::log1p(-0.0) == 0);
     assert(sp::log1p(0x1p-60) == 0x1p-60 && sp::log1p(-0x1p-1074) == -0x1p-1074);
     assert(sp::log1p(-1.0) == -inf && std::isnan(sp::log1p(-1.5)) && sp::log1p(inf) == inf);
+
+    // pow : cas à part de l'Annexe F de C, comparés à <cmath> sur toutes les
+    // combinaisons de valeurs remarquables (le signe des zéros compris).
+    {
+        constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+        double const values[] = {0.0, -0.0, 1.0, -1.0, 0.5, -0.5, 2.0, -2.0, 3.0, -3.0, 2.5, -2.5, 0x1p-1074,
+                                 1e300, -1e300, inf, -inf, nan, 0x1p53, -0x1p53, 0x1p53 + 2, 1e20, -1e20};
+        for (double x : values)
+            for (double y : values)
+            {
+                double const ours = sp::pow(x, y), theirs = std::pow(x, y);
+                bool const same = (std::isnan(ours) && std::isnan(theirs))
+                               || (ours == theirs && std::signbit(ours) == std::signbit(theirs))
+                               || (std::isfinite(theirs) && theirs != 0 && std::abs(ours - theirs) <= ulp(theirs));
+                if (!same)
+                    std::printf("pow(%a, %a) : %a, <cmath> %a\n", x, y, ours, theirs);
+                assert(same);
+            }
+    }
+    assert(sp::pow(2.0, 10.0) == 1024.0 && sp::pow(2.0, -1074.0) == 0x1p-1074 && sp::pow(10.0, 22.0) == 1e22);
+    assert(sp::pow(-2.0, 3.0) == -8.0 && sp::pow(-2.0, 2.0) == 4.0 && std::isnan(sp::pow(-2.0, 0.5)));
+    assert(sp::pow(4.0, 0.5) == 2.0 && sp::pow(0.25, -0.5) == 2.0);
+    for (double x = 0.001; x < 1000; x *= 1.37)
+        assert(sp::pow(x, 1.0) == x);
+    assert(sp::pow(2, 3) == 8.0 && sp::pow(2.0f, 3.0f) == 8.0f && sp::pow(2.0f, 0.5) == sp::pow(2.0, 0.5));
 
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);

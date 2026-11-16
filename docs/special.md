@@ -3,8 +3,8 @@
 > Document de conception. Décisions ✅ prises avec l'utilisateur le 2026-11-16 ;
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
-> **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10` et
-> `log1p` (float, double) implémentés et vérifiés (§6).
+> **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
+> `log1p` et `pow` (float, double) implémentés et vérifiés (§6).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -164,12 +164,24 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `log2` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `log10` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `log1p` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `pow` | 0,502 ulp | 99,92 % | 0,500 ulp (100 %) |
 
 Exactitudes garanties par les tests : `exp2(n) = 2ⁿ` et `log2(2ⁿ) = n` pour tout
 entier n de [−1074, 1023], `log10(10ⁿ) = n` pour n de 0 à 22 (les puissances de 10
-exactes en double).
+exactes en double), `pow(x, 1) = x`. Les cas à part de `pow` (Annexe F de C : bases
+nulles, infinies, −1, négatives ; exposants infinis, entiers, impairs) sont comparés à
+`<cmath>` sur toutes les combinaisons de 23 valeurs remarquables, signe des zéros
+compris.
 
-**Bit-exactitude** : les 14 empreintes (7 fonctions × 2 types) sont identiques sur macOS
+`pow` : x^y = exp(y log x), où une erreur relative ε sur log x devient une erreur
+absolue jusqu'à 709 ε dans l'exposant. D'où un second noyau logarithmique,
+`log_accurate` (−r²/2 exact par produit de Dekker, terme croisé −r_hi r_lo, Taylor
+jusqu'à r⁸, sommes exactes : environ 2⁻⁷² en relatif près de 1), le produit y log x en
+double-double, et `exp_finish_dd`, qui prend un argument double-double et garde le
+terme croisé r t (jusqu'à une demi-ulp s'il était omis). Coût : 38 ns contre 18 ns pour
+la libm d'Apple (×2,2).
+
+**Bit-exactitude** : les 16 empreintes (8 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).

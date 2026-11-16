@@ -324,11 +324,81 @@ def references(name, xs, f, rounder, ulp, fmt, ctype):
     return "".join(lines), kept
 
 
+def pow_points_double():
+    pts = []
+    for _ in range(1500):                                   # x quelconque, |y log x| < 700
+        x = random_positive_double()
+        lx = abs(math.log(x))
+        if lx > 0:
+            pts.append((x, rng.uniform(-1, 1) * 700 / lx))
+    for _ in range(800):                                    # x près de 1, y grand
+        x = 1 + math.copysign(2.0 ** -rng.uniform(1, 52), rng.choice((-1, 1)))
+        pts.append((x, rng.uniform(-1, 1) * 700 / abs(math.log(x))))
+    for _ in range(600):                                    # y entier, x quelconque de signe quelconque
+        x = math.copysign(math.exp(rng.uniform(-5, 5)), rng.choice((-1, 1)))
+        n = rng.randint(-int(700 / abs(math.log(abs(x)) or 1)) - 1, int(700 / abs(math.log(abs(x)) or 1)) + 1)
+        n = max(-1000, min(1000, n))
+        if n != 0 and abs(n * math.log(abs(x))) < 700:
+            pts.append((x, float(n)))
+    for y in (0.5, -0.5, 1 / 3, 2.0, 3.0, -1.0, -2.0, 1.5, 0.1):
+        for _ in range(60):
+            pts.append((math.exp(rng.uniform(-200, 200)), y))
+    for _ in range(300):                                    # résultats sous-normaux
+        x = math.exp(rng.uniform(-50, 50))
+        if abs(math.log(x)) > 1e-3:
+            pts.append((x, rng.uniform(-745, -708.5) / math.log(x)))
+    pts += [(2.0, float(n)) for n in range(-1074, 1024, 41)]
+    pts += [(10.0, float(n)) for n in range(-20, 23)] + [(4.0, 0.5), (8.0, 1 / 3), (0.25, -0.5)]
+    return pts
+
+
+def pow_points_float():
+    pts = []
+    for _ in range(800):
+        x = random_positive_float()
+        lx = abs(math.log(x))
+        if lx > 0:
+            pts.append((x, to_f32(rng.uniform(-1, 1) * 85 / lx)))
+    for _ in range(300):
+        x = math.copysign(to_f32(math.exp(rng.uniform(-3, 3))), rng.choice((-1, 1)))
+        pts.append((x, float(rng.randint(-20, 20) or 1)))
+    for _ in range(300):
+        x = to_f32(1 + math.copysign(2.0 ** -rng.uniform(1, 23), rng.choice((-1, 1))))
+        if x != 1:
+            pts.append((x, to_f32(rng.uniform(-1, 1) * 85 / abs(math.log(x)))))
+    return pts
+
+
+def pow_exact(x, y):
+    mx, my = mpf(x), mpf(y)
+    if mx < 0:                                              # y entier (garanti par les points)
+        v = mp.power(-mx, my)
+        return -v if int(y) % 2 else v
+    return mp.power(mx, my)
+
+
+def references2(name, pts, rounder, ulp, fmt, ctype):
+    lines = [f"    // {name} : x, y, arrondi correct de pow(x, y), position exacte en ulp\n",
+             f"    inline constexpr reference2<{ctype}> {name}[] = {{\n"]
+    kept = 0
+    for x, y in sorted(set(pts)):
+        exact = pow_exact(x, y)
+        cr = rounder(exact)
+        if math.isinf(cr) or cr == 0:
+            continue
+        offset = float((exact - mpf(cr)) / mpf(ulp(cr)))
+        lines.append(f"        {{{fmt(x)}, {fmt(y)}, {fmt(cr)}, {offset!r}}},\n")
+        kept += 1
+    lines.append("    };\n\n")
+    return "".join(lines), kept
+
+
 def reference_file():
     out = [HEADER, "#pragma once\n\n",
            "// Valeurs de référence de wsl::special, calculées par mpmath à 256 bits.\n\n",
            "namespace reference_data\n{\n",
-           "    template <class T>\n    struct reference\n    {\n        T x, rounded;\n        double offset;\n    };\n\n"]
+           "    template <class T>\n    struct reference\n    {\n        T x, rounded;\n        double offset;\n    };\n\n",
+           "    template <class T>\n    struct reference2\n    {\n        T x, y, rounded;\n        double offset;\n    };\n\n"]
     counts = {}
     for name, xs, f, rounder, ulp, fmt, ctype in (
             ("exp_double", exp_points_double(), mp.exp, round_double, ulp_double, hexd, "double"),
@@ -346,6 +416,11 @@ def reference_file():
             ("log10_float", log_points_float(), mp.log10, round_float, ulp_float, hexf, "float"),
             ("log1p_float", log1p_points_float(), mp.log1p, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
+        out.append(text)
+    for name, pts, rounder, ulp, fmt, ctype in (
+            ("pow_double", pow_points_double(), round_double, ulp_double, hexd, "double"),
+            ("pow_float", pow_points_float(), round_float, ulp_float, hexf, "float")):
+        text, counts[name] = references2(name, pts, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")
     return "".join(out), counts
