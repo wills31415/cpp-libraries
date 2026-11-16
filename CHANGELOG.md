@@ -20,6 +20,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   immenses compris (réduction de Payne–Hanek exacte) ; erreur maximale mesurée 0,500 ulp,
   100 % d'arrondis corrects sur les échantillons. Encore 3,5 à 5 fois plus lents que la
   libm d'Apple.
+- `sqrt` (arrondi correct, évaluable à la compilation), `cbrt`, `hypot` (float,
+  double) ; erreur maximale mesurée 0,500 ulp, 100 % d'arrondis corrects.
 
 ## [0.1.0] — 2026-11-16
 

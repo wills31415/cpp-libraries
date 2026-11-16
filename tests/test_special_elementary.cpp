@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <limits>
 #include <span>
 
@@ -111,6 +112,8 @@ static_assert(sp::expm1(0x1p-60) == 0x1p-60 && sp::log1p(0x1p-60) == 0x1p-60);
 static_assert(sp::pow(2.0, 10.0) == 1024.0 && sp::pow(-3.0, 3.0) == -27.0);
 static_assert(sp::sin(0.0) == 0.0 && sp::cos(0.0) == 1.0 && sp::atan(1.0) == 0x1.921fb54442d18p-1);
 static_assert(sp::sin(1e300) == sp::sin(1e300) && sp::atan2(1.0, -1.0) == 0x1.2d97c7f3321d2p+1);
+static_assert(sp::sqrt(2.0) == 0x1.6a09e667f3bcdp+0 && sp::sqrt(0x1p-1074) == 0x1p-537);
+static_assert(sp::cbrt(27.0) == 3.0 && sp::cbrt(-8.0) == -2.0 && sp::hypot(3.0, 4.0) == 5.0);
 
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
@@ -144,6 +147,10 @@ int main()
     check<float>("tan float", reference_data::tan_float, [](float x) { return sp::tan(x); }, 0.5 + 0x1p-28);
     check<float>("atan float", reference_data::atan_float, [](float x) { return sp::atan(x); }, 0.5 + 0x1p-28);
     check2<float>("atan2 float", reference_data::atan2_float, [](float y, float x) { return sp::atan2(y, x); }, 0.5 + 0x1p-28);
+    check<double>("cbrt double", reference_data::cbrt_double, [](double x) { return sp::cbrt(x); }, 0.51);
+    check<float>("cbrt float", reference_data::cbrt_float, [](float x) { return sp::cbrt(x); }, 0.5 + 0x1p-28);
+    check2<double>("hypot double", reference_data::hypot_double, [](double x, double y) { return sp::hypot(x, y); }, 0.51);
+    check2<float>("hypot float", reference_data::hypot_float, [](float x, float y) { return sp::hypot(x, y); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -254,6 +261,20 @@ int main()
                 assert(ok);
             }
     }
+    // atan2 aux rapports extrêmes, autour des seuils de mise à l'échelle : jamais
+    // NaN, et comme <cmath> (un premier essai rendait NaN pour y ≈ 2^-835,
+    // x ≈ 2^797, le découpage de Veltkamp débordant).
+    for (double big : {0x1p650, 0x1p699, 0x1p701, 0x1p797, 0x1p799, 0x1p801, 0x1p899, 0x1p901, 0x1p1000})
+        for (double small : {0x1p-1074, 0x1p-1000, 0x1p-835, 0x1p-801, 0x1p-799, 0x1p-500})
+            for (double sy : {1.0, -1.0})
+                for (double sx : {1.0, -1.0})
+                {
+                    double const a = sp::atan2(sy * small, sx * big), b = sp::atan2(sy * big, sx * small);
+                    assert(!std::isnan(a) && !std::isnan(b));
+                    assert(std::abs(a - std::atan2(sy * small, sx * big)) <= ulp(std::atan2(sy * small, sx * big)));
+                    assert(std::abs(b - std::atan2(sy * big, sx * small)) <= ulp(std::atan2(sy * big, sx * small)));
+                }
+
     // Identités : sin² + cos² ≈ 1, tan = sin/cos, atan(tan x) = x sur (−π/2, π/2),
     // symétries exactes.
     for (double x = -50; x < 50; x += 0.0137)
@@ -268,6 +289,21 @@ int main()
         assert(std::abs(sp::atan(sp::tan(x)) - x) <= 2 * ulp(x) + 1e-300);
     assert(sp::sin(0x1.921fb54442d18p+1) == 0x1.1a62633145c07p-53);   // sin(π arrondi) = π − π arrondi
     assert(sp::cos(0x1.921fb54442d18p+0) == 0x1.1a62633145c07p-54);
+
+    // sqrt : identique à la racine matérielle ; cbrt et hypot : cas exacts et à part.
+    for (double x = 1e-300; x < 1e300; x *= 1.7)
+        assert(sp::sqrt(x) == std::sqrt(x));
+    assert(std::signbit(sp::sqrt(-0.0)) && std::isnan(sp::sqrt(-1.0)) && sp::sqrt(inf) == inf);
+    for (int n = -100; n <= 100; ++n)
+        assert(sp::cbrt(double(n) * n * n) == n);
+    assert(std::signbit(sp::cbrt(-0.0)) && sp::cbrt(-inf) == -inf && std::isnan(sp::cbrt(std::nan(""))));
+    assert(sp::cbrt(0x1p-1074) == 0x1p-358);                     // exact (1074 = 3 · 358)
+    assert(sp::hypot(3.0, 4.0) == 5.0 && sp::hypot(-5.0, 12.0) == 13.0 && sp::hypot(-7.0, 0.0) == 7.0);
+    assert(sp::hypot(inf, std::nan("")) == inf && sp::hypot(std::nan(""), -inf) == inf);
+    assert(std::isnan(sp::hypot(std::nan(""), 1.0)));
+    // Valeurs exactes (mpmath) : les libm ne sont pas toutes correctement arrondies.
+    assert(sp::hypot(1e308, 1e308) == 0x1.92c80954c51f5p+1023 && sp::hypot(1.7e308, 1.7e308) == inf);
+    assert(sp::hypot(0x1p-1074, 0x1p-1074) == 0x1p-1074);
 
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);

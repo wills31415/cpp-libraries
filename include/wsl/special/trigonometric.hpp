@@ -376,15 +376,23 @@ namespace wsl::special
         if (is_infinite(y))
             return with_sign(pio2_hi);
 
+        // Mise à l'échelle par une puissance de 2 (seul le rapport compte) : ni
+        // débordement (le découpage de Veltkamp de d multiplie par 2^27 + 1 :
+        // d doit rester sous 2^995), ni produits sous-normaux dans le produit de
+        // Dekker q·d ≈ n, qui y deviendrait inexact. Si la plus petite valeur
+        // reste minuscule quand la plus grande interdit de remonter, leur
+        // rapport est sous 2^-1500 : nul ou presque en double, le résultat est
+        // exact sans correction.
         double ay = y_negative ? -y : y;
         double ax = x_negative ? -x : x;
         double const largest = ay > ax ? ay : ax;
-        if (largest > 0x1p900)                                          // seul le rapport compte
+        double const smallest = ay > ax ? ax : ay;
+        if (largest > 0x1p900)
         {
             ay = fmul(ay, 0x1p-200);                                    // exacts, mais entrent dans n − p
             ax = fmul(ax, 0x1p-200);
         }
-        else if (largest < 0x1p-900)
+        else if (smallest < 0x1p-800 && largest < 0x1p700)
         {
             ay = fmul(ay, 0x1p200);
             ax = fmul(ax, 0x1p200);
@@ -395,7 +403,7 @@ namespace wsl::special
         double const d = swap ? ay : ax;
         double const q = n / d;                                         // dans [0, 1]
         double q_lo = 0;
-        if (q >= 0x1p-900)
+        if (n >= 0x1p-800)                                              // produits partiels normaux
         {
             auto const [p, p_error] = two_product(q, d);
             q_lo = ((n - p) - p_error) / d;

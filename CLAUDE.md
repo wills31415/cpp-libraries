@@ -65,6 +65,13 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
 - Le test `special_no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
   dans le code engendré ; il ne voit pas un produit non protégé à usages multiples.
+- `two_product` (Dekker) : facteurs sous 2^995 (sinon le découpage déborde en NaN) et
+  produit loin des sous-normaux (sinon inexact). Vérifier ces bornes à chaque usage.
+- Tests : ne jamais exiger l'égalité avec la libm du système (glibc n'est pas
+  correctement arrondie partout) ; comparer à des valeurs exactes (mpmath) ou à 1 ulp.
+- Générateur : toute constante qui demande plus de 256 bits (2/π de Payne–Hanek…)
+  doit être calculée sous `mp.workprec(...)` ; les racines complexes de mpmath
+  (`mp.cbrt` d'un négatif) ne sont pas les racines réelles.
 - Mesurer les performances : `tools/special/benchmark.sh` (un programme par fonction ;
   ne pas mesurer plusieurs fonctions dans un même programme, les chiffres s'y faussent).
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur

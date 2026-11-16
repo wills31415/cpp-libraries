@@ -452,6 +452,47 @@ def atan2_points_float():
     return pts
 
 
+def real_cbrt(x):
+    """Racine cubique réelle (mp.cbrt rend la racine complexe principale pour x < 0)."""
+    return mp.sign(x) * mp.cbrt(abs(x))
+
+
+def cbrt_points_double():
+    xs = [math.copysign(random_positive_double(), rng.choice((-1, 1))) for _ in range(1500)]
+    xs += [rng.uniform(-10, 10) for _ in range(500)]
+    xs += [float(n ** 3) for n in range(1, 200, 7)] + [2.0 ** -1074, 2.0 ** -1060, 1.7976931348623157e308]
+    return [x for x in xs if x != 0]
+
+
+def cbrt_points_float():
+    xs = [math.copysign(random_positive_float(), rng.choice((-1, 1))) for _ in range(1000)]
+    return xs
+
+
+def hypot_points_double():
+    pts = []
+    for _ in range(1200):
+        a = math.copysign(random_positive_double(), rng.choice((-1, 1)))
+        pts.append((a, math.copysign(abs(a) * 2.0 ** rng.uniform(-60, 60), rng.choice((-1, 1)))))
+    for _ in range(400):
+        pts.append((rng.uniform(-10, 10), rng.uniform(-10, 10)))
+    for _ in range(200):                                    # près du débordement et des sous-normaux
+        pts.append((1.7976931348623157e308 * rng.uniform(0.3, 0.7), 1.7976931348623157e308 * rng.uniform(0.3, 0.7)))
+        pts.append((2.0 ** -1074 * rng.randint(1, 2 ** 40), 2.0 ** -1074 * rng.randint(1, 2 ** 40)))
+    pts += [(3.0, 4.0), (5.0, 12.0), (1.0, 1.0)]
+    return [(x, y) for x, y in pts if not math.isinf(x) and not math.isinf(y) and abs(y) < 1.7976931348623157e308]
+
+
+def hypot_points_float():
+    pts = []
+    for _ in range(800):
+        a = math.copysign(random_positive_float(), rng.choice((-1, 1)))
+        y = math.copysign(abs(a) * 2.0 ** rng.uniform(-30, 30), rng.choice((-1, 1)))
+        if abs(y) < FLT_MAX:                                # sinon, pas un float
+            pts.append((a, to_f32(y)))
+    return pts
+
+
 def pow_points_double():
     pts = []
     for _ in range(1500):                                   # x quelconque, |y log x| < 700
@@ -550,7 +591,9 @@ def reference_file():
             ("sin_float", trig_points_float(), mp.sin, round_float, ulp_float, hexf, "float"),
             ("cos_float", trig_points_float(), mp.cos, round_float, ulp_float, hexf, "float"),
             ("tan_float", trig_points_float(), mp.tan, round_float, ulp_float, hexf, "float"),
-            ("atan_float", atan_points_float(), mp.atan, round_float, ulp_float, hexf, "float")):
+            ("atan_float", atan_points_float(), mp.atan, round_float, ulp_float, hexf, "float"),
+            ("cbrt_double", cbrt_points_double(), real_cbrt, round_double, ulp_double, hexd, "double"),
+            ("cbrt_float", cbrt_points_float(), real_cbrt, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
@@ -558,7 +601,9 @@ def reference_file():
             ("pow_double", pow_points_double(), pow_exact, round_double, ulp_double, hexd, "double"),
             ("pow_float", pow_points_float(), pow_exact, round_float, ulp_float, hexf, "float"),
             ("atan2_double", atan2_points_double(), atan2_exact, round_double, ulp_double, hexd, "double"),
-            ("atan2_float", atan2_points_float(), atan2_exact, round_float, ulp_float, hexf, "float")):
+            ("atan2_float", atan2_points_float(), atan2_exact, round_float, ulp_float, hexf, "float"),
+            ("hypot_double", hypot_points_double(), lambda x, y: mp.hypot(mpf(x), mpf(y)), round_double, ulp_double, hexd, "double"),
+            ("hypot_float", hypot_points_float(), lambda x, y: mp.hypot(mpf(x), mpf(y)), round_float, ulp_float, hexf, "float")):
         text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")

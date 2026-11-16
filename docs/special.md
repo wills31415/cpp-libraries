@@ -4,9 +4,9 @@
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
-> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan` et `atan2` (float, double) implémentés et
-> vérifiés (§6). Restent `cbrt`, `hypot`, `lgamma`, `tgamma`, `erf`, `erfc` et leurs
-> inverses.
+> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt` et `hypot`
+> (float, double) implémentés et vérifiés (§6). Restent `lgamma`, `tgamma`, `erf`,
+> `erfc` et leurs inverses.
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -171,7 +171,10 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `cos` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 | `tan` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 | `atan` | 0,499 ulp | 100 % | 0,500 ulp (100 %) |
-| `atan2` | 0,499 ulp | 100 % | 0,499 ulp (100 %) |
+| `atan2` | 0,499 ulp | 100 % | 0,500 ulp (100 %) |
+| `sqrt` | arrondi correct (IEEE) | 100 % | arrondi correct |
+| `cbrt` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `hypot` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -201,7 +204,23 @@ double-double ; atan par table et réduction t = (v − c)/(1 + v c) ; atan2 en
 double-double jusqu'aux corrections π/2 − · et π − ·. Les cas à part sont comparés à
 `<cmath>` (toutes les combinaisons de 11 valeurs remarquables pour atan2).
 
-**Bit-exactitude** : les 26 empreintes (13 fonctions × 2 types) sont identiques sur macOS
+Fonctions algébriques : `sqrt` est l'instruction IEEE à l'exécution ; en évaluation
+constante, une racine entière chiffre par chiffre (entiers 128 bits) rend les mêmes bits
+(vérifié sur 3 millions de doubles). `cbrt` : approximation par les bits (2⁻⁵), deux
+itérations de Halley (2⁻⁴⁵), un pas de Newton à résidu exact (2⁻⁸⁹). `hypot` : mise à
+l'échelle par une puissance de 2, a² + b² en double-double, racine corrigée de son
+résidu exact.
+
+**Limites du produit de Dekker** (constatées) : il déborde si un facteur dépasse 2⁹⁹⁵
+(le découpage de Veltkamp multiplie par 2²⁷ + 1), et devient inexact si ses produits
+partiels tombent dans les sous-normaux. `atan2` l'a montré deux fois : 0,67 ulp pour
+y ≈ 2⁻¹⁰²² (produits sous-normaux), puis NaN pour y ≈ 2⁻⁸³⁵, x ≈ 2⁷⁹⁷ (débordement
+après une mise à l'échelle trop généreuse) — ce second cas détecté par le test
+d'empreintes, les NaN rendus n'ayant pas les mêmes bits en `-O0` et en `-O1`. Toute
+utilisation de `two_product` doit garantir des facteurs sous 2⁹⁹⁵ et un produit loin
+des sous-normaux, ou accepter l'inexactitude là où elle est sans effet.
+
+**Bit-exactitude** : les 30 empreintes (15 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).

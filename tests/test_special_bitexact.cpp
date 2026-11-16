@@ -208,6 +208,21 @@ int main()
         return of_float(sp::atan2(y, x));
     });
 
+    // Fonctions algébriques : tous les doubles finis (bits aléatoires).
+    auto const any_double = [](splitmix64& g) { return std::bit_cast<double>(g() & 0xffefffffffffffff); };
+    auto const cbrt_double = fingerprint([&](splitmix64& g) { return of_double(sp::cbrt(any_double(g))); });
+    auto const hypot_double = fingerprint([&](splitmix64& g) {
+        double const x = any_double(g);
+        double const y = any_double(g);
+        return of_double(sp::hypot(x, y));
+    });
+    auto const cbrt_float = fingerprint([&](splitmix64& g) { return of_float(sp::cbrt(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff)))); });
+    auto const hypot_float = fingerprint([&](splitmix64& g) {
+        float const x = std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff));
+        float const y = std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff));
+        return of_float(sp::hypot(x, y));
+    });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -229,12 +244,16 @@ int main()
     ok &= check("cos double", cos_double, 0x73c98d0ba6c856d1);
     ok &= check("tan double", tan_double, 0xa6ff7c3298679e4c);
     ok &= check("atan double", atan_double, 0xc0eaff1c7939caa3);
-    ok &= check("atan2 double", atan2_double, 0xb8df5c829123aa00);
+    ok &= check("atan2 double", atan2_double, 0xc11e0b5fb09d6dbd);
     ok &= check("sin float", sin_float, 0xf3dd2fa428f21680);
     ok &= check("cos float", cos_float, 0x216da6f1a9bb6224);
     ok &= check("tan float", tan_float, 0xf847c6dbd98a670d);
     ok &= check("atan float", atan_float, 0x46044c8b18db7619);
     ok &= check("atan2 float", atan2_float, 0x8138cf20810c3d95);
+    ok &= check("cbrt double", cbrt_double, 0x130f4c4a6e6bc014);
+    ok &= check("hypot double", hypot_double, 0x6571c9f1c46dc8d9);
+    ok &= check("cbrt float", cbrt_float, 0x2f8352bd44cdbd49);
+    ok &= check("hypot float", hypot_float, 0x72174db6500aa335);
     assert(ok);
     return 0;
 }
