@@ -156,7 +156,7 @@ sur tout le domaine, aux bords des sous-intervalles et des tables, sous-normaux 
 | Fonction | Erreur maximale | Résultats correctement arrondis |
 |---|---|---|
 | `exp` double | 0,504 ulp | 99,89 % |
-| `log` double | 0,500 ulp | 100 % de l'échantillon |
+| `log` double | 0,500 ulp | 100 % de l'échantillon (5 600 points) |
 | `exp` float | 0,500 ulp | 100 % de l'échantillon |
 | `log` float | 0,500 ulp | 100 % de l'échantillon |
 
@@ -164,17 +164,34 @@ sur tout le domaine, aux bords des sous-intervalles et des tables, sous-normaux 
 (GCC 14 et Clang 18, Debug et Release) et, configuration hostile, Linux x86-64 avec
 `-march=x86-64-v3 -ffp-contract=fast` (GCC et Clang). La CI ajoute macOS ARM64.
 
-**Coût**, en nanosecondes par appel (Intel i7-9750H, `examples/special_benchmark`,
-minimum de 9 mesures), contre la libm d'Apple :
+**Coût**, en nanosecondes par appel, contre la libm d'Apple (Intel i7-9750H,
+`tools/special/benchmark.sh`, minimum de 9 mesures, un programme par fonction ; les
+chiffres varient de 10 à 20 % d'une exécution à l'autre) :
 
 | Fonction | wsl::special | `<cmath>` | Rapport |
 |---|---|---|---|
-| `exp` double | 6,5 | 5,0 | ×1,3 |
-| `log` double | 12,9 | 4,3 | ×3,0 |
-| `exp` float | 8,5 | 3,9 | ×2,2 |
-| `log` float | 13,2 | 4,5 | ×2,9 |
+| `exp` double | 6,5 | 5,3 à 6,0 | ×1,1 à 1,2 |
+| `log` double | 8,8 à 10,7 | 4,7 à 5,3 | ×1,6 à 2,3 |
+| `exp` float | 8,4 | 4,4 | ×1,9 |
+| `log` float | 9,8 | 4,5 à 4,9 | ×2,0 à 2,3 |
 
-Pistes d'optimisation, sans toucher à la garantie : pour `log`, un polynôme plus court
-(table plus fine) et moins d'opérations exactes ; pour `float`, des algorithmes propres
-au `float` (encore évalués en `double`, mais avec moins de termes). Toute optimisation
-qui change des résultats est une rupture (§2.1) : à faire avant la version 1.0.
+`log` a été accéléré d'environ 30 % (13 → 9 à 10 ns), sans changer sa précision :
+table deux fois plus fine (polynôme de degré 7 au lieu de 8), évaluation d'Estrin au
+lieu de Horner, `log(c)` tabulé sur une grille de 2⁻⁴² pour que `e·ln2 + log(c)` soit
+exact (une somme exacte de moins), réduction et indice sans branche ni conversion.
+
+Les mesures sont faites par des programmes séparés : dans un même programme, de petites
+variations de la boucle de mesure ont faussé les chiffres d'un facteur 3 à 5, de façon
+reproductible et pour `<cmath>` aussi (constaté sur Intel).
+
+Piste restante : pour `float`, des algorithmes propres (encore évalués en `double`, mais
+avec moins de termes). Toute optimisation qui change des résultats est une rupture
+(§2.1) : à faire avant la version 1.0.
+
+**Vérification de la règle `fmul`** : le test `special_no_contraction` compile les
+fonctions avec fma disponible et `-ffp-contract=fast`, et refuse toute instruction fma
+dans le code engendré (contre-épreuve à l'appui). Limite : un compilateur ne fusionne
+qu'un produit à usage unique ; un oubli sur un produit utilisé plusieurs fois lui
+échappe (constaté : c'était le cas de `r_hi` dans la première version de `log`) — il
+ne change alors aucun résultat, et les empreintes le verraient si un compilateur futur
+le fusionnait.

@@ -88,65 +88,75 @@ namespace wsl::special
     // -----------------------------------------------------------------------
     // log
     //
-    // x = 2^e z avec z dans [√2/2, √2], puis z = c (1 + r) avec c = j/256 :
-    //     log(x) = e ln2 + log(c) + log1p(r),  |r| < 2^-8,4.
-    // log(c) vient d'une table en double-double. z − c est exact (Sterbenz) ; r est
-    // obtenu en double-double sans division : r_hi = (z − c)·(1/c), 1/c tabulé, puis
-    // le résidu z − c − r_hi·c, exact par un produit de Dekker, donne r_lo. log1p(r) − r est un polynôme de Taylor de degré 8 (reste < 2^-68
-    // relativement à r). Les sommes de tête sont exactes (two_sum) : le résultat
-    // n'est arrondi qu'une fois. Près de 1 (c = 1), r = z − 1 exactement, sans
-    // annulation.
+    // x = 2^e z avec z dans [√2/2, √2), puis z = c (1 + r) avec c = j/512 :
+    //     log(x) = e ln2 + log(c) + log1p(r),  |r| < 2^-9,5.
+    //
+    // - Réduction sans branche, en arithmétique entière sur les bits de x : z garde
+    //   la mantisse de x, e est l'exposant décalé de sorte que z tombe dans
+    //   [√2/2, √2). Près de 1, e = 0 : pas d'annulation entre e ln2 et log(z).
+    // - j = round(512 z) par l'astuce du décalage (2^52 · 1,5) : sans conversion.
+    // - z − c est exact (Sterbenz). r est obtenu en double-double sans division :
+    //   r_hi = (z − c)·(1/c), 1/c tabulé, puis le résidu z − c − r_hi·c, exact par
+    //   un produit de Dekker (c n'a que 10 bits), donne r_lo.
+    // - log(c) est tabulé en deux parties, hi multiple de 2^-42 comme e ln2_hi :
+    //   w = e ln2_hi + log(c)_hi est exact. Puis |w| >= |r| (ou w = 0 quand c = 1),
+    //   d'où une somme exacte w + r_hi en trois opérations (Fast2Sum).
+    // - log1p(r) − r : Taylor de degré 7 (reste < 2^-69 relativement à r), évalué
+    //   par le schéma d'Estrin, dont les termes se calculent en parallèle.
+    // Le résultat n'est arrondi qu'une fois, à la dernière addition.
     // -----------------------------------------------------------------------
     constexpr double log(double x) noexcept
     {
         using namespace detail;
 
-        if (!(x == x))
-            return x + x;                                   // NaN
-        if (x == 0)
-            return -infinity;
-        if (x < 0)
-            return quiet_nan;
-        if (x == infinity)
-            return x;
-
-        int e = 0;
-        if (x < 0x1p-1022)                                  // sous-normal : remis à l'échelle, exactement
+        std::uint64_t ix = bits(x);
+        // Un seul test pour tous les cas à part : x <= 0 (le bit de signe rend ix
+        // très grand), sous-normal, +∞ ou NaN.
+        if (ix - 0x0010000000000000 >= 0x7fe0000000000000) [[unlikely]]
         {
-            x *= 0x1p52;
-            e = -52;
-        }
-        std::uint64_t const b = bits(x);
-        e += static_cast<int>(b >> 52) - 1023;
-        double z = from_bits((b & 0x000fffffffffffff) | 0x3ff0000000000000);   // dans [1, 2)
-        if (z > 0x1.6a09e667f3bcdp+0)                       // > √2
-        {
-            z *= 0.5;
-            ++e;
+            if (!(x == x))
+                return x + x;                               // NaN
+            if (x == 0)
+                return -infinity;
+            if (x < 0)
+                return quiet_nan;
+            if (x == infinity)
+                return x;
+            ix = bits(x * 0x1p52) - (std::uint64_t{52} << 52);   // sous-normal : x · 2^52, exposant corrigé
         }
 
-        auto const j = static_cast<int>(z * 256.0 + 0.5);   // dans [181, 362]
-        double const c = static_cast<double>(j) * 0x1p-8;
+        constexpr std::uint64_t half_sqrt2 = 0x3fe6a09e667f3bcd;       // bits de √2/2
+        std::uint64_t const offset = ix - half_sqrt2;
+        auto const e = static_cast<int>(static_cast<std::int64_t>(offset) >> 52);
+        double const z = from_bits(ix - (offset & (std::uint64_t{0xfff} << 52)));   // dans [√2/2, √2)
+
+        constexpr double shift = 0x1.8p52;                  // ulp 1 : t − shift = round(512 z)
+        constexpr double scale = static_cast<double>(1 << log_table_bits);
+        double const t = fmul(z, scale) + shift;            // produit exact
+        auto const j = static_cast<int>(bits(t) - bits(shift));   // dans [362, 724]
+        double const c = (t - shift) * (1.0 / scale);
         double const d = z - c;                             // exact
 
         auto const& entry = log_table[j - log_table_first];
         double const inverse_c = entry[2];
-        double const r_hi = d * inverse_c;
-        auto const [r1, r2] = split(r_hi);                  // c n'a que 9 bits : produits exacts
+        double const r_hi = fmul(d, inverse_c);
+        auto const [r1, r2] = split(r_hi);
         double const r_lo = fmul((d - fmul(r1, c)) - fmul(r2, c), inverse_c);
 
-        // log1p(r) − r = −r²/2 + r³/3 − r⁴/4 + r⁵/5 − r⁶/6 + r⁷/7 − r⁸/8
+        // log1p(r) − r = r² [(−1/2 + r/3) + r² (−1/4 + r/5) + r⁴ (−1/6 + r/7)]
         double const r = r_hi;
-        double const q = fmul(r * r, -0x1p-1 + fmul(r, 0x1.5555555555555p-2
-                                   + fmul(r, -0x1p-2 + fmul(r, 0x1.999999999999ap-3
-                                   + fmul(r, -0x1.5555555555555p-3 + fmul(r, 0x1.2492492492492p-3
-                                   + fmul(r, -0x1p-3)))))));
+        double const rr = r * r;
+        double const p01 = -0x1p-1 + fmul(r, 0x1.5555555555555p-2);
+        double const p23 = -0x1p-2 + fmul(r, 0x1.999999999999ap-3);
+        double const p45 = -0x1.5555555555555p-3 + fmul(r, 0x1.2492492492492p-3);
+        double const q = fmul(rr, (p01 + fmul(rr, p23)) + fmul(rr * rr, p45));
 
         double const ed = static_cast<double>(e);
-        auto const [s1, t1] = two_sum(fmul(ed, log_ln2_hi), entry[0]);   // e ln2_hi exact
-        auto const [s2, t2] = two_sum(s1, r_hi);
-        double const tail = t1 + t2 + fmul(ed, log_ln2_lo) + entry[1] + r_lo + q;
-        return s2 + tail;
+        double const w = fmul(ed, log_ln2_hi) + entry[0];  // exact
+        double const s = w + r_hi;
+        double const s_error = (w - s) + r_hi;              // exact : |w| >= |r_hi| ou w = 0
+        double const tail = (fmul(ed, log_ln2_lo) + entry[1]) + r_lo;
+        return s + ((s_error + tail) + q);
     }
 
     // -----------------------------------------------------------------------

@@ -153,6 +153,12 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(progress)
     wsl_add_test(special_elementary LIBRARY special)
     wsl_add_test(special_bitexact LIBRARY special)
+    # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
+    add_test(NAME special_no_contraction
+             COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
+                     -DSOURCES=${PROJECT_SOURCE_DIR}/tests/special_contraction
+                     -DPROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+                     -P ${PROJECT_SOURCE_DIR}/cmake/check_no_contraction.cmake)
 endif()
 
 # ---------------------------------------------------------------------------

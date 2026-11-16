@@ -136,8 +136,9 @@ def hexf(x):
 
 EXP_BITS = 7                      # 2^7 = 128 sous-intervalles
 EXP_N = 1 << EXP_BITS
-LOG_BITS = 8                      # c = j / 256
-LOG_FIRST, LOG_LAST = 181, 362    # z dans [√2/2, √2]  ⇒  j = round(256 z) dans [181, 362]
+LOG_BITS = 9                      # c = j / 512
+LOG_FIRST, LOG_LAST = 362, 724    # z dans [√2/2, √2)  ⇒  j = round(512 z) dans [362, 724]
+LOG_QUANTUM = 42                  # log(c)_hi multiple de 2^-42, comme e·ln2_hi
 
 
 def tables():
@@ -161,17 +162,23 @@ def tables():
         out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},\n")
     out.append("    };\n\n")
 
-    # log : x = 2^e z, z = c (1 + r), c = j / 256. e ln2_hi doit être exact pour |e| < 2^11.
+    # log : x = 2^e z, z = c (1 + r), c = j / 512. e ln2_hi doit être exact pour |e| < 2^11,
+    # et e ln2_hi + log(c)_hi aussi : les deux sont des multiples de 2^-42 (ln2_hi a 42
+    # bits significatifs, d'exposant -1), et leur somme reste sous 2^10.
     ln2_hi = truncated(ln2, 42)
+    assert ln2_hi * 2 ** LOG_QUANTUM == mp.nint(ln2_hi * 2 ** LOG_QUANTUM)
     out += [f"    inline constexpr int log_table_bits = {LOG_BITS};\n",
             f"    inline constexpr int log_table_first = {LOG_FIRST};\n",
             f"    inline constexpr double log_ln2_hi = {hexd(float(ln2_hi))};     // ln 2, 42 bits\n",
             f"    inline constexpr double log_ln2_lo = {hexd(round_double(ln2 - ln2_hi))};\n\n",
-            f"    // Pour c = j / 256, j = {LOG_FIRST} … {LOG_LAST} : ln(c) en double-double, et 1/c arrondi.\n",
+            f"    // Pour c = j / {2 ** LOG_BITS}, j = {LOG_FIRST} … {LOG_LAST} : ln(c) = hi + lo, hi multiple de\n",
+            f"    // 2^-{LOG_QUANTUM} (d'où e ln2_hi + hi exact), lo l'arrondi du reste ; puis 1/c arrondi.\n",
             "    inline constexpr double log_table[][3] = {\n"]
     for j in range(LOG_FIRST, LOG_LAST + 1):
         c = mpf(j) / 2 ** LOG_BITS
-        hi, lo = double_double(mp.log(c))
+        exact = mp.log(c)
+        hi = float(mp.nint(exact * 2 ** LOG_QUANTUM) / 2 ** LOG_QUANTUM)
+        lo = round_double(exact - mpf(hi))
         out.append(f"        {{{hexd(hi)}, {hexd(lo)}, {hexd(round_double(1 / c))}}},   // j = {j}\n")
     out.append("    };\n}\n")
     return "".join(out)

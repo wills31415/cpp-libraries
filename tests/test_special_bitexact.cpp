@@ -117,7 +117,7 @@ int main()
 
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
-    ok &= check("log double", log_double, 0x5b844cf840665c59);
+    ok &= check("log double", log_double, 0x75529ab2341c6559);
     ok &= check("exp float", exp_float, 0xe70dae8bac4c54dc);
     ok &= check("log float", log_float, 0xfd2df93b55a28f5e);
     assert(ok);

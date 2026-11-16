@@ -63,6 +63,10 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   changement sur une seule plateforme est un bug.
 - Les entrées des tests doivent elles aussi être protégées de la contraction
   (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
+- Le test `special_no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
+  dans le code engendré ; il ne voit pas un produit non protégé à usages multiples.
+- Mesurer les performances : `tools/special/benchmark.sh` (un programme par fonction ;
+  ne pas mesurer plusieurs fonctions dans un même programme, les chiffres s'y faussent).
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
   `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
 
