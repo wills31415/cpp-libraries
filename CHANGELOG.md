@@ -16,6 +16,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   maximale mesurée de 0,499 à 0,502 ulp. `exp2(n)`, `log2(2ⁿ)` et `log10(10ⁿ)` exacts.
 - `pow` (float, double, arguments mixtes comme `<cmath>`), mêmes garanties ; erreur
   maximale mesurée 0,502 ulp ; cas à part identiques à `<cmath>` (Annexe F de C).
+- `sin`, `cos`, `tan`, `atan`, `atan2` (float, double), mêmes garanties, arguments
+  immenses compris (réduction de Payne–Hanek exacte) ; erreur maximale mesurée 0,500 ulp,
+  100 % d'arrondis corrects sur les échantillons. Encore 3,5 à 5 fois plus lents que la
+  libm d'Apple.
 
 ## [0.1.0] — 2026-11-16
 

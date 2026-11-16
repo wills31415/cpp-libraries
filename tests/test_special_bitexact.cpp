@@ -180,6 +180,34 @@ int main()
         return of_float(sp::pow(x, y));
     });
 
+    // Trigonométrie : petits, moyens et immenses arguments (bits aléatoires).
+    auto const trig_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g() % 3;
+        if (choice == 0)
+            return uniform(g, -10, 10);
+        if (choice == 1)
+            return uniform(g, -0x1p20, 0x1p20);
+        return std::bit_cast<double>(g() & 0xffefffffffffffff);           // tous les doubles finis
+    };
+    auto const sin_double = fingerprint([&](splitmix64& g) { return of_double(sp::sin(trig_input(g))); });
+    auto const cos_double = fingerprint([&](splitmix64& g) { return of_double(sp::cos(trig_input(g))); });
+    auto const tan_double = fingerprint([&](splitmix64& g) { return of_double(sp::tan(trig_input(g))); });
+    auto const atan_double = fingerprint([&](splitmix64& g) { return of_double(sp::atan(std::bit_cast<double>(g() & 0xffefffffffffffff))); });
+    auto const atan2_double = fingerprint([&](splitmix64& g) {
+        double const y = std::bit_cast<double>(g() & 0xffefffffffffffff);
+        double const x = std::bit_cast<double>(g() & 0xffefffffffffffff);
+        return of_double(sp::atan2(y, x));
+    });
+    auto const sin_float = fingerprint([&](splitmix64& g) { return of_float(sp::sin(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff)))); });
+    auto const cos_float = fingerprint([&](splitmix64& g) { return of_float(sp::cos(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff)))); });
+    auto const tan_float = fingerprint([&](splitmix64& g) { return of_float(sp::tan(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff)))); });
+    auto const atan_float = fingerprint([&](splitmix64& g) { return of_float(sp::atan(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff)))); });
+    auto const atan2_float = fingerprint([&](splitmix64& g) {
+        float const y = std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff));
+        float const x = std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0xff7fffff));
+        return of_float(sp::atan2(y, x));
+    });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -197,6 +225,16 @@ int main()
     ok &= check("log1p float", log1p_float, 0x79935e48bb26c27c);
     ok &= check("pow double", pow_double, 0x979387e8dfa097bb);
     ok &= check("pow float", pow_float, 0x554a23153033bb57);
+    ok &= check("sin double", sin_double, 0x698975b623670a55);
+    ok &= check("cos double", cos_double, 0x73c98d0ba6c856d1);
+    ok &= check("tan double", tan_double, 0xa6ff7c3298679e4c);
+    ok &= check("atan double", atan_double, 0xc0eaff1c7939caa3);
+    ok &= check("atan2 double", atan2_double, 0xb8df5c829123aa00);
+    ok &= check("sin float", sin_float, 0xf3dd2fa428f21680);
+    ok &= check("cos float", cos_float, 0x216da6f1a9bb6224);
+    ok &= check("tan float", tan_float, 0xf847c6dbd98a670d);
+    ok &= check("atan float", atan_float, 0x46044c8b18db7619);
+    ok &= check("atan2 float", atan2_float, 0x8138cf20810c3d95);
     assert(ok);
     return 0;
 }

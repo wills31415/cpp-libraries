@@ -13,6 +13,7 @@ Le script est déterministe (graine fixe) : le relancer redonne les mêmes fichi
 
 Fichiers engendrés (à ne pas modifier à la main) :
     include/wsl/special/detail/tables.hpp
+    include/wsl/special/detail/trig_tables.hpp
     tests/data/special_elementary_reference.hpp
 """
 
@@ -192,6 +193,63 @@ def tables():
     return "".join(out)
 
 
+TRIG_BITS = 6                     # tables aux points c = i / 64
+SINCOS_LAST = 52                  # |r| <= π/4 + ε  ⇒  i = round(64 |r|) <= 51
+ATAN_LAST = 64                    # v dans [0, 1]
+TWO_OVER_PI_WORDS = 21            # bits de 2/π nécessaires jusqu'aux plus grands doubles
+
+
+def trig_tables():
+    out = [HEADER, "#pragma once\n\n#include <cstdint>\n\n",
+           "// Constantes et tables de sin, cos, tan, atan, atan2 (voir trigonometric.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n"]
+    half_pi = mp.pi / 2
+    # π/2 en cinq morceaux de 33 bits : k · morceau est exact pour |k| < 2^20.
+    parts, rest = [], half_pi
+    for _ in range(5):
+        part = truncated(rest, 33)
+        parts.append(part)
+        rest -= part
+    out.append("    // π/2 = pio2_1 + … + pio2_5 à 2^-165 près, chaque morceau sur 33 bits.\n")
+    for n, v in enumerate(parts, start=1):
+        out.append(f"    inline constexpr double pio2_{n} = {hexd(float(v))};\n")
+    out.append(f"    inline constexpr double inv_pio2 = {hexd(round_double(2 / mp.pi))};   // 2/π\n\n")
+    out.append("    // Constantes en double-double, et arrondis de π/4 et 3π/4.\n")
+    for name, v in (("pi", mp.pi), ("pio2", half_pi)):
+        hi, lo = double_double(v)
+        out.append(f"    inline constexpr double {name}_hi = {hexd(hi)};\n    inline constexpr double {name}_lo = {hexd(lo)};\n")
+    out.append(f"    inline constexpr double pio4 = {hexd(round_double(mp.pi / 4))};\n")
+    out.append(f"    inline constexpr double three_pio4 = {hexd(round_double(3 * mp.pi / 4))};\n\n")
+
+    # 2/π en mots de 64 bits, précédés d'un mot nul : le bit i (i >= 1) de 2/π est le
+    # bit (i − 1 + 64) de la suite, compté depuis le poids fort du premier mot.
+    # À calculer bien au-delà des 256 bits de travail : la table en compte 1344.
+    with mp.workprec(64 * TWO_OVER_PI_WORDS + 256):
+        scaled = int(mp.floor((2 / mp.pi) * mpf(2) ** (64 * TWO_OVER_PI_WORDS)))
+    words = [0] + [(scaled >> (64 * (TWO_OVER_PI_WORDS - 1 - w))) & (2 ** 64 - 1) for w in range(TWO_OVER_PI_WORDS)]
+    out.append(f"    // Bits de 2/π, {64 * TWO_OVER_PI_WORDS} après la virgule, précédés d'un mot nul (Payne–Hanek).\n")
+    out.append("    inline constexpr std::uint64_t two_over_pi_bits[] = {\n")
+    for w in words:
+        out.append(f"        0x{w:016x},\n")
+    out.append("    };\n\n")
+
+    out.append(f"    // Pour c = i / {2 ** TRIG_BITS}, i = 0 … {SINCOS_LAST} : sin(c) = hi + lo, cos(c) = hi + lo.\n")
+    out.append("    inline constexpr double sincos_table[][4] = {\n")
+    for i in range(SINCOS_LAST + 1):
+        c = mpf(i) / 2 ** TRIG_BITS
+        sh, sl = double_double(mp.sin(c))
+        ch, cl = double_double(mp.cos(c))
+        out.append(f"        {{{hexd(sh)}, {hexd(sl)}, {hexd(ch)}, {hexd(cl)}}},   // i = {i}\n")
+    out.append("    };\n\n")
+    out.append(f"    // Pour c = i / {2 ** TRIG_BITS}, i = 0 … {ATAN_LAST} : atan(c) = hi + lo.\n")
+    out.append("    inline constexpr double atan_table[][2] = {\n")
+    for i in range(ATAN_LAST + 1):
+        hi, lo = double_double(mp.atan(mpf(i) / 2 ** TRIG_BITS))
+        out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},   // i = {i}\n")
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Points de référence
 # ---------------------------------------------------------------------------
@@ -324,6 +382,76 @@ def references(name, xs, f, rounder, ulp, fmt, ctype):
     return "".join(lines), kept
 
 
+def near_multiples_of_half_pi(count, k_max):
+    xs = []
+    for _ in range(count):
+        k = rng.randint(1, k_max)
+        base = round_double(k * mp.pi / 2)
+        xs += [base, math.nextafter(base, math.inf), math.nextafter(base, 0)]
+    return xs
+
+
+def trig_points_double():
+    xs = [rng.uniform(-10, 10) for _ in range(1200)]
+    xs += [math.copysign(2.0 ** rng.uniform(-40, 0), rng.choice((-1, 1))) for _ in range(400)]
+    xs += [rng.uniform(-2.0 ** 20, 2.0 ** 20) for _ in range(400)]
+    large = []
+    while len(large) < 600:
+        x = random_positive_double()
+        if x >= 2.0 ** 20:
+            large.append(math.copysign(x, rng.choice((-1, 1))))
+    xs += large
+    xs += near_multiples_of_half_pi(150, 2 ** 20)
+    xs += near_multiples_of_half_pi(50, 2 ** 60)
+    xs += [6381956970095103 * 2.0 ** 797, 1e22, 1e300, 1.7976931348623157e308, math.pi / 4,
+           math.nextafter(math.pi / 4, 1), 2.0 ** 20, math.nextafter(2.0 ** 20, 0), 0.5, 1.0, 3.0]
+    return xs
+
+
+def trig_points_float():
+    xs = [to_f32(rng.uniform(-10, 10)) for _ in range(600)]
+    xs += [to_f32(math.copysign(2.0 ** rng.uniform(-20, 0), rng.choice((-1, 1)))) for _ in range(200)]
+    xs += [math.copysign(random_positive_float(), rng.choice((-1, 1))) for _ in range(400)]
+    return xs
+
+
+def atan_points_double():
+    xs = [math.copysign(2.0 ** rng.uniform(-60, 60), rng.choice((-1, 1))) for _ in range(1500)]
+    xs += [rng.uniform(-2, 2) for _ in range(500)]
+    xs += [2.0 ** -1074, 1e-300, 1.0, -1.0, 1e300, 1.7976931348623157e308, 2.0 ** 60, 2.0 ** 61]
+    return xs
+
+
+def atan_points_float():
+    xs = [to_f32(math.copysign(2.0 ** rng.uniform(-30, 30), rng.choice((-1, 1)))) for _ in range(800)]
+    xs += [to_f32(rng.uniform(-2, 2)) for _ in range(300)]
+    return xs
+
+
+def atan2_points_double():
+    pts = []
+    for _ in range(1500):
+        y = math.copysign(2.0 ** rng.uniform(-60, 60) * rng.uniform(1, 2), rng.choice((-1, 1)))
+        x = math.copysign(2.0 ** rng.uniform(-60, 60) * rng.uniform(1, 2), rng.choice((-1, 1)))
+        pts.append((y, x))
+    for _ in range(300):                                    # rapports extrêmes
+        pts.append((math.copysign(random_positive_double(), rng.choice((-1, 1))),
+                    math.copysign(random_positive_double(), rng.choice((-1, 1)))))
+    for _ in range(200):                                    # |y| ≈ |x|
+        x = math.copysign(rng.uniform(0.1, 10), rng.choice((-1, 1)))
+        pts.append((math.copysign(abs(x) * (1 + rng.uniform(-1e-6, 1e-6)), rng.choice((-1, 1))), x))
+    return pts
+
+
+def atan2_points_float():
+    pts = []
+    for _ in range(800):
+        y = math.copysign(to_f32(2.0 ** rng.uniform(-30, 30)), rng.choice((-1, 1)))
+        x = math.copysign(to_f32(2.0 ** rng.uniform(-30, 30)), rng.choice((-1, 1)))
+        pts.append((y, x))
+    return pts
+
+
 def pow_points_double():
     pts = []
     for _ in range(1500):                                   # x quelconque, |y log x| < 700
@@ -377,12 +505,12 @@ def pow_exact(x, y):
     return mp.power(mx, my)
 
 
-def references2(name, pts, rounder, ulp, fmt, ctype):
-    lines = [f"    // {name} : x, y, arrondi correct de pow(x, y), position exacte en ulp\n",
+def references2(name, pts, f, rounder, ulp, fmt, ctype):
+    lines = [f"    // {name} : x, y, arrondi correct de f(x, y), position exacte en ulp\n",
              f"    inline constexpr reference2<{ctype}> {name}[] = {{\n"]
     kept = 0
     for x, y in sorted(set(pts)):
-        exact = pow_exact(x, y)
+        exact = f(x, y)
         cr = rounder(exact)
         if math.isinf(cr) or cr == 0:
             continue
@@ -414,13 +542,24 @@ def reference_file():
             ("expm1_float", expm1_points_float(), mp.expm1, round_float, ulp_float, hexf, "float"),
             ("log2_float", log_points_float(), lambda x: mp.log(x, 2), round_float, ulp_float, hexf, "float"),
             ("log10_float", log_points_float(), mp.log10, round_float, ulp_float, hexf, "float"),
-            ("log1p_float", log1p_points_float(), mp.log1p, round_float, ulp_float, hexf, "float")):
+            ("log1p_float", log1p_points_float(), mp.log1p, round_float, ulp_float, hexf, "float"),
+            ("sin_double", trig_points_double(), mp.sin, round_double, ulp_double, hexd, "double"),
+            ("cos_double", trig_points_double(), mp.cos, round_double, ulp_double, hexd, "double"),
+            ("tan_double", trig_points_double(), mp.tan, round_double, ulp_double, hexd, "double"),
+            ("atan_double", atan_points_double(), mp.atan, round_double, ulp_double, hexd, "double"),
+            ("sin_float", trig_points_float(), mp.sin, round_float, ulp_float, hexf, "float"),
+            ("cos_float", trig_points_float(), mp.cos, round_float, ulp_float, hexf, "float"),
+            ("tan_float", trig_points_float(), mp.tan, round_float, ulp_float, hexf, "float"),
+            ("atan_float", atan_points_float(), mp.atan, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
-    for name, pts, rounder, ulp, fmt, ctype in (
-            ("pow_double", pow_points_double(), round_double, ulp_double, hexd, "double"),
-            ("pow_float", pow_points_float(), round_float, ulp_float, hexf, "float")):
-        text, counts[name] = references2(name, pts, rounder, ulp, fmt, ctype)
+    atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
+    for name, pts, f, rounder, ulp, fmt, ctype in (
+            ("pow_double", pow_points_double(), pow_exact, round_double, ulp_double, hexd, "double"),
+            ("pow_float", pow_points_float(), pow_exact, round_float, ulp_float, hexf, "float"),
+            ("atan2_double", atan2_points_double(), atan2_exact, round_double, ulp_double, hexd, "double"),
+            ("atan2_float", atan2_points_float(), atan2_exact, round_float, ulp_float, hexf, "float")):
+        text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")
     return "".join(out), counts
@@ -428,6 +567,7 @@ def reference_file():
 
 def main():
     (ROOT / "include/wsl/special/detail/tables.hpp").write_text(tables())
+    (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
     text, counts = reference_file()
     (ROOT / "tests/data/special_elementary_reference.hpp").write_text(text)
     for name, n in counts.items():

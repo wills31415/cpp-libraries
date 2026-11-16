@@ -105,6 +105,17 @@ namespace wsl::special::detail
         return {product, error};
     }
 
+    // Entier non signé de 128 bits (extension de GCC et Clang, d'où __extension__
+    // sous -Wpedantic) : réduction de Payne–Hanek, en arithmétique entière exacte.
+    __extension__ typedef unsigned __int128 uint128;
+
+    // Somme exacte quand |a| >= |b| (ou a = 0) : trois opérations (Dekker).
+    constexpr sum_error fast_two_sum(double a, double b) noexcept
+    {
+        double const sum = a + b;
+        return {sum, (a - sum) + b};
+    }
+
     // Valeur en double-double : hi + lo, |lo| bien plus petit que |hi|.
     struct double_double
     {

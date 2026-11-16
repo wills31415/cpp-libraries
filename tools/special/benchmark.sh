@@ -28,4 +28,9 @@ exp_double exp double -700 700
 log_double log double 1e-6 1e6
 exp_float exp float -80 80
 log_float log float 1e-6 1e6
+sin_double sin double -10 10
+sin_large sin double 1e20 1e300
+cos_double cos double -10 10
+tan_double tan double -10 10
+atan_double atan double -10 10
 TABLE

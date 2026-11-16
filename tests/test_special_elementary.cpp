@@ -109,6 +109,8 @@ static_assert(sp::log(1.0f) == 0.0f);
 static_assert(sp::exp2(10.0) == 1024.0 && sp::log2(1024.0) == 10.0 && sp::log10(1000.0) == 3.0);
 static_assert(sp::expm1(0x1p-60) == 0x1p-60 && sp::log1p(0x1p-60) == 0x1p-60);
 static_assert(sp::pow(2.0, 10.0) == 1024.0 && sp::pow(-3.0, 3.0) == -27.0);
+static_assert(sp::sin(0.0) == 0.0 && sp::cos(0.0) == 1.0 && sp::atan(1.0) == 0x1.921fb54442d18p-1);
+static_assert(sp::sin(1e300) == sp::sin(1e300) && sp::atan2(1.0, -1.0) == 0x1.2d97c7f3321d2p+1);
 
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
@@ -132,6 +134,16 @@ int main()
     check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
     check2<double>("pow double", reference_data::pow_double, [](double x, double y) { return sp::pow(x, y); }, 0.51);
     check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
+    check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
+    check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
+    check<double>("tan double", reference_data::tan_double, [](double x) { return sp::tan(x); }, 0.51);
+    check<double>("atan double", reference_data::atan_double, [](double x) { return sp::atan(x); }, 0.51);
+    check2<double>("atan2 double", reference_data::atan2_double, [](double y, double x) { return sp::atan2(y, x); }, 0.51);
+    check<float>("sin float", reference_data::sin_float, [](float x) { return sp::sin(x); }, 0.5 + 0x1p-28);
+    check<float>("cos float", reference_data::cos_float, [](float x) { return sp::cos(x); }, 0.5 + 0x1p-28);
+    check<float>("tan float", reference_data::tan_float, [](float x) { return sp::tan(x); }, 0.5 + 0x1p-28);
+    check<float>("atan float", reference_data::atan_float, [](float x) { return sp::atan(x); }, 0.5 + 0x1p-28);
+    check2<float>("atan2 float", reference_data::atan2_float, [](float y, float x) { return sp::atan2(y, x); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -217,6 +229,45 @@ int main()
     for (double x = 0.001; x < 1000; x *= 1.37)
         assert(sp::pow(x, 1.0) == x);
     assert(sp::pow(2, 3) == 8.0 && sp::pow(2.0f, 3.0f) == 8.0f && sp::pow(2.0f, 0.5) == sp::pow(2.0, 0.5));
+
+    // Trigonométrie : cas à part comparés à <cmath>, signe des zéros compris.
+    {
+        constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+        auto const same = [](double ours, double theirs) {
+            return (std::isnan(ours) && std::isnan(theirs)) || (ours == theirs && std::signbit(ours) == std::signbit(theirs));
+        };
+        double const singles[] = {0.0, -0.0, inf, -inf, nan, 0x1p-1074, -0x1p-1074, 0x1p-30, -0x1p-30};
+        for (double x : singles)
+        {
+            assert(same(sp::sin(x), std::sin(x)) && same(sp::cos(x), std::cos(x)));
+            assert(same(sp::tan(x), std::tan(x)) && same(sp::atan(x), std::atan(x)));
+        }
+        assert(sp::atan(inf) == 0x1.921fb54442d18p+0 && sp::atan(-inf) == -0x1.921fb54442d18p+0);
+        double const values[] = {0.0, -0.0, 1.0, -1.0, 0x1p-1074, -0x1p-1074, 1e300, -1e300, inf, -inf, nan};
+        for (double y : values)
+            for (double x : values)
+            {
+                double const ours = sp::atan2(y, x), theirs = std::atan2(y, x);
+                bool const ok = same(ours, theirs) || std::abs(ours - theirs) <= ulp(theirs);
+                if (!ok)
+                    std::printf("atan2(%a, %a) : %a, <cmath> %a\n", y, x, ours, theirs);
+                assert(ok);
+            }
+    }
+    // Identités : sin² + cos² ≈ 1, tan = sin/cos, atan(tan x) = x sur (−π/2, π/2),
+    // symétries exactes.
+    for (double x = -50; x < 50; x += 0.0137)
+    {
+        double const s = sp::sin(x), c = sp::cos(x);
+        assert(std::abs(s * s + c * c - 1) <= 4e-16);
+        assert(sp::sin(-x) == -s && sp::cos(-x) == c && sp::tan(-x) == -sp::tan(x));
+        if (std::abs(c) > 1e-3)
+            assert(std::abs(sp::tan(x) - s / c) <= 4 * ulp(s / c));
+    }
+    for (double x = -1.5; x < 1.5; x += 0.00731)
+        assert(std::abs(sp::atan(sp::tan(x)) - x) <= 2 * ulp(x) + 1e-300);
+    assert(sp::sin(0x1.921fb54442d18p+1) == 0x1.1a62633145c07p-53);   // sin(π arrondi) = π − π arrondi
+    assert(sp::cos(0x1.921fb54442d18p+0) == 0x1.1a62633145c07p-54);
 
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);

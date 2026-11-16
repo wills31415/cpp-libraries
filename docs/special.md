@@ -4,7 +4,9 @@
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
-> `log1p` et `pow` (float, double) implémentés et vérifiés (§6).
+> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan` et `atan2` (float, double) implémentés et
+> vérifiés (§6). Restent `cbrt`, `hypot`, `lgamma`, `tgamma`, `erf`, `erfc` et leurs
+> inverses.
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -164,7 +166,16 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `log2` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `log10` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `log1p` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
-| `pow` | 0,502 ulp | 99,92 % | 0,500 ulp (100 %) |
+| `pow` | 0,502 ulp | 99,84 à 99,92 % | 0,500 ulp (100 %) |
+| `sin` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `cos` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `tan` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `atan` | 0,499 ulp | 100 % | 0,500 ulp (100 %) |
+| `atan2` | 0,499 ulp | 100 % | 0,499 ulp (100 %) |
+
+Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
+immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
+π/2 (k jusqu'à 2⁶⁰) et le pire cas connu de la réduction (6381956970095103 · 2⁷⁹⁷).
 
 Exactitudes garanties par les tests : `exp2(n) = 2ⁿ` et `log2(2ⁿ) = n` pour tout
 entier n de [−1074, 1023], `log10(10ⁿ) = n` pour n de 0 à 22 (les puissances de 10
@@ -181,7 +192,16 @@ double-double, et `exp_finish_dd`, qui prend un argument double-double et garde 
 terme croisé r t (jusqu'à une demi-ulp s'il était omis). Coût : 38 ns contre 18 ns pour
 la libm d'Apple (×2,2).
 
-**Bit-exactitude** : les 16 empreintes (8 fonctions × 2 types) sont identiques sur macOS
+Trigonométrie : réduction modulo π/2 en double-double, précise à 2⁻⁷⁰ près même pour
+un reste de 2⁻⁶¹ — Cody–Waite avec π/2 en cinq morceaux de 33 bits sous 2²⁰, Payne–Hanek
+au-delà (mantisse × fenêtre de 256 bits de 2/π, en entiers 128 bits : exacte par
+construction ; 1 344 bits de 2/π tabulés). Puis sin et cos par table aux points i/64 en
+double-double et petits polynômes, le terme d'ordre 1 formé exactement ; tan par division
+double-double ; atan par table et réduction t = (v − c)/(1 + v c) ; atan2 en
+double-double jusqu'aux corrections π/2 − · et π − ·. Les cas à part sont comparés à
+`<cmath>` (toutes les combinaisons de 11 valeurs remarquables pour atan2).
+
+**Bit-exactitude** : les 26 empreintes (13 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).
@@ -204,6 +224,12 @@ chiffres varient de 10 à 20 % d'une exécution à l'autre) :
 | `log` double | 8,8 à 10,7 | 4,7 à 5,3 | ×1,6 à 2,3 |
 | `exp` float | 8,4 | 4,4 | ×1,9 |
 | `log` float | 9,8 | 4,5 à 4,9 | ×2,0 à 2,3 |
+| `pow` double | 38 | 18 | ×2,2 |
+| `sin` double (\|x\| < 10) | 31 | 6,1 | ×5,1 |
+| `sin` double (10²⁰ à 10³⁰⁰) | 49 | 13 | ×3,7 |
+| `cos` double | 29 | 7,0 | ×4,2 |
+| `tan` double | 38 | 9,7 | ×3,9 |
+| `atan` double | 26 | 7,4 | ×3,5 |
 
 `log` a été accéléré d'environ 30 % (13 → 9 à 10 ns), sans changer sa précision :
 table deux fois plus fine (polynôme de degré 7 au lieu de 8), évaluation d'Estrin au
@@ -214,7 +240,20 @@ Les mesures sont faites par des programmes séparés : dans un même programme, 
 variations de la boucle de mesure ont faussé les chiffres d'un facteur 3 à 5, de façon
 reproductible et pour `<cmath>` aussi (constaté sur Intel).
 
-Piste restante : pour `float`, des algorithmes propres (encore évalués en `double`, mais
+**La trigonométrie est la plus coûteuse** (×3,5 à ×5) : son noyau seul (|x| < π/4)
+prend 17 ns contre 2,3 pour la libm d'Apple. Il vise presque l'arrondi correct
+(0,4999 ulp) et forme exactement le terme d'ordre 1 par un produit de Dekker (17
+opérations), là où la libm évalue un seul polynôme (environ 0,55 ulp). Calculer
+seulement sin ou cos selon le quadrant n'a gagné que 15 %.
+
+Piste principale, pour toutes les fonctions : **produit exact par `fma` explicite quand
+la cible en a une** (2 opérations au lieu de 17). Le terme d'erreur d'un produit est
+unique, donc Dekker et fma rendent les mêmes bits — le déterminisme est préservé — sauf
+si le produit tombe dans les sous-normaux, où Dekker devient inexact : il faut alors
+prouver qu'aucun appel n'y arrive (ou les garder), et le vérifier par les empreintes sur
+des cibles avec et sans fma.
+
+Autre piste : pour `float`, des algorithmes propres (encore évalués en `double`, mais
 avec moins de termes). Toute optimisation qui change des résultats est une rupture
 (§2.1) : à faire avant la version 1.0.
 

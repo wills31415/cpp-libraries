@@ -8,3 +8,4 @@
 // using namespace, qui rendrait exp(2.0) ambigu avec le ::exp de <math.h>.
 
 #include <wsl/special/elementary.hpp>
+#include <wsl/special/trigonometric.hpp>
