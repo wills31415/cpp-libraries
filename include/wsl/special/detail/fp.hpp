@@ -93,6 +93,24 @@ namespace wsl::special::detail
         return {high, x - high};
     }
 
+    // Produit et erreur exacts : a · b == product + error exactement (Dekker),
+    // sans fma. Valable tant que ni a · b ni les découpages ne débordent.
+    constexpr sum_error two_product(double a, double b) noexcept
+    {
+        double const product = fmul(a, b);
+        auto const [a_high, a_low] = split(a);
+        auto const [b_high, b_low] = split(b);
+        double const error = (((fmul(a_high, b_high) - product) + fmul(a_high, b_low)) + fmul(a_low, b_high))
+                           + fmul(a_low, b_low);
+        return {product, error};
+    }
+
+    // Valeur en double-double : hi + lo, |lo| bien plus petit que |hi|.
+    struct double_double
+    {
+        double hi, lo;
+    };
+
     constexpr std::uint64_t bits(double x) noexcept { return std::bit_cast<std::uint64_t>(x); }
     constexpr double from_bits(std::uint64_t b) noexcept { return std::bit_cast<double>(b); }
 

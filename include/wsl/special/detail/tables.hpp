@@ -516,4 +516,12 @@ namespace wsl::special::detail
         {0x1.615ddb4bec000p-2, 0x1.3c7ca90bc04b2p-46, 0x1.6a94016a94017p-1},   // j = 723
         {0x1.62c82f2b9c000p-2, 0x1.e54bdbd7c8a98p-44, 0x1.6a13cd1537290p-1},   // j = 724
     };
+
+    // Constantes en double-double (hi + lo).
+    inline constexpr double ln2_hi = 0x1.62e42fefa39efp-1;
+    inline constexpr double ln2_lo = 0x1.abc9e3b39803fp-56;
+    inline constexpr double inv_ln2_hi = 0x1.71547652b82fep+0;
+    inline constexpr double inv_ln2_lo = 0x1.777d0ffda0d24p-56;
+    inline constexpr double inv_ln10_hi = 0x1.bcb7b1526e50ep-2;
+    inline constexpr double inv_ln10_lo = 0x1.95355baaafad3p-57;
 }

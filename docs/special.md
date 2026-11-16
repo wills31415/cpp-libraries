@@ -3,8 +3,8 @@
 > Document de conception. Décisions ✅ prises avec l'utilisateur le 2026-11-16 ;
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
-> **État** : phase 1 commencée — `exp` et `log` (float, double) implémentés et
-> vérifiés (§6).
+> **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10` et
+> `log1p` (float, double) implémentés et vérifiés (§6).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -148,21 +148,39 @@ exacte), puis `lgamma`/`erf`.
 
 ## 6. État et mesures
 
-Phase 1, au 2026-11-16 : `exp` et `log`, en `float` et en `double`.
+Phase 1, au 2026-11-16 : famille exponentielle et logarithme, en `float` et en `double`.
 
-**Précision**, contre `mpmath` (environ 5 500 points en double, 3 100 en float, choisis
-sur tout le domaine, aux bords des sous-intervalles et des tables, sous-normaux compris) :
+**Précision**, contre `mpmath` (2 500 à 5 600 points en double, 1 200 à 3 100 en float,
+choisis sur tout le domaine, aux bords des sous-intervalles et des tables, près des
+zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 pour `log1p`
+—, sous-normaux compris) :
 
-| Fonction | Erreur maximale | Résultats correctement arrondis |
-|---|---|---|
-| `exp` double | 0,504 ulp | 99,89 % |
-| `log` double | 0,500 ulp | 100 % de l'échantillon (5 600 points) |
-| `exp` float | 0,500 ulp | 100 % de l'échantillon |
-| `log` float | 0,500 ulp | 100 % de l'échantillon |
+| Fonction | Erreur max (double) | Arrondis corrects (double) | Erreur max (float) |
+|---|---|---|---|
+| `exp` | 0,504 ulp | 99,89 % | 0,500 ulp (100 %) |
+| `exp2` | 0,502 ulp | 99,92 % | 0,500 ulp (100 %) |
+| `expm1` | 0,500 ulp | 99,92 % | 0,500 ulp (100 %) |
+| `log` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `log2` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `log10` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `log1p` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 
-**Bit-exactitude** : empreintes identiques sur macOS x86-64 (Apple Clang), Linux x86-64
-(GCC 14 et Clang 18, Debug et Release) et, configuration hostile, Linux x86-64 avec
-`-march=x86-64-v3 -ffp-contract=fast` (GCC et Clang). La CI ajoute macOS ARM64.
+Exactitudes garanties par les tests : `exp2(n) = 2ⁿ` et `log2(2ⁿ) = n` pour tout
+entier n de [−1074, 1023], `log10(10ⁿ) = n` pour n de 0 à 22 (les puissances de 10
+exactes en double).
+
+**Bit-exactitude** : les 14 empreintes (7 fonctions × 2 types) sont identiques sur macOS
+x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
+configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
+`-ffp-contract=fast` (ARM64).
+
+Organisation du code : un noyau par famille (`reduce_exp`, `exp_finish`, `scale_exp` ;
+`log_kernel`, qui rend le logarithme en double-double), que les fonctions prolongent.
+`expm1` garde la réduction en double-double et ajoute exactement les termes qui
+s'annulent ; `log1p` évalue directement le polynôme pour |x| < 2⁻¹⁰ (passer par
+1 + x y coûtait jusqu'à 0,57 ulp), et sinon corrige log(1 + x) de l'erreur exacte de
+1 + x ; `log2` et `log10` multiplient le logarithme double-double par 1/ln 2 ou
+1/ln 10 en double-double.
 
 **Coût**, en nanosecondes par appel, contre la libm d'Apple (Intel i7-9750H,
 `tools/special/benchmark.sh`, minimum de 9 mesures, un programme par fonction ; les

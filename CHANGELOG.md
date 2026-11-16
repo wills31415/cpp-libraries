@@ -12,6 +12,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   compilation du projet (fma, `-ffp-contract=fast`), et `constexpr`. Erreur
   maximale mesurée 0,504 ulp (`exp` double), 0,500 ulp (les autres).
 - `log` en double environ 30 % plus rapide qu'à sa première écriture (même précision).
+- `exp2`, `expm1`, `log2`, `log10`, `log1p` (float, double), mêmes garanties ; erreur
+  maximale mesurée de 0,499 à 0,502 ulp. `exp2(n)`, `log2(2ⁿ)` et `log10(10ⁿ)` exacts.
 
 ## [0.1.0] — 2026-11-16
 

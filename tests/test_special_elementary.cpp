@@ -81,6 +81,8 @@ static_assert(sp::log(1.0) == 0.0);
 static_assert(sp::log(2.0) == 0x1.62e42fefa39efp-1);    // ln 2, arrondi correct
 static_assert(sp::exp(0.0f) == 1.0f);
 static_assert(sp::log(1.0f) == 0.0f);
+static_assert(sp::exp2(10.0) == 1024.0 && sp::log2(1024.0) == 10.0 && sp::log10(1000.0) == 3.0);
+static_assert(sp::expm1(0x1p-60) == 0x1p-60 && sp::log1p(0x1p-60) == 0x1p-60);
 
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
@@ -92,6 +94,16 @@ int main()
     check<double>("log double", reference_data::log_double, [](double x) { return sp::log(x); }, 0.51);
     check<float>("exp float", reference_data::exp_float, [](float x) { return sp::exp(x); }, 0.5 + 0x1p-28);
     check<float>("log float", reference_data::log_float, [](float x) { return sp::log(x); }, 0.5 + 0x1p-28);
+    check<double>("exp2 double", reference_data::exp2_double, [](double x) { return sp::exp2(x); }, 0.51);
+    check<double>("expm1 double", reference_data::expm1_double, [](double x) { return sp::expm1(x); }, 0.51);
+    check<double>("log2 double", reference_data::log2_double, [](double x) { return sp::log2(x); }, 0.51);
+    check<double>("log10 double", reference_data::log10_double, [](double x) { return sp::log10(x); }, 0.51);
+    check<double>("log1p double", reference_data::log1p_double, [](double x) { return sp::log1p(x); }, 0.51);
+    check<float>("exp2 float", reference_data::exp2_float, [](float x) { return sp::exp2(x); }, 0.5 + 0x1p-28);
+    check<float>("expm1 float", reference_data::expm1_float, [](float x) { return sp::expm1(x); }, 0.5 + 0x1p-28);
+    check<float>("log2 float", reference_data::log2_float, [](float x) { return sp::log2(x); }, 0.5 + 0x1p-28);
+    check<float>("log10 float", reference_data::log10_float, [](float x) { return sp::log10(x); }, 0.5 + 0x1p-28);
+    check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -125,12 +137,47 @@ int main()
     assert(sp::log(std::numeric_limits<double>::max()) == 0x1.62e42fefa39efp+9);
     assert(sp::log(0.0f) == -inff && std::isnan(sp::log(-1.0f)) && sp::log(inff) == inff);
 
+    // exp2 : puissances exactes, bornes.
+    for (int n = -1074; n < 1024; ++n)
+        assert(sp::exp2(double(n)) == std::ldexp(1.0, n));
+    assert(sp::exp2(1024.0) == inf && is_positive_zero(sp::exp2(-1080.0)) && is_positive_zero(sp::exp2(-inf)));
+    assert(sp::exp2(inf) == inf && std::isnan(sp::exp2(std::numeric_limits<double>::quiet_NaN())));
+    assert(sp::exp2(0.5) == 0x1.6a09e667f3bcdp+0);              // √2, arrondi correct
+
+    // expm1 : signe des zéros, petits arguments, bornes.
+    assert(is_positive_zero(sp::expm1(0.0)) && std::signbit(sp::expm1(-0.0)) && sp::expm1(-0.0) == 0);
+    assert(sp::expm1(0x1p-60) == 0x1p-60 && sp::expm1(-0x1p-60) == -0x1p-60);
+    assert(sp::expm1(0x1p-1074) == 0x1p-1074);
+    assert(sp::expm1(-inf) == -1.0 && sp::expm1(-40.0) == -1.0 && sp::expm1(inf) == inf);
+    assert(sp::expm1(1000.0) == inf);
+
+    // log2, log10 : puissances exactes.
+    for (int n = -1074; n < 1024; ++n)
+        assert(sp::log2(std::ldexp(1.0, n)) == n);
+    double power_of_ten = 1;
+    for (int n = 0; n <= 22; ++n, power_of_ten *= 10)            // 10^n exact en double jusqu'à 10^22
+        assert(sp::log10(power_of_ten) == n);
+    assert(sp::log2(0.0) == -inf && std::isnan(sp::log2(-1.0)) && sp::log10(inf) == inf);
+    assert(is_positive_zero(sp::log2(1.0)) && is_positive_zero(sp::log10(1.0)));
+
+    // log1p : signe des zéros, petits arguments, bornes.
+    assert(is_positive_zero(sp::log1p(0.0)) && std::signbit(sp::log1p(-0.0)) && sp::log1p(-0.0) == 0);
+    assert(sp::log1p(0x1p-60) == 0x1p-60 && sp::log1p(-0x1p-1074) == -0x1p-1074);
+    assert(sp::log1p(-1.0) == -inf && std::isnan(sp::log1p(-1.5)) && sp::log1p(inf) == inf);
+
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);
 
-    // Cohérence : log(exp(x)) ≈ x.
+    // Cohérence : log(exp(x)) ≈ x, log1p(expm1(x)) ≈ x, log2(exp2(x)) ≈ x.
     for (double x = -700; x < 700; x += 0.37)
+    {
         assert(std::abs(sp::log(sp::exp(x)) - x) <= 4 * ulp(x) + 1e-15);
+        assert(std::abs(sp::log2(sp::exp2(x)) - x) <= 4 * ulp(x) + 1e-15);
+    }
+    // (Pour x < −1, expm1(x) est proche de −1 et ne garde que peu de bits de
+    // e^x : l'aller-retour y est mal conditionné, quelle que soit la précision.)
+    for (double x = -1; x < 700; x += 0.173)
+        assert(std::abs(sp::log1p(sp::expm1(x)) - x) <= 4 * ulp(x));
 
     return 0;
 }

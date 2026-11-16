@@ -180,7 +180,15 @@ def tables():
         hi = float(mp.nint(exact * 2 ** LOG_QUANTUM) / 2 ** LOG_QUANTUM)
         lo = round_double(exact - mpf(hi))
         out.append(f"        {{{hexd(hi)}, {hexd(lo)}, {hexd(round_double(1 / c))}}},   // j = {j}\n")
-    out.append("    };\n}\n")
+    out.append("    };\n\n")
+
+    # Constantes en double-double : ln 2 (exp2), 1/ln 2 (log2), 1/ln 10 (log10).
+    out.append("    // Constantes en double-double (hi + lo).\n")
+    for name, value in (("ln2", ln2), ("inv_ln2", 1 / ln2), ("inv_ln10", 1 / mp.log(10))):
+        hi, lo = double_double(value)
+        out.append(f"    inline constexpr double {name}_hi = {hexd(hi)};\n")
+        out.append(f"    inline constexpr double {name}_lo = {hexd(lo)};\n")
+    out.append("}\n")
     return "".join(out)
 
 
@@ -251,6 +259,55 @@ def log_points_float():
     return [x for x in xs if x != 1.0]
 
 
+def exp2_points_double():
+    xs = [rng.uniform(-1080, 1024) for _ in range(1500)]
+    xs += [math.copysign(2.0 ** rng.uniform(-60, 3), rng.choice((-1, 1))) for _ in range(600)]
+    xs += [rng.uniform(-1075, -1022) for _ in range(300)]
+    xs += [float(n) for n in range(-1074, 1024, 37)] + [n + 0.5 for n in range(-50, 50, 7)]
+    return xs
+
+
+def expm1_points_double():
+    xs = [rng.uniform(-38, 709.78) for _ in range(800)]
+    xs += [math.copysign(2.0 ** rng.uniform(-60, 0), rng.choice((-1, 1))) for _ in range(1200)]
+    xs += [rng.uniform(-1, 1) for _ in range(600)]
+    ln2 = math.log(2)
+    for k in range(-6, 7):                                              # bords de sous-intervalles
+        base = k * ln2 / EXP_N + ln2 / (2 * EXP_N)
+        xs += [base, math.nextafter(base, math.inf), math.nextafter(base, -math.inf)]
+    xs += [2.0 ** -1074, -(2.0 ** -1074), 1e-300, -1e-300, -37.9, 709.0, 1.0, -1.0]
+    return xs
+
+
+def log1p_points_double():
+    xs = [math.copysign(2.0 ** rng.uniform(-60, -1), rng.choice((-1, 1))) for _ in range(1200)]
+    xs += [rng.uniform(-1, 10) for _ in range(600)]
+    xs += [-1 + 2.0 ** -rng.uniform(1, 53) for _ in range(300)]                      # près de −1
+    xs += [random_positive_double() for _ in range(500)]
+    xs += [2.0 ** -1074, -(2.0 ** -1074), 1e-300, -0.5, 1.0, 1e300, 1.7976931348623157e308]
+    return [x for x in xs if x > -1]
+
+
+def exp2_points_float():
+    xs = [to_f32(rng.uniform(-150, 128)) for _ in range(800)]
+    xs += [to_f32(math.copysign(2.0 ** rng.uniform(-30, 3), rng.choice((-1, 1)))) for _ in range(400)]
+    xs += [float(n) for n in range(-149, 128, 11)]
+    return xs
+
+
+def expm1_points_float():
+    xs = [to_f32(rng.uniform(-18, 88.72)) for _ in range(500)]
+    xs += [to_f32(math.copysign(2.0 ** rng.uniform(-30, 0), rng.choice((-1, 1)))) for _ in range(800)]
+    return xs
+
+
+def log1p_points_float():
+    xs = [to_f32(math.copysign(2.0 ** rng.uniform(-30, -1), rng.choice((-1, 1)))) for _ in range(800)]
+    xs += [to_f32(rng.uniform(-1, 10)) for _ in range(300)]
+    xs += [random_positive_float() for _ in range(300)]
+    return [x for x in xs if x > -1]
+
+
 def references(name, xs, f, rounder, ulp, fmt, ctype):
     lines = [f"    // {name} : x, arrondi correct de f(x), position exacte de f(x) en ulp\n",
              f"    inline constexpr reference<{ctype}> {name}[] = {{\n"]
@@ -277,7 +334,17 @@ def reference_file():
             ("exp_double", exp_points_double(), mp.exp, round_double, ulp_double, hexd, "double"),
             ("log_double", log_points_double(), mp.log, round_double, ulp_double, hexd, "double"),
             ("exp_float", exp_points_float(), mp.exp, round_float, ulp_float, hexf, "float"),
-            ("log_float", log_points_float(), mp.log, round_float, ulp_float, hexf, "float")):
+            ("log_float", log_points_float(), mp.log, round_float, ulp_float, hexf, "float"),
+            ("exp2_double", exp2_points_double(), lambda x: mp.power(2, x), round_double, ulp_double, hexd, "double"),
+            ("expm1_double", expm1_points_double(), mp.expm1, round_double, ulp_double, hexd, "double"),
+            ("log2_double", log_points_double(), lambda x: mp.log(x, 2), round_double, ulp_double, hexd, "double"),
+            ("log10_double", log_points_double(), mp.log10, round_double, ulp_double, hexd, "double"),
+            ("log1p_double", log1p_points_double(), mp.log1p, round_double, ulp_double, hexd, "double"),
+            ("exp2_float", exp2_points_float(), lambda x: mp.power(2, x), round_float, ulp_float, hexf, "float"),
+            ("expm1_float", expm1_points_float(), mp.expm1, round_float, ulp_float, hexf, "float"),
+            ("log2_float", log_points_float(), lambda x: mp.log(x, 2), round_float, ulp_float, hexf, "float"),
+            ("log10_float", log_points_float(), mp.log10, round_float, ulp_float, hexf, "float"),
+            ("log1p_float", log1p_points_float(), mp.log1p, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")

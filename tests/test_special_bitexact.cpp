@@ -115,11 +115,58 @@ int main()
         return std::uint64_t{std::bit_cast<std::uint32_t>(sp::log(x))};
     });
 
+    // Nouvelles fonctions : mêmes principes. Petites valeurs signées de tous
+    // exposants : bits aléatoires sous 1 (sous 2 pour exp2).
+    auto const small = [](splitmix64& g, std::uint64_t mask) {
+        std::uint64_t const sign = g();
+        double const x = std::bit_cast<double>(g() & mask);
+        return (sign & 1) ? -x : x;
+    };
+    auto const exp2_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        return (choice & 1) ? uniform(g, -1080, 1024) : small(g, 0x3fefffffffffffff);
+    };
+    auto const expm1_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        return (choice & 1) ? uniform(g, -40, 710) : small(g, 0x3fdfffffffffffff);
+    };
+    auto const positive_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        return (choice & 1) ? std::bit_cast<double>(g() & 0x7fefffffffffffff) : uniform(g, 0.5, 2.0);
+    };
+    auto const log1p_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        return (choice & 1) ? uniform(g, -1, 1e6) : small(g, 0x3fdfffffffffffff);
+    };
+    auto const of_double = [](double y) { return std::bit_cast<std::uint64_t>(y); };
+    auto const of_float = [](float y) { return std::uint64_t{std::bit_cast<std::uint32_t>(y)}; };
+
+    auto const exp2_double = fingerprint([&](splitmix64& g) { return of_double(sp::exp2(exp2_input(g))); });
+    auto const expm1_double = fingerprint([&](splitmix64& g) { return of_double(sp::expm1(expm1_input(g))); });
+    auto const log2_double = fingerprint([&](splitmix64& g) { return of_double(sp::log2(positive_input(g))); });
+    auto const log10_double = fingerprint([&](splitmix64& g) { return of_double(sp::log10(positive_input(g))); });
+    auto const log1p_double = fingerprint([&](splitmix64& g) { return of_double(sp::log1p(log1p_input(g))); });
+    auto const exp2_float = fingerprint([&](splitmix64& g) { return of_float(sp::exp2(static_cast<float>(uniform(g, -155, 130)))); });
+    auto const expm1_float = fingerprint([&](splitmix64& g) { return of_float(sp::expm1(static_cast<float>(expm1_input(g) / 8))); });
+    auto const log2_float = fingerprint([&](splitmix64& g) { return of_float(sp::log2(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0x7f7fffff)))); });
+    auto const log10_float = fingerprint([&](splitmix64& g) { return of_float(sp::log10(std::bit_cast<float>(static_cast<std::uint32_t>(g() & 0x7f7fffff)))); });
+    auto const log1p_float = fingerprint([&](splitmix64& g) { return of_float(sp::log1p(static_cast<float>(log1p_input(g)))); });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
     ok &= check("exp float", exp_float, 0xe70dae8bac4c54dc);
     ok &= check("log float", log_float, 0xfd2df93b55a28f5e);
+    ok &= check("exp2 double", exp2_double, 0x57b305f423cd4aa9);
+    ok &= check("expm1 double", expm1_double, 0x33d154266c84cd52);
+    ok &= check("log2 double", log2_double, 0x7bf1c6c8661a8ae2);
+    ok &= check("log10 double", log10_double, 0xc5088a1926d99501);
+    ok &= check("log1p double", log1p_double, 0x6275560ffbe3d9a9);
+    ok &= check("exp2 float", exp2_float, 0xd61d09d825ea0e17);
+    ok &= check("expm1 float", expm1_float, 0x4454c409717fbdf3);
+    ok &= check("log2 float", log2_float, 0x386f09ee6688ef03);
+    ok &= check("log10 float", log10_float, 0x2feaf388eb377657);
+    ok &= check("log1p float", log1p_float, 0x79935e48bb26c27c);
     assert(ok);
     return 0;
 }
