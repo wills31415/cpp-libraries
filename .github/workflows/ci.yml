@@ -1,0 +1,74 @@
+# Chaque bibliothèque est compilée et testée sur trois compilateurs et deux
+# bibliothèques standard, en Debug (ASan + UBSan) et en Release, avertissements
+# traités comme des erreurs. Chaque test tourne en C++20 et en C++23 quand la
+# bibliothèque le permet (voir wsl_add_test dans CMakeLists.txt).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.compiler.name }} · ${{ matrix.preset }}
+    runs-on: ${{ matrix.compiler.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14 }
+          - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18 }
+          - { name: "Apple Clang", os: macos-latest, cxx: /usr/bin/clang++ }
+        preset: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilateur
+        run: |
+          ${{ matrix.compiler.cxx }} --version
+          cmake --version
+
+      - name: Configuration
+        run: >
+          cmake --preset ${{ matrix.preset }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
+          -DWSL_LIBRARIES_WERROR=ON
+
+      - name: Compilation
+        run: cmake --build --preset ${{ matrix.preset }} -j 4
+
+      - name: Tests
+        run: ctest --preset ${{ matrix.preset }} -j 4
+
+  package:
+    name: Paquet CMake (installation, FetchContent)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installation
+        run: |
+          cmake -S . -B build/install -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release \
+                -DWSL_LIBRARIES_BUILD_TESTS=OFF -DWSL_LIBRARIES_BUILD_EXAMPLES=OFF
+          cmake --install build/install --prefix "$RUNNER_TEMP/prefix"
+
+      - name: find_package
+        run: |
+          cmake -S tests/package -B build/consumer-package -DCMAKE_CXX_COMPILER=g++-14 \
+                -DMODE=package -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/prefix"
+          cmake --build build/consumer-package
+          ctest --test-dir build/consumer-package --output-on-failure
+
+      - name: FetchContent
+        run: |
+          cmake -S tests/package -B build/consumer-subdirectory -DCMAKE_CXX_COMPILER=g++-14 \
+                -DMODE=subdirectory
+          cmake --build build/consumer-subdirectory
+          ctest --test-dir build/consumer-subdirectory --output-on-failure

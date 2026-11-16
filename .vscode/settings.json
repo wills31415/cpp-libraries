@@ -1,0 +1,17 @@
+{
+    // clangd fournit l'analyse du code : celle de cpptools, si installé, donnerait
+    // des diagnostics contradictoires.
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--background-index",
+        "--clang-tidy",
+        "--completion-style=detailed",
+        "--header-insertion=never"
+    ],
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
+    // Les bibliothèques et leurs tests sont déclarés explicitement dans
+    // CMakeLists.txt (wsl_add_library, wsl_add_test) : CMake Tools ne doit pas
+    // y ajouter de fichiers de lui-même.
+    "cmake.modifyLists.addNewSourceFiles": "no"
+}

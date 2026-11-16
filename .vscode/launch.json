@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Depuis un fichier ouvert de tests/ : tests/test_graded.cpp lance build/debug/tests/test_graded (C++23).
+            "name": "Déboguer le test courant",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/tests/${fileBasenameNoExtension}",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "integrated",
+            "preLaunchTask": "Compiler"
+        },
+        {
+            // Depuis un fichier ouvert de examples/.
+            "name": "Déboguer l'exemple courant",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/examples/${fileBasenameNoExtension}",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "integrated",
+            "preLaunchTask": "Compiler"
+        }
+    ]
+}

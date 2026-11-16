@@ -1,0 +1,13 @@
+@PACKAGE_INIT@
+
+# Bibliothèques en en-têtes seuls, sans dépendance externe : il n'y a rien
+# d'autre à retrouver chez celui qui nous importe.
+#
+#     find_package(wsl_libraries 0.1 REQUIRED)
+#     target_link_libraries(mon_programme PRIVATE wsl::array2d wsl::graded)
+#
+# wsl::libraries les réunit toutes.
+
+include("${CMAKE_CURRENT_LIST_DIR}/wsl_librariesTargets.cmake")
+
+check_required_components(wsl_libraries)

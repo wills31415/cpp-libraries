@@ -1,0 +1,69 @@
+# cpp-libraries
+
+Collection centrale des bibliothèques C++ génériques de l'utilisateur, en en-têtes
+seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
+
+## Règles
+
+- **Claude implémente** (demande de l'utilisateur, 2026-11-16) : écrire, corriger et
+  faire évoluer le code des bibliothèques et de leurs tests est attendu. Exception à
+  la règle par défaut de `cpp-init`.
+- **Objectif** : centraliser le maximum de code générique, aussi optimisé, générique
+  et proche de la bibliothèque standard que possible (nommage, garanties,
+  `constexpr`/`noexcept`, concepts, comportement aligné sur les conteneurs et
+  algorithmes standard).
+- **Langue** : identifiants, noms de fichiers et de cibles en anglais ; commentaires
+  et messages en français.
+- Standard minimal par bibliothèque : C++20 si possible, C++23 seulement si une
+  fonctionnalité l'exige. Le déclarer dans `wsl_add_library(... STANDARD ...)`.
+- Aucune dépendance externe dans une bibliothèque, sauf décision explicite.
+
+## Dépôt, versions, CI
+
+- Dépôt **public** `github.com/wills31415/cpp-libraries`, licence MIT : rien de
+  personnel dans les fichiers suivis (pas de chemin absolu `/Users/...`, pas de
+  détail sur le homelab ou les projets privés au-delà de leur nom).
+- Toute modification d'une bibliothèque s'accompagne d'une entrée dans la section
+  `[Non publié]` de `CHANGELOG.md`, sous le nom de la bibliothèque.
+- Publication : `tools/release.sh X.Y.Z` (voir README). Ne publier, pousser ou
+  taguer qu'à la demande de l'utilisateur.
+- CI (`.github/workflows/ci.yml`) : GCC 14 et Clang 18 (Ubuntu 24.04) et Apple Clang
+  (macOS), Debug + Release, `-DWSL_LIBRARIES_WERROR=ON`, plus `tests/package/`.
+  Reproduire la partie Linux en local : conteneur `ubuntu:24.04` avec
+  `cmake make g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
+- Les projets consomment le dépôt par FetchContent figé sur un tag ; cpp-init le
+  configure par défaut.
+
+## Commandes
+
+- Compiler : `cmake --preset debug && cmake --build --preset debug -j`
+- Tests : `ctest --preset debug` (ASan + UBSan) ; `ctest --preset release`
+- Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++20 et C++23,
+  sur les trois compilateurs de la CI.
+
+## Outils
+
+- `tools/cpp-init` : **source unique** du script de création de projets ;
+  `~/.local/bin/cpp-init` est un lien vers lui, et le skill `cpp-init`
+  (`~/.claude/skills/cpp-init/`) le lance. Le modifier ici.
+- `tools/release.sh` : publication d'une version.
+
+## Structure
+
+- `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via
+  `DEPENDS`, p. ex. `graded_io` → `graded`).
+- `tests/test_<nom>.cpp` : compilé une fois par standard supporté (`test_<nom>`
+  en C++23, `test_<nom>_cxx20`).
+- `examples/*.cpp` : un exécutable chacun, lié à `wsl::libraries`.
+- Compilateur imposé : `/usr/bin/clang++` (miniconda est en tête du PATH).
+
+## Provenance
+
+Les originaux sont restés en place, non modifiés : `~/projets/cpp-array2d`,
+`~/projets/cpp-container-distance-list`, `cpp-sudoku/src/exact_random.hpp`,
+`cpp-traversal/src/util/{array2d,progress}.hpp`, `cpp-traversal/src/agents/elo.hpp`.
+cpp-traversal utilise encore sa propre copie d'`array2d.hpp`.
+
+Le paquet `wsl` de `~/projets/cpp-tensors` (cibles `wsl::wsl`, `wsl::formula`,
+en-têtes `include/wsl/`) partage le namespace et le dossier d'en-têtes : éviter les
+noms d'en-têtes qui y existent déjà (`index.hpp`, `space.hpp`, `field.hpp`…).

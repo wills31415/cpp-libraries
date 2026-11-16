@@ -1,0 +1,129 @@
+# cpp-libraries
+
+[![CI](https://github.com/wills31415/cpp-libraries/actions/workflows/ci.yml/badge.svg)](https://github.com/wills31415/cpp-libraries/actions/workflows/ci.yml)
+
+Collection de bibliothèques C++ génériques, en en-têtes seuls, sous le namespace
+`wsl`. Objectif : du code réutilisable, optimisé et aussi proche du style et des
+garanties de la bibliothèque standard que possible.
+
+Testées à chaque commit avec GCC 14 et Clang 18 (libstdc++, Linux) et Apple Clang
+(libc++, macOS), en Debug (ASan + UBSan) et en Release, en C++20 et en C++23,
+avertissements traités comme des erreurs.
+
+## Catalogue
+
+| Cible CMake | En-tête | Standard | Contenu |
+|---|---|---|---|
+| `wsl::array2d` | `<wsl/array2d.hpp>` | C++23 | Tableau 2D de taille fixe (agrégat), dispositions ligne/colonne majeure, vues de lignes et colonnes (`std::span` ou `strided_view`), `mdspan` |
+| `wsl::dlist` | `<wsl/dlist.hpp>` | C++20 | Liste à distances : valeurs placées à des positions entières, stockées par écarts relatifs (insertion et extraction de fragments) |
+| `wsl::graded` | `<wsl/graded.hpp>` | C++20 | N-uplets ordonnés lexicographiquement (jets) : `jet` (arité exacte), `series` (arité bornée), arithmétique, concaténation, hachage |
+| `wsl::graded_io` | `<wsl/graded_io.hpp>` | C++20 | `std::formatter`, `operator<<` et `to_string` pour `graded` |
+| `wsl::exact_random` | `<wsl/exact_random.hpp>` | C++20 | Tirages entiers exactement uniformes (64 et 128 bits), mélange de Fisher–Yates, générateur entièrement initialisé |
+| `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
+| `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
+| `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
+
+Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :
+lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
+changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
+
+## Utiliser les bibliothèques dans un projet
+
+### FetchContent, figé sur une version (recommandé)
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(wsl_libraries
+    GIT_REPOSITORY https://github.com/wills31415/cpp-libraries.git
+    GIT_TAG        v0.1.0
+    GIT_SHALLOW    TRUE
+    EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(wsl_libraries)
+
+target_link_libraries(mon_programme PRIVATE wsl::array2d wsl::graded)
+```
+
+Chaque projet garde la version qu'il a choisie : une nouvelle version de
+cpp-libraries ne change rien tant que `GIT_TAG` n'est pas modifié. Les tests et
+exemples de ce dépôt ne sont pas construits chez le consommateur.
+
+`cpp-init` (voir plus bas) écrit ce bloc tout seul, sur la dernière version publiée.
+
+### Modifier une bibliothèque en même temps qu'un projet
+
+Pointer FetchContent sur un clone local, sans toucher au `CMakeLists.txt` du
+projet, par un preset dans `CMakeUserPresets.json` (fichier propre à la machine,
+à ne pas versionner) :
+
+```json
+{
+    "version": 6,
+    "configurePresets": [{
+        "name": "debug-wsl-local", "inherits": "debug",
+        "cacheVariables": { "FETCHCONTENT_SOURCE_DIR_WSL_LIBRARIES": "/chemin/vers/cpp-libraries" }
+    }]
+}
+```
+
+Les modifications du clone sont alors visibles immédiatement, et « aller à la
+définition » ouvre le vrai fichier source.
+
+### Paquet installé
+
+```sh
+cmake --preset release && cmake --build --preset release && ctest --preset release
+cmake --install build/release --prefix ~/.local
+```
+
+```cmake
+find_package(wsl_libraries 0.1 REQUIRED)
+target_link_libraries(mon_programme PRIVATE wsl::array2d)
+```
+
+Pratique pour un essai rapide, mais une seule version existe alors pour toute la
+machine : une version incompatible installée plus tard casse les anciens projets.
+
+## Développement
+
+| Action | VSCode | Terminal |
+|---|---|---|
+| Compiler | ⇧⌘B | `cmake --preset debug && cmake --build --preset debug -j` |
+| Tests (ASan + UBSan) | tâche « Tests » | `ctest --preset debug` |
+| Tests en Release | tâche « Tests (Release) » | `ctest --preset release` |
+| Déboguer le test ouvert | F5 → « Déboguer le test courant » | — |
+
+Chaque `tests/test_<nom>.cpp` est compilé dans **chaque** standard supporté par la
+bibliothèque : `test_<nom>` (C++23) et, si elle descend jusqu'à C++20,
+`test_<nom>_cxx20`. Un test réussit s'il renvoie 0. `tests/package/` vérifie, en
+CI, l'installation et FetchContent du point de vue d'un consommateur.
+
+### Ajouter une bibliothèque
+
+1. `include/wsl/<nom>.hpp`, dans le namespace `wsl`.
+2. `tests/test_<nom>.cpp`.
+3. Dans `CMakeLists.txt` : `wsl_add_library(<nom> STANDARD <20|23> [DEPENDS ...])`
+   et `wsl_add_test(<nom>)`.
+4. Une ligne dans le catalogue ci-dessus, une entrée dans `CHANGELOG.md`.
+
+### Publier une version
+
+Numérotation `MAJEUR.MINEUR.CORRECTIF` ; tant que `MAJEUR` vaut 0, une version
+mineure peut casser l'interface, un correctif jamais.
+
+1. Dans un commit poussé sur `main` : `VERSION` dans `project()` de
+   `CMakeLists.txt`, et la section `[Non publié]` du `CHANGELOG.md` renommée en
+   `[X.Y.Z] — date`.
+2. `tools/release.sh X.Y.Z` : vérifie version, journal, tests locaux et CI verte,
+   puis crée le tag `vX.Y.Z` et la release GitHub.
+
+## Outils
+
+- **`tools/cpp-init`** : crée un projet C++23 (CMake, presets, clangd, lldb, ctest,
+  ASan/UBSan) qui utilise ces bibliothèques, figées sur la dernière version
+  publiée (`--no-wsl` pour s'en passer). `cpp-init --help` pour le détail.
+  Installation : `ln -s "$PWD/tools/cpp-init" ~/.local/bin/cpp-init`.
+- **`tools/release.sh`** : publication d'une version (voir plus haut).
+
+## Licence
+
+[MIT](LICENSE).
