@@ -21,11 +21,15 @@ avertissements traités comme des erreurs.
 | `wsl::exact_random` | `<wsl/exact_random.hpp>` | C++20 | Tirages entiers exactement uniformes (64 et 128 bits), mélange de Fisher–Yates, générateur entièrement initialisé |
 | `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
 | `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
+| `wsl::special` | `<wsl/special.hpp>` | C++20 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `log` ; la suite en cours ([conception](docs/special.md)) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
 
 Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :
 lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
+
+En préparation : une bibliothèque de lois de probabilité « de mathématicien »,
+reproductible au bit près sur toute plateforme ([conception](docs/random.md)).
 
 ## Utiliser les bibliothèques dans un projet
 

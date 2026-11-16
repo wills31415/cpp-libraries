@@ -48,6 +48,24 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   (`~/.claude/skills/cpp-init/`) le lance. Le modifier ici.
 - `tools/release.sh` : publication d'une version.
 
+## wsl::special (fonctions bit-exactes)
+
+- Conception et mesures : `docs/special.md` ; lois de probabilité à venir : `docs/random.md`.
+- **Règle d'écriture** : uniquement `+ − × ÷` (et `sqrt`, `fma` explicites), jamais de
+  fonction transcendante de `<cmath>`. **Tout produit qui entre dans une addition ou
+  une soustraction passe par `detail::fmul`** (barrière contre la contraction en fma,
+  qui changerait les résultats selon la plateforme et les options du consommateur).
+- Tables et valeurs de référence engendrées :
+  `uv run --no-project --with mpmath python tools/special/generate.py` (ne jamais
+  modifier `detail/tables.hpp` ni `tests/data/` à la main).
+- `tests/test_special_bitexact.cpp` contient les empreintes attendues : un changement
+  voulu d'algorithme les change partout (rupture, à noter au CHANGELOG) ; un
+  changement sur une seule plateforme est un bug.
+- Les entrées des tests doivent elles aussi être protégées de la contraction
+  (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
+- Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
+  `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
+
 ## Structure
 
 - `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via

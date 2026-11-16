@@ -6,6 +6,12 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 
 ## [Non publié]
 
+### special (nouvelle)
+- `wsl::special::exp` et `wsl::special::log`, en `float` et en `double` : même
+  résultat au bit près sur toute plateforme, quelles que soient les options de
+  compilation du projet (fma, `-ffp-contract=fast`), et `constexpr`. Erreur
+  maximale mesurée 0,504 ulp (`exp` double), 0,500 ulp (les autres).
+
 ## [0.1.0] — 2026-11-16
 
 Première version : regroupement des bibliothèques existantes.

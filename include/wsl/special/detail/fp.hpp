@@ -1,0 +1,107 @@
+#pragma once
+
+// Socle de wsl::special : conditions de la garantie bit-exacte, et opérations
+// flottantes élémentaires dont le résultat est imposé par IEEE 754.
+//
+// Toute fonction de wsl::special est écrite avec les seules opérations + − × ÷,
+// dont la norme IEEE 754 impose l'arrondi correct : leur résultat est donc le même
+// sur toute plateforme. Trois choses pourraient le changer, et sont exclues ici :
+//
+//   - les optimisations « rapides » (-ffast-math) : refusées à la compilation ;
+//   - le calcul en précision étendue (x87) : refusé à la compilation ;
+//   - la contraction de a*b + c en une fma, qu'un compilateur a le droit de faire
+//     (Clang par défaut sur ARM64, GCC dès que la cible a une fma, et les deux
+//     sous -ffp-contract=fast, même avec #pragma) : tout produit dont le résultat
+//     entre dans une addition passe par fmul, qui la rend impossible.
+//
+// Le mode d'arrondi est supposé être celui par défaut (au plus proche, pair).
+
+#include <bit>
+#include <cfloat>
+#include <cstdint>
+#include <limits>
+#include <type_traits>
+
+#if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)
+#error "wsl::special : -ffast-math (ou -ffinite-math-only) rend la garantie bit-exacte impossible"
+#endif
+
+#if !defined(FLT_EVAL_METHOD) || FLT_EVAL_METHOD != 0
+#error "wsl::special : le calcul flottant doit se faire dans le type des opérandes (FLT_EVAL_METHOD == 0)"
+#endif
+
+#if !defined(__GNUC__)
+#error "wsl::special : seuls GCC et Clang sont pris en charge (barrière de contraction en assembleur)"
+#endif
+
+static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<float>::is_iec559,
+              "wsl::special : float et double doivent être les formats binary32 et binary64 d'IEEE 754");
+
+namespace wsl::special::detail
+{
+    // Rend la valeur opaque pour l'optimiseur : rien ne peut être fusionné à
+    // travers. Sans effet en évaluation constante, qui ne fusionne jamais.
+    template <class T>
+    constexpr T opaque(T value) noexcept
+    {
+        if (!std::is_constant_evaluated())
+        {
+#if defined(__x86_64__)
+            asm("" : "+x"(value));
+#elif defined(__aarch64__)
+            asm("" : "+w"(value));
+#else
+            asm("" : "+m"(value));
+#endif
+        }
+        return value;
+    }
+
+    // Produit destiné à une addition : arrondi une fois, jamais fusionné.
+    template <class T>
+    constexpr T fmul(T a, T b) noexcept
+    {
+        return opaque(a * b);
+    }
+
+    // Somme et erreur exactes : a + b == sum + error exactement (Knuth).
+    struct sum_error
+    {
+        double sum, error;
+    };
+
+    constexpr sum_error two_sum(double a, double b) noexcept
+    {
+        double const sum = a + b;
+        double const b_virtual = sum - a;
+        double const a_virtual = sum - b_virtual;
+        return {sum, (a - a_virtual) + (b - b_virtual)};
+    }
+
+    // Découpage de Veltkamp : x == high + low exactement, high sur 26 bits
+    // significatifs et low sur 27, si bien que les produits de deux moitiés sont
+    // exacts.
+    struct halves
+    {
+        double high, low;
+    };
+
+    constexpr halves split(double x) noexcept
+    {
+        double const t = fmul(x, 0x1.0000002p27);   // 2^27 + 1
+        double const high = t - (t - x);
+        return {high, x - high};
+    }
+
+    constexpr std::uint64_t bits(double x) noexcept { return std::bit_cast<std::uint64_t>(x); }
+    constexpr double from_bits(std::uint64_t b) noexcept { return std::bit_cast<double>(b); }
+
+    // 2^e, pour e dans [-1022, 1023] (exposant d'un double normal).
+    constexpr double power_of_two(int e) noexcept
+    {
+        return from_bits(static_cast<std::uint64_t>(e + 1023) << 52);
+    }
+
+    inline constexpr double infinity = std::numeric_limits<double>::infinity();
+    inline constexpr double quiet_nan = std::numeric_limits<double>::quiet_NaN();
+}

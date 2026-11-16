@@ -27,7 +27,8 @@ set(WSL_LIBRARIES_STANDARDS 20 23)
 #
 #     wsl_add_library(<nom> STANDARD <20|23> [DEPENDS <nom>...])
 #
-# Déclare la bibliothèque en en-têtes seuls include/wsl/<nom>.hpp, sous la
+# Déclare la bibliothèque en en-têtes seuls include/wsl/<nom>.hpp (plus, s'il
+# existe, le dossier include/wsl/<nom>/ et ses sous-dossiers), sous la
 # cible wsl::<nom>. STANDARD est le minimum exigé, transmis aux consommateurs
 # par target_compile_features. DEPENDS nomme d'autres bibliothèques du dépôt.
 
@@ -46,10 +47,11 @@ function(wsl_add_library name)
         EXPORT_NAME ${name}
         WSL_STANDARD ${ARG_STANDARD})
     target_compile_features(${target} INTERFACE cxx_std_${ARG_STANDARD})
+    file(GLOB_RECURSE headers CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/wsl/${name}/*.hpp)
     target_sources(${target} INTERFACE
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include
-        FILES ${PROJECT_SOURCE_DIR}/include/wsl/${name}.hpp)
+        FILES ${PROJECT_SOURCE_DIR}/include/wsl/${name}.hpp ${headers})
     foreach(dependency IN LISTS ARG_DEPENDS)
         target_link_libraries(${target} INTERFACE wsl_${dependency})
     endforeach()
@@ -67,6 +69,7 @@ wsl_add_library(graded_io    STANDARD 20 DEPENDS graded)
 wsl_add_library(exact_random STANDARD 20)
 wsl_add_library(elo          STANDARD 20)
 wsl_add_library(progress     STANDARD 23)
+wsl_add_library(special      STANDARD 20)
 
 # Tout d'un coup : wsl::libraries.
 add_library(wsl_libraries INTERFACE)
@@ -92,9 +95,10 @@ endif()
 # Tests
 # ---------------------------------------------------------------------------
 #
-#     wsl_add_test(<nom>)
+#     wsl_add_test(<nom> [LIBRARY <bibliothèque>])
 #
-# tests/test_<nom>.cpp, compilé une fois par standard supporté par wsl::<nom> :
+# tests/test_<nom>.cpp, lié à wsl::<bibliothèque> (par défaut wsl::<nom>), et
+# compilé une fois par standard supporté par cette bibliothèque :
 # test_<nom> en C++23 (celui que lancent l'éditeur et le débogueur), et
 # test_<nom>_cxx20 si la bibliothèque descend jusqu'à C++20. Un test réussit
 # s'il renvoie 0.
@@ -103,7 +107,12 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     enable_testing()
 
     function(wsl_add_test name)
-        get_target_property(minimum wsl_${name} WSL_STANDARD)
+        cmake_parse_arguments(PARSE_ARGV 1 ARG "" "LIBRARY" "")
+        set(library ${name})
+        if(ARG_LIBRARY)
+            set(library ${ARG_LIBRARY})
+        endif()
+        get_target_property(minimum wsl_${library} WSL_STANDARD)
         foreach(standard IN LISTS WSL_LIBRARIES_STANDARDS)
             if(standard LESS minimum)
                 continue()
@@ -114,7 +123,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
                 set(test test_${name}_cxx${standard})
             endif()
             add_executable(${test} tests/test_${name}.cpp)
-            target_link_libraries(${test} PRIVATE wsl::${name} wsl_libraries_options)
+            target_link_libraries(${test} PRIVATE wsl::${library} wsl_libraries_options)
             set_target_properties(${test} PROPERTIES
                 CXX_STANDARD ${standard}
                 CXX_STANDARD_REQUIRED ON
@@ -142,6 +151,8 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(exact_random)
     wsl_add_test(elo)
     wsl_add_test(progress)
+    wsl_add_test(special_elementary LIBRARY special)
+    wsl_add_test(special_bitexact LIBRARY special)
 endif()
 
 # ---------------------------------------------------------------------------

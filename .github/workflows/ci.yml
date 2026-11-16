@@ -2,6 +2,12 @@
 # bibliothèques standard, en Debug (ASan + UBSan) et en Release, avertissements
 # traités comme des erreurs. Chaque test tourne en C++20 et en C++23 quand la
 # bibliothèque le permet (voir wsl_add_test dans CMakeLists.txt).
+#
+# Les configurations « FMA » sont hostiles exprès : fma matérielle disponible et
+# contraction de a*b + c permise partout (-ffp-contract=fast). Les empreintes de
+# tests/test_special_bitexact.cpp doivent y être les mêmes qu'ailleurs : c'est la
+# preuve que la garantie bit-exacte de wsl::special résiste aux options du
+# projet consommateur.
 name: CI
 
 on:
@@ -23,9 +29,12 @@ jobs:
       fail-fast: false
       matrix:
         compiler:
-          - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14 }
-          - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18 }
-          - { name: "Apple Clang", os: macos-latest, cxx: /usr/bin/clang++ }
+          - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14, flags: "" }
+          - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18, flags: "" }
+          - { name: "Apple Clang", os: macos-latest, cxx: /usr/bin/clang++, flags: "" }
+          - { name: "GCC 14 FMA", os: ubuntu-24.04, cxx: g++-14, flags: "-march=x86-64-v3 -ffp-contract=fast" }
+          - { name: "Clang 18 FMA", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }
+          - { name: "Apple Clang FMA", os: macos-latest, cxx: /usr/bin/clang++, flags: "-ffp-contract=fast" }
         preset: [debug, release]
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +43,13 @@ jobs:
         run: |
           ${{ matrix.compiler.cxx }} --version
           cmake --version
+          uname -m
 
       - name: Configuration
         run: >
           cmake --preset ${{ matrix.preset }}
           -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
+          "-DCMAKE_CXX_FLAGS=${{ matrix.compiler.flags }}"
           -DWSL_LIBRARIES_WERROR=ON
 
       - name: Compilation
