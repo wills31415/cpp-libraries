@@ -134,7 +134,7 @@ namespace wsl::special
         constexpr double scale = static_cast<double>(1 << log_table_bits);
         double const t = fmul(z, scale) + shift;            // produit exact
         auto const j = static_cast<int>(bits(t) - bits(shift));   // dans [362, 724]
-        double const c = (t - shift) * (1.0 / scale);
+        double const c = fmul(t - shift, 1.0 / scale);      // exact, mais entre dans z − c
         double const d = z - c;                             // exact
 
         auto const& entry = log_table[j - log_table_first];

@@ -11,37 +11,58 @@
 # il ne change aucun résultat aujourd'hui, mais un compilateur futur pourrait le
 # fusionner : les empreintes de test_special_bitexact le verraient alors.
 
+# Les deux architectures ne fusionnent pas les mêmes produits (ARM64 fusionne aussi
+# des produits à usages multiples, que x86-64 laisse) : avec Apple Clang, l'autre
+# architecture est vérifiée en plus, par compilation croisée (assembleur seulement).
+
 if(PROCESSOR MATCHES "x86_64|AMD64|amd64")
-    set(target_flags -march=x86-64-v3)
+    set(configurations "native:-march=x86-64-v3")
+    set(other "arm64-apple-macos:")
 elseif(PROCESSOR MATCHES "arm64|aarch64")
-    set(target_flags "")
+    set(configurations "native:")
+    set(other "x86_64-apple-macos:-march=x86-64-v3")
 else()
     message(STATUS "Architecture ${PROCESSOR} : vérification non prévue, ignorée")
     return()
 endif()
+execute_process(COMMAND ${CXX} --version OUTPUT_VARIABLE version)
+if(version MATCHES "Apple clang")
+    list(APPEND configurations ${other})
+endif()
 
 set(fma_regex "[ \t](v?fn?m(add|sub)[0-9a-z]*)[ \t]")
 
-function(assembly source out)
+function(assembly source target flags out)
+    set(target_option "")
+    if(NOT target STREQUAL "native")
+        set(target_option -target ${target})
+    endif()
     execute_process(
-        COMMAND ${CXX} -std=c++20 -O2 -ffp-contract=fast ${target_flags} -I${INCLUDE} -S -o - ${source}
+        COMMAND ${CXX} -std=c++20 -O2 -ffp-contract=fast ${target_option} ${flags} -I${INCLUDE} -S -o - ${source}
         OUTPUT_VARIABLE asm ERROR_VARIABLE errors RESULT_VARIABLE status)
     if(NOT status EQUAL 0)
-        message(FATAL_ERROR "Compilation de ${source} impossible :\n${errors}")
+        message(FATAL_ERROR "Compilation de ${source} (${target}) impossible :\n${errors}")
     endif()
     set(${out} "${asm}" PARENT_SCOPE)
 endfunction()
 
-assembly(${SOURCES}/control.cpp control)
-if(NOT control MATCHES "${fma_regex}")
-    message(FATAL_ERROR "Contre-épreuve : aucune fma dans control.cpp, la vérification ne prouverait rien")
-endif()
-set(control_instruction ${CMAKE_MATCH_1})
+foreach(configuration IN LISTS configurations)
+    string(REPLACE ":" ";" parts "${configuration}:")
+    list(GET parts 0 target)
+    list(GET parts 1 flags)
+    separate_arguments(flags)
 
-assembly(${SOURCES}/functions.cpp functions)
-string(REGEX MATCHALL "${fma_regex}" found "${functions}")
-if(found)
-    message(FATAL_ERROR "fma dans le code de wsl::special : ${found}\n"
-                        "Un produit entrant dans une addition doit passer par detail::fmul.")
-endif()
-message(STATUS "Aucune fma dans wsl::special (contre-épreuve : ${control_instruction})")
+    assembly(${SOURCES}/control.cpp "${target}" "${flags}" control)
+    if(NOT control MATCHES "${fma_regex}")
+        message(FATAL_ERROR "Contre-épreuve (${target}) : aucune fma dans control.cpp, la vérification ne prouverait rien")
+    endif()
+    set(control_instruction ${CMAKE_MATCH_1})
+
+    assembly(${SOURCES}/functions.cpp "${target}" "${flags}" functions)
+    string(REGEX MATCHALL "${fma_regex}" found "${functions}")
+    if(found)
+        message(FATAL_ERROR "fma dans le code de wsl::special (${target}) : ${found}\n"
+                            "Un produit entrant dans une addition doit passer par detail::fmul.")
+    endif()
+    message(STATUS "${target} : aucune fma dans wsl::special (contre-épreuve : ${control_instruction})")
+endforeach()
