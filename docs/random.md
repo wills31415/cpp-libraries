@@ -1,0 +1,251 @@
+# wsl::random — les lois de probabilité, du point de vue mathématique
+
+> Document de conception. Décisions ✅ prises avec l'utilisateur le 2026-11-16 ;
+> les propositions ◻︎ ont été validées en bloc le même jour.
+>
+> **État** : rien n'est encore implémenté ; la phase 1 (`wsl::special`) est en cours.
+
+## 1. Vision ✅
+
+Pouvoir tirer selon **toutes** les lois de probabilité — de l'uniforme à Dirichlet et
+au-delà — en se plaçant du point de vue du probabiliste :
+
+1. **Une loi est un objet mathématique complet**, pas seulement un générateur : elle a
+   un support, une densité ou une fonction de masse, une fonction de répartition, des
+   quantiles, des moments, une entropie… Le tirage n'est qu'une opération parmi d'autres.
+2. **Une algèbre des lois** : construire des lois à partir d'autres (image par une
+   transformation affine ou une fonction, troncature et conditionnement, mélanges,
+   produits de lois indépendantes), avec les identités connues quand elles existent.
+3. **Exactitude** : des tirages exacts quand c'est possible, sans approximation
+   flottante cachée ; une précision documentée sinon.
+4. **Le vocabulaire des manuels** : lois et paramétrisations nommées comme dans la
+   littérature, paramètres vérifiés.
+
+« Toutes les lois » est une liste sans fin : la bibliothèque n'est donc pas une
+collection de lois écrites une à une, mais une **structure** où ajouter une loi coûte
+peu. Une loi déclare ce que l'on sait d'elle ; la bibliothèque en déduit le reste.
+
+## 2. Décisions
+
+| Sujet | Décision | |
+|---|---|---|
+| Périmètre | Lois univariées (discrètes et continues), multivariées, objets combinatoires, processus | ✅ |
+| Reproductibilité | **Bit-exacte sur toutes les plateformes**, lois continues comprises (voir §3) | ✅ |
+| Fonctions spéciales | Bibliothèque à part, [`wsl::special`](special.md) | ✅ |
+| Interface | Objets mathématiques **et** adaptateur vers le modèle de `<random>` | ✅ |
+| Paramètres | Nommés et vérifiés : `gamma({.shape = 2.5, .rate = 2.0})` ; `std::domain_error` hors domaine | ✅ |
+| Exactitude | **Exact par défaut** quand un algorithme exact est connu ; variante rapide sur demande explicite | ✅ |
+| Types flottants | `float` et `double` ; `long double` refusé à la compilation | ✅ |
+| Moteurs | Tout moteur standard, plus xoshiro256++, PCG64, Philox | ✅ |
+| Dimension (multivarié) | Fixe ou dynamique, sur le modèle de `std::span` (`dirichlet<double, 3>`, `dirichlet<double, dynamic>`) | ◻︎ |
+| Processus | Vues paresseuses (`std::ranges`) | ◻︎ |
+
+## 3. Reproductibilité ✅
+
+**Garantie** : même moteur, même graine ⇒ mêmes tirages au bit près, sur toute
+plateforme conforme (conditions dans [special.md §2.3](special.md)).
+
+Pourquoi ne pas s'appuyer sur `<random>` : la norme spécifie complètement les moteurs
+(`mt19937`…), mais pas les algorithmes des lois. Vérifié, même moteur `mt19937_64` de
+graine 42 :
+
+| | `normal_distribution` | `gamma_distribution(2.5)` | `uniform_int_distribution(1, 6)` |
+|---|---|---|---|
+| macOS (libc++) | 1.293820423273 | 3.041677468034 | 1 |
+| Linux (libstdc++) | 0.704988266421 | 3.378867072039 | 5 |
+
+Deux conséquences :
+
+- **Aucune loi de `<random>` n'est utilisée**, et aucune fonction transcendante de
+  `<cmath>` : tout passe par `wsl::special` (une différence d'un bit dans un `log` suffit
+  à faire basculer un test d'acceptation, donc à désynchroniser le flux entier).
+- **Un algorithme de tirage fait partie du contrat.** Le changer — même pour
+  l'accélérer — change les tirages : c'est une rupture, annoncée dans le `CHANGELOG.md`.
+  Le nombre de valeurs consommées sur le moteur fait aussi partie du contrat.
+
+## 4. Architecture
+
+```
+wsl::special   fonctions bit-exactes (voir special.md)
+     ↑
+wsl::random
+  ├─ engines      moteurs : ceux de <random> + xoshiro256++, PCG64, Philox, SplitMix64
+  ├─ uniform      bits → entiers uniformes exacts, réels uniformes exacts, Bernoulli exacte
+  ├─ laws         les lois : chacune déclare support, paramètres, et ce qu'on sait d'elle
+  ├─ algebra      image, troncature, mélange, produit ; identités connues
+  ├─ generic      tirage déduit de ce qui est connu (inversion, rejet…)
+  ├─ adaptor      as_distribution : une loi vue comme une distribution de <random>
+  └─ tests        tests statistiques (χ², Kolmogorov–Smirnov, Anderson–Darling)
+```
+
+### 4.1 Moteurs ✅
+
+Tout type satisfaisant `std::uniform_random_bit_generator` est accepté. La bibliothèque
+fournit en plus :
+
+| Moteur | Intérêt |
+|---|---|
+| `xoshiro256pp` | Très rapide, excellente qualité statistique, saut de 2¹²⁸ pour des flux disjoints |
+| `pcg64` | Qualité statistique, flux sélectionnables |
+| `philox4x64` | À compteur : la *n*-ième valeur s'obtient directement ; flux parallèles indépendants par construction (calcul réparti, GPU) |
+| `splitmix64` | Initialisation des autres à partir d'une graine de 64 bits |
+
+Tous ont un état et une initialisation entièrement spécifiés, donc reproductibles.
+
+### 4.2 Uniformes, la fondation ◻︎
+
+Tout le reste en dépend ; c'est là que l'exactitude commence.
+
+- **Entier uniforme sur [0, n)** : méthode de Lemire (multiplication et rejet, presque
+  sans division), exactement uniforme, sur 64 et 128 bits. Remplace `exact_random`.
+- **Réel uniforme sur [0, 1)**, exact : chaque `double` de [0, 1) est atteint avec
+  exactement la probabilité de son intervalle d'arrondi, y compris les plus petits
+  (exposant tiré selon une loi géométrique, puis mantisse). Le classique
+  `(x >> 11) * 2⁻⁵³` n'atteint que 2⁵³ valeurs régulièrement espacées : ce sera la
+  variante rapide.
+- **Bernoulli(p) exacte** pour p rationnel, ou p donné par ses bits (on ne consomme que
+  les bits nécessaires : 2 en moyenne).
+- **Mélange de Fisher–Yates** exact, à partir de l'entier uniforme.
+
+### 4.3 Le concept de loi ◻︎
+
+Une loi est un type qui déclare :
+
+- `value_type` : `double`, `std::int64_t`, `std::array<double, 3>`, une permutation… ;
+- ses **paramètres**, dans une ou plusieurs structures nommées (une par
+  paramétrisation), vérifiés à la construction ;
+- son **support** ;
+- un **niveau d'exactitude** du tirage (`exact`, `approximate` avec la borne d'erreur
+  documentée) ;
+- et, **quand ils sont connus**, ses autres attributs mathématiques, chacun détecté par
+  un concept :
+
+| Attribut | Forme | Exemple |
+|---|---|---|
+| Densité / fonction de masse | `pdf(X, x)`, `log_pdf(X, x)` | toutes les lois classiques |
+| Fonction de répartition, survie | `cdf(X, x)`, `ccdf(X, x)` | normale, gamma… |
+| Quantile | `quantile(X, p)` | exponentielle, Cauchy… |
+| Moments | `X.mean()`, `X.variance()`, `X.skewness()`, `X.kurtosis()` | absents pour Cauchy : l'appel ne compile pas |
+| Mode, médiane, entropie | `X.mode()`, `X.median()`, `X.entropy()` | |
+| Fonctions caractéristique et génératrice | `characteristic(X, t)`, `mgf(X, t)` | |
+
+Un attribut **inexistant** mathématiquement (l'espérance d'une Cauchy) n'est pas une
+valeur spéciale : c'est une **erreur de compilation**. Un attribut existant mais **non
+implémenté** est absent de la même façon, et la documentation de la loi le dit.
+
+Exemple d'utilisation :
+
+```cpp
+wsl::gamma X({.shape = 2.5, .rate = 2.0});
+wsl::gamma Y({.shape = 2.5, .scale = 0.5});   // la même loi, autre paramétrisation
+wsl::normal Z({.mean = 0, .variance = 4});    // N(μ, σ²) des manuels
+
+X.mean();                // 1.25
+cdf(X, 1.0);             // P(X ≤ 1)
+quantile(Z, 0.975);      // 3.919…
+auto x = sample(X, gen); // tirage exact si la loi le permet
+
+wsl::gamma({.shape = 2.5});              // erreur de compilation : paramétrisation ambiguë
+wsl::gamma({.shape = -1, .rate = 1});    // std::domain_error : shape doit être > 0
+```
+
+Pourquoi des paramètres nommés : `gamma(2.5, 2.0)` a pour espérance 5 en C++ et en
+NumPy (second paramètre = échelle), 1,25 en R (second paramètre = intensité). En
+positionnel, se tromper de convention donne une loi fausse **sans aucune erreur**. Le
+mécanisme fonctionne avec GCC et Clang (vérifié).
+
+### 4.4 Tirage générique ◻︎
+
+Une loi peut fournir son propre algorithme de tirage ; sinon, la bibliothèque en déduit
+un de ce qui est connu :
+
+| Ce qui est connu | Tirage déduit |
+|---|---|
+| Quantile | Inversion : `quantile(X, U)` |
+| Densité bornée sur un support borné | Rejet sous un rectangle |
+| Densité log-concave | Rejet adaptatif (ARS) |
+| Fonction de masse sur un support fini | Méthode de l'alias (Walker–Vose), exacte avec des poids rationnels |
+
+Les tirages déduits sont marqués `approximate` (le quantile ou la densité est calculé
+en flottant), avec la précision qui en découle.
+
+### 4.5 Exactitude ✅ (définition ◻︎)
+
+Un tirage est **exact** quand la valeur rendue est l'arrondi, selon une règle
+documentée, d'un réel tiré *exactement* selon la loi : la seule approximation est la
+représentation finale en `float` ou `double`.
+
+Exemples d'algorithmes exacts connus : uniforme entière et réelle, Bernoulli
+rationnelle, géométrique, exponentielle (von Neumann), normale (Karney 2016),
+gaussienne discrète (Canonne–Kamath–Steinke 2020), binomiale et Poisson par des
+méthodes exactes, mélange de Fisher–Yates.
+
+Quand un algorithme exact existe, il est utilisé par défaut ; la variante rapide se
+demande explicitement (`sample(X, gen, wsl::fast)`) et porte sa borne d'erreur.
+Quand aucun n'est connu, le meilleur algorithme est utilisé et marqué `approximate`.
+
+### 4.6 Algèbre des lois ◻︎
+
+| Construction | Écriture | Ce qui est hérité |
+|---|---|---|
+| Image affine | `2 * X + 1` | densité, répartition, quantile, moments transformés exactement |
+| Image par une fonction | `pushforward(X, f)` | tirage ; le reste seulement si `f` est déclarée monotone et dérivable |
+| Troncature, conditionnement | `truncate(X, a, b)`, `condition(X, event)` | densité, répartition, quantile renormalisés |
+| Mélange | `mixture({w1, X1}, {w2, X2})` | densité, répartition, moments |
+| Produit (indépendance) | `product(X, Y)` | loi jointe ; densité produit |
+| Somme indépendante | `X + Y` (lois de même famille) | identités : normale + normale, gamma + gamma de même intensité, Poisson + Poisson… |
+
+Les identités connues sont résolues **à la compilation** : `normal + normal` a pour type
+`normal`, avec ses paramètres calculés. Sans identité, le résultat est une loi
+générique (tirage par composition ; densité par convolution seulement si elle est
+déclarée).
+
+### 4.7 Adaptateur vers `<random>` ✅
+
+`wsl::as_distribution(X)` satisfait l'exigence *RandomNumberDistribution* de la norme
+(`result_type`, `param_type`, `operator()(g)`, `operator()(g, p)`, `min`, `max`,
+`reset`, `==`, `<<`, `>>`) : utilisable partout où la norme attend une distribution.
+La norme exige un `result_type` arithmétique : l'adaptateur est donc réservé aux lois
+scalaires.
+
+## 5. Catalogue visé (non exhaustif)
+
+| Famille | Lois |
+|---|---|
+| Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf, zeta, logarithmique, Skellam, bêta-binomiale, gaussienne discrète |
+| Continues univariées | uniforme, normale, log-normale, exponentielle, gamma, χ², Erlang, bêta, Student, Fisher, Cauchy, Laplace, logistique, Weibull, Pareto, Gumbel, Fréchet, Rayleigh, Rice, von Mises, triangulaire, arcsinus, inverse-gaussienne, normale asymétrique, stables (α, β) |
+| Multivariées | Dirichlet, multinomiale, normale multivariée, Student multivariée, Wishart et inverse-Wishart, uniformes sur la sphère, la boule et le simplexe, von Mises–Fisher, matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE) |
+| Combinatoires | permutations (uniformes, Ewens, Mallows), sous-ensembles, combinaisons, partitions d'entiers et d'ensembles, compositions, graphes (Erdős–Rényi, Barabási–Albert, graphes réguliers), arbres (Cayley, binaires de Catalan), mots |
+| Processus | marches aléatoires, chaînes de Markov (discrètes et continues), processus de Poisson (homogène, inhomogène, composé), mouvement brownien et pont brownien, processus de Dirichlet, restaurant chinois, urnes de Pólya |
+
+## 6. Tests ◻︎
+
+Les tirages étant reproductibles, **les tests le sont aussi** : aucun test statistique
+« qui échoue une fois sur cent », la graine est fixée.
+
+1. **Valeurs de référence au bit près** : pour chaque loi, les premiers tirages de
+   graines fixées sont versionnés. Les trois environnements de la CI (x86-64 Linux GCC
+   et Clang, ARM64 macOS), plus un job FMA (`-march=x86-64-v3`), doivent les reproduire.
+2. **Adéquation** : χ², Kolmogorov–Smirnov, Anderson–Darling contre la répartition de
+   la loi, sur de grands échantillons.
+3. **Cohérence mathématique** : `cdf(quantile(p)) ≈ p`, intégrale de la densité ≈ 1,
+   moments empiriques ≈ moments théoriques, identités de l'algèbre vérifiées par tirage.
+4. **Paramètres** : bords de domaine, valeurs refusées, paramétrisations équivalentes.
+
+## 7. Feuille de route
+
+| Phase | Contenu |
+|---|---|
+| 1 | `wsl::special`, socle : fonctions élémentaires bit-exactes, `lgamma`, `erf`, `erf_inv` ([special.md](special.md)) |
+| 2 | `wsl::random`, socle : moteurs, uniformes exacts, Bernoulli exacte ; `exact_random` est absorbé |
+| 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
+| 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
+| 5 | Algèbre des lois |
+| 6 | Lois multivariées |
+| 7 | Objets combinatoires (avec `wsl::permutation`) |
+| 8 | Processus |
+
+Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
+cpp-traversal, cpp-sudoku et puissance-4, dont `random_agent`, dont la promesse « même
+graine, mêmes coups » n'est aujourd'hui tenue que sur une même plateforme) et de
+`wsl::elo` (rééchantillonnage par `std::discrete_distribution`).
