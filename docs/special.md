@@ -8,7 +8,8 @@
 > `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
 > vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
 > (§6, « Produits exacts »). **Phase 4 en cours** (2026-11-17, cible < 1 ulp mesurée,
-> inverses comprises) : `digamma` fait ; gamma et bêta incomplètes ensuite (§7).
+> inverses comprises) : `digamma`, `gamma_p`, `gamma_q` faits ; inverses et bêta
+> incomplète ensuite (§7).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -187,6 +188,7 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `erfc_inv` | 0,506 ulp | 99,94 % | 0,500 ulp (100 %) |
 | `digamma`, x > 0 | 0,500 ulp | 99,93 % | 0,499 ulp (100 %) |
 | `digamma`, x < 0 | 0,51 ulp, ou 2⁻⁶² en absolu près des zéros | | |
+| `gamma_p`, `gamma_q` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -374,3 +376,32 @@ comprises (les répartitions et quantiles des lois en héritent).
 - x < 0 : ψ(x) = ψ(y) + 1/y + π cot(π y), y = −x, cotangente en double-double ; comme
   `lgamma`, précise en valeur absolue seulement près des zéros négatifs ;
 - pôles (0 et entiers négatifs) : ψ(±0) = ∓∞, NaN aux entiers négatifs.
+
+**`gamma_p`, `gamma_q`** (P et Q régularisées, `incomplete_gamma.hpp`, tables
+`detail/incomplete_gamma_tables.hpp`) : le calcul rend la plus petite des deux, précise
+relativement même minuscule ; l'autre vaut 1 − elle (>= 1/2, sans perte).
+- a >= 50 et |η| <= 1 (x/a dans [0,30 ; 2,36]) : développement uniforme de Temme (DLMF
+  8.12), Q = erfc(w)/2 + R, w = ±√bd0(a, x) ; e^{−bd0} mis en facteur (erfc(w) =
+  e^{−w²} F(w)), donc pas de sous-débordement ; coefficients c_k(η), k <= 12, calculés
+  par le générateur en **rationnels exacts** (réversion de η²/2 = λ − 1 − log λ, puis la
+  récurrence de DLMF 8.12.9 avec les coefficients g_k de Stirling), tronqués sous 2⁻⁷⁴ ;
+  c₀ en double-double. Reste mesuré contre mpmath : 2⁻⁸⁰ dès a = 50.
+- sinon, x < a + 1 : série P = D Σ xⁿ/((a + 1)…(a + n)), D = xᵃ e⁻ˣ/Γ(a + 1) par la
+  décomposition de Loader (δ et bd0, `detail/loader.hpp`, déplacés depuis wsl::random) ;
+  pour a < 1/4, Q tend vers 0 avec a : Q = −expm1(a log x − lgamma(1 + a)) − u a Σ
+  (−x)ⁿ/(n!(a + n)), lgamma(1 + a) par sa série en ζ(k) (double-double) ;
+- sinon : fraction continue de Legendre pour Q, algorithme de Lentz en double-double.
+
+Les références des tests (3 000 points en double, 800 en float, a de 2⁻⁶⁰ à 2²⁰, x des
+queues lointaines aux transitions) sont calculées par le générateur lui-même à 320
+bits (série ou fraction continue), validées contre `mp.gammainc` à 10⁻⁷⁷ près : celle-ci
+ne converge pas pour a ~ 10⁶. Au-delà (a jusqu'à 10³⁰⁰) : P + Q = 1 et monotonie
+vérifiées.
+
+Coût : 1 à 3,4 µs selon le régime (Boost : quelques centaines de ns) — le prix du
+double-double partout ; à optimiser plus tard (préfixe, séries).
+
+Les outils de précision écrits pour les lois de wsl::random (double-double à exposant
+séparé, exp et expm1 à argument double-double, δ et bd0 de Loader…) sont passés dans
+`wsl::special` (`detail/extended.hpp`, `detail/loader.hpp`, espace de noms
+`detail::extended`) : wsl::random les réimporte, sans changement de résultats.

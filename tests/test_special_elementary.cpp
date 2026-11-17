@@ -140,6 +140,10 @@ int main()
     check<float>("log10 float", reference_data::log10_float, [](float x) { return sp::log10(x); }, 0.5 + 0x1p-28);
     check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
     check2<double>("pow double", reference_data::pow_double, [](double x, double y) { return sp::pow(x, y); }, 0.51);
+    check2<double>("gamma_p dbl", reference_data::gamma_p_double, [](double a, double x) { return sp::gamma_p(a, x); }, 0.51);
+    check2<double>("gamma_q dbl", reference_data::gamma_q_double, [](double a, double x) { return sp::gamma_q(a, x); }, 0.51);
+    check2<float>("gamma_p float", reference_data::gamma_p_float, [](float a, float x) { return sp::gamma_p(a, x); }, 0.5 + 0x1p-28);
+    check2<float>("gamma_q float", reference_data::gamma_q_float, [](float a, float x) { return sp::gamma_q(a, x); }, 0.5 + 0x1p-28);
     check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
     check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
     check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
@@ -374,6 +378,21 @@ int main()
         assert(sp::erf(-x) == -sp::erf(x));
         assert(std::abs(sp::erf(x) + sp::erfc(x) - 1) <= 3e-16);
         assert(std::abs(sp::erfc(x) + sp::erfc(-x) - 2) <= 6e-16);
+    }
+
+    // gamma_p, gamma_q : bords, domaine, identités.
+    assert(sp::gamma_p(2.5, 0.0) == 0 && sp::gamma_q(2.5, 0.0) == 1 && sp::gamma_p(2.5, inf) == 1 && sp::gamma_q(2.5, inf) == 0);
+    assert(std::isnan(sp::gamma_p(-1.0, 2.0)) && std::isnan(sp::gamma_q(0.0, 2.0)) && std::isnan(sp::gamma_p(1.0, -1.0)));
+    assert(std::isnan(sp::gamma_p(std::nan(""), 1.0)) && std::isnan(sp::gamma_q(1.0, std::nan(""))) && sp::gamma_p(inf, 5.0) == 0);
+    for (double x : {1e-300, 1e-5, 0.3, 1.0, 7.5, 40.0, 700.0})
+    {
+        // P(1, x) = 1 − e^{−x} ; Q(1/2, x) = erfc(√x) : à 1 ulp près (deux fonctions correctement
+        // arrondies à 0,5 ulp chacune, au plus).
+        double const p1 = sp::gamma_p(1.0, x), e1 = -sp::expm1(-x);
+        assert(std::abs(p1 - e1) <= std::nextafter(e1, inf) - e1);
+        double const q1 = sp::gamma_q(0.5, x), e2 = sp::erfc(sp::sqrt(x));      // erfc amplifie l'arrondi
+        assert(x > 1 || std::abs(q1 - e2) <= 2 * (std::nextafter(e2, inf) - e2));   // de √x d'un facteur 2x
+        assert(sp::gamma_p(3.0, x) + sp::gamma_q(3.0, x) - 1 <= 0x1p-52);
     }
 
     // lgamma, tgamma : cas à part, factorielles exactes, signes.

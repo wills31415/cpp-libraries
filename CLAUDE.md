@@ -99,7 +99,7 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 - Empreintes des suites tirées : `tests/test_random_uniform.cpp`, `tests/test_random_laws.cpp`.
 - Précision des lois : références mpmath non versionnées, engendrées par CMake
   (`tools/random/law_references.py`, qui vérifie aussi les constantes de
-  `detail/arithmetic.hpp`) ; tables de la ziggourat versionnées
+  `wsl/special/detail/extended.hpp`) ; tables de la ziggourat versionnées
   (`uv run --no-project --with mpmath python tools/random/ziggurat.py`).
 - Tirages exacts (`detail/lazy.hpp`) : toute voie rapide ne doit rendre un résultat que
   s'il est certain, pour que résultat et nombre de mots tirés soient ceux de la voie

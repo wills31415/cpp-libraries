@@ -185,7 +185,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
             OUTPUT ${law_references}
             COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_references}
             DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${PROJECT_SOURCE_DIR}/tools/special/generate.py
-                    ${PROJECT_SOURCE_DIR}/include/wsl/random/detail/arithmetic.hpp
+                    ${PROJECT_SOURCE_DIR}/include/wsl/special/detail/extended.hpp
             COMMENT "Valeurs de référence des lois de wsl::random (mpmath)")
         add_custom_target(random_law_references DEPENDS ${law_references})
         wsl_add_test(random_precision LIBRARY random)

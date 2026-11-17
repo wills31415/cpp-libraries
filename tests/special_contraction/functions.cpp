@@ -30,6 +30,9 @@ extern "C"
     double check_lgamma(double x) { return wsl::special::lgamma(x); }
     double check_tgamma(double x) { return wsl::special::tgamma(x); }
     double check_digamma(double x) { return wsl::special::digamma(x); }
+    double check_gamma_p(double a, double x) { return wsl::special::gamma_p(a, x); }
+    double check_gamma_q(double a, double x) { return wsl::special::gamma_q(a, x); }
+    double check_sum_gamma_p(double a, double x) { return 1.0 + wsl::special::gamma_p(a, x); }
     double check_sum_digamma(double x) { return 1.0 + wsl::special::digamma(x); }
     double check_erf_inv(double y) { return wsl::special::erf_inv(y); }
     double check_erfc_inv(double z) { return wsl::special::erfc_inv(z); }

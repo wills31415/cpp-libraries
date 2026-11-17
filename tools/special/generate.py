@@ -23,9 +23,11 @@ Fichiers engendrés (à ne pas modifier à la main) :
     include/wsl/special/detail/erf_tables.hpp
     include/wsl/special/detail/gamma_tables.hpp
     include/wsl/special/detail/digamma_tables.hpp
+    include/wsl/special/detail/incomplete_gamma_tables.hpp
 """
 
 import math
+from fractions import Fraction
 import random
 import struct
 from pathlib import Path
@@ -61,6 +63,10 @@ def round_double(v):
 
 def _even_double(c):
     return struct.unpack("<Q", struct.pack("<d", c))[0] % 2 == 0
+
+
+def to_f32_safe(x):
+    return to_f32(x) if abs(x) < 3e38 else math.inf
 
 
 def to_f32(x):
@@ -491,6 +497,131 @@ def digamma_tables():
     return "".join(out)
 
 
+# Gamma incomplète : développement uniforme de Temme (DLMF 8.12) et lgamma(1 + a).
+TEMME_FROM = 50                                 # a >= 50 et |η| <= 1
+TEMME_ETA = 1
+TEMME_TERMS = 12                                # c_0 … c_12 (reste < 2^-78 mesuré, a >= 50)
+TEMME_SERIES_DEGREE = 60                        # degré des séries exactes en η
+LGAMMA1P_TERMS = 40                             # lgamma(1 + a) = Σ_{k>=1} l_k a^k, 0 < a < 1/4
+
+
+def _series_mul(a, b, n):
+    r = [Fraction(0)] * (n + 1)
+    for i, x in enumerate(a[:n + 1]):
+        if x:
+            for j, y in enumerate(b[:n + 1 - i]):
+                r[i + j] += x * y
+    return r
+
+
+def _series_inv(a, n):
+    r = [Fraction(0)] * (n + 1)
+    r[0] = 1 / a[0]
+    for k in range(1, n + 1):
+        r[k] = -sum(a[j] * r[k - j] for j in range(1, min(k, len(a) - 1) + 1)) / a[0]
+    return r
+
+
+def temme_coefficients():
+    """c_k(η) = Σ_n d_kn η^n, en rationnels exacts (DLMF 8.12.8–8.12.10)."""
+    M = TEMME_SERIES_DEGREE
+    # η = μ √(2 f(μ)/μ²), μ = λ − 1, f(μ) = μ − ln(1 + μ) ; série g(μ)/μ, puis réversion μ = η m(η).
+    h = [Fraction(2 * (-1) ** j, j) for j in range(2, M + 3)]
+    gm = [Fraction(0)] * (M + 1)
+    gm[0] = Fraction(1)
+    for k in range(1, M + 1):
+        gm[k] = (h[k] - sum(gm[j] * gm[k - j] for j in range(1, k))) / 2
+    m = [Fraction(1)] + [Fraction(0)] * M
+    for _ in range(M + 1):
+        mu = [Fraction(0)] + m[:M]
+        comp = [Fraction(0)] * (M + 1)
+        power = [Fraction(1)] + [Fraction(0)] * M
+        for k in range(M + 1):
+            if gm[k]:
+                for i in range(M + 1):
+                    comp[i] += gm[k] * power[i]
+            power = _series_mul(power, mu, M)
+        new = _series_inv(comp, M)
+        if new == m:
+            break
+        m = new
+    # g_k : Γ(z) ~ e^{−z} z^z √(2π/z) Σ g_k z^{−k}, Σ g_k t^k = exp(Σ_j B_2j t^(2j−1) / (2j (2j − 1))).
+    K = TEMME_TERMS
+    st = [Fraction(0)] * (K + 1)
+    for j in range(1, K // 2 + 2):
+        if 2 * j - 1 <= K:
+            num, den = mp.bernfrac(2 * j)
+            st[2 * j - 1] = Fraction(int(num), int(den)) / (2 * j * (2 * j - 1))
+    g = [Fraction(1)] + [Fraction(0)] * K
+    ds = [(k + 1) * st[k + 1] for k in range(K)]
+    for k in range(1, K + 1):
+        g[k] = sum(ds[j] * g[k - 1 - j] for j in range(k)) / k
+    im = _series_inv(m, M)
+    c = [[im[k + 1] for k in range(M)]]                     # c_0 = (1/m − 1)/η
+    for k in range(1, K + 1):
+        prev = c[-1]
+        d = [(i + 1) * prev[i + 1] for i in range(len(prev) - 1)]
+        num = [d[i] + (-1) ** k * g[k] * im[i] for i in range(len(d))]
+        assert num[0] == 0, k
+        c.append(num[1:])
+    return c
+
+
+def incomplete_gamma_tables():
+    out = [HEADER, "#pragma once\n\n",
+           "// Tables de la gamma incomplète (voir incomplete_gamma.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n"]
+    # lgamma(1 + a) = −γ a + Σ_{k>=2} (−1)^k ζ(k) a^k / k
+    coefficients = [-mp.euler] + [(-1) ** k * mp.zeta(k) / k for k in range(2, LGAMMA1P_TERMS + 1)]
+    for a in (mpf(1) / 4, mpf(1) / 1000, mpf(10) ** -30):
+        approx = sum(cf * a ** (k + 1) for k, cf in enumerate(coefficients))
+        assert abs(approx - mp.loggamma(1 + a)) / abs(mp.loggamma(1 + a)) < mpf(2) ** -70, a
+    out.append("    // lgamma(1 + a) = Σ_{k>=1} l_k a^k pour 0 < a <= 1/4 (reste < 2^-70 relativement),\n")
+    out.append("    // l_1 = −γ, l_k = (−1)^k ζ(k)/k ; en double-double (hi, lo).\n")
+    out.append(f"    inline constexpr double lgamma1p_series[{LGAMMA1P_TERMS}][2] = {{\n")
+    for cf in coefficients:
+        hi, lo = double_double(cf)
+        out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},\n")
+    out.append("    };\n\n")
+    # Temme
+    c = temme_coefficients()
+    def value(fr):
+        return mpf(fr.numerator) / fr.denominator
+    degrees = []
+    for k, ck in enumerate(c):
+        # degré : reste Σ_{n>N} |d_kn| (|η| <= 1) · a^-k sous 2^-74 pour a >= TEMME_FROM
+        scale = mpf(TEMME_FROM) ** -k
+        n = len(ck) - 1
+        tail = 0
+        while n > 0 and (tail + abs(value(ck[n]))) * scale < mpf(2) ** -74:
+            tail += abs(value(ck[n]))
+            n -= 1
+        assert n < len(ck) - 1 or k == 0 and False, (k, n)
+        degrees.append(n)
+    width = max(degrees) + 1
+    out.append(f"    inline constexpr double temme_from = {hexd(float(TEMME_FROM))};\n")
+    out.append(f"    inline constexpr double temme_eta = {hexd(float(TEMME_ETA))};\n")
+    out.append(f"    inline constexpr int temme_terms = {TEMME_TERMS + 1};\n")
+    out.append(f"    inline constexpr int temme_width = {width};\n")
+    out.append("    // Développement uniforme de Temme (DLMF 8.12) :\n")
+    out.append("    //     Q(a, x) = erfc(η √(a/2))/2 + e^{−aη²/2} / √(2πa) Σ_k c_k(η) a^{−k},\n")
+    out.append("    //     η = signe(λ − 1) √(2 (λ − 1 − log λ)), λ = x/a,\n")
+    out.append("    // c_k(η) = Σ_n d_kn η^n (rationnels exacts arrondis), tronqués pour |η| <= 1, a >= 50\n")
+    out.append("    // (reste < 2^-74). Degrés par k, puis d_0n en double-double et d_kn (k >= 1).\n")
+    out.append("    inline constexpr int temme_degree[] = {" + ", ".join(str(d) for d in degrees) + "};\n")
+    out.append(f"    inline constexpr double temme_c0[{degrees[0] + 1}][2] = {{\n")
+    for v in c[0][:degrees[0] + 1]:
+        hi, lo = double_double(value(v))
+        out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},\n")
+    out.append("    };\n")
+    out.append(f"    inline constexpr double temme_c[{TEMME_TERMS}][{width}] = {{\n")
+    for k in range(1, TEMME_TERMS + 1):
+        row = [round_double(value(v)) for v in c[k][:degrees[k] + 1]] + [0.0] * (width - degrees[k] - 1)
+        out.append("        {" + ", ".join(hexd(v) for v in row) + "},\n")
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Points de référence
 # ---------------------------------------------------------------------------
@@ -856,6 +987,83 @@ def digamma_points_float():
     return [x for x in xs if x > 0]
 
 
+igamma_rng = random.Random(20261119)
+
+
+def igamma_points(count, to_type=lambda v: v):
+    r = igamma_rng
+    pts = []
+    for i in range(count):
+        kind = i % 6
+        if kind == 0:                                                   # a quelconque, x autour de a
+            a = 2.0 ** r.uniform(-30, 20)
+            x = a * 2.0 ** r.uniform(-4, 4)
+        elif kind == 1:                                                 # près de x = a (Temme, transition)
+            a = 2.0 ** r.uniform(0, 20)
+            x = a + r.uniform(-6, 6) * math.sqrt(a)
+        elif kind == 2:                                                 # petits a
+            a = 2.0 ** r.uniform(-60, -2)
+            x = 2.0 ** r.uniform(-20, 3)
+        elif kind == 3:                                                 # bord de Temme (a ≈ 50, |η| ≈ 1)
+            a = r.uniform(40, 70)
+            x = a * r.choice([r.uniform(0.25, 0.35), r.uniform(2.2, 2.5), r.uniform(0.9, 1.1)])
+        elif kind == 4:                                                 # queues lointaines
+            a = 2.0 ** r.uniform(-5, 10)
+            x = a * 2.0 ** r.choice([r.uniform(-60, -5), r.uniform(3, 7)])
+        else:                                                           # a modéré, x quelconque
+            a = r.uniform(0.25, 60)
+            x = r.uniform(0, 3 * a + 10)
+        a, x = to_type(a), to_type(x)
+        if a > 0 and x > 0:
+            pts.append((a, x))
+    return pts
+
+
+_igamma_cache = {}
+
+
+def igamma_reference(a, x):
+    """(P, Q) à 320 bits : série pour P si x < a + 1, fraction continue de Legendre (Lentz)
+    pour Q sinon ; l'autre vaut 1 − elle, sans perte notable à 320 bits pour a >= 2^-60.
+    (mp.gammainc ne converge pas pour a de l'ordre de 10^6.)"""
+    with mp.workprec(320):
+        a, x = mpf(a), mpf(x)
+        tiny = mpf(2) ** -330
+        if x < a + 1:                                   # la fraction continue converge mal en deçà
+            term = s = mpf(1)
+            n = 1
+            while True:
+                term *= x / (a + n)
+                s += term
+                if term < s * tiny:
+                    break
+                n += 1
+            p_ = mp.exp(a * mp.log(x) - x - mp.loggamma(a + 1)) * s
+            return p_, 1 - p_
+        f = c = x + 1 - a
+        d = mpf(0)
+        n = 1
+        while True:
+            an = -n * (n - a)
+            bn = x + 2 * n + 1 - a
+            d = 1 / (bn + an * d)
+            c = bn + an / c
+            delta = c * d
+            f *= delta
+            if abs(delta - 1) < tiny:
+                break
+            n += 1
+        q_ = mp.exp(a * mp.log(x) - x - mp.loggamma(a)) / f
+        return 1 - q_, q_
+
+
+def igamma_exact(a, x, upper):
+    key = (a, x)
+    if key not in _igamma_cache:
+        _igamma_cache[key] = igamma_reference(a, x)
+    return _igamma_cache[key][1 if upper else 0]
+
+
 def tgamma_points_float():
     xs = [to_f32(rng.uniform(0, 35.04)) for _ in range(800)]
     neg = []
@@ -1022,13 +1230,19 @@ def reference_file():
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
+    igamma_double = igamma_points(3000)
+    igamma_float = [(a, x) for a, x in igamma_points(800, to_f32_safe) if a < 3e38 and x < 3e38]
     for name, pts, f, rounder, ulp, fmt, ctype in (
             ("pow_double", pow_points_double(), pow_exact, round_double, ulp_double, hexd, "double"),
             ("pow_float", pow_points_float(), pow_exact, round_float, ulp_float, hexf, "float"),
             ("atan2_double", atan2_points_double(), atan2_exact, round_double, ulp_double, hexd, "double"),
             ("atan2_float", atan2_points_float(), atan2_exact, round_float, ulp_float, hexf, "float"),
             ("hypot_double", hypot_points_double(), lambda x, y: mp.hypot(mpf(x), mpf(y)), round_double, ulp_double, hexd, "double"),
-            ("hypot_float", hypot_points_float(), lambda x, y: mp.hypot(mpf(x), mpf(y)), round_float, ulp_float, hexf, "float")):
+            ("hypot_float", hypot_points_float(), lambda x, y: mp.hypot(mpf(x), mpf(y)), round_float, ulp_float, hexf, "float"),
+            ("gamma_p_double", igamma_double, lambda a, x: igamma_exact(a, x, False), round_double, ulp_double, hexd, "double"),
+            ("gamma_q_double", igamma_double, lambda a, x: igamma_exact(a, x, True), round_double, ulp_double, hexd, "double"),
+            ("gamma_p_float", igamma_float, lambda a, x: igamma_exact(a, x, False), round_float, ulp_float, hexf, "float"),
+            ("gamma_q_float", igamma_float, lambda a, x: igamma_exact(a, x, True), round_float, ulp_float, hexf, "float")):
         text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")
@@ -1049,6 +1263,7 @@ def main():
         (ROOT / "include/wsl/special/detail/erf_tables.hpp").write_text(erf_tables())
         (ROOT / "include/wsl/special/detail/gamma_tables.hpp").write_text(gamma_tables())
         (ROOT / "include/wsl/special/detail/digamma_tables.hpp").write_text(digamma_tables())
+        (ROOT / "include/wsl/special/detail/incomplete_gamma_tables.hpp").write_text(incomplete_gamma_tables())
     if arguments.references:
         text, counts = reference_file()
         output = Path(arguments.references)

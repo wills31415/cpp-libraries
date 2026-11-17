@@ -7,7 +7,7 @@ Comme pour wsl::special : calculées avec mpmath à 256 bits, arrondies au plus 
 exacte de la valeur entre deux flottants (en ulp). Non versionnées : CMake les
 engendre dans le dossier de build. Déterministe (graine fixe).
 
-Vérifie aussi les constantes en double-double de include/wsl/random/detail/arithmetic.hpp.
+Vérifie aussi les constantes en double-double de include/wsl/special/detail/extended.hpp.
 """
 
 import math
@@ -28,7 +28,7 @@ HEADER = "// ENGENDRÉ par tools/random/law_references.py — ne pas modifier à
 
 
 def check_constants():
-    text = (ROOT / "include/wsl/random/detail/arithmetic.hpp").read_text()
+    text = (ROOT / "include/wsl/special/detail/extended.hpp").read_text()
     exact = {
         "inv_sqrt2": 1 / mp.sqrt(2), "sqrt2": mp.sqrt(2), "inv_sqrt_2pi": 1 / mp.sqrt(2 * mp.pi),
         "half_log_2pi": mp.log(2 * mp.pi) / 2, "normal_entropy": (1 + mp.log(2 * mp.pi)) / 2,

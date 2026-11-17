@@ -72,6 +72,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   fma. `WSL_SPECIAL_NO_FMA` pour s'en passer.
 - `digamma` (float, double) : erreur maximale mesurée 0,500 ulp pour x > 0 ; pour x < 0,
   0,51 ulp ou 2⁻⁶² en valeur absolue près des zéros (réflexion).
+- `gamma_p`, `gamma_q` (gamma incomplètes régularisées, float et double) : erreur maximale
+  mesurée 0,500 ulp, arrondi correct sur 100 % des points ; chacune précise même
+  minuscule (Temme pour a >= 50 près de x = a, série, fraction continue, série en a pour
+  les petits a).
 - Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma

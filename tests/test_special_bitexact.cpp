@@ -15,8 +15,10 @@
 
 #include <bit>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <utility>
 
 namespace sp = wsl::special;
 
@@ -61,11 +63,11 @@ namespace
     }
 
     template <class F>
-    std::uint64_t fingerprint(F f)
+    std::uint64_t fingerprint(F f, int n = count)
     {
         fnv1a h;
         splitmix64 g{2026};
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < n; ++i)
             h.add(f(g));
         return h.value;
     }
@@ -248,6 +250,15 @@ int main()
     auto const tgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::tgamma(static_cast<float>(uniform(g, -40, 36)))); });
     auto const digamma_double = fingerprint([&](splitmix64& g) { return of_double(sp::digamma(gamma_input(g))); });
     auto const digamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::digamma(static_cast<float>(uniform(g, -40, 1e6)))); });
+    auto const igamma_input = [&](splitmix64& g) {
+        double const a = std::bit_cast<double>((std::uint64_t{1023 - 30 + g() % 64} << 52) | (g() >> 12));   // 2^-30 … 2^34
+        double const x = g() % 2 == 0 ? a + wsl::special::detail::fmul(uniform(g, -8, 8), sp::sqrt(a))
+                                      : a * std::bit_cast<double>((std::uint64_t{1023 - 6 + g() % 12} << 52) | (g() >> 12));
+        return std::pair{a, x < 0 ? -x : x};
+    };
+    auto const gamma_p_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_p(a, x)); }, 1 << 15);
+    auto const gamma_q_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_q(a, x)); }, 1 << 15);
+    auto const gamma_q_float = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_float(sp::gamma_q(static_cast<float>(a), static_cast<float>(x))); }, 1 << 15);
 
     // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
     auto const erf_inv_double = fingerprint([&](splitmix64& g) {
@@ -304,6 +315,9 @@ int main()
     ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
     ok &= check("digamma double", digamma_double, 0x3a9ec0df558f01bc);
     ok &= check("digamma float", digamma_float, 0x260ca54d39c41921);
+    ok &= check("gamma_p double", gamma_p_double, 0x232b63f41997b95a);
+    ok &= check("gamma_q double", gamma_q_double, 0xbe291aa0af67d269);
+    ok &= check("gamma_q float", gamma_q_float, 0x7a81c89c17df9e5f);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);
