@@ -233,6 +233,20 @@ int main()
     auto const erf_float = fingerprint([&](splitmix64& g) { return of_float(sp::erf(static_cast<float>(erf_input(g)))); });
     auto const erfc_float = fingerprint([&](splitmix64& g) { return of_float(sp::erfc(static_cast<float>(erf_input(g)))); });
 
+    // Gamma : positifs et négatifs (non entiers en pratique), tous les ordres de grandeur.
+    auto const gamma_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g() % 3;
+        if (choice == 0)
+            return uniform(g, -40, 40);
+        if (choice == 1)
+            return uniform(g, -190, 180);
+        return std::bit_cast<double>(g() & 0xffefffffffffffff);
+    };
+    auto const lgamma_double = fingerprint([&](splitmix64& g) { return of_double(sp::lgamma(gamma_input(g))); });
+    auto const tgamma_double = fingerprint([&](splitmix64& g) { return of_double(sp::tgamma(gamma_input(g))); });
+    auto const lgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::lgamma(static_cast<float>(uniform(g, -40, 1e6)))); });
+    auto const tgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::tgamma(static_cast<float>(uniform(g, -40, 36)))); });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -268,6 +282,10 @@ int main()
     ok &= check("erfc double", erfc_double, 0x76e89f827c282603);
     ok &= check("erf float", erf_float, 0x8d664252d9a17955);
     ok &= check("erfc float", erfc_float, 0x8cef7e01c22f4892);
+    ok &= check("lgamma double", lgamma_double, 0x4397c43ee6b5bcb9);
+    ok &= check("tgamma double", tgamma_double, 0x8bb4f651e6380bcb);
+    ok &= check("lgamma float", lgamma_float, 0xea350830d6044a96);
+    ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
     assert(ok);
     return 0;
 }

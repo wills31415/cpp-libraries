@@ -4,8 +4,8 @@
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
-> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`
-> et `erfc` (float, double) implémentés et vérifiés (§6). Restent `lgamma`, `tgamma`,
+> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`,
+> `erfc`, `lgamma` et `tgamma` (float, double) implémentés et vérifiés (§6). Restent
 > `erf_inv` et `erfc_inv`.
 
 ## 1. Pourquoi cette bibliothèque
@@ -178,6 +178,9 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `hypot` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 | `erf` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `erfc` | 0,503 ulp | 99,85 % | 0,499 ulp (100 %) |
+| `lgamma`, x > 0 | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `lgamma`, x < 0 | 0,500 ulp, ou 2⁻⁵⁸ en absolu près des zéros | voir ci-dessous | |
+| `tgamma` | 0,507 ulp | 99,88 % | 0,500 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -223,6 +226,24 @@ x² exact, e^{−x²} par le noyau de exp à argument double-double (celui de po
 arrondi, sous-normaux compris ; erf(x) = 1 − erfc(x) pour x >= 1/4 (annulation au plus
 ×2,6) et série pour |x| < 1/4 ; erfc(−x) = 2 − erfc(x).
 
+Gamma : `lgamma` par table de 77 morceaux de 1/2 à 10 (Taylor de degré 26 autour de
+c = k/8), Stirling en double-double au-delà, lgamma(1 + x) − log x en deçà ; les centres
+1 et 2 sont les zéros de lgamma (a₀ = 0 exactement), et leurs morceaux s'étendent à
+|t| <= 3/16 pour qu'un centre voisin n'annule pas a₀ contre a₁ t (essai : 0,544 ulp
+près de 2) ; a₀ + a₁ t + a₂ t² y sont formés exactement (essai sans : 0,590 ulp, a₂ t²
+pesant 10 % du résultat). Négatifs : réflexion log π − log |sin πx| − lgamma(1 − x),
+sin πx avec réduction exacte (x = n + r par troncature, |r| <= 1/2). `tgamma` = ±exp de
+lgamma en double-double, avec 1/x − γ en double-double pour les tout petits x.
+
+**Limite connue, lgamma pour x < 0** : près des zéros de lgamma (x ≈ −2,457, −2,748,
+−3,144, −3,955…), la réflexion retranche deux termes presque égaux ; le résultat y est
+minuscule et l'erreur, bornée à 2⁻⁵⁸ en valeur absolue (mesuré : 2⁻⁵⁸·⁷), peut valoir des
+milliards d'ulp du résultat. Sur 1 364 points dont 64 pris au plus près de 9 zéros, 52
+dépassent 0,51 ulp, tous à moins de 2⁻⁵⁸ en absolu. Remède possible, non fait : un
+développement local autour de chacun des zéros qu'un double peut approcher (une
+trentaine ; au-delà de −19, ils sont plus près des entiers que l'écart entre doubles).
+`tgamma`, qui vaut ±1 en ces points, n'est pas concerné.
+
 **Limites du produit de Dekker** (constatées) : il déborde si un facteur dépasse 2⁹⁹⁵
 (le découpage de Veltkamp multiplie par 2²⁷ + 1), et devient inexact si ses produits
 partiels tombent dans les sous-normaux. `atan2` l'a montré deux fois : 0,67 ulp pour
@@ -232,7 +253,7 @@ d'empreintes, les NaN rendus n'ayant pas les mêmes bits en `-O0` et en `-O1`. T
 utilisation de `two_product` doit garantir des facteurs sous 2⁹⁹⁵ et un produit loin
 des sous-normaux, ou accepter l'inexactitude là où elle est sans effet.
 
-**Bit-exactitude** : les 34 empreintes (17 fonctions × 2 types) sont identiques sur macOS
+**Bit-exactitude** : les 38 empreintes (19 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).

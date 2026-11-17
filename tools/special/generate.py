@@ -21,6 +21,7 @@ Fichiers engendrés (à ne pas modifier à la main) :
     include/wsl/special/detail/tables.hpp
     include/wsl/special/detail/trig_tables.hpp
     include/wsl/special/detail/erf_tables.hpp
+    include/wsl/special/detail/gamma_tables.hpp
 """
 
 import math
@@ -332,6 +333,53 @@ def erf_tables():
     return "".join(out)
 
 
+LGAMMA_FIRST, LGAMMA_LAST = 4, 80   # morceaux centrés en c = k/8 : [0,4375 ; 10,0625)
+LGAMMA_DEGREE = 26
+LGAMMA_WIDE = {8: (7, 9), 16: (15, 17)}  # zéros 1 et 2 : leur morceau couvre aussi les voisins
+STIRLING_TERMS = 10
+
+
+def gamma_tables():
+    out = [HEADER, "#pragma once\n\n",
+           "// Constantes et tables de lgamma et tgamma (voir gamma.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n"]
+    for name, v in (("log_pi", mp.log(mp.pi)), ("half_log_two_pi", mp.log(2 * mp.pi) / 2)):
+        hi, lo = double_double(v)
+        out.append(f"    inline constexpr double {name}_hi = {hexd(hi)};\n    inline constexpr double {name}_lo = {hexd(lo)};\n")
+    out.append("\n    // Stirling : lgamma(x) = (x − 1/2) log x − x + log(2π)/2 + Σ B_2k / (2k (2k − 1) x^(2k−1)).\n")
+    out.append("    inline constexpr double stirling[] = {\n")
+    for k in range(1, STIRLING_TERMS + 1):
+        out.append(f"        {hexd(round_double(mp.bernoulli(2 * k) / (2 * k * (2 * k - 1))))},\n")
+    out.append("    };\n\n")
+    out.append(f"    inline constexpr int lgamma_first = {LGAMMA_FIRST};\n")
+    out.append(f"    inline constexpr int lgamma_degree = {LGAMMA_DEGREE};\n\n")
+    out.append("    // lgamma(c + t) = Σ a_k t^k pour c = k/8, |t| <= 1/16 : a_0 = lgamma(c), a_1 = ψ(c),\n")
+    out.append("    // a_k = ψ^(k−1)(c)/k!. Par ligne : a_0, a_1, a_2 (hi, lo chacun), a_3 … a_26. Les centres\n")
+    out.append("    // 1 et 2, zéros de lgamma, donnent a_0 = 0 exactement ; leurs morceaux s'étendent à\n")
+    out.append("    // |t| <= 3/16 (k = 7 à 9 et 15 à 17) : près d'un zéro, partir d'un centre voisin\n")
+    out.append("    // annulerait a_0 contre a_1 t et grossirait les erreurs d'arrondi.\n")
+    out.append("    inline constexpr double lgamma_table[][6 + lgamma_degree - 2] = {\n")
+    for k in range(LGAMMA_FIRST, LGAMMA_LAST + 1):
+        c = mpf(k) / 8
+        a = [mp.loggamma(c), mp.digamma(c)] + [mp.polygamma(n - 1, c) / mp.factorial(n) for n in range(2, LGAMMA_DEGREE + 1)]
+        half = mpf(3) / 16 if k in LGAMMA_WIDE else mpf(1) / 16
+        worst = 0
+        for step in range(-16, 17):
+            t = half * step / 16
+            exact = mp.loggamma(c + t)
+            if exact != 0:
+                approx = sum(a[n] * t ** n for n in range(LGAMMA_DEGREE + 1))
+                worst = max(worst, abs(approx - exact) / abs(exact))
+        assert worst < mpf(2) ** -66, (k, worst)
+        a0, a0l = double_double(a[0])
+        a1, a1l = double_double(a[1])
+        a2, a2l = double_double(a[2])
+        row = [a0, a0l, a1, a1l, a2, a2l] + [round_double(v) for v in a[3:]]
+        out.append("        {" + ", ".join(hexd(v) for v in row) + f"}},   // c = {k}/8\n")
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Points de référence
 # ---------------------------------------------------------------------------
@@ -609,6 +657,70 @@ def erfc_points_float():
     return xs
 
 
+def log_abs_gamma(x):
+    return mp.re(mp.loggamma(x))                            # log |Γ(x)|, réel aussi pour x < 0
+
+
+def lgamma_positive_points_double():
+    xs = [2.0 ** rng.uniform(-60, 1000) for _ in range(1000)]
+    xs += [rng.uniform(0, 12) for _ in range(1200)]
+    for base in (1.0, 2.0):
+        xs += [base + math.copysign(2.0 ** -rng.uniform(1, 52), rng.choice((-1, 1))) for _ in range(150)]
+    for k in range(LGAMMA_FIRST, LGAMMA_LAST + 1, 3):       # bords de morceaux
+        b = (k + 0.5) / 8
+        xs += [b, math.nextafter(b, 0), math.nextafter(b, 100)]
+    xs += [2.0 ** -1074, 1e-300, 0.5, 1.5, 2.5, 10.0625, 1e300, 2.5599833278516383e305]
+    return [x for x in xs if x not in (1.0, 2.0)]
+
+
+def lgamma_negative_points_double():
+    xs = []
+    while len(xs) < 1000:
+        x = rng.uniform(-30, 0)
+        if x != round(x):
+            xs.append(x)
+    xs += [-(2.0 ** rng.uniform(-60, 50)) for _ in range(300)]
+    # Au plus près des zéros de lgamma sur les négatifs : la réflexion y retranche
+    # deux termes presque égaux (zone mesurée exprès, voir docs/special.md).
+    for start in (-2.457, -2.747, -3.143, -3.955, -4.039, -4.999, -5.0001, -6.0001, -9.0001):
+        zero = mp.findroot(lambda t: mp.re(mp.loggamma(t)), mpf(start))
+        base = round_double(zero)
+        xs += [base, math.nextafter(base, 0), math.nextafter(base, -100)]
+        xs += [base + 2.0 ** -e for e in (20, 30, 40, 45)] + [base - 2.0 ** -e for e in (20, 30, 40, 45)]
+    return [x for x in xs if x != round(x)]
+
+
+def tgamma_points_double():
+    xs = [rng.uniform(0, 171.62) for _ in range(1200)]
+    xs += [2.0 ** rng.uniform(-60, 0) for _ in range(300)]
+    xs += [float(n) for n in range(1, 171)] + [n + 0.5 for n in range(0, 170, 3)]
+    neg = []
+    while len(neg) < 800:
+        x = rng.uniform(-184, 0)
+        if x != round(x):
+            neg.append(x)
+    xs += neg
+    for n in range(1, 180, 7):                               # près des pôles
+        xs += [-n + 2.0 ** -rng.uniform(1, 40), -n - 2.0 ** -rng.uniform(1, 40)]
+    return xs
+
+
+def lgamma_points_float():
+    xs = [to_f32(2.0 ** rng.uniform(-30, 120)) for _ in range(600)]
+    xs += [to_f32(rng.uniform(0, 12)) for _ in range(400)]
+    return [x for x in xs if x not in (1.0, 2.0)]
+
+
+def tgamma_points_float():
+    xs = [to_f32(rng.uniform(0, 35.04)) for _ in range(800)]
+    neg = []
+    while len(neg) < 300:
+        x = to_f32(rng.uniform(-40, 0))
+        if x != round(x):
+            neg.append(x)
+    return xs + neg
+
+
 def pow_points_double():
     pts = []
     for _ in range(1500):                                   # x quelconque, |y log x| < 700
@@ -713,7 +825,12 @@ def reference_file():
             ("erf_double", erf_points_double(), mp.erf, round_double, ulp_double, hexd, "double"),
             ("erfc_double", erfc_points_double(), mp.erfc, round_double, ulp_double, hexd, "double"),
             ("erf_float", erf_points_float(), mp.erf, round_float, ulp_float, hexf, "float"),
-            ("erfc_float", erfc_points_float(), mp.erfc, round_float, ulp_float, hexf, "float")):
+            ("erfc_float", erfc_points_float(), mp.erfc, round_float, ulp_float, hexf, "float"),
+            ("lgamma_positive_double", lgamma_positive_points_double(), log_abs_gamma, round_double, ulp_double, hexd, "double"),
+            ("lgamma_negative_double", lgamma_negative_points_double(), log_abs_gamma, round_double, ulp_double, hexd, "double"),
+            ("tgamma_double", tgamma_points_double(), mp.gamma, round_double, ulp_double, hexd, "double"),
+            ("lgamma_float", lgamma_points_float(), log_abs_gamma, round_float, ulp_float, hexf, "float"),
+            ("tgamma_float", tgamma_points_float(), mp.gamma, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
@@ -742,6 +859,7 @@ def main():
         (ROOT / "include/wsl/special/detail/tables.hpp").write_text(tables())
         (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
         (ROOT / "include/wsl/special/detail/erf_tables.hpp").write_text(erf_tables())
+        (ROOT / "include/wsl/special/detail/gamma_tables.hpp").write_text(gamma_tables())
     if arguments.references:
         text, counts = reference_file()
         output = Path(arguments.references)

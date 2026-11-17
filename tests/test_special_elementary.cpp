@@ -9,10 +9,12 @@
 
 #include "data/special_elementary_reference.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <span>
 
@@ -156,6 +158,32 @@ int main()
     check<double>("erfc double", reference_data::erfc_double, [](double x) { return sp::erfc(x); }, 0.51);
     check<float>("erf float", reference_data::erf_float, [](float x) { return sp::erf(x); }, 0.5 + 0x1p-28);
     check<float>("erfc float", reference_data::erfc_float, [](float x) { return sp::erfc(x); }, 0.5 + 0x1p-28);
+    check<double>("lgamma x>0", reference_data::lgamma_positive_double, [](double x) { return sp::lgamma(x); }, 0.51);
+    // lgamma, x < 0 : la réflexion retranche deux termes presque égaux près des
+    // zéros de lgamma. Garantie : chaque résultat est à moins de 0,51 ulp, ou, à
+    // défaut (près d'un zéro), à moins de 2^-58 en valeur absolue.
+    {
+        double relative = 0, absolute = 0;
+        std::size_t beyond = 0;
+        for (auto const& ref : reference_data::lgamma_negative_double)
+        {
+            double const y = sp::lgamma(ref.x);
+            double const error_ulp = std::abs((y - ref.rounded) / ulp(ref.rounded) - ref.offset);
+            if (error_ulp < 0.51)
+                relative = std::max(relative, error_ulp);
+            else
+            {
+                ++beyond;
+                absolute = std::max(absolute, error_ulp * ulp(ref.rounded));
+            }
+        }
+        std::printf("lgamma x<0   %5zu points : %zu au-delà de 0,51 ulp (près des zéros), erreur absolue max %a\n",
+                    std::size(reference_data::lgamma_negative_double), beyond, absolute);
+        assert(absolute < 0x1p-58);
+    }
+    check<double>("tgamma double", reference_data::tgamma_double, [](double x) { return sp::tgamma(x); }, 0.51);
+    check<float>("lgamma float", reference_data::lgamma_float, [](float x) { return sp::lgamma(x); }, 0.5 + 0x1p-28);
+    check<float>("tgamma float", reference_data::tgamma_float, [](float x) { return sp::tgamma(x); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -322,6 +350,27 @@ int main()
         assert(std::abs(sp::erf(x) + sp::erfc(x) - 1) <= 3e-16);
         assert(std::abs(sp::erfc(x) + sp::erfc(-x) - 2) <= 6e-16);
     }
+
+    // lgamma, tgamma : cas à part, factorielles exactes, signes.
+    assert(is_positive_zero(sp::lgamma(1.0)) && is_positive_zero(sp::lgamma(2.0)));
+    assert(sp::lgamma(0.0) == inf && sp::lgamma(-0.0) == inf && sp::lgamma(-3.0) == inf && sp::lgamma(-inf) == inf);
+    assert(sp::lgamma(inf) == inf && sp::lgamma(2.6e305) == inf && std::isnan(sp::lgamma(std::nan(""))));
+    assert(sp::tgamma(0.0) == inf && sp::tgamma(-0.0) == -inf && std::isnan(sp::tgamma(-3.0)));
+    assert(std::isnan(sp::tgamma(-inf)) && sp::tgamma(inf) == inf && sp::tgamma(172.0) == inf);
+    double factorial = 1;
+    for (int n = 1; n <= 23; ++n)                                    // (n−1)! exact en double jusqu'à 22!
+    {
+        assert(sp::tgamma(double(n)) == factorial);
+        factorial *= n;
+    }
+    assert(sp::tgamma(0.5) == 0x1.c5bf891b4ef6bp+0 && sp::tgamma(-0.5) == -0x1.c5bf891b4ef6bp+1);
+    assert(sp::tgamma(-1.5) == 0x1.2e7fb0bcdf4f2p+1 && sp::lgamma(0.5) == 0x1.250d048e7a1bdp-1);
+    for (double x = -20.75; x < 0; x += 0.5)                         // signe : négatif sur (−1, 0), (−3, −2)…
+    {
+        bool const negative = (static_cast<long long>(std::floor(x)) & 1) != 0;
+        assert((sp::tgamma(x) < 0) == negative);
+    }
+    assert(sp::tgamma(1e-300) == 1.0 / 1e-300 && sp::tgamma(-1e-300) == -1.0 / 1e-300 && sp::lgamma(1e-300) == -sp::log(1e-300));
 
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);

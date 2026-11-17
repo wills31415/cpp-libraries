@@ -24,6 +24,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   double) ; erreur maximale mesurée 0,500 ulp, 100 % d'arrondis corrects.
 - `erf`, `erfc` (float, double), mêmes garanties, `erfc` sous-normaux compris ; erreur
   maximale mesurée 0,500 ulp (`erf`), 0,503 ulp (`erfc`).
+- `lgamma`, `tgamma` (float, double), mêmes garanties ; erreur maximale mesurée
+  0,500 ulp (`lgamma`, x > 0) et 0,507 ulp (`tgamma`). Pour x < 0 près des zéros de
+  lgamma, erreur bornée à 2⁻⁵⁸ en valeur absolue seulement (voir docs/special.md).
 
 ## [0.1.0] — 2026-11-16
 

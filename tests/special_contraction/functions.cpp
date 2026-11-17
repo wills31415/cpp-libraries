@@ -26,4 +26,6 @@ extern "C"
     double check_hypot(double x, double y) { return wsl::special::hypot(x, y); }
     double check_erf(double x) { return wsl::special::erf(x); }
     double check_erfc(double x) { return wsl::special::erfc(x); }
+    double check_lgamma(double x) { return wsl::special::lgamma(x); }
+    double check_tgamma(double x) { return wsl::special::tgamma(x); }
 }
