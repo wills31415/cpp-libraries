@@ -22,6 +22,7 @@ Fichiers engendrés (à ne pas modifier à la main) :
     include/wsl/special/detail/trig_tables.hpp
     include/wsl/special/detail/erf_tables.hpp
     include/wsl/special/detail/gamma_tables.hpp
+    include/wsl/special/detail/digamma_tables.hpp
 """
 
 import math
@@ -436,6 +437,60 @@ def gamma_tables():
     return "".join(out)
 
 
+DIGAMMA_ROOT_DEGREE = 24
+DIGAMMA_ROOT_HALF_WIDTH = mpf(1) / 8
+DIGAMMA_ASYMPTOTIC_FROM = 10
+DIGAMMA_ASYMPTOTIC_TERMS = 14
+
+
+def digamma_tables():
+    out = [HEADER, "#pragma once\n\n",
+           "// Constantes et tables de digamma (voir gamma.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n"]
+    root = mp.findroot(mp.digamma, mpf("1.4616321449683623"))
+    r1 = round_double(root)
+    r2 = round_double(root - mpf(r1))
+    r3 = round_double(root - mpf(r1) - mpf(r2))
+    out.append("    // x₀, zéro positif de ψ, en trois parties.\n")
+    out.append(f"    inline constexpr double digamma_root_hi = {hexd(r1)};\n")
+    out.append(f"    inline constexpr double digamma_root_lo = {hexd(r2)};\n")
+    out.append(f"    inline constexpr double digamma_root_lo2 = {hexd(r3)};\n\n")
+    gamma_hi, gamma_lo = double_double(mp.euler)
+    out.append(f"    inline constexpr double euler_gamma_hi = {hexd(gamma_hi)};\n")
+    out.append(f"    inline constexpr double euler_gamma_lo = {hexd(gamma_lo)};\n\n")
+    # Taylor autour de x₀ : ψ(x₀ + t) = Σ_{k>=1} c_k t^k, c_k = ψ^(k)(x₀)/k!.
+    c = [None] + [mp.polygamma(k, root) / mp.factorial(k) for k in range(1, DIGAMMA_ROOT_DEGREE + 1)]
+    worst = 0
+    for step in range(-32, 33):
+        t = DIGAMMA_ROOT_HALF_WIDTH * step / 32
+        if t == 0:
+            continue
+        exact = mp.digamma(root + t)
+        approx = sum(c[k] * t ** k for k in range(1, DIGAMMA_ROOT_DEGREE + 1))
+        worst = max(worst, abs(approx - exact) / abs(exact))
+    assert worst < mpf(2) ** -66, worst
+    out.append(f"    inline constexpr int digamma_root_degree = {DIGAMMA_ROOT_DEGREE};\n")
+    out.append(f"    inline constexpr double digamma_root_half_width = {hexd(float(DIGAMMA_ROOT_HALF_WIDTH))};\n")
+    out.append("    // ψ(x₀ + t) = Σ c_k t^k, |t| <= 1/8 (reste < 2^-66 relativement) : c_1, c_2 en\n")
+    out.append("    // double-double (hi, lo), puis c_3 … c_24.\n")
+    row = list(double_double(c[1])) + list(double_double(c[2])) + [round_double(v) for v in c[3:]]
+    out.append("    inline constexpr double digamma_root_taylor[] = {\n")
+    out += [f"        {hexd(v)},\n" for v in row]
+    out.append("    };\n\n")
+    # Développement asymptotique : ψ(y) = log y − 1/(2y) − Σ_{k>=1} B_2k / (2k y^(2k)).
+    y = mpf(DIGAMMA_ASYMPTOTIC_FROM)
+    k = DIGAMMA_ASYMPTOTIC_TERMS + 1
+    rest = abs(mp.bernoulli(2 * k) / (2 * k) / y ** (2 * k)) / mp.digamma(y)
+    assert rest < mpf(2) ** -66, rest
+    out.append(f"    inline constexpr double digamma_asymptotic_from = {hexd(float(y))};\n")
+    out.append("    // B_2k / (2k), k = 1 … ; ψ(y) = log y − 1/(2y) − Σ c_k y^(−2k) pour y >= 10\n")
+    out.append("    // (reste < 2^-66 relativement).\n")
+    out.append("    inline constexpr double digamma_asymptotic[] = {\n")
+    out += [f"        {hexd(round_double(mp.bernoulli(2 * j) / (2 * j)))},\n" for j in range(1, DIGAMMA_ASYMPTOTIC_TERMS + 1)]
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Points de référence
 # ---------------------------------------------------------------------------
@@ -767,6 +822,40 @@ def lgamma_points_float():
     return [x for x in xs if x not in (1.0, 2.0)]
 
 
+digamma_rng = random.Random(20261118)                       # à part : ne décale pas les autres points
+
+
+def digamma_points_double():
+    r = digamma_rng
+    root = float(mp.findroot(mp.digamma, mpf("1.4616321449683623")))
+    xs = [r.uniform(0, 30) for _ in range(800)] + [2.0 ** r.uniform(-1000, 1000) for _ in range(400)]
+    xs += [root + r.uniform(-0.2, 0.2) for _ in range(200)] + [root * (1 + r.choice([-1, 1]) * 2.0 ** -r.uniform(10, 53)) for _ in range(100)]
+    xs += [10.0, math.nextafter(10.0, 0), 1.0, 2.0, 0.5, root, math.nextafter(root, 0), math.nextafter(root, 2)]
+    return [x for x in xs if x > 0]
+
+
+def digamma_negative_points_double():
+    r = digamma_rng
+    xs = []
+    while len(xs) < 1000:
+        x = r.uniform(-30, 0)
+        if x != round(x):
+            xs.append(x)
+    xs += [-(2.0 ** r.uniform(-60, 50)) for _ in range(300)]
+    for start in (-0.5, -1.6, -2.6, -3.6, -9.7):                      # près des zéros de ψ
+        zero = mp.findroot(mp.digamma, mpf(start))
+        base = round_double(zero)
+        xs += [base, math.nextafter(base, 0), math.nextafter(base, -100)]
+        xs += [base + 2.0 ** -e for e in (20, 30, 40, 45)] + [base - 2.0 ** -e for e in (20, 30, 40, 45)]
+    return [x for x in xs if x != round(x) and x > -2.0 ** 52]
+
+
+def digamma_points_float():
+    r = digamma_rng
+    xs = [to_f32(r.uniform(0, 30)) for _ in range(500)] + [to_f32(2.0 ** r.uniform(-120, 120)) for _ in range(300)]
+    return [x for x in xs if x > 0]
+
+
 def tgamma_points_float():
     xs = [to_f32(rng.uniform(0, 35.04)) for _ in range(800)]
     neg = []
@@ -923,6 +1012,9 @@ def reference_file():
             ("tgamma_double", tgamma_points_double(), mp.gamma, round_double, ulp_double, hexd, "double"),
             ("lgamma_float", lgamma_points_float(), log_abs_gamma, round_float, ulp_float, hexf, "float"),
             ("tgamma_float", tgamma_points_float(), mp.gamma, round_float, ulp_float, hexf, "float"),
+            ("digamma_double", digamma_points_double(), mp.digamma, round_double, ulp_double, hexd, "double"),
+            ("digamma_negative_double", digamma_negative_points_double(), mp.digamma, round_double, ulp_double, hexd, "double"),
+            ("digamma_float", digamma_points_float(), mp.digamma, round_float, ulp_float, hexf, "float"),
             ("erf_inv_double", erfinv_points_double(), mp.erfinv, round_double, ulp_double, hexd, "double"),
             ("erfc_inv_double", erfcinv_points_double(), erfcinv_exact, round_double, ulp_double, hexd, "double"),
             ("erf_inv_float", erfinv_points_float(), mp.erfinv, round_float, ulp_float, hexf, "float"),
@@ -956,6 +1048,7 @@ def main():
         (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
         (ROOT / "include/wsl/special/detail/erf_tables.hpp").write_text(erf_tables())
         (ROOT / "include/wsl/special/detail/gamma_tables.hpp").write_text(gamma_tables())
+        (ROOT / "include/wsl/special/detail/digamma_tables.hpp").write_text(digamma_tables())
     if arguments.references:
         text, counts = reference_file()
         output = Path(arguments.references)

@@ -3,11 +3,13 @@
 // Fonction gamma bit-exacte : même résultat au bit près sur toute plateforme
 // (voir detail/fp.hpp pour les conditions), constexpr.
 //
-//   lgamma(x) = log |Γ(x)|      tgamma(x) = Γ(x)
+//   lgamma(x) = log |Γ(x)|      tgamma(x) = Γ(x)      digamma(x) = ψ(x) = Γ'(x)/Γ(x)
 //
 // Cas limites ceux de <cmath> (Annexe F de C) : lgamma(1) = lgamma(2) = +0,
 // lgamma de ±0, des entiers négatifs et de ±∞ : +∞ ; tgamma(±0) = ±∞,
 // tgamma(entier négatif) = NaN, tgamma(−∞) = NaN, tgamma(+∞) = +∞ ; NaN donne NaN.
+// digamma(+0) = −∞, digamma(−0) = +∞, digamma(entier négatif) = NaN (pôles),
+// digamma(+∞) = +∞, digamma(−∞) = NaN.
 //
 // Précision : voir docs/special.md. Pour x < 0, près des zéros de lgamma
 // (x ≈ −2,457, −2,748, …), la formule de réflexion retranche deux termes presque
@@ -17,6 +19,7 @@
 // soustraction passe par fmul (voir detail/fp.hpp).
 
 #include <wsl/special/detail/fp.hpp>
+#include <wsl/special/detail/digamma_tables.hpp>
 #include <wsl/special/detail/gamma_tables.hpp>
 #include <wsl/special/elementary.hpp>
 #include <wsl/special/trigonometric.hpp>
@@ -182,6 +185,117 @@ namespace wsl::special
             return {{hi, lo}, (floor_x & 1) != 0};
         }
 
+        // ---------------------------------------------------------------------
+        // digamma
+        // ---------------------------------------------------------------------
+
+        // 1/(a_hi + a_lo) en double-double, |1/a| < 2^990.
+        constexpr double_double reciprocal_dd(double a_hi, double a_lo) noexcept
+        {
+            double const q = 1.0 / a_hi;
+            auto const [p, p_error] = two_product(q, a_hi);
+            auto const [hi, lo] = fast_two_sum(q, (((1.0 - p) - p_error) - fmul(q, a_lo)) / a_hi);
+            return {hi, lo};
+        }
+
+        constexpr double_double add_dd(double_double a, double_double b) noexcept
+        {
+            auto const [s, s_error] = two_sum(a.hi, b.hi);
+            auto const [hi, lo] = fast_two_sum(s, s_error + (a.lo + b.lo));
+            return {hi, lo};
+        }
+
+        // ψ(y), y >= 10, en double-double : log y − 1/(2y) − Σ B_2k / (2k y^(2k)), la
+        // série (moins de 1/1200 du tout) en double.
+        constexpr double_double digamma_asymptotic_dd(double y) noexcept
+        {
+            auto const [l_hi, l_lo] = log_dd(y);
+            double const h = 0.5 / y;
+            double h_lo = 0;                                                // 1/(2y) = h + h_lo
+            if (y < 0x1p900)                                                // au-delà, négligeable (et Dekker
+            {                                                               // n'admet pas de facteur > 2^995)
+                auto const [p, p_error] = two_product(h, y);
+                h_lo = ((0.5 - p) - p_error) / y;
+            }
+            double const z = 1.0 / fmul(y, y);
+            constexpr int terms = sizeof(digamma_asymptotic) / sizeof(digamma_asymptotic[0]);
+            double series = digamma_asymptotic[terms - 1];
+            for (int k = terms - 2; k >= 0; --k)
+                series = digamma_asymptotic[k] + fmul(z, series);
+            series = fmul(z, series);
+            auto const [s, s_error] = two_sum(l_hi, -h);
+            auto const [hi, lo] = fast_two_sum(s, s_error + ((l_lo - h_lo) - series));
+            return {hi, lo};
+        }
+
+        // ψ(x), 2^-990 <= x < 2^1023, en double-double, précis en valeur absolue
+        // (à 2^-63 près relativement à ψ(x + n)) : x >= 10 asymptotique ; sinon
+        //     ψ(x) = ψ(s) − Σ_{i<n} 1/(x + i),   s = x + n dans [10, 11),
+        // s en double-double (ψ(s_hi + s_lo) ≈ ψ(s_hi) + ψ'(s_hi) s_lo), la somme exacte à
+        // 2^-100 près. Près du zéro x₀ la compensation coûte la précision relative :
+        // digamma passe alors par le développement autour de x₀.
+        constexpr double_double digamma_positive_dd(double x) noexcept
+        {
+            if (x >= digamma_asymptotic_from)
+                return digamma_asymptotic_dd(x);
+            int const n = 10 - static_cast<int>(x);
+            auto const [s_hi, s_lo] = two_sum(x, static_cast<double>(n));
+            double_double result = digamma_asymptotic_dd(s_hi);
+            double const w = 1.0 / s_hi;                                    // ψ'(s) ≈ 1/s + 1/(2s²) + 1/(6s³)
+            result = add_dd(result, {fmul(s_lo, w + fmul(fmul(w, w), 0.5 + fmul(w, 0x1.5555555555555p-3))), 0.0});
+            for (int i = n - 1; i >= 0; --i)                                // les plus petits termes d'abord
+            {
+                auto const [f_hi, f_lo] = two_sum(x, static_cast<double>(i));
+                auto const [r_hi, r_lo] = reciprocal_dd(f_hi, f_lo);
+                result = add_dd(result, {-r_hi, -r_lo});
+            }
+            return result;
+        }
+
+        // ψ(x₀ + t), |t| <= 1/8 : (c_1 + q t) t, q = c_2 + t (c_3 + …), c_1 et c_2 en
+        // double-double, t = x − x₀ à 2^-160 près.
+        constexpr double digamma_near_root(double x) noexcept
+        {
+            auto const [t_hi, t_lo0] = two_sum(x - digamma_root_hi, -digamma_root_lo);   // x − x₀_hi : exact
+            double const t_lo = t_lo0 - digamma_root_lo2;
+            constexpr auto const& c = digamma_root_taylor;
+            constexpr int last = digamma_root_degree + 1;                   // indice de c_24
+            double h = c[last];
+            for (int k = last - 1; k >= 4; --k)                             // c_3 + c_4 t + …
+                h = c[k] + fmul(t_hi, h);
+            auto const [q_hi, q_lo0] = two_sum(c[2], fmul(t_hi, h));
+            double const q_lo = q_lo0 + c[3];
+            auto const [m, m_error] = two_product(q_hi, t_hi);
+            auto const [u_hi, u_lo0] = two_sum(c[0], m);
+            double const u_lo = u_lo0 + ((c[1] + m_error) + (fmul(q_lo, t_hi) + fmul(q_hi, t_lo)));
+            auto const [v, v_error] = two_product(u_hi, t_hi);
+            return v + (v_error + (fmul(u_lo, t_hi) + fmul(u_hi, t_lo)));
+        }
+
+        // ψ(x), x < 0 non entier, −2^52 < x <= −2^-54, en double-double :
+        //     ψ(x) = ψ(y) + 1/y + π cot(π y),   y = −x
+        // (réflexion ψ(1 − x) − π cot(π x), avec ψ(1 + y) = ψ(y) + 1/y). y = n + r,
+        // |r| <= 1/2 exact ; cot(π r) = cos(π r)/sin(π r), les deux en double-double.
+        constexpr double_double digamma_reflection_dd(double x) noexcept
+        {
+            double const y = -x;
+            double n = static_cast<double>(static_cast<std::int64_t>(y));
+            double r = y - n;                                                // exact, dans [0, 1)
+            if (r > 0.5)
+                r -= 1.0;                                                    // exact
+            auto const [s_hi, s_lo] = sin_pi_abs(r);                        // |sin(π r)|
+            auto const [c_hi, c_lo] = sin_pi_abs(0.5 - (r < 0 ? -r : r));   // cos(π r) >= 0
+            auto const [m, m_error] = two_product(pi_hi, c_hi);
+            double const m_lo = m_error + (fmul(pi_hi, c_lo) + fmul(pi_lo, c_hi));
+            double const q = m / s_hi;
+            auto const [p, p_error] = two_product(q, s_hi);
+            double const q_lo = (((m - p) - p_error) + (m_lo - fmul(q, s_lo))) / s_hi;
+            double_double const cot = r < 0 ? double_double{-q, -q_lo} : double_double{q, q_lo};
+            double_double result = digamma_positive_dd(y);
+            result = add_dd(result, reciprocal_dd(y, 0.0));
+            return add_dd(result, cot);
+        }
+
         constexpr double exp_dd(double_double a) noexcept
         {
             auto const [k, r_hi, r_lo] = reduce_exp(a.hi);
@@ -212,6 +326,42 @@ namespace wsl::special
             return infinity;
         auto const [value, negative] = lgamma_reflection(x);
         return value.hi + value.lo;
+    }
+
+    // ψ(x) = Γ'(x)/Γ(x). Erreur mesurée sous 0,51 ulp pour x > 0 ; pour x < 0, près des
+    // zéros de ψ (un par intervalle (−n − 1, −n)), la réflexion retranche des termes
+    // presque égaux : l'erreur y est petite en valeur absolue, pas en ulp.
+    constexpr double digamma(double x) noexcept
+    {
+        using namespace detail;
+        if (!(x == x))
+            return opaque(x + x);
+        if (x == infinity)
+            return x;
+        if (x == 0)
+            return (bits(x) >> 63) != 0 ? infinity : -infinity;
+        if (x > 0)
+        {
+            if (x < 0x1p-990)                                                // −1/x − γ, γ x sous 2^-990
+                return -1.0 / x;
+            double const t = x - digamma_root_hi;
+            if (t > -digamma_root_half_width && t < digamma_root_half_width)
+                return digamma_near_root(x);
+            auto const [hi, lo] = digamma_positive_dd(x);
+            return hi + lo;
+        }
+        if (x <= -0x1p52 || x == -infinity || is_integer(x))                // pôles (−∞ : NaN)
+            return quiet_nan;
+        if (x > -0x1p-54)                                                    // −1/x − γ + O(x)
+        {
+            if (x > -0x1p-990)
+                return -1.0 / x;
+            auto const [r_hi, r_lo] = reciprocal_dd(x, 0.0);
+            auto const [s, s_error] = two_sum(-r_hi, -euler_gamma_hi);
+            return s + (s_error - (r_lo + euler_gamma_lo));
+        }
+        auto const [hi, lo] = digamma_reflection_dd(x);
+        return hi + lo;
     }
 
     constexpr double tgamma(double x) noexcept
@@ -251,6 +401,7 @@ namespace wsl::special
 
     // float : calcul en double, puis un seul arrondi vers float.
     constexpr float lgamma(float x) noexcept { return detail::to_float(lgamma(static_cast<double>(x))); }
+    constexpr float digamma(float x) noexcept { return detail::to_float(digamma(static_cast<double>(x))); }
     constexpr float tgamma(float x) noexcept
     {
         double const y = tgamma(static_cast<double>(x));
@@ -261,6 +412,7 @@ namespace wsl::special
 
     template <std::integral I> constexpr double lgamma(I x) noexcept { return lgamma(static_cast<double>(x)); }
     template <std::integral I> constexpr double tgamma(I x) noexcept { return tgamma(static_cast<double>(x)); }
+    template <std::integral I> constexpr double digamma(I x) noexcept { return digamma(static_cast<double>(x)); }
 
     long double lgamma(long double) = delete;
     long double tgamma(long double) = delete;

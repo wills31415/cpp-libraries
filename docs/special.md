@@ -7,7 +7,8 @@
 > `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`,
 > `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
 > vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
-> (§6, « Produits exacts »). Suite prévue : phase 4 (gamma et bêta incomplètes).
+> (§6, « Produits exacts »). **Phase 4 en cours** (2026-11-17, cible < 1 ulp mesurée,
+> inverses comprises) : `digamma` fait ; gamma et bêta incomplètes ensuite (§7).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -184,6 +185,8 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `tgamma` | 0,507 ulp | 99,88 % | 0,500 ulp (100 %) |
 | `erf_inv` | 0,502 ulp | 99,95 % | 0,500 ulp (100 %) |
 | `erfc_inv` | 0,506 ulp | 99,94 % | 0,500 ulp (100 %) |
+| `digamma`, x > 0 | 0,500 ulp | 99,93 % | 0,499 ulp (100 %) |
+| `digamma`, x < 0 | 0,51 ulp, ou 2⁻⁶² en absolu près des zéros | | |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -355,3 +358,19 @@ qu'un produit à usage unique ; un oubli sur un produit utilisé plusieurs fois 
 échappe (constaté : c'était le cas de `r_hi` dans la première version de `log`) — il
 ne change alors aucun résultat, et les empreintes le verraient si un compilateur futur
 le fusionnait.
+
+## 7. Phase 4 : fonctions incomplètes
+
+Décision du 2026-11-17 : **moins d'un ulp, mesurée**, comme le reste, inverses
+comprises (les répartitions et quantiles des lois en héritent).
+
+**`digamma`** (ψ = Γ'/Γ, `gamma.hpp`, tables `detail/digamma_tables.hpp` engendrées) :
+- y >= 10 : ψ(y) = log y − 1/(2y) − Σ B₂ₖ/(2k y²ᵏ), en double-double ;
+- 0 < x < 10 : récurrence ψ(x) = ψ(x + n) − Σ 1/(x + i), x + n dans [10, 11) en
+  double-double (correction ψ'(s) s_lo avec ψ' ≈ 1/s + 1/(2s²) + 1/(6s³) : avec 1/s seul,
+  0,63 ulp), les inverses en double-double ;
+- |x − x₀| < 1/8, x₀ ≈ 1,4616 le zéro positif (en trois doubles) : Taylor de degré 24
+  autour de x₀, sinon la récurrence y perdrait la précision relative ;
+- x < 0 : ψ(x) = ψ(y) + 1/y + π cot(π y), y = −x, cotangente en double-double ; comme
+  `lgamma`, précise en valeur absolue seulement près des zéros négatifs ;
+- pôles (0 et entiers négatifs) : ψ(±0) = ∓∞, NaN aux entiers négatifs.

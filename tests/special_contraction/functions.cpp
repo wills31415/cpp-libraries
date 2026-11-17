@@ -29,6 +29,8 @@ extern "C"
     double check_erfc(double x) { return wsl::special::erfc(x); }
     double check_lgamma(double x) { return wsl::special::lgamma(x); }
     double check_tgamma(double x) { return wsl::special::tgamma(x); }
+    double check_digamma(double x) { return wsl::special::digamma(x); }
+    double check_sum_digamma(double x) { return 1.0 + wsl::special::digamma(x); }
     double check_erf_inv(double y) { return wsl::special::erf_inv(y); }
     double check_erfc_inv(double z) { return wsl::special::erfc_inv(z); }
     double check_uniform_cdf(double a, double b, double x) { return cdf(wsl::uniform({.low = a, .high = b}), x); }

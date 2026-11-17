@@ -183,6 +183,26 @@ int main()
         assert(absolute < 0x1p-58);
     }
     check<double>("tgamma double", reference_data::tgamma_double, [](double x) { return sp::tgamma(x); }, 0.51);
+    check<double>("digamma x>0", reference_data::digamma_double, [](double x) { return sp::digamma(x); }, 0.51);
+    check<float>("digamma float", reference_data::digamma_float, [](float x) { return sp::digamma(x); }, 0.5 + 0x1p-28);
+    // digamma, x < 0 : même garantie que lgamma (0,51 ulp, ou 2^-58 en absolu près des zéros).
+    {
+        double absolute = 0;
+        std::size_t beyond = 0;
+        for (auto const& ref : reference_data::digamma_negative_double)
+        {
+            double const y = sp::digamma(ref.x);
+            double const error_ulp = std::abs((y - ref.rounded) / ulp(ref.rounded) - ref.offset);
+            if (error_ulp >= 0.51)
+            {
+                ++beyond;
+                absolute = std::max(absolute, error_ulp * ulp(ref.rounded));
+            }
+        }
+        std::printf("digamma x<0  %5zu points : %zu au-delà de 0,51 ulp (près des zéros), erreur absolue max %a\n",
+                    std::size(reference_data::digamma_negative_double), beyond, absolute);
+        assert(absolute < 0x1p-58);
+    }
     check<float>("lgamma float", reference_data::lgamma_float, [](float x) { return sp::lgamma(x); }, 0.5 + 0x1p-28);
     check<float>("tgamma float", reference_data::tgamma_float, [](float x) { return sp::tgamma(x); }, 0.5 + 0x1p-28);
     check<double>("erf_inv dbl", reference_data::erf_inv_double, [](double y) { return sp::erf_inv(y); }, 0.51);

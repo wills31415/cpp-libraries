@@ -246,6 +246,8 @@ int main()
     auto const tgamma_double = fingerprint([&](splitmix64& g) { return of_double(sp::tgamma(gamma_input(g))); });
     auto const lgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::lgamma(static_cast<float>(uniform(g, -40, 1e6)))); });
     auto const tgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::tgamma(static_cast<float>(uniform(g, -40, 36)))); });
+    auto const digamma_double = fingerprint([&](splitmix64& g) { return of_double(sp::digamma(gamma_input(g))); });
+    auto const digamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::digamma(static_cast<float>(uniform(g, -40, 1e6)))); });
 
     // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
     auto const erf_inv_double = fingerprint([&](splitmix64& g) {
@@ -300,6 +302,8 @@ int main()
     ok &= check("tgamma double", tgamma_double, 0x8bb4f651e6380bcb);
     ok &= check("lgamma float", lgamma_float, 0xea350830d6044a96);
     ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
+    ok &= check("digamma double", digamma_double, 0x3a9ec0df558f01bc);
+    ok &= check("digamma float", digamma_float, 0x260ca54d39c41921);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);

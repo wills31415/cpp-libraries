@@ -70,6 +70,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Produits exacts par fma quand la cible en a une (ARM64, x86-64 avec `-mfma` ou
   `-march=x86-64-v3`…) : 10 à 28 % plus rapide selon la fonction, **mêmes bits** que sans
   fma. `WSL_SPECIAL_NO_FMA` pour s'en passer.
+- `digamma` (float, double) : erreur maximale mesurée 0,500 ulp pour x > 0 ; pour x < 0,
+  0,51 ulp ou 2⁻⁶² en valeur absolue près des zéros (réflexion).
 - Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma
