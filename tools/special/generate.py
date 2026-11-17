@@ -27,6 +27,8 @@ Fichiers engendrés (à ne pas modifier à la main) :
 """
 
 import math
+import multiprocessing
+import os
 from fractions import Fraction
 import random
 import struct
@@ -738,12 +740,34 @@ def log1p_points_float():
     return [x for x in xs if x > -1]
 
 
+_parallel_f = None
+
+
+def _parallel_call(args):
+    # Tuple brut : dépicler un mpf l'arrondirait à la précision courante (256 bits), or les
+    # références à 320 ou 400 bits en ont besoin de tous.
+    return _parallel_f(*args)._mpf_
+
+
+def parallel_map(f, argsets):
+    """[f(*a) for a in argsets], sur tous les cœurs (fork : f peut être une fonction locale).
+    Résultats identiques au calcul séquentiel, dans le même ordre."""
+    global _parallel_f
+    argsets = list(argsets)
+    if len(argsets) < 64:
+        return [mpf(f(*a)) for a in argsets]
+    _parallel_f = f
+    with multiprocessing.get_context("fork").Pool() as pool:
+        raw = pool.map(_parallel_call, argsets, chunksize=1)               # points triés : coûts groupés
+    return [mp.make_mpf(v) for v in raw]
+
+
 def references(name, xs, f, rounder, ulp, fmt, ctype):
     lines = [f"    // {name} : x, arrondi correct de f(x), position exacte de f(x) en ulp\n",
              f"    inline constexpr reference<{ctype}> {name}[] = {{\n"]
     kept = 0
-    for x in sorted(set(xs)):
-        exact = f(mpf(x))
+    xs = sorted(set(xs))
+    for x, exact in zip(xs, parallel_map(lambda v: f(mpf(v)), [(x,) for x in xs])):
         cr = rounder(exact)
         if math.isinf(cr) or cr == 0:
             continue
@@ -1163,9 +1187,17 @@ def ibeta_reference(a, b, x):
         if x < (a + 1) / (a + b + 2):
             i = prefix * fraction(a, b, x) / a
             result = (i, 1 - i)
+            derived = 1                                        # le côté obtenu par 1 − v
         else:
             j = prefix * fraction(b, a, y) / b
             result = (1 - j, j)
+            derived = 0
+        # Côté obtenu par 1 − v (paramètre minuscule) et trop petit pour 400 bits : directement.
+        if result[derived] < mpf(2) ** -200:
+            if derived == 0:
+                result = (mp.betainc(a, b, 0, x, regularized=True), result[1])
+            else:
+                result = (result[0], mp.betainc(a, b, x, 1, regularized=True))
     _ibeta_cache[key] = result
     return result
 
@@ -1200,6 +1232,65 @@ def ibeta_points(count, to_type=lambda v: v):
         a, b, x = to_type(a), to_type(b), to_type(x)
         if a > 0 and b > 0 and 0 < x < 1:
             pts.append((a, b, x))
+    return pts
+
+
+def ibeta_inverse_exact(a, b, t, complement):
+    """x tel que Iₓ(a, b) = t (1 − Iₓ(a, b) = t si complement), à 400 bits : variable u = x
+    (ou 1 − x, paramètres échangés) dans (0, 1/2], côté minoritaire, bissection en log u puis
+    Newton."""
+    with mp.workprec(400):
+        a, b, t = mpf(a), mpf(b), mpf(t)
+        # Sans jamais former 1 − t (nul à 400 bits pour t < 2^-400) : on résout sur le côté
+        # demandé, dans la variable où la solution est <= 1/2.
+        half_i, half_j = ibeta_reference(a, b, mpf(1) / 2)
+        in_x = (t >= half_j) if complement else (t <= half_i)
+        aa, bb = (a, b) if in_x else (b, a)
+        upper = complement if in_x else not complement         # côté 1 − Iᵤ(aa, bb)
+        target = mp.log(t)
+        sign = -1 if upper else 1
+        def residual(v):
+            i_, j_ = ibeta_reference(aa, bb, mp.exp(v))
+            f = j_ if upper else i_
+            return mp.log(f) - target if f > 0 else -mpf(10) ** 9
+        lo, hi = mpf(-3000), mp.log(mpf(1) / 2)
+        if sign * residual(hi) < 0:                            # (ne devrait pas arriver)
+            return mpf(1) / 2 if in_x else mpf(1) / 2
+        for _ in range(80):
+            mid = (lo + hi) / 2
+            if sign * residual(mid) > 0:
+                hi = mid
+            else:
+                lo = mid
+            if hi - lo < mpf(2) ** -10:
+                break
+        v = (lo + hi) / 2
+        lb = mp.loggamma(aa) + mp.loggamma(bb) - mp.loggamma(aa + bb)
+        for _ in range(60):
+            u = mp.exp(v)
+            i_, j_ = ibeta_reference(aa, bb, u)
+            f = j_ if upper else i_
+            g = mp.log(f) - target
+            density_u = mp.exp(aa * mp.log(u) + (bb - 1) * mp.log(1 - u) - lb)   # u f(u)
+            step = g / (sign * density_u / f)
+            v -= step
+            if abs(step) < mpf(2) ** -380:
+                break
+        u = mp.exp(v)
+        return u if in_x else 1 - u
+
+
+def ibeta_inverse_points(count, to_type=lambda v: v):
+    r = ibeta_rng
+    pts = []
+    for a, b, _ in ibeta_points(count, to_type):
+        if max(a, b) > 2.0 ** 12:                              # coût des références (fraction à 400 bits)
+            continue
+        u = r.random()
+        t = r.random() if u < 0.4 else 2.0 ** -r.uniform(1, 600) if u < 0.8 else 0.5 + r.choice([-1, 1]) * 2.0 ** -r.uniform(2, 40)
+        t = to_type(t)
+        if 0 < t < 1:
+            pts.append((a, b, t))
     return pts
 
 
@@ -1306,8 +1397,8 @@ def references2(name, pts, f, rounder, ulp, fmt, ctype):
     lines = [f"    // {name} : x, y, arrondi correct de f(x, y), position exacte en ulp\n",
              f"    inline constexpr reference2<{ctype}> {name}[] = {{\n"]
     kept = 0
-    for x, y in sorted(set(pts)):
-        exact = f(x, y)
+    pts = sorted(set(pts))
+    for (x, y), exact in zip(pts, parallel_map(f, pts)):
         cr = rounder(exact)
         if math.isinf(cr) or cr == 0:
             continue
@@ -1322,8 +1413,8 @@ def references3(name, pts, f, rounder, ulp, fmt, ctype):
     lines = [f"    // {name} : a, b, x, arrondi correct de f(a, b, x), position exacte en ulp\n",
              f"    inline constexpr reference3<{ctype}> {name}[] = {{\n"]
     kept = 0
-    for a, b, x in sorted(set(pts)):
-        exact = f(a, b, x)
+    pts = sorted(set(pts))
+    for (a, b, x), exact in zip(pts, parallel_map(f, pts)):
         cr = rounder(exact)
         if math.isinf(cr) or cr == 0:
             continue
@@ -1412,11 +1503,16 @@ def reference_file():
         out.append(text)
     ibeta_double = ibeta_points(2400)
     ibeta_float = [(a, b, x) for a, b, x in ibeta_points(600, to_f32_safe) if max(a, b) < 3e38]
+    ibeta_inverse_double = ibeta_inverse_points(400)
+    ibeta_inverse_float = [(a, b, t) for a, b, t in ibeta_inverse_points(160, to_f32_safe) if max(a, b) < 3e38]
     for name, pts, f, rounder, ulp, fmt, ctype in (
             ("ibeta_double", ibeta_double, lambda a, b, x: ibeta_reference(a, b, x)[0], round_double, ulp_double, hexd, "double"),
             ("ibetac_double", ibeta_double, lambda a, b, x: ibeta_reference(a, b, x)[1], round_double, ulp_double, hexd, "double"),
             ("ibeta_float", ibeta_float, lambda a, b, x: ibeta_reference(a, b, x)[0], round_float, ulp_float, hexf, "float"),
-            ("ibetac_float", ibeta_float, lambda a, b, x: ibeta_reference(a, b, x)[1], round_float, ulp_float, hexf, "float")):
+            ("ibetac_float", ibeta_float, lambda a, b, x: ibeta_reference(a, b, x)[1], round_float, ulp_float, hexf, "float"),
+            ("ibeta_inv_double", ibeta_inverse_double, lambda a, b, t: ibeta_inverse_exact(a, b, t, False), round_double, ulp_double, hexd, "double"),
+            ("ibetac_inv_double", ibeta_inverse_double, lambda a, b, t: ibeta_inverse_exact(a, b, t, True), round_double, ulp_double, hexd, "double"),
+            ("ibeta_inv_float", ibeta_inverse_float, lambda a, b, t: ibeta_inverse_exact(a, b, t, False), round_float, ulp_float, hexf, "float")):
         text, counts[name] = references3(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")

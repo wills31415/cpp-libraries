@@ -177,6 +177,9 @@ int main()
     check3<double>("ibetac dbl", reference_data::ibetac_double, [](double a, double b, double x) { return sp::ibetac(a, b, x); }, 0.51);
     check3<float>("ibeta float", reference_data::ibeta_float, [](float a, float b, float x) { return sp::ibeta(a, b, x); }, 0.5 + 0x1p-28);
     check3<float>("ibetac float", reference_data::ibetac_float, [](float a, float b, float x) { return sp::ibetac(a, b, x); }, 0.5 + 0x1p-28);
+    check3<double>("ibeta_inv dbl", reference_data::ibeta_inv_double, [](double a, double b, double p) { return sp::ibeta_inv(a, b, p); }, 0.51);
+    check3<double>("ibetac_inv dbl", reference_data::ibetac_inv_double, [](double a, double b, double q) { return sp::ibetac_inv(a, b, q); }, 0.51);
+    check3<float>("ibeta_inv flt", reference_data::ibeta_inv_float, [](float a, float b, float p) { return sp::ibeta_inv(a, b, p); }, 0.5 + 0x1p-28);
     check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
     check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
     check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
@@ -438,6 +441,13 @@ int main()
         double const p3 = sp::ibeta(3.0, 1.0, x), e3 = x * x * x;           // x³ (arrondis : 1 ulp)
         assert(e3 == 0 || std::abs(p3 - e3) <= 1.5 * (std::nextafter(e3, inf) - e3));
     }
+
+    // ibeta_inv, ibetac_inv : bords, domaine, cas exacts.
+    assert(sp::ibeta_inv(2.0, 3.0, 0.0) == 0 && sp::ibeta_inv(2.0, 3.0, 1.0) == 1 && sp::ibetac_inv(2.0, 3.0, 0.0) == 1 && sp::ibetac_inv(2.0, 3.0, 1.0) == 0);
+    assert(std::isnan(sp::ibeta_inv(-1.0, 3.0, 0.5)) && std::isnan(sp::ibeta_inv(1.0, 3.0, 2.0)) && std::isnan(sp::ibetac_inv(1.0, std::nan(""), 0.5)));
+    for (double p : {1e-300, 1e-9, 0.25, 0.5, 0.875})
+        assert(sp::ibeta_inv(1.0, 1.0, p) == p && sp::ibetac_inv(1.0, 1.0, p) == 1 - p);   // uniforme (1 − p exact ici)
+    assert(sp::ibeta_inv(0.5, 0.5, 0.5) == 0.5);                             // loi de l'arcsinus, médiane
 
     // gamma_p_inv, gamma_q_inv : bords, domaine, aller-retour.
     assert(sp::gamma_p_inv(2.5, 0.0) == 0 && sp::gamma_p_inv(2.5, 1.0) == inf && sp::gamma_q_inv(2.5, 1.0) == 0 && sp::gamma_q_inv(2.5, 0.0) == inf);

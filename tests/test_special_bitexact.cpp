@@ -276,6 +276,8 @@ int main()
     auto const ibeta_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibeta(a, b, x)); }, 1 << 14);
     auto const ibetac_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibetac(a, b, x)); }, 1 << 14);
     auto const lbeta_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); (void)x; return of_double(sp::lbeta(a, b)); }, 1 << 16);
+    auto const ibeta_inv_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibeta_inv(a, b, x)); }, 1 << 10);
+    auto const ibetac_inv_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibetac_inv(a, b, x)); }, 1 << 10);
 
     // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
     auto const erf_inv_double = fingerprint([&](splitmix64& g) {
@@ -340,6 +342,8 @@ int main()
     ok &= check("ibeta double", ibeta_double, 0x0d265d033540b4a3);
     ok &= check("ibetac double", ibetac_double, 0xdd02552c768d4e19);
     ok &= check("lbeta double", lbeta_double, 0x202f7d66e2367aa6);
+    ok &= check("ibeta_inv dbl", ibeta_inv_double, 0xd49cd42e6e6d4934);
+    ok &= check("ibetac_inv dbl", ibetac_inv_double, 0xf8e4540e05717caf);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);

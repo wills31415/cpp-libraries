@@ -9,7 +9,8 @@
 > vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
 > (§6, « Produits exacts »). **Phase 4 en cours** (2026-11-17, cible < 1 ulp mesurée,
 > inverses comprises) : `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`,
-> `beta`, `lbeta`, `ibeta`, `ibetac` faits ; inverses de la bêta ensuite (§7).
+> `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv` faits : **phase 4 de
+> wsl::special terminée** (§7).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -192,6 +193,7 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `gamma_p_inv`, `gamma_q_inv` | 0,500 ulp | 100 % | 0,497 ulp (100 %) |
 | `beta`, `lbeta` | 0,500 ulp | 100 % | |
 | `ibeta`, `ibetac` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `ibeta_inv`, `ibetac_inv` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -450,3 +452,23 @@ la plus petite des deux calculée directement.
   a, b de 2⁻³⁰ à 2²⁰ ; au-delà (jusqu'à 2⁴⁰) comparé à part, écart nul ; fouille de
   37 000 paires, a et b de 2⁻⁶⁰ à 2⁶⁰ : Iₓ + (1 − Iₓ) = 1, pas de NaN. Coût moyen 2 µs,
   94 µs au pire (fraction continue pour a ~ 10⁹ près de x = 1).
+
+**`ibeta_inv`, `ibetac_inv`** : x tel que Iₓ(a, b) = p (1 − Iₓ(a, b) = q). Comme pour la
+gamma (Newton encadré sur log F du côté minoritaire, pas sur la variable, dernier pas en
+double-double), dans la variable u = x si la solution est <= 1/2, sinon u = 1 − x avec
+les paramètres échangés : u reste petit, donc précis, et x = 1 − u est arrondi une fois.
+Queue basse d'un petit paramètre s : log I = s log u − log(sB) + log1p(s T), d'erreur
+proportionnelle à s. Pour situer la solution, p est comparé à I_{1/2} et q à 1 − I_{1/2},
+chacune calculée de son côté (1 − q vaut 1 pour q minuscule : la première version se
+trompait de côté). Références à 400 bits (a, b jusqu'à 2¹², pour le coût), 100 %
+d'arrondis corrects ; fouille de 6 000 cas (a, b de 2⁻⁴⁰ à 2³⁰) sans défaut.
+
+Coût : 2 à 3 µs pour `ibeta` aux petits paramètres, 12 µs à a = 300, 79 µs à a = 10⁵ (la
+fraction continue croît comme la racine des paramètres) ; inverses 8 à 92 µs. Un
+développement uniforme de Temme pour la bêta (comme pour la gamma) les ramènerait à
+quelques µs : à faire si le besoin s'en présente.
+
+Générateur : `--references` calcule les valeurs exactes sur tous les cœurs
+(`multiprocessing`, fork), sortie identique octet pour octet au calcul séquentiel
+(attention : dépicler un `mpf` l'arrondit à la précision courante ; les fils renvoient
+le tuple brut). Environ 2 minutes.

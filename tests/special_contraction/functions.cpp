@@ -38,6 +38,9 @@ extern "C"
     double check_ibetac(double a, double b, double x) { return wsl::special::ibetac(a, b, x); }
     double check_sum_ibeta(double a, double b, double x) { return 1.0 + wsl::special::ibeta(a, b, x); }
     double check_beta(double a, double b) { return wsl::special::beta(a, b); }
+    double check_ibeta_inv(double a, double b, double p) { return wsl::special::ibeta_inv(a, b, p); }
+    double check_ibetac_inv(double a, double b, double q) { return wsl::special::ibetac_inv(a, b, q); }
+    double check_sum_ibeta_inv(double a, double b, double p) { return 1.0 + wsl::special::ibeta_inv(a, b, p); }
     double check_sum_lbeta(double a, double b) { return 1.0 + wsl::special::lbeta(a, b); }
     double check_gamma_q_inv(double a, double q) { return wsl::special::gamma_q_inv(a, q); }
     double check_sum_gamma_q_inv(double a, double q) { return 1.0 + wsl::special::gamma_q_inv(a, q); }

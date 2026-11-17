@@ -83,6 +83,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `beta`, `lbeta`, `ibeta`, `ibetac` (bêta incomplète régularisée et complément, float et
   double) : erreur maximale mesurée 0,500 ulp, arrondi correct sur 100 % des points, chacune
   précise même minuscule (formule propre aux petits paramètres).
+- `ibeta_inv`, `ibetac_inv` (float, double) : erreur maximale mesurée 0,500 ulp, arrondi
+  correct sur 100 % des points. Phase 4 terminée.
 - Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma

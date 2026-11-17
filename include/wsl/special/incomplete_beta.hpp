@@ -239,6 +239,154 @@ namespace wsl::special
         }
     }
 
+    namespace detail
+    {
+        // ---------------------------------------------------------------------
+        // Inverses : x tel que Iₓ(a, b) = p (ou 1 − Iₓ(a, b) = q).
+        //
+        // Variable u = x si la solution est <= 1/2 (p <= I_{1/2}), sinon u = 1 − x avec
+        // les paramètres échangés (Iₓ(a, b) = 1 − I_{1−x}(b, a)) : u reste petit, donc
+        // précis. Puis, comme pour la gamma : Newton encadré sur log F(u) du côté
+        // minoritaire, pente u f(u)/F(u) = préfixe/((1 − u) F), pas sur u lui-même,
+        // dernier pas en double-double ; queue basse d'un petit paramètre s :
+        // log I = s log u − log(sB) + log1p(s T), d'erreur absolue proportionnelle à s.
+        // ---------------------------------------------------------------------
+
+        constexpr double lbeta_double(double a, double b) noexcept
+        {
+            auto const [hi, lo] = xd::log_beta(a, b);
+            return hi + lo;
+        }
+
+        // I_{1/2}(a, b) et 1 − I_{1/2}(a, b), chacune calculée de son côté (pour situer la
+        // solution sans former 1 − p, qui vaut 1 pour p minuscule).
+        struct beta_halves
+        {
+            double lower, upper;
+        };
+
+        constexpr beta_halves ibeta_halves(double a, double b) noexcept
+        {
+            auto const [v, complement] = incomplete_beta(a, b, 0.5);
+            double const direct = xd::rounded(v), other = one_minus(v);
+            return complement ? beta_halves{other, direct} : beta_halves{direct, other};
+        }
+
+        // log Iᵤ(s, t), s <= 1/4, u <= 3/4, t u <= 8.
+        constexpr double_double log_ibeta_small(double s, double t, double u) noexcept
+        {
+            double_double const lsb = xd::sum(lgamma1p_small(s), log_gamma_ratio(s, t));
+            double_double term{1.0, 0.0}, total{0.0, 0.0};
+            double const peak = fmul(t, u);
+            for (int j = 1; j < 100000; ++j)
+            {
+                double const jd = static_cast<double>(j);
+                auto const [c_hi, c_lo] = two_sum(jd, -t);
+                term = xd::mul(term, quotient_dd(xd::mul({c_hi, c_lo}, {u, 0.0}), {jd, 0.0}));
+                auto const [d_hi, d_lo] = two_sum(s, jd);
+                double_double const add = quotient_dd(term, {d_hi, d_lo});
+                total = xd::sum(total, add);
+                if (jd > peak && xd::magnitude(add.hi) <= fmul(xd::magnitude(total.hi), 0x1p-80))
+                    break;
+            }
+            double_double const st = xd::mul({s, 0.0}, total);              // dans (−1, ∞)
+            double_double l1{};
+            if (st.hi >= 0)
+                l1 = xd::log1p_positive(st.hi, st.lo);
+            else
+            {
+                auto const [h, lo] = xd::log1p_dd(st.hi);
+                l1 = {h, lo + st.lo / (1.0 + st.hi)};
+            }
+            double_double result = xd::mul({s, 0.0}, xd::log_precise(u));
+            result = xd::sum(result, {-lsb.hi, -lsb.lo});
+            return xd::sum(result, l1);
+        }
+
+        // log F(u) et pente u f(u)/F(u), F = Iᵤ(a, b) (ou 1 − Iᵤ si upper).
+        constexpr side_log beta_side(double a, double b, double u, bool upper) noexcept
+        {
+            auto const [y_hi, y_lo] = two_sum(1.0, -u);
+            xd::scaled const density = beta_prefix(a, b, u, {y_hi, y_lo}) / xd::normalized(y_hi, y_lo);   // u f(u)
+            if (!upper && a <= 0.25 && u <= 0.75 && fmul(b, u) <= 8)
+            {
+                double_double const l = log_ibeta_small(a, b, u);
+                return {l, xd::rounded(density / xd::exp_scaled(l.hi, l.lo))};
+            }
+            auto const [v, complement] = incomplete_beta(a, b, u);
+            xd::scaled const value = complement == upper ? v : one_minus_scaled(v);
+            if (value.hi == 0)
+                return {{-infinity, 0.0}, infinity};
+            return {xd::log(value), density.hi == 0 ? 0.0 : xd::rounded(density / value)};
+        }
+
+        // u dans (0, 1/2] tel que F(u) = t, F = Iᵤ(a, b) ou 1 − Iᵤ(a, b) (upper) ; en
+        // double-double.
+        constexpr double_double beta_inverse_u(double a, double b, double t, bool upper) noexcept
+        {
+            auto const [lt_hi, lt_lo] = xd::log_precise(t);
+            // Départ : queue basse Iᵤ ≈ uᵃ/(a B) si elle donne u < 1/2, sinon 1/4.
+            double u = 0.25;
+            if (!upper)
+            {
+                double const l = (log(t) + log(a) + lbeta_double(a, b)) / a;
+                if (l < log(0.5))
+                    u = l < -744 ? 0x1p-1074 : exp(l);
+            }
+            double low = 0, high = 0.5;
+            for (int iteration = 0; iteration < 300; ++iteration)
+            {
+                auto const [l, slope] = beta_side(a, b, u, upper);
+                double const g = (l.hi - lt_hi) + (l.lo - lt_lo);
+                double const s = upper ? -slope : slope;
+                if (g == 0)
+                    return {u, 0.0};
+                bool const too_far = (g > 0) == (s > 0);
+                if (too_far)
+                    high = u;
+                else
+                    low = u;
+                double const delta = s != 0 && xd::is_finite(s) ? g / s : (too_far ? 4.0 : -4.0);
+                double next = xd::magnitude(delta) < 0x1p-20 ? u - fmul(u, delta) : fmul(u, exp(-delta));
+                if (xd::magnitude(delta) < 0x1p-56 || next == u)
+                {
+                    auto const [m, m_error] = two_product(u, delta);
+                    auto const [r, r_error] = two_sum(u, -m);
+                    auto const [hi, lo] = fast_two_sum(r, r_error - m_error);
+                    return {hi, lo};
+                }
+                if (!(next > low && (next < high || (next == 0.5 && high == 0.5))))   // 1/2 elle-même est permise
+                    next = low > 0 ? exp(fmul(log(low) + log(high), 0.5)) : fmul(high, 0x1.2c1599b2a5cb3p-6);   // e^-4
+                if (!(next > 0))
+                {
+                    if (high <= 0x1p-1074)
+                        return {0.0, 0.0};
+                    next = 0x1p-1074;
+                }
+                u = next;
+            }
+            return {u, 0.0};
+        }
+
+        // x tel que Iₓ(a, b) = p (complement : 1 − Iₓ(a, b) = p), p dans (0, 1).
+        constexpr double beta_inverse(double a, double b, double p, bool complement) noexcept
+        {
+            auto const [half_lower, half_upper] = ibeta_halves(a, b);
+            bool const in_x = complement ? p >= half_upper : p <= half_lower;   // solution x <= 1/2
+            bool const minority_upper = complement ? p <= 0.5 : p > 0.5;    // côté 1 − I minoritaire
+            double const t = p <= 0.5 ? p : 1.0 - p;                        // exact
+            if (in_x)
+            {
+                auto const [hi, lo] = beta_inverse_u(a, b, t, minority_upper);
+                return hi + lo;
+            }
+            // u = 1 − x, paramètres échangés : Iₓ(a, b) = 1 − Iᵤ(b, a), les côtés s'échangent.
+            auto const [hi, lo] = beta_inverse_u(b, a, t, !minority_upper);
+            auto const [r, r_error] = two_sum(1.0, -hi);
+            return r + (r_error - lo);
+        }
+    }
+
     constexpr double lbeta(double a, double b) noexcept
     {
         if (!(a == a) || !(b == b))
@@ -298,5 +446,38 @@ namespace wsl::special
     constexpr float ibetac(float a, float b, float x) noexcept
     {
         return detail::to_float(ibetac(static_cast<double>(a), static_cast<double>(b), static_cast<double>(x)));
+    }
+
+    // Inverses : ibeta_inv(a, b, p) = x tel que Iₓ(a, b) = p ; ibetac_inv(a, b, q) = x tel que
+    // 1 − Iₓ(a, b) = q. p (q) dans [0, 1] : bords 0 et 1 ; sinon NaN.
+    constexpr double ibeta_inv(double a, double b, double p) noexcept
+    {
+        if (!(a == a) || !(b == b) || !(p == p))
+            return detail::opaque(a + b + p);
+        if (!(a > 0) || !(b > 0) || a == detail::infinity || b == detail::infinity || !(p >= 0 && p <= 1))
+            return detail::quiet_nan;
+        if (p == 0 || p == 1)
+            return p;
+        return detail::beta_inverse(a, b, p, false);
+    }
+
+    constexpr double ibetac_inv(double a, double b, double q) noexcept
+    {
+        if (!(a == a) || !(b == b) || !(q == q))
+            return detail::opaque(a + b + q);
+        if (!(a > 0) || !(b > 0) || a == detail::infinity || b == detail::infinity || !(q >= 0 && q <= 1))
+            return detail::quiet_nan;
+        if (q == 0 || q == 1)
+            return 1.0 - q;
+        return detail::beta_inverse(a, b, q, true);
+    }
+
+    constexpr float ibeta_inv(float a, float b, float p) noexcept
+    {
+        return detail::to_float(ibeta_inv(static_cast<double>(a), static_cast<double>(b), static_cast<double>(p)));
+    }
+    constexpr float ibetac_inv(float a, float b, float q) noexcept
+    {
+        return detail::to_float(ibetac_inv(static_cast<double>(a), static_cast<double>(b), static_cast<double>(q)));
     }
 }
