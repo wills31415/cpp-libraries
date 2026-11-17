@@ -3,6 +3,7 @@
 // fonctions ne doit contenir aucune fma. Une fma ici veut dire qu'un produit
 // entrant dans une addition n'est pas passé par detail::fmul.
 
+#include <wsl/random.hpp>
 #include <wsl/special.hpp>
 
 extern "C"
@@ -30,4 +31,8 @@ extern "C"
     double check_tgamma(double x) { return wsl::special::tgamma(x); }
     double check_erf_inv(double y) { return wsl::special::erf_inv(y); }
     double check_erfc_inv(double z) { return wsl::special::erfc_inv(z); }
+    double check_uniform_cdf(double a, double b, double x) { return cdf(wsl::uniform({.low = a, .high = b}), x); }
+    double check_uniform_quantile(double a, double b, double p) { return quantile(wsl::uniform({.low = a, .high = b}), p); }
+    double check_uniform_variance(double a, double b) { return wsl::uniform({.low = a, .high = b}).variance(); }
+    double check_discrete_variance(long long a, long long b) { return wsl::discrete_uniform({.low = a, .high = b}).variance(); }
 }

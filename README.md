@@ -21,7 +21,7 @@ avertissements traités comme des erreurs.
 | `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
 | `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
 | `wsl::special` | `<wsl/special.hpp>` | C++20 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma` ([conception](docs/special.md)) |
-| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, Bernoulli exacte, mélange ([conception](docs/random.md) ; les lois de probabilité viennent ensuite) |
+| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ([conception](docs/random.md) ; les lois de probabilité viennent ensuite) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
 
 Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :

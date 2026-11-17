@@ -196,23 +196,23 @@ int main()
     {
         int hits = 0;
         for (int i = 0; i < 200000; ++i)
-            hits += wsl::bernoulli(g, 0.3);
+            hits += wsl::bernoulli_trial(g, 0.3);
         assert(std::abs(hits / 200000.0 - 0.3) < 0.004);
-        assert(!wsl::bernoulli(g, 0.0) && wsl::bernoulli(g, 1.0));
+        assert(!wsl::bernoulli_trial(g, 0.0) && wsl::bernoulli_trial(g, 1.0));
         scripted zeros{{0}};
-        assert(wsl::bernoulli(zeros, 0x1p-1074));                           // U = 0 < p
+        assert(wsl::bernoulli_trial(zeros, 0x1p-1074));                           // U = 0 < p
         scripted ones{{~std::uint64_t{0}}};
-        assert(!wsl::bernoulli(ones, std::nextafter(1.0, 0.0)));            // U = 1 − 2^-64·… >= p
+        assert(!wsl::bernoulli_trial(ones, std::nextafter(1.0, 0.0)));            // U = 1 − 2^-64·… >= p
         scripted equal{{0xc000000000000000, 0}};                            // U = 0,11000… = p
-        assert(!wsl::bernoulli(equal, 0.75) && equal.next == 1);            // U >= p, décidé sans autre mot
+        assert(!wsl::bernoulli_trial(equal, 0.75) && equal.next == 1);            // U >= p, décidé sans autre mot
         scripted below_p{{0xbfffffffffffffff}};
-        assert(wsl::bernoulli(below_p, 0.75));
+        assert(wsl::bernoulli_trial(below_p, 0.75));
         int third = 0;
         for (int i = 0; i < 300000; ++i)
-            third += wsl::bernoulli(g, 1, 3);
+            third += wsl::bernoulli_trial(g, 1, 3);
         assert(std::abs(third / 300000.0 - 1.0 / 3) < 0.004);
         bool thrown = false;
-        try { (void)wsl::bernoulli(g, 1.5); } catch (std::domain_error const&) { thrown = true; }
+        try { (void)wsl::bernoulli_trial(g, 1.5); } catch (std::domain_error const&) { thrown = true; }
         assert(thrown);
     }
 
@@ -246,7 +246,7 @@ int main()
         ok &= check("uniform_real double", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::uniform_real(x)); }), 0x3dac0cd7502899fb);
         ok &= check("uniform_real float", fingerprint([&] { return std::uint64_t{std::bit_cast<std::uint32_t>(wsl::uniform_real<float>(x))}; }), 0x4713094695c22526);
         ok &= check("uniform_real_fast", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::uniform_real_fast(x)); }), 0xf767bee0632d4554);
-        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wsl::bernoulli(x, 0.3)}; }), 0xb356cd399bd84ee4);
+        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wsl::bernoulli_trial(x, 0.3)}; }), 0xb356cd399bd84ee4);
         ok &= check("shuffle", fingerprint([&] {
             std::array<std::uint64_t, 52> deck{};
             for (std::size_t i = 0; i < deck.size(); ++i)

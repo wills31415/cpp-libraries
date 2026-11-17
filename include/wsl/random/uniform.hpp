@@ -10,8 +10,8 @@
 //                               sous-normaux compris
 //   uniform_real_fast<T>(g)     réel uniforme sur [0, 1), rapide : 2^53 (2^24) valeurs
 //                               également espacées
-//   bernoulli(g, p)             vrai avec probabilité exactement p (p flottant)
-//   bernoulli(g, num, den)      vrai avec probabilité exactement num/den
+//   bernoulli_trial(g, p)             vrai avec probabilité exactement p (p flottant)
+//   bernoulli_trial(g, num, den)      vrai avec probabilité exactement num/den
 //   shuffle(range, g)           mélange de Fisher–Yates : les n! ordres équiprobables
 //
 // « Exact » : si le générateur rend des bits uniformes et indépendants, les
@@ -171,10 +171,10 @@ namespace wsl
     // d'en lire une autre).
     // -----------------------------------------------------------------------
     template <std::uniform_random_bit_generator G>
-    constexpr bool bernoulli(G& g, double p)
+    constexpr bool bernoulli_trial(G& g, double p)
     {
         if (!(p == p) || p < 0 || p > 1)
-            throw std::domain_error("wsl::bernoulli : p doit être dans [0, 1]");
+            throw std::domain_error("wsl::bernoulli_trial : p doit être dans [0, 1]");
         if (p == 0)
             return false;
         if (p == 1)
@@ -199,10 +199,10 @@ namespace wsl
 
     // Bernoulli rationnelle : vrai avec probabilité num/den exactement (0 <= num <= den, den > 0).
     template <std::uniform_random_bit_generator G>
-    constexpr bool bernoulli(G& g, std::uint64_t num, std::uint64_t den)
+    constexpr bool bernoulli_trial(G& g, std::uint64_t num, std::uint64_t den)
     {
         if (den == 0 || num > den)
-            throw std::domain_error("wsl::bernoulli : il faut 0 <= num <= den, den > 0");
+            throw std::domain_error("wsl::bernoulli_trial : il faut 0 <= num <= den, den > 0");
         return uniform_below(g, den) < num;
     }
 

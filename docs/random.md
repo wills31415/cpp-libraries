@@ -3,8 +3,9 @@
 > Document de conception. Décisions ✅ prises avec l'utilisateur le 2026-11-16 ;
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
-> **État** : phase 1 (`wsl::special`) terminée ; **phase 2 (socle) faite** le 2026-11-17 :
-> moteurs et primitives uniformes exactes (§4.1, §4.2, et §8 pour ce qui a été fixé).
+> **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
+> moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
+> premières lois (§9).
 
 ## 1. Vision ✅
 
@@ -278,8 +279,45 @@ fixé) ; xoshiro256++ par la première sortie calculable à la main et ses sauts
   lu sur les zéros de tête, mantisse prise dans le même mot quand il en reste assez :
   une valeur consommée presque toujours. `uniform_real_fast<T>(g)` : 53 (24) bits de
   tête, une valeur.
-- `bernoulli(g, p)` : U < p par comparaison des bits, mot par mot (une valeur presque
-  toujours) ; `bernoulli(g, num, den)` : `uniform_below(g, den) < num`.
+- `bernoulli_trial(g, p)` : U < p par comparaison des bits, mot par mot (une valeur presque
+  toujours) ; `bernoulli_trial(g, num, den)` : `uniform_below(g, den) < num`.
 - `shuffle(range, g)` : Fisher–Yates, n − 1 tirages.
 
 `wsl::exact_random` est retirée : `wsl::random` la remplace.
+
+## 9. Phase 3 : architecture et premières lois
+
+Décisions du 2026-11-17 : constantes en membres et opérations en fonctions libres ;
+exactitude progressive (exactes d'abord : uniformes, Bernoulli, exponentielle, normale ;
+les autres en algorithmes classiques bit-exacts marqués `approximate`) ; densités,
+répartitions et quantiles à moins d'un ulp, mesurés ; variantes rapides là où l'écart
+le justifie.
+
+**Concept** (`<wsl/random/law.hpp>`) : `value_type`, `sampling` (`exact` ou
+`approximate`), `support()` ; constantes en membres quand elles existent (`mean`,
+`variance`, `skewness`, `excess_kurtosis`, `entropy`, `median`, `mode`) ; opérations en
+fonctions libres trouvées par ADL — à appeler **sans qualification**, comme `swap` :
+`sample(X, g)`, `sample(X, g, wsl::fast)`, `pdf`/`pmf`, `log_pdf`/`log_pmf`, `cdf`,
+`ccdf`, `quantile`. Concepts `has_mean`, `has_cdf`… pour tester leur présence. Lois
+templates sur le type des valeurs, `double` par défaut (`wsl::normal X({…})`,
+`wsl::normal<float>`). `wsl::as_distribution(X)` : adaptateur *RandomNumberDistribution*.
+
+**Lois de l'étape A** (`<wsl/random/basic_laws.hpp>`) :
+
+| Loi | Paramètres | Tirage | Attributs |
+|---|---|---|---|
+| `uniform<T>` | `{.low, .high}`, [low, high) | approximate : low + U (high − low), un arrondi | moyenne, variance, médiane, asymétrie, aplatissement, entropie ; pdf, log_pdf, cdf, ccdf, quantile |
+| `discrete_uniform<I>` | `{.low, .high}`, bornes comprises | exact (`uniform_int`) | moyenne, variance, médiane inférieure, asymétrie, entropie ; pmf, log_pmf, cdf, ccdf, quantile exact |
+| `bernoulli` | `{.p}` | exact (`bernoulli_trial`) | moyenne, variance, entropie ; pmf, cdf, ccdf |
+
+Précision : calculs en double-double arrondis une fois (`detail/arithmetic.hpp`), mis
+à l'échelle pour que les produits exacts le restent ; l'intervalle `[−DBL_MAX, DBL_MAX)`
+fonctionne (b − a, qui déborde, est pris sur les moitiés).
+
+Quantile d'une loi discrète : le **quantile exact** de la vraie loi, min{k : F(k) >= p}.
+La cdf calculée étant arrondie, `quantile(cdf(k))` vaut k ou k + 1. (Rendre le quantile
+cohérent avec la cdf arrondie a été essayé : intenable au-delà de 2⁵³ valeurs, où des
+milliers de k voisins ont la même cdf arrondie.)
+
+La primitive `bernoulli(g, p)` de la phase 2 est devenue `bernoulli_trial(g, p)`, pour
+laisser le nom à la loi.

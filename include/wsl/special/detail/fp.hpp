@@ -161,15 +161,23 @@ namespace wsl::special::detail
         return static_cast<int>(b >> 52) - 1023;
     }
 
-    // x · 2^n, n dans [−2100, 2100], en deux étapes si n sort de [−1022, 1023] :
-    // la première est exacte (résultat intermédiaire normal), si bien qu'il n'y a
-    // qu'un arrondi, celui de la seconde, si le résultat est sous-normal.
+    // x · 2^n, n quelconque, en plusieurs étapes si n sort de [−1022, 1023]. Les
+    // étapes de montée sont exactes jusqu'au débordement éventuel (alors ±∞, voulu) ;
+    // en descente, chaque étape intermédiaire reste normale tant que le résultat
+    // n'est pas minuscule, si bien qu'il n'y a qu'un arrondi, celui de la dernière,
+    // si le résultat est sous-normal.
     constexpr double scale_by_power_of_two(double x, int n) noexcept
     {
-        if (n > 1023)
-            return fmul(fmul(x, power_of_two(1023)), power_of_two(n - 1023));
-        if (n < -1022)
-            return fmul(fmul(x, power_of_two(-1022)), power_of_two(n + 1022));
+        while (n > 1023)
+        {
+            x = fmul(x, power_of_two(1023));
+            n -= 1023;
+        }
+        while (n < -1022)
+        {
+            x = fmul(x, power_of_two(-1022));
+            n += 1022;
+        }
         return fmul(x, power_of_two(n));
     }
 

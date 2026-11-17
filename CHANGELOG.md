@@ -13,8 +13,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   matrices sur GF(2).
 - `random_bits`, `uniform_below` (Lemire), `uniform_int`, `uniform_real` (exact : chaque
   flottant de [0, 1) avec exactement sa probabilité, sous-normaux compris),
-  `uniform_real_fast`, `bernoulli` (p flottant ou rationnel, exacte), `shuffle`
+  `uniform_real_fast`, `bernoulli_trial` (p flottant ou rationnel, exacte), `shuffle`
   (Fisher–Yates), pour tout générateur standard.
+
+- Concept de loi (`probability_law`, `has_mean`, `has_cdf`…), tirage `sample(X, g)` et
+  `sample(X, g, wsl::fast)`, adaptateur `as_distribution` vers `<random>`.
+- Lois `uniform<T>`, `discrete_uniform<I>`, `bernoulli` : constantes, densité ou masse,
+  répartition, survie, quantile (exact pour la loi discrète), tirage.
+- La primitive `bernoulli(g, p)` devient `bernoulli_trial(g, p)`.
 
 ### exact_random (retirée)
 - Remplacée par `wsl::random` : `uniform_below(g, n)` (exact, tout générateur, plus
