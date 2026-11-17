@@ -104,4 +104,153 @@ namespace wsl::detail
     {
         return wsl::special::log(hi) + lo / hi;
     }
+
+    // ---------------------------------------------------------------------
+    // Constantes en double-double (valeurs de mpmath, vérifiées par
+    // tools/random/law_references.py).
+    // ---------------------------------------------------------------------
+    inline constexpr double inv_sqrt2_hi = 0x1.6a09e667f3bcdp-1, inv_sqrt2_lo = -0x1.bdd3413b26456p-55;
+    inline constexpr double sqrt2_hi = 0x1.6a09e667f3bcdp+0, sqrt2_lo = -0x1.bdd3413b26456p-54;
+    inline constexpr double inv_sqrt_2pi_hi = 0x1.9884533d43651p-2, inv_sqrt_2pi_lo = -0x1.cbc0d30ebfd15p-56;
+    inline constexpr double half_log_2pi_hi = 0x1.d67f1c864beb5p-1, half_log_2pi_lo = -0x1.65b5a1b7ff5dfp-55;
+    inline constexpr double normal_entropy_hi = 0x1.6b3f8e4325f5ap+0, normal_entropy_lo = 0x1.4d252f2400510p-54;  // (1 + log 2π)/2
+    inline constexpr double half_sqrt_pi = 0x1.c5bf891b4ef6bp-1;
+    inline constexpr double inv_sqrt_pi = 0x1.20dd750429b6dp-1;
+
+    constexpr double magnitude(double x) noexcept { return x < 0 ? -x : x; }
+
+    // a·b exactement (produit et erreur), |a·b| dans [2^-900, 2^900] : les
+    // facteurs sont rééquilibrés (exactement) pour que le produit de Dekker le soit.
+    constexpr sd::sum_error balanced_product(double a, double b) noexcept
+    {
+        int const shift = (sd::exponent_of(magnitude(a)) - sd::exponent_of(magnitude(b))) / 2;
+        return sd::two_product(sd::scale_by_power_of_two(a, -shift), sd::scale_by_power_of_two(b, shift));
+    }
+
+    // log(x) en double-double, x > 0 fini, à 2^-72 près relativement.
+    constexpr sd::double_double log_precise(double x) noexcept
+    {
+        return sd::log_accurate(sd::bits(x));
+    }
+
+    // ---------------------------------------------------------------------
+    // Double-double à exposant séparé : (hi + lo) · 2^e, hi dans [1, 2). Ni
+    // débordement ni sous-normal dans les calculs intermédiaires ; un seul arrondi
+    // à la fin (rounded), sous-normaux compris.
+    // ---------------------------------------------------------------------
+    struct scaled
+    {
+        double hi, lo;
+        int e;
+    };
+
+    // hi > 0.
+    constexpr scaled normalized(double hi, double lo, int e = 0) noexcept
+    {
+        int const eh = sd::exponent_of(hi);
+        return {sd::scale_by_power_of_two(hi, -eh), sd::scale_by_power_of_two(lo, -eh), e + eh};
+    }
+
+    constexpr scaled operator*(scaled const& a, scaled const& b) noexcept
+    {
+        auto const [p, p_error] = sd::two_product(a.hi, b.hi);             // dans [1, 4) : exact
+        auto const [hi, lo] = sd::fast_two_sum(p, p_error + (sd::fmul(a.hi, b.lo) + sd::fmul(a.lo, b.hi)));
+        return normalized(hi, lo, a.e + b.e);
+    }
+
+    // a / d, d > 0 fini.
+    constexpr scaled operator/(scaled const& a, double d) noexcept
+    {
+        int const ed = sd::exponent_of(d);
+        double const m = sd::scale_by_power_of_two(d, -ed);                 // dans [1, 2)
+        double const q = a.hi / m;
+        auto const [p, p_error] = sd::two_product(q, m);
+        auto const [hi, lo] = sd::fast_two_sum(q, (((a.hi - p) - p_error) + a.lo) / m);
+        return normalized(hi, lo, a.e - ed);
+    }
+
+    // Au plus proche : un arrondi, sous-normaux compris.
+    constexpr double rounded(scaled const& a) noexcept
+    {
+        if (a.e > 1023)
+            return std::numeric_limits<double>::infinity();
+        if (a.e < -1076)                                                    // < 2^-1075 : vers 0
+            return 0.0;
+        return sd::scale_exp(a.hi, a.lo, a.e);
+    }
+
+    // En double-double ordinaire (exact tant que le résultat est normal).
+    constexpr sd::double_double unscaled(scaled const& a) noexcept
+    {
+        return {sd::scale_by_power_of_two(a.hi, a.e), sd::scale_by_power_of_two(a.lo, a.e)};
+    }
+
+    // ---------------------------------------------------------------------
+    // Fonctions à argument double-double.
+    // ---------------------------------------------------------------------
+
+    // e^x, x = x_hi + x_lo dans [−1500, 709,7], à 2^-60 près relativement, à
+    // l'échelle. Au-dessous de −1400 (hors de la réduction de Cody–Waite),
+    // e^x = 2^-1024 e^{x + 1024 ln 2}.
+    constexpr scaled exp_scaled(double x_hi, double x_lo) noexcept
+    {
+        int extra = 0;
+        if (x_hi < -1400)
+        {
+            auto const [s, s_error] = sd::two_sum(x_hi, sd::fmul(sd::ln2_hi, 1024.0));
+            auto const [hi, lo] = sd::fast_two_sum(s, (s_error + x_lo) + sd::fmul(sd::ln2_lo, 1024.0));
+            x_hi = hi;
+            x_lo = lo;
+            extra = -1024;
+        }
+        auto const [k, r_hi, r_lo] = sd::reduce_exp(x_hi);
+        auto const [t_hi, tail, e] = sd::exp_parts_dd(k, r_hi, r_lo + x_lo);
+        return normalized(t_hi, tail, e + extra);
+    }
+
+    // e^x − 1, x = x_hi + x_lo dans [−40, 0], en double, arrondi une fois : la
+    // méthode de wsl::special::expm1, l'argument réduit gardé en double-double.
+    constexpr double expm1_dd(double x_hi, double x_lo) noexcept
+    {
+        if (x_hi > -0x1p-54)                                                // e^x − 1 = x + x²/2 + …
+        {
+            if (x_hi > -0x1p-500)                                           // x² sous 2^-1000 : sans effet
+                return x_hi + x_lo;
+            return x_hi + (x_lo + sd::fmul(sd::fmul(x_hi, x_hi), 0.5));
+        }
+        auto const [k, a_hi, a_lo] = sd::reduce_exp(x_hi);
+        auto const [r_hi, r_lo] = sd::two_sum(a_hi, a_lo + x_lo);
+        int const j = sd::exp_index(k);
+        int const e = sd::exp_exponent(k);
+        double const t_hi = sd::exp_table[j][0];
+        double const t_lo = sd::exp_table[j][1];
+        double const r = r_hi;
+        double const rr = r * r;
+        double const a = 0x1p-1 + sd::fmul(r, 0x1.5555555555555p-3);
+        double const b = 0x1.5555555555555p-5 + sd::fmul(r, 0x1.1111111111111p-7);
+        double const c = 0x1.6c16c16c16c17p-10 + sd::fmul(r, 0x1.a01a01a01a01ap-13);
+        double const p_lo = r_lo + sd::fmul(rr, (a + sd::fmul(rr, b)) + sd::fmul(rr * rr, c));
+        double const scale = sd::power_of_two(e);
+        auto const [s, s_error] = sd::two_sum(sd::fmul(scale, t_hi), -1.0);
+        auto const [m, m_error] = sd::two_product(t_hi, r_hi);
+        auto const [s2, s2_error] = sd::two_sum(s, sd::fmul(scale, m));
+        double const rest = sd::fmul(scale, (m_error + sd::fmul(t_hi, p_lo)) + sd::fmul(t_lo, 1.0 + (r_hi + p_lo)));
+        return s2 + ((s2_error + s_error) + rest);
+    }
+
+    // log(1 + x) en double-double, x dans (−1, 0], à 2^-69 près relativement.
+    constexpr sd::double_double log1p_dd(double x) noexcept
+    {
+        if (x == 0)
+            return {0.0, 0.0};
+        if (x > -0x1p-10)
+        {
+            auto const [h, l] = sd::fast_two_sum(x, sd::log1p_minus_identity(x));
+            return {h, l};
+        }
+        auto const [u, u_error] = sd::two_sum(1.0, x);
+        auto const [hi, lo] = sd::log_accurate(sd::bits(u));
+        auto const [h, l] = sd::fast_two_sum(hi, lo + u_error / u);
+        return {h, l};
+    }
 }

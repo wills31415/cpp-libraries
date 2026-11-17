@@ -88,6 +88,16 @@ static_assert(cdf(wsl::uniform({.low = 2.0, .high = 6.0}), 3.0) == 0.25);
 static_assert(quantile(wsl::discrete_uniform({.low = 1, .high = 6}), 0.5) == 3);
 static_assert([] { wsl::pcg64 g(1); auto const x = sample(wsl::discrete_uniform({.low = 1, .high = 6}), g); return x >= 1 && x <= 6; }());
 
+static_assert(wsl::probability_law<wsl::exponential<>> && wsl::probability_law<wsl::normal<float>>);
+static_assert(wsl::has_pdf<wsl::exponential<>> && wsl::has_mode<wsl::exponential<>> && wsl::has_quantile<wsl::normal<>>);
+static_assert(wsl::exponential<>::sampling == wsl::exactness::exact && wsl::normal<>::sampling == wsl::exactness::exact);
+static_assert([] { wsl::normal X({.mean = 0, .sd = 1}); return std::is_same_v<decltype(X), wsl::normal<double>>; }());
+static_assert(cdf(wsl::exponential({.rate = 1.0}), 0.0) == 0 && cdf(wsl::normal({.mean = 2.0, .sd = 3.0}), 2.0) == 0.5);
+static_assert(quantile(wsl::normal({.mean = 2.0, .sd = 3.0}), 0.5) == 2.0);
+// Tirages exacts en évaluation constante (réels paresseux, grands entiers, voie lente comprise).
+static_assert([] { wsl::pcg64 g(3); return sample(wsl::exponential({.rate = 2.0}), g) > 0; }());
+static_assert([] { wsl::pcg64 g(4); double const x = sample(wsl::normal({.mean = 0.0, .sd = 0x1p-900}), g); return x == x; }());
+
 int main()
 {
     wsl::xoshiro256pp g(2026);
@@ -175,6 +185,81 @@ int main()
         assert(throws_domain_error([] { wsl::bernoulli E({.p = 1.5}); }));
     }
 
+    // ---- exponential ----------------------------------------------------------
+    {
+        wsl::exponential const E({.rate = 2});
+        assert(E.mean() == 0.5 && E.variance() == 0.25 && E.mode() == 0 && E.skewness() == 2 && E.excess_kurtosis() == 6);
+        assert(E.median() == quantile(E, 0.5) && std::abs(E.median() - std::log(2.0) / 2) < 1e-16);
+        assert(std::abs(E.entropy() - (1 - std::log(2.0))) < 1e-16);
+        assert(pdf(E, 0.0) == 2 && pdf(E, -1.0) == 0 && pdf(E, INFINITY) == 0 && log_pdf(E, -1.0) == -INFINITY);
+        assert(cdf(E, 0.0) == 0 && ccdf(E, 0.0) == 1 && cdf(E, INFINITY) == 1 && ccdf(E, INFINITY) == 0);
+        assert(quantile(E, 0.0) == 0 && quantile(E, 1.0) == INFINITY && std::isnan(cdf(E, NAN)));
+        assert(cdf(E, 1e-300) == 2e-300 && ccdf(E, 360.0) > 0 && ccdf(E, 360.0) < 1e-300);
+        assert(throws_domain_error([] { wsl::exponential X({.rate = 0}); }));
+        assert(throws_domain_error([] { wsl::exponential X({.rate = INFINITY}); }));
+        assert(throws_domain_error([&] { (void)quantile(E, -0.1); }));
+        // Paramètres extrêmes : rien de NaN, densité finie.
+        wsl::exponential const big({.rate = 0x1p1000}), small({.rate = 0x1p-1000});
+        assert(pdf(big, 0x1p-1000) > 0 && std::isfinite(pdf(big, 0x1p-1000)) && cdf(small, 0x1p1000) > 0.63);
+
+        std::vector<double> exact, fast;
+        for (int i = 0; i < 20000; ++i)
+        {
+            exact.push_back(sample(E, g));
+            fast.push_back(sample(E, g, wsl::fast));
+        }
+        assert(std::ranges::all_of(exact, [](double x) { return x >= 0; }));
+        assert(kolmogorov_smirnov(E, exact) < 1.95 && kolmogorov_smirnov(E, fast) < 1.95);
+        wsl::exponential<float> const F({.rate = 0.5f});
+        std::vector<double> floats;
+        for (int i = 0; i < 20000; ++i)
+            floats.push_back(sample(F, g));
+        assert(kolmogorov_smirnov(wsl::exponential({.rate = 0.5}), floats) < 1.95);
+    }
+
+    // ---- normal ---------------------------------------------------------------
+    {
+        wsl::normal const N({.mean = 1, .sd = 2});
+        assert(N.mean() == 1 && N.median() == 1 && N.mode() == 1 && N.variance() == 4 && N.skewness() == 0 && N.excess_kurtosis() == 0);
+        assert(std::abs(N.entropy() - (std::log(2.0) + 0.5 * (1 + std::log(2 * 3.141592653589793)))) < 1e-15);
+        assert(std::abs(pdf(N, 1.0) - 0.19947114020071635) < 1e-17 && cdf(N, 1.0) == 0.5 && quantile(N, 0.5) == 1);
+        for (double d : {0.375, 1.0, 3.0, 10.0, 40.0})                 // 1 ± d exacts
+            assert(cdf(N, 1 - d) == ccdf(N, 1 + d));                        // symétrie, exacte
+        assert(std::abs(cdf(N, 3.0) - 0.8413447460685429) < 1e-16 && std::abs(quantile(N, 0.8413447460685429) - 3) < 1e-14);
+        assert(quantile(N, 0.0) == -INFINITY && quantile(N, 1.0) == INFINITY && cdf(N, -INFINITY) == 0 && pdf(N, INFINITY) == 0);
+        assert(std::isnan(pdf(N, NAN)) && std::isnan(cdf(N, NAN)) && log_pdf(N, INFINITY) == -INFINITY);
+        assert(cdf(N, -74.0) > 0 && cdf(N, -74.0) < 1e-307 && ccdf(N, 1e6) == 0);
+        assert(throws_domain_error([] { wsl::normal X({.mean = 0, .sd = 0}); }));
+        assert(throws_domain_error([] { wsl::normal X({.mean = INFINITY, .sd = 1}); }));
+        // Paramètres extrêmes.
+        double const big = std::numeric_limits<double>::max();
+        wsl::normal const H({.mean = 0, .sd = big}), T({.mean = 0, .sd = 1e-300});
+        assert(std::abs(cdf(H, big) - 0.8413447460685429) < 1e-16 && quantile(H, 0.975) == INFINITY && std::isfinite(quantile(H, 0.75)));
+        assert(std::isfinite(pdf(T, 0.0)) && pdf(T, 0.0) > 1e299 && cdf(T, 1e-300) == cdf(N, 3.0));
+        assert(quantile(wsl::normal({.mean = big, .sd = big}), 0.01) < big);   // μ + σ z sur les moitiés
+
+        std::vector<double> exact, fast;
+        int tail = 0;
+        for (int i = 0; i < 40000; ++i)
+        {
+            exact.push_back(sample(N, g));
+            fast.push_back(sample(N, g, wsl::fast));
+            tail += std::abs(fast.back() - 1) > 2 * 3.6541528853610088;     // queue de la ziggourat
+        }
+        assert(kolmogorov_smirnov(N, exact) < 1.95 && kolmogorov_smirnov(N, fast) < 1.95);
+        assert(tail > 0 && tail < 40);                                      // P(|Z| > R) = 2,6·10⁻⁴
+        wsl::normal<float> const F({.mean = -3, .sd = 0.25f});
+        std::vector<double> floats;
+        for (int i = 0; i < 20000; ++i)
+            floats.push_back(sample(F, g));
+        assert(kolmogorov_smirnov(wsl::normal({.mean = -3.0, .sd = 0.25}), floats) < 1.95);
+        // Tirage exact par la voie lente (σ hors de la voie rapide) : même loi.
+        std::vector<double> slow;
+        for (int i = 0; i < 300; ++i)
+            slow.push_back(sample(T, g));
+        assert(kolmogorov_smirnov(T, slow) < 1.95);
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -212,6 +297,25 @@ int main()
             double const p = wsl::uniform_real(x);
             return std::bit_cast<std::uint64_t>(quantile(U, p)) ^ std::bit_cast<std::uint64_t>(cdf(U, quantile(U, p)));
         }), 0x40887993489ea177);
+        wsl::exponential const E({.rate = 0.75});
+        wsl::exponential<float> const EF({.rate = 3});
+        wsl::normal const N({.mean = 10, .sd = 0.5});
+        wsl::normal<float> const NF({.mean = 0, .sd = 1});
+        auto bits = [](auto v) { if constexpr (sizeof(v) == 8) return std::bit_cast<std::uint64_t>(v); else return std::uint64_t{std::bit_cast<std::uint32_t>(v)}; };
+        ok &= check("exponential", fingerprint([&] { return bits(sample(E, x)); }), 0x93410ac575f17399);
+        ok &= check("exponential float", fingerprint([&] { return bits(sample(EF, x)); }), 0x707f86aa03e3abe5);
+        ok &= check("exponential fast", fingerprint([&] { return bits(sample(E, x, wsl::fast)); }), 0xf0883bbac7b578e0);
+        ok &= check("normal", fingerprint([&] { return bits(sample(N, x)); }), 0xb505dc877374dd0a);
+        ok &= check("normal float", fingerprint([&] { return bits(sample(NF, x)); }), 0x1c5f8b545c8869d7);
+        ok &= check("normal fast", fingerprint([&] { return bits(sample(N, x, wsl::fast)); }), 0xd599f5eebf8f926d);
+        ok &= check("normal functions", fingerprint([&] {
+            double const p = wsl::uniform_real(x), y = quantile(N, p);
+            return bits(y) ^ bits(cdf(N, y)) ^ (bits(ccdf(N, y)) << 1) ^ (bits(pdf(N, y)) << 2) ^ (bits(log_pdf(N, y)) << 3);
+        }, 1 << 13), 0x2c59eb64ebd4bc77);
+        ok &= check("exponential functions", fingerprint([&] {
+            double const p = wsl::uniform_real(x), y = quantile(E, p);
+            return bits(y) ^ bits(cdf(E, y)) ^ (bits(ccdf(E, y)) << 1) ^ (bits(pdf(E, y)) << 2) ^ (bits(log_pdf(E, y)) << 3);
+        }, 1 << 13), 0x5c920e5f73d7dffd);
     }
     assert(ok);
     return 0;

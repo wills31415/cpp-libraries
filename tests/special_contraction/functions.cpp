@@ -35,4 +35,20 @@ extern "C"
     double check_uniform_quantile(double a, double b, double p) { return quantile(wsl::uniform({.low = a, .high = b}), p); }
     double check_uniform_variance(double a, double b) { return wsl::uniform({.low = a, .high = b}).variance(); }
     double check_discrete_variance(long long a, long long b) { return wsl::discrete_uniform({.low = a, .high = b}).variance(); }
+    double check_exponential_pdf(double l, double x) { return pdf(wsl::exponential({.rate = l}), x); }
+    double check_exponential_cdf(double l, double x) { return cdf(wsl::exponential({.rate = l}), x); }
+    double check_exponential_ccdf(double l, double x) { return ccdf(wsl::exponential({.rate = l}), x); }
+    double check_exponential_log_pdf(double l, double x) { return log_pdf(wsl::exponential({.rate = l}), x); }
+    double check_exponential_quantile(double l, double p) { return quantile(wsl::exponential({.rate = l}), p); }
+    double check_exponential_variance(double l) { return wsl::exponential({.rate = l}).variance(); }
+    double check_normal_pdf(double m, double s, double x) { return pdf(wsl::normal({.mean = m, .sd = s}), x); }
+    double check_normal_cdf(double m, double s, double x) { return cdf(wsl::normal({.mean = m, .sd = s}), x); }
+    double check_normal_log_pdf(double m, double s, double x) { return log_pdf(wsl::normal({.mean = m, .sd = s}), x); }
+    double check_normal_quantile(double m, double s, double p) { return quantile(wsl::normal({.mean = m, .sd = s}), p); }
+    double check_normal_entropy(double m, double s) { return wsl::normal({.mean = m, .sd = s}).entropy(); }
+    double check_exponential_sample(double l, wsl::xoshiro256pp& g) { return sample(wsl::exponential({.rate = l}), g); }
+    double check_exponential_fast(double l, wsl::xoshiro256pp& g) { return sample(wsl::exponential({.rate = l}), g, wsl::fast); }
+    double check_normal_sample(double m, double s, wsl::xoshiro256pp& g) { return sample(wsl::normal({.mean = m, .sd = s}), g); }
+    float check_normal_sample_float(float m, float s, wsl::xoshiro256pp& g) { return sample(wsl::normal<float>({.mean = m, .sd = s}), g); }
+    double check_normal_fast(double m, double s, wsl::xoshiro256pp& g) { return sample(wsl::normal({.mean = m, .sd = s}), g, wsl::fast); }
 }

@@ -321,3 +321,49 @@ milliers de k voisins ont la même cdf arrondie.)
 
 La primitive `bernoulli(g, p)` de la phase 2 est devenue `bernoulli_trial(g, p)`, pour
 laisser le nom à la loi.
+
+### Étape B : exponentielle et normale
+
+| Loi | Paramètres | Tirage (exact) | `wsl::fast` |
+|---|---|---|---|
+| `exponential<T>` | `{.rate}` | exponentielle de von Neumann sur réels paresseux, arrondi correct de E/λ | inversion −log(U)/λ |
+| `normal<T>` | `{.mean, .sd}` | demi-normale par rejet exponentiel exact, signe uniforme, arrondi correct de μ + σZ | ziggourat (256 couches) |
+
+Les deux : moyenne, variance, médiane, mode, asymétrie, aplatissement, entropie ;
+`pdf`, `log_pdf`, `cdf`, `ccdf`, `quantile`.
+
+**Tirage exact** (`detail/lazy.hpp`). Un réel uniforme paresseux n'existe que par les
+mots de 64 bits déjà tirés de son développement binaire ; on en tire d'autres quand
+une comparaison ou un arrondi l'exige.
+- Exponentielle (von Neumann, 1951) : x est accepté si la suite x > U₁ > U₂ > … remonte
+  d'abord à un rang impair (probabilité e^{−x}) ; chaque rejet ajoute 1 à la partie
+  entière.
+- Demi-normale : E₁ acceptée si une autre exponentielle E₂ dépasse (E₁ − 1)²/2
+  (probabilité e^{−(E₁−1)²/2}, le rapport des densités) ; comparaison décidée en
+  arithmétique d'intervalles exacte (grands entiers, `detail/big.hpp`), raffinée
+  jusqu'à décision. (Plus simple que l'algorithme de Karney, et exact aussi.)
+- Arrondi : on raffine jusqu'à ce que les deux bornes de l'intervalle s'arrondissent
+  au même flottant (double ou float) : la valeur rendue est l'arrondi correct d'un
+  tirage exact de la loi. Une voie rapide en double-double (bornes majorées, marge de
+  2⁻³⁰) décide 99,5 % des cas ; elle ne rend un résultat que s'il est certain, si bien
+  que résultat **et nombre de mots tirés** sont ceux de la voie exacte.
+- Coût mesuré (i7-9750H, xoshiro256++) : exponentielle 79 ns, normale 136 ns ; en
+  `wsl::fast` 13 ns et 8 ns (`std::exponential_distribution` 15 ns,
+  `std::normal_distribution` 18 ns, avec mt19937_64).
+
+**Fonctions de la loi** : z ou λx en double-double (produits exacts, facteurs
+rééquilibrés), `exp`, `expm1`, `log1p` à argument double-double, double-double à
+exposant séparé (`detail::scaled`) pour ne jamais déborder ni passer par les
+sous-normaux avant l'arrondi final, unique. `cdf` de la normale : erfc(w_hi) corrigé
+au premier ordre pour w_lo ; quantile : `erfc_inv` puis un pas de Newton sur un
+résidu précis.
+
+**Précision mesurée** (contre mpmath, `tests/test_random_precision.cpp`, références
+engendrées par `tools/random/law_references.py`) : en double, au plus 0,5012 ulp pour
+`pdf`, `cdf`, `ccdf`, `quantile` des deux lois (arrondi correct dans 99,9 % des cas ou
+plus) ; `log_pdf` aussi sur les points mesurés, mais sa précision relative se dégrade
+quand ses termes se compensent (résultat proche de 0). En float, au plus 0,5000 ulp.
+Paramètres extrêmes compris (σ = 10⁻³⁰⁰ ou 10²⁰⁰, λ = 2^±1000).
+
+Tables de la ziggourat : `tools/random/ziggurat.py` (mpmath) écrit
+`detail/ziggurat_tables.hpp`, versionné.

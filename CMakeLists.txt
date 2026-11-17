@@ -179,8 +179,22 @@ if(WSL_LIBRARIES_BUILD_TESTS)
             add_dependencies(${test} special_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()
+        # Lois de wsl::random : même principe.
+        set(law_references ${PROJECT_BINARY_DIR}/generated/data/random_law_reference.hpp)
+        add_custom_command(
+            OUTPUT ${law_references}
+            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_references}
+            DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${PROJECT_SOURCE_DIR}/tools/special/generate.py
+                    ${PROJECT_SOURCE_DIR}/include/wsl/random/detail/arithmetic.hpp
+            COMMENT "Valeurs de référence des lois de wsl::random (mpmath)")
+        add_custom_target(random_law_references DEPENDS ${law_references})
+        wsl_add_test(random_precision LIBRARY random)
+        foreach(test test_random_precision test_random_precision_cxx20)
+            add_dependencies(${test} random_law_references)
+            target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
+        endforeach()
     else()
-        message(WARNING "Ni uv ni python3 avec mpmath : test de précision de wsl::special sauté")
+        message(WARNING "Ni uv ni python3 avec mpmath : tests de précision de wsl::special et wsl::random sautés")
     endif()
     wsl_add_test(special_bitexact LIBRARY special)
     wsl_add_test(random_engines LIBRARY random)
