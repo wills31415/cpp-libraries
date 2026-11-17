@@ -77,6 +77,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   minuscule (Temme pour a >= 50 près de x = a, série, fraction continue, série en a pour
   les petits a). Domaine complet : a et x jusqu'à DBL_MAX (P + Q = 1 et croissance
   vérifiées au-delà des références).
+- `gamma_p_inv`, `gamma_q_inv` (float, double) : erreur maximale mesurée 0,500 ulp,
+  arrondi correct sur 100 % des points (Newton encadré en double-double sur le côté
+  minoritaire ; queue basse des petits a en logarithme).
 - Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma

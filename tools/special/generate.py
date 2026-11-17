@@ -1064,6 +1064,70 @@ def igamma_exact(a, x, upper):
     return _igamma_cache[key][1 if upper else 0]
 
 
+def igamma_inverse_exact(a, t, upper):
+    """x tel que P(a, x) = t (Q si upper), à 320 bits : bissection en u = log x, puis Newton
+    (dL/du = x f(x)/F, f la densité)."""
+    with mp.workprec(320):
+        a, t = mpf(a), mpf(t)
+        lt = mp.log(t)
+        def residual(u):
+            p_, q_ = igamma_reference(a, mp.exp(u))
+            v = q_ if upper else p_
+            return (mp.log(v) - lt) if v > 0 else -mpf(10) ** 9
+        sign = -1 if upper else 1                                      # L croît avec u côté P
+        # Départ : Wilson–Hilferty (a >= 1), sinon les queues ; encadrement élargi au besoin.
+        pside = (1 - t) if upper else t
+        z = -mp.sqrt(2) * erfcinv_exact(2 * pside)
+        w = 1 - 1 / (9 * a) + z / (3 * mp.sqrt(a))
+        if a >= 1 and w > 0:
+            u0 = mp.log(a * w ** 3)
+        elif not upper:
+            u0 = (lt + mp.loggamma(a + 1)) / a
+        else:
+            u0 = mp.log(max(a, mpf(1)) - lt)
+        lo, hi, width = u0 - 1, u0 + 1, mpf(2)
+        while sign * residual(lo) > 0:
+            lo -= width
+            width *= 2
+        width = mpf(2)
+        while sign * residual(hi) < 0:
+            hi += width
+            width *= 2
+        for _ in range(200):
+            if hi - lo < mpf(2) ** -8:
+                break
+            mid = (lo + hi) / 2
+            if sign * residual(mid) > 0:
+                hi = mid
+            else:
+                lo = mid
+        u = (lo + hi) / 2
+        for _ in range(60):
+            x = mp.exp(u)
+            p_, q_ = igamma_reference(a, x)
+            v = q_ if upper else p_
+            g = mp.log(v) - lt
+            density = mp.exp((a - 1) * mp.log(x) - x - mp.loggamma(a))
+            step = g / (sign * x * density / v)
+            u -= step
+            if abs(step) < mpf(2) ** -300:
+                break
+        return mp.exp(u)
+
+
+def igamma_inverse_points(count, to_type=lambda v: v):
+    r = igamma_rng
+    pts = []
+    for i in range(count):
+        a = to_type(2.0 ** r.uniform(-30, 20) if i % 3 else r.uniform(0.2, 80))
+        u = r.random()
+        t = r.random() if u < 0.4 else 2.0 ** -r.uniform(1, 1000) if u < 0.8 else 0.5 - 2.0 ** -r.uniform(2, 50)
+        t = to_type(t)
+        if a > 0 and 0 < t < 1:
+            pts.append((a, t))
+    return pts
+
+
 def tgamma_points_float():
     xs = [to_f32(rng.uniform(0, 35.04)) for _ in range(800)]
     neg = []
@@ -1232,6 +1296,8 @@ def reference_file():
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
     igamma_double = igamma_points(3000)
     igamma_float = [(a, x) for a, x in igamma_points(800, to_f32_safe) if a < 3e38 and x < 3e38]
+    igamma_inverse_double = igamma_inverse_points(500)
+    igamma_inverse_float = igamma_inverse_points(200, to_f32_safe)
     for name, pts, f, rounder, ulp, fmt, ctype in (
             ("pow_double", pow_points_double(), pow_exact, round_double, ulp_double, hexd, "double"),
             ("pow_float", pow_points_float(), pow_exact, round_float, ulp_float, hexf, "float"),
@@ -1242,7 +1308,10 @@ def reference_file():
             ("gamma_p_double", igamma_double, lambda a, x: igamma_exact(a, x, False), round_double, ulp_double, hexd, "double"),
             ("gamma_q_double", igamma_double, lambda a, x: igamma_exact(a, x, True), round_double, ulp_double, hexd, "double"),
             ("gamma_p_float", igamma_float, lambda a, x: igamma_exact(a, x, False), round_float, ulp_float, hexf, "float"),
-            ("gamma_q_float", igamma_float, lambda a, x: igamma_exact(a, x, True), round_float, ulp_float, hexf, "float")):
+            ("gamma_q_float", igamma_float, lambda a, x: igamma_exact(a, x, True), round_float, ulp_float, hexf, "float"),
+            ("gamma_p_inv_double", igamma_inverse_double, lambda a, t: igamma_inverse_exact(a, t, False), round_double, ulp_double, hexd, "double"),
+            ("gamma_q_inv_double", igamma_inverse_double, lambda a, t: igamma_inverse_exact(a, t, True), round_double, ulp_double, hexd, "double"),
+            ("gamma_p_inv_float", igamma_inverse_float, lambda a, t: igamma_inverse_exact(a, t, False), round_float, ulp_float, hexf, "float")):
         text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")

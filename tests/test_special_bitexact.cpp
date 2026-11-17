@@ -259,6 +259,13 @@ int main()
     auto const gamma_p_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_p(a, x)); }, 1 << 15);
     auto const gamma_q_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_q(a, x)); }, 1 << 15);
     auto const gamma_q_float = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_float(sp::gamma_q(static_cast<float>(a), static_cast<float>(x))); }, 1 << 15);
+    auto const gamma_inverse_input = [&](splitmix64& g) {
+        double const a = std::bit_cast<double>((std::uint64_t{1023 - 20 + g() % 44} << 52) | (g() >> 12));   // 2^-20 … 2^24
+        double const t = g() % 2 == 0 ? uniform(g, 0, 1) : std::bit_cast<double>((std::uint64_t{1023 - 1 - g() % 900} << 52) | (g() >> 12));
+        return std::pair{a, t};
+    };
+    auto const gamma_p_inv_double = fingerprint([&](splitmix64& g) { auto const [a, t] = gamma_inverse_input(g); return of_double(sp::gamma_p_inv(a, t)); }, 1 << 12);
+    auto const gamma_q_inv_double = fingerprint([&](splitmix64& g) { auto const [a, t] = gamma_inverse_input(g); return of_double(sp::gamma_q_inv(a, t)); }, 1 << 12);
 
     // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
     auto const erf_inv_double = fingerprint([&](splitmix64& g) {
@@ -318,6 +325,8 @@ int main()
     ok &= check("gamma_p double", gamma_p_double, 0xe7b7bbc1b3a35053);
     ok &= check("gamma_q double", gamma_q_double, 0x9782b6a6da56fe8d);
     ok &= check("gamma_q float", gamma_q_float, 0x84058102c180cb27);
+    ok &= check("gamma_p_inv dbl", gamma_p_inv_double, 0x5cf887df114e68d5);
+    ok &= check("gamma_q_inv dbl", gamma_q_inv_double, 0xd762c5cf914f3b15);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);

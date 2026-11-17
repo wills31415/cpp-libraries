@@ -144,6 +144,9 @@ int main()
     check2<double>("gamma_q dbl", reference_data::gamma_q_double, [](double a, double x) { return sp::gamma_q(a, x); }, 0.51);
     check2<float>("gamma_p float", reference_data::gamma_p_float, [](float a, float x) { return sp::gamma_p(a, x); }, 0.5 + 0x1p-28);
     check2<float>("gamma_q float", reference_data::gamma_q_float, [](float a, float x) { return sp::gamma_q(a, x); }, 0.5 + 0x1p-28);
+    check2<double>("gamma_p_inv dbl", reference_data::gamma_p_inv_double, [](double a, double p) { return sp::gamma_p_inv(a, p); }, 0.51);
+    check2<double>("gamma_q_inv dbl", reference_data::gamma_q_inv_double, [](double a, double q) { return sp::gamma_q_inv(a, q); }, 0.51);
+    check2<float>("gamma_p_inv flt", reference_data::gamma_p_inv_float, [](float a, float p) { return sp::gamma_p_inv(a, p); }, 0.5 + 0x1p-28);
     check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
     check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
     check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
@@ -394,6 +397,21 @@ int main()
         assert(x > 1 || std::abs(q1 - e2) <= 2 * (std::nextafter(e2, inf) - e2));   // de √x d'un facteur 2x
         assert(sp::gamma_p(3.0, x) + sp::gamma_q(3.0, x) - 1 <= 0x1p-52);
     }
+
+    // gamma_p_inv, gamma_q_inv : bords, domaine, aller-retour.
+    assert(sp::gamma_p_inv(2.5, 0.0) == 0 && sp::gamma_p_inv(2.5, 1.0) == inf && sp::gamma_q_inv(2.5, 1.0) == 0 && sp::gamma_q_inv(2.5, 0.0) == inf);
+    assert(std::isnan(sp::gamma_p_inv(2.5, 1.5)) && std::isnan(sp::gamma_q_inv(-1.0, 0.5)) && std::isnan(sp::gamma_p_inv(std::nan(""), 0.5)));
+    assert(sp::gamma_p_inv(1e-10, 0.3) == 0);                               // 0,3^(1e10) : sous le plus petit double
+    for (double a : {1e-5, 0.3, 1.0, 4.5, 77.0, 1e5, 1e12})
+        for (double p : {1e-300, 1e-8, 0.01, 0.37, 0.5, 0.9, 1 - 1e-12})
+        {
+            double const x = sp::gamma_p_inv(a, p);
+            if (x > 0x1p-1000 && x < 0x1p1000)                              // P(x) au plus près de p : |P(x) − p| <= pente · ulp(x)
+            {
+                double const back = sp::gamma_p(a, x), up = sp::gamma_p(a, std::nextafter(x, inf)), down = sp::gamma_p(a, std::nextafter(x, 0.0));
+                assert(std::abs(back - p) <= std::max(std::abs(up - p), std::abs(down - p)) + 2 * (std::nextafter(p, inf) - p));
+            }
+        }
 
     // gamma_p, gamma_q au-delà des références (a jusqu'à 10³⁰⁰) : dans [0, 1], P + Q = 1,
     // P croissante en x.

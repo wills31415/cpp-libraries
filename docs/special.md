@@ -8,8 +8,8 @@
 > `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
 > vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
 > (§6, « Produits exacts »). **Phase 4 en cours** (2026-11-17, cible < 1 ulp mesurée,
-> inverses comprises) : `digamma`, `gamma_p`, `gamma_q` faits ; inverses et bêta
-> incomplète ensuite (§7).
+> inverses comprises) : `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`
+> faits ; bêta incomplète ensuite (§7).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -189,6 +189,7 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `digamma`, x > 0 | 0,500 ulp | 99,93 % | 0,499 ulp (100 %) |
 | `digamma`, x < 0 | 0,51 ulp, ou 2⁻⁶² en absolu près des zéros | | |
 | `gamma_p`, `gamma_q` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `gamma_p_inv`, `gamma_q_inv` | 0,500 ulp | 100 % | 0,497 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -405,3 +406,26 @@ Les outils de précision écrits pour les lois de wsl::random (double-double à 
 séparé, exp et expm1 à argument double-double, δ et bd0 de Loader…) sont passés dans
 `wsl::special` (`detail/extended.hpp`, `detail/loader.hpp`, espace de noms
 `detail::extended`) : wsl::random les réimporte, sans changement de résultats.
+
+**`gamma_p_inv`, `gamma_q_inv`** : x tel que P(a, x) = p (Q(a, x) = q).
+- Résolution sur le côté minoritaire (cible t = min(p, 1 − p), 1 − p exact) : Newton
+  sur L(log x) = log F(x), pente x f(x)/F(x), encadrement (bissection en log x quand le
+  pas en sort), depuis Wilson–Hilferty (a >= 1) ou l'approximation de la queue.
+- Le pas se fait sur x lui-même (x e^{−Δ}, ou x − xΔ) : log x n'a pas assez de
+  résolution pour les derniers bits (d'abord 3 à 13 ulp d'erreur). Dernier pas en
+  double-double, dès que |Δ| < 2⁻⁵⁶ ou que le pas ne change plus x (sinon la boucle
+  partait en bissection).
+- Conditionnement : l'erreur sur x est celle de log F divisée par la pente. Pour a
+  petit dans la queue basse, la pente vaut a (x ∝ p^{1/a}) : log P y est calculé par
+  a log x − lgamma(1 + a) + log1p(a S₁), d'erreur absolue proportionnelle à a ; et
+  qu'un x représentable existe borne |log p| par 745 a, donc l'erreur reste à 2⁻⁶².
+- Solution sous le plus petit double (p^{1/a} pour a minuscule ; côté Q, quand
+  Q(a, 2⁻¹⁰⁷⁴) < q) : 0, détecté sans itérer.
+- Références : x exact à 320 bits (bissection en log x puis Newton, P et Q par la série
+  ou la fraction continue du générateur). Coût : 3,5 à 8 µs pour des arguments usuels.
+
+Bug trouvé par la CI ARM64 : pour a ~ 10⁹ près de x = a, e^{−bd0} sortait du domaine
+de l'exponentielle (∞, puis NaN) ; un NaN calculé n'a pas les mêmes bits sur x86 et ARM,
+d'où des empreintes différentes. Corrigé (résultat nul quand bd0 > 1500) et couvert :
+test jusqu'à a = 10³⁰⁰, fouilles de P, Q et des inverses sur tout l'intervalle des
+doubles (0 défaut).

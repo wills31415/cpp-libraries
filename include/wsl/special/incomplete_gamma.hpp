@@ -292,6 +292,177 @@ namespace wsl::special
         }
     }
 
+    namespace detail
+    {
+        // ---------------------------------------------------------------------
+        // Inverses : x tel que P(a, x) = p (ou Q(a, x) = q).
+        //
+        // On résout sur le côté minoritaire (P si la cible t <= 1/2, sinon Q avec
+        // t = 1 − p, exact), en log : y = log x, L(y) = log F(e^y), pente
+        // dL/dy = x f(x)/F(x) (f la densité, x f = a D). Newton, encadré (bissection
+        // en y si le pas sort de l'encadrement), depuis Wilson–Hilferty (a >= 1) ou
+        // les approximations des queues. Le résidu L − log t est exact à 2^-64 près
+        // en absolu ; l'erreur sur x en est le quotient par la pente, à 2^-62 près
+        // sauf pour a petit dans la queue basse (pente a) : là, log P est calculé
+        // par a log x − lgamma(1 + a) + log1p(a S₁), d'erreur absolue en a 2^-64.
+        // Le dernier pas, x (1 − Δ), en double-double, arrondi une fois.
+        // ---------------------------------------------------------------------
+
+        constexpr xd::scaled one_minus_scaled(xd::scaled const& v) noexcept
+        {
+            if (v.hi == 0)
+                return xd::normalized(1.0, 0.0);
+            auto const [hi, lo] = xd::unscaled(v);
+            return to_scaled(xd::sum({1.0, 0.0}, {-hi, -lo}));
+        }
+
+        // log P(a, x), a < 1/4, 0 < x < a + 1 : a log x − lgamma(1 + a) + log1p(a S₁),
+        // S₁ = Σ_{n>=1} (−x)ⁿ/(n! (a + n)) ; erreur absolue proportionnelle à a.
+        constexpr double_double log_p_small_a(double a, double x) noexcept
+        {
+            double_double power{1.0, 0.0}, s1{0.0, 0.0};
+            for (int n = 1; n < 200; ++n)
+            {
+                power = xd::mul(power, quotient_dd({-x, 0.0}, {static_cast<double>(n), 0.0}));
+                auto const [s_hi, s_lo] = two_sum(a, static_cast<double>(n));
+                double_double const term = quotient_dd(power, {s_hi, s_lo});
+                s1 = xd::sum(s1, term);
+                if (xd::magnitude(term.hi) < fmul(xd::magnitude(s1.hi), 0x1p-80))
+                    break;
+            }
+            double_double const u = xd::mul({a, 0.0}, s1);                  // a S₁, dans (−1, 0)
+            auto const [l1_hi, l1_lo] = xd::log1p_dd(u.hi);
+            double_double const l1{l1_hi, l1_lo + u.lo / (1.0 + u.hi)};
+            double_double const lg = lgamma1p_small(a);
+            double_double result = xd::mul({a, 0.0}, xd::log_precise(x));
+            result = xd::sum(result, {-lg.hi, -lg.lo});
+            return xd::sum(result, l1);
+        }
+
+        struct side_log
+        {
+            double_double log_value;                                        // log F(x), F = P ou Q
+            double slope;                                                   // x f(x) / F(x) > 0
+        };
+
+        constexpr side_log gamma_side(double a, double x, bool upper) noexcept
+        {
+            xd::scaled const density = xd::normalized(a, 0.0) * gamma_prefix(a, x);   // x f(x) = a D
+            if (!upper && a < 0.25 && x < a + 1)
+            {
+                double_double const l = log_p_small_a(a, x);
+                xd::scaled const value = xd::exp_scaled(l.hi, l.lo);
+                return {l, xd::rounded(density / value)};
+            }
+            auto const [v, v_upper] = incomplete_gamma(a, x);
+            xd::scaled const value = v_upper == upper ? v : one_minus_scaled(v);
+            if (value.hi == 0)
+                return {{-infinity, 0.0}, infinity};
+            return {xd::log(value), density.hi == 0 ? 0.0 : xd::rounded(density / value)};
+        }
+
+        // Point de départ (double).
+        constexpr double gamma_inverse_start(double a, double t, bool upper) noexcept
+        {
+            double const z = fmul(xd::sqrt2_hi, erfc_inv(fmul(2.0, t)));      // Φ⁻¹ de la probabilité côté P, au signe près
+            double const zp = upper ? z : -z;
+            if (a >= 1)                                                     // Wilson–Hilferty
+            {
+                double const c = 1.0 / fmul(9.0, a);
+                double const w = (1.0 - c) + fmul(zp, sqrt(c));
+                if (w > 0)
+                {
+                    double const x = fmul(a, fmul(fmul(w, w), w));
+                    if (x > 0 && x < 0x1p1023)
+                        return x;
+                }
+            }
+            if (!upper)                                                     // P ≈ xᵃ/Γ(a + 1)
+            {
+                double const l = (log(t) + lgamma(a + 1.0)) / a;
+                return l < -744 ? 0x1p-1074 : l > 709 ? 0x1p1023 : exp(l);
+            }
+            double x = a > 1 ? a : 1.0;                                     // Q ≈ x^{a−1} e^{−x}/Γ(a)
+            for (int i = 0; i < 6; ++i)
+            {
+                double const next = (-log(t) - lgamma(a)) + fmul(a - 1.0, log(x));
+                x = next > 0x1p-1074 ? next : 0x1p-1074;
+            }
+            return x;
+        }
+
+        constexpr double gamma_inverse(double a, double t, bool upper) noexcept
+        {
+            auto const [lt_hi, lt_lo] = xd::log_precise(t);
+            if (upper && a < 1)                                             // Q(a, x) <= Q(a, 2^-1074) < t :
+            {                                                               // la solution est sous le plus petit double
+                auto const [l, slope] = gamma_side(a, 0x1p-1074, true);
+                if ((l.hi - lt_hi) + (l.lo - lt_lo) < 0)
+                    return 0.0;
+            }
+            double x = gamma_inverse_start(a, t, upper);
+            double low = 0, high = infinity;                                // encadrement de x
+            for (int iteration = 0; iteration < 200; ++iteration)
+            {
+                auto const [l, slope] = gamma_side(a, x, upper);
+                double const g = (l.hi - lt_hi) + (l.lo - lt_lo);           // L − log t
+                double const s = upper ? -slope : slope;                    // dL/d(log x)
+                if (g == 0)
+                    return x;
+                bool const too_far = (g > 0) == (s > 0);                    // x trop grand
+                if (too_far)
+                    high = x;
+                else
+                    low = x;
+                double const delta = s != 0 && xd::is_finite(s) ? g / s : (too_far ? 4.0 : -4.0);
+                // Le pas se fait sur x (log x n'a pas assez de résolution) : x e^{−Δ}.
+                double next = xd::magnitude(delta) < 0x1p-20 ? x - fmul(x, delta) : fmul(x, exp(-delta));
+                if (xd::magnitude(delta) < 0x1p-56 || next == x)            // dernier pas, en double-double
+                {
+                    auto const [m, m_error] = two_product(x, delta);
+                    auto const [r, r_error] = two_sum(x, -m);
+                    return r + (r_error - m_error);
+                }
+                if (!(next > low && next < high))                           // bissection, en log
+                {
+                    if (low > 0 && high < infinity)
+                        next = exp(fmul(log(low) + log(high), 0.5));
+                    else
+                        next = fmul(x, too_far ? 0x1.2c1599b2a5cb3p-6 : 0x1.b4c902e273a58p+5);   // e^∓4
+                }
+                if (!(next > 0))                                            // sous le plus petit sous-normal
+                {
+                    if (high <= 0x1p-1074)
+                        return 0.0;
+                    next = 0x1p-1074;
+                }
+                if (!(next < infinity))
+                {
+                    if (low >= 0x1.fffffffffffffp+1023)
+                        return infinity;
+                    next = 0x1.fffffffffffffp+1023;
+                }
+                x = next;
+            }
+            return x;
+        }
+
+        constexpr bool gamma_inverse_special(double a, double p, double& result) noexcept
+        {
+            if (!(a == a) || !(p == p))
+                result = opaque(a + p);
+            else if (!(a > 0) || a == infinity || !(p >= 0 && p <= 1))
+                result = quiet_nan;
+            else if (p == 0)
+                result = 0.0;
+            else if (p == 1)
+                result = infinity;
+            else
+                return false;
+            return true;
+        }
+    }
+
     constexpr double gamma_p(double a, double x) noexcept
     {
         double special = 0;
@@ -312,4 +483,30 @@ namespace wsl::special
 
     constexpr float gamma_p(float a, float x) noexcept { return detail::to_float(gamma_p(static_cast<double>(a), static_cast<double>(x))); }
     constexpr float gamma_q(float a, float x) noexcept { return detail::to_float(gamma_q(static_cast<double>(a), static_cast<double>(x))); }
+
+    // Inverses : gamma_p_inv(a, p) = x tel que P(a, x) = p ; gamma_q_inv(a, q) = x tel que
+    // Q(a, x) = q. p (q) dans [0, 1] : 0 en 0 (en 1), +∞ en 1 (en 0) ; sinon NaN.
+    constexpr double gamma_p_inv(double a, double p) noexcept
+    {
+        double special = 0;
+        if (detail::gamma_inverse_special(a, p, special))
+            return special;
+        return p <= 0.5 ? detail::gamma_inverse(a, p, false) : detail::gamma_inverse(a, 1.0 - p, true);
+    }
+
+    constexpr double gamma_q_inv(double a, double q) noexcept
+    {
+        if (!(a == a) || !(q == q))
+            return detail::opaque(a + q);
+        if (!(a > 0) || a == detail::infinity || !(q >= 0 && q <= 1))
+            return detail::quiet_nan;
+        if (q == 1)
+            return 0.0;
+        if (q == 0)
+            return detail::infinity;
+        return q <= 0.5 ? detail::gamma_inverse(a, q, true) : detail::gamma_inverse(a, 1.0 - q, false);
+    }
+
+    constexpr float gamma_p_inv(float a, float p) noexcept { return detail::to_float(gamma_p_inv(static_cast<double>(a), static_cast<double>(p))); }
+    constexpr float gamma_q_inv(float a, float q) noexcept { return detail::to_float(gamma_q_inv(static_cast<double>(a), static_cast<double>(q))); }
 }
