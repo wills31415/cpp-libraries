@@ -67,8 +67,12 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
 - Le test `special_no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
   dans le code engendré ; il ne voit pas un produit non protégé à usages multiples.
-- `two_product` (Dekker) : facteurs sous 2^995 (sinon le découpage déborde en NaN) et
-  produit loin des sous-normaux (sinon inexact). Vérifier ces bornes à chaque usage.
+- `two_product` : fma(a, b, −p) quand la cible a une fma (`detail::hardware_fma`),
+  Dekker sinon et en évaluation constante ; mêmes bits **tant que Dekker est exact** :
+  facteurs sous 2^995 (sinon le découpage déborde en NaN) et somme des exposants
+  >= −970 (pas de produit partiel sous-normal). Vérifier ces bornes à chaque nouvel
+  appel (garder sinon) ; les empreintes comparent les deux voies (CI : ARM64 et jobs
+  FMA contre x86-64 par défaut ; en local : un build `-march=native`).
 - Tests : ne jamais exiger l'égalité avec la libm du système (glibc n'est pas
   correctement arrondie partout) ; comparer à des valeurs exactes (mpmath) ou à 1 ulp.
 - Générateur : toute constante qui demande plus de 256 bits (2/π de Payne–Hanek…)

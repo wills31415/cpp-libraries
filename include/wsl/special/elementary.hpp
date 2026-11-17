@@ -352,8 +352,8 @@ namespace wsl::special
             return infinity;
         if (x < -38.0)                                              // e^x < 2^-54 : −1 + e^x s'arrondit à −1
             return -1.0;
-        if (x == 0)
-            return x;                                               // garde le signe de −0
+        if (x > -0x1p-54 && x < 0x1p-54)                            // x + x²/2 s'arrondit à x ; ±0 compris
+            return x;
 
         auto const [k, r_hi, r_lo] = reduce_exp(x);
         int const j = exp_index(k);
@@ -485,6 +485,8 @@ namespace wsl::special
             return with_sign(1.0);                                  // pow(−1, y entier)
 
         double const ay = y < 0 ? -y : y;
+        if (ay < 0x1p-64)                                           // |y log x| < 2^-54 : 1 + ε s'arrondit à 1
+            return 1.0;                                             // (x > 0 ici : y non entier)
         if (ay > 0x1p64)                                            // |y log x| > 2^11 : 0 ou ∞
             return with_sign(((ax > 1) == (y > 0)) ? infinity : 0.0);
 

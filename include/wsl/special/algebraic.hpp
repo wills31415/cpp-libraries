@@ -150,19 +150,11 @@ namespace wsl::special
         if (b < fmul(a, 0x1p-54))                                       // b²/a² < 2^-108 : √ arrondie à a
             return a;
 
-        double scale = 1.0;
-        if (a > 0x1p500)
-        {
-            a = fmul(a, 0x1p-600);
-            b = fmul(b, 0x1p-600);
-            scale = 0x1p600;
-        }
-        else if (a < 0x1p-500)
-        {
-            a = fmul(a, 0x1p600);
-            b = fmul(b, 0x1p600);
-            scale = 0x1p-600;
-        }
+        // a ramené dans [1, 2) par une puissance de 2 (exact ; b >= a 2^-54 reste
+        // normal) : ni débordement, ni carré sous-normal dans les produits exacts.
+        int const exponent = exponent_of(a);
+        a = scale_by_power_of_two(a, -exponent);
+        b = scale_by_power_of_two(b, -exponent);
 
         auto const [a2, a2_error] = two_product(a, a);
         auto const [b2, b2_error] = two_product(b, b);
@@ -173,7 +165,7 @@ namespace wsl::special
         auto const [hh, hh_error] = two_product(h, h);
         double const residual = ((s - hh) - hh_error) + s_lo;           // s − h², à 2^-106 près
         double const result = h + residual / fmul(2.0, h);
-        return fmul(result, scale);                                     // exact, ou débordement voulu
+        return scale_by_power_of_two(result, exponent);                 // un seul arrondi s'il est sous-normal
     }
 
     // -----------------------------------------------------------------------

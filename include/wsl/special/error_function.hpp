@@ -36,6 +36,11 @@ namespace wsl::special
         constexpr double_double erf_small(double x) noexcept
         {
             auto const [p, p_error] = two_product(x, two_over_sqrt_pi_hi);
+            if (x > -0x1p-300 && x < 0x1p-300)                              // x² Q < 2^-600 : sans effet, et x², x³
+            {                                                               // tomberaient dans les sous-normaux
+                auto const [hi, lo] = fast_two_sum(p, p_error + fmul(x, two_over_sqrt_pi_lo));
+                return {hi, lo};
+            }
             auto const [u, u_lo] = two_product(x, x);
             constexpr int terms = sizeof(erf_small_q) / sizeof(erf_small_q[0]);
             double rest = erf_small_q[terms - 1];                           // q_2 + q_3 u + …

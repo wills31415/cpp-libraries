@@ -30,6 +30,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `erf_inv`, `erfc_inv` (float, double), mêmes garanties, `erfc_inv` jusqu'à 2⁻¹⁰⁷⁴ ;
   erreur maximale mesurée 0,502 et 0,506 ulp. `erf` et `erfc` affinées pour leur servir
   de résidu (mêmes précisions mesurées, bits changés pour quelques arguments).
+- Produits exacts par fma quand la cible en a une (ARM64, x86-64 avec `-mfma` ou
+  `-march=x86-64-v3`…) : 10 à 28 % plus rapide selon la fonction, **mêmes bits** que sans
+  fma. `WSL_SPECIAL_NO_FMA` pour s'en passer.
 
 ## [0.1.0] — 2026-11-16
 

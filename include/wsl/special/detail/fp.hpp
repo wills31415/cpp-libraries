@@ -93,11 +93,32 @@ namespace wsl::special::detail
         return {high, x - high};
     }
 
-    // Produit et erreur exacts : a · b == product + error exactement (Dekker),
-    // sans fma. Valable tant que ni a · b ni les découpages ne débordent.
+    // Produit et erreur exacts : a · b == product + error exactement.
+    //
+    // Avec une fma matérielle (ARM64 ; x86-64 compilé avec -mfma, -march=haswell
+    // ou x86-64-v3…), l'erreur est fma(a, b, −product) : 2 opérations. Sinon, et en
+    // évaluation constante, le produit de Dekker : 17 opérations. L'erreur d'un
+    // produit étant unique, les deux rendent les mêmes bits — tant que Dekker est
+    // exact : facteurs sous 2^995 (le découpage multiplie par 2^27 + 1) et
+    // exposants de a et b de somme >= −970 (pas de produit partiel sous-normal).
+    // Chaque appel doit le garantir ; les empreintes de test_special_bitexact,
+    // relevées sur des cibles avec et sans fma, le vérifient.
+    //
+    // WSL_SPECIAL_NO_FMA force Dekker partout.
+#if (defined(__FMA__) || defined(__FP_FAST_FMA) || defined(__aarch64__)) && !defined(WSL_SPECIAL_NO_FMA)
+    inline constexpr bool hardware_fma = true;
+#else
+    inline constexpr bool hardware_fma = false;
+#endif
+
     constexpr sum_error two_product(double a, double b) noexcept
     {
         double const product = fmul(a, b);
+        if constexpr (hardware_fma)
+        {
+            if (!std::is_constant_evaluated())
+                return {product, __builtin_fma(a, b, -product)};
+        }
         auto const [a_high, a_low] = split(a);
         auto const [b_high, b_low] = split(b);
         double const error = (((fmul(a_high, b_high) - product) + fmul(a_high, b_low)) + fmul(a_low, b_high))
@@ -129,6 +150,27 @@ namespace wsl::special::detail
     constexpr double power_of_two(int e) noexcept
     {
         return from_bits(static_cast<std::uint64_t>(e + 1023) << 52);
+    }
+
+    // Exposant e de x > 0 fini : 2^e <= x < 2^(e+1), sous-normaux compris.
+    constexpr int exponent_of(double x) noexcept
+    {
+        std::uint64_t const b = bits(x);
+        if ((b >> 52) == 0)
+            return (63 - std::countl_zero(b)) - 1074;
+        return static_cast<int>(b >> 52) - 1023;
+    }
+
+    // x · 2^n, n dans [−2100, 2100], en deux étapes si n sort de [−1022, 1023] :
+    // la première est exacte (résultat intermédiaire normal), si bien qu'il n'y a
+    // qu'un arrondi, celui de la seconde, si le résultat est sous-normal.
+    constexpr double scale_by_power_of_two(double x, int n) noexcept
+    {
+        if (n > 1023)
+            return fmul(fmul(x, power_of_two(1023)), power_of_two(n - 1023));
+        if (n < -1022)
+            return fmul(fmul(x, power_of_two(-1022)), power_of_two(n + 1022));
+        return fmul(x, power_of_two(n));
     }
 
     inline constexpr double infinity = std::numeric_limits<double>::infinity();

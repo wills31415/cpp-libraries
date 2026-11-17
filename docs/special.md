@@ -6,8 +6,8 @@
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
 > `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`,
 > `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
-> vérifiés (§6) : **phase 1 terminée.** Suite prévue : produits exacts par fma quand la
-> cible en a une (performances), puis la phase 4 (gamma et bêta incomplètes).
+> vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
+> (§6, « Produits exacts »). Suite prévue : phase 4 (gamma et bêta incomplètes).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -314,12 +314,35 @@ prend 17 ns contre 2,3 pour la libm d'Apple. Il vise presque l'arrondi correct
 opérations), là où la libm évalue un seul polynôme (environ 0,55 ulp). Calculer
 seulement sin ou cos selon le quadrant n'a gagné que 15 %.
 
-Piste principale, pour toutes les fonctions : **produit exact par `fma` explicite quand
-la cible en a une** (2 opérations au lieu de 17). Le terme d'erreur d'un produit est
-unique, donc Dekker et fma rendent les mêmes bits — le déterminisme est préservé — sauf
-si le produit tombe dans les sous-normaux, où Dekker devient inexact : il faut alors
-prouver qu'aucun appel n'y arrive (ou les garder), et le vérifier par les empreintes sur
-des cibles avec et sans fma.
+**Produits exacts par fma** (fait le 2026-11-17) : quand la cible a une fma matérielle
+(`__FMA__`, `__FP_FAST_FMA`, ou ARM64), `two_product` calcule l'erreur par
+`fma(a, b, −p)` — 2 opérations au lieu des 17 du produit de Dekker, qui reste la voie
+sans fma et celle de l'évaluation constante. L'erreur d'un produit est unique : les deux
+voies rendent les mêmes bits tant que Dekker est exact (facteurs sous 2⁹⁹⁵, somme des
+exposants >= −970). Audit des appels : quatre ne le garantissaient pas et ont reçu une
+garde sans effet sur les résultats — `pow` (|y| < 2⁻⁶⁴ ⇒ 1), `expm1` (|x| < 2⁻⁵⁴ ⇒ x),
+`hypot` (a ramené dans [1, 2), d'où b² normal), la série de `erf` (ignorée sous 2⁻³⁰⁰).
+Preuve : les 42 empreintes sont identiques en voie Dekker et en voie fma (vérifié en
+local en `-march=native`, et en CI : macOS ARM64 et jobs FMA contre Linux x86-64 par
+défaut). `WSL_SPECIAL_NO_FMA` force Dekker ; le test anti-contraction s'en sert pour ne
+voir que les fusions involontaires.
+
+Gain, mesuré en `-march=native` sur l'i7-9750H (sans `-march`, x86-64 garde Dekker ;
+ARM64 a toujours la fma) :
+
+| Fonction | Dekker | fma | Gain |
+|---|---|---|---|
+| `sin` (\|x\| < 10) | 29,5 ns | 25,9 ns | 12 % |
+| `sin` (10²⁰ à 10³⁰⁰) | 49,3 ns | 36,0 ns | 27 % |
+| `tan` | 38,5 ns | 31,0 ns | 20 % |
+| `atan` | 25,5 ns | 18,5 ns | 28 % |
+| `erf`, `erfc` | 44 ns | 33 à 36 ns | 20 à 24 % |
+| `lgamma` | 35,5 ns | 26,4 ns | 26 % |
+
+La trigonométrie reste 3 à 4,5 fois plus lente que la libm : son noyau seul (14 ns contre
+3,3) enchaîne une cinquantaine d'opérations pour viser l'arrondi correct, et la réduction
+en ajoute 11 ns. Pistes : noyau plus court au prix d'une analyse d'erreur plus serrée,
+réduction allégée pour les petits arguments.
 
 Autre piste : pour `float`, des algorithmes propres (encore évalués en `double`, mais
 avec moins de termes). Toute optimisation qui change des résultats est une rupture
