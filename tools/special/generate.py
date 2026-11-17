@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """Engendre les tables de wsl::special et les valeurs de référence de ses tests.
 
-    uv run --with mpmath python tools/special/generate.py
+    uv run --no-project --with mpmath python tools/special/generate.py --tables
+    uv run --no-project --with mpmath python tools/special/generate.py --references FICHIER
+
+--tables réécrit les tables des en-têtes (versionnées : la bibliothèque en a
+besoin). --references écrit les valeurs de référence des tests dans FICHIER ;
+elles ne sont pas versionnées : CMake les engendre dans le dossier de build quand
+il construit les tests.
 
 Tout est calculé avec mpmath à 256 bits, puis arrondi au plus proche (pair) en
 double ou en float : les constantes des en-têtes sont donc les arrondis corrects
@@ -14,7 +20,7 @@ Le script est déterministe (graine fixe) : le relancer redonne les mêmes fichi
 Fichiers engendrés (à ne pas modifier à la main) :
     include/wsl/special/detail/tables.hpp
     include/wsl/special/detail/trig_tables.hpp
-    tests/data/special_elementary_reference.hpp
+    include/wsl/special/detail/erf_tables.hpp
 """
 
 import math
@@ -246,6 +252,82 @@ def trig_tables():
     for i in range(ATAN_LAST + 1):
         hi, lo = double_double(mp.atan(mpf(i) / 2 ** TRIG_BITS))
         out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},   // i = {i}\n")
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
+ERF_SMALL = 0.25                  # |x| < 1/4 : série ; au-delà, erfc(x) = e^{-x²} F(x)
+ERF_SMALL_TERMS = 10              # termes de la série (reste < 2^-66)
+ERFC_DEGREE = 15                  # degré de Taylor de F par morceau
+ERFC_SPLIT = 4.0                  # morceaux de largeur 1/8 sous 4, 1/2 au-delà
+ERFC_END = 28.0                   # erfc(x) < 2^-1100 au-delà : 0
+
+
+def erfc_pieces():
+    """Centres et demi-largeurs des morceaux de F, dans l'ordre de la table."""
+    pieces = []
+    x = ERF_SMALL
+    while x < ERFC_SPLIT:
+        pieces.append((x + 1 / 16, 1 / 16))
+        x += 1 / 8
+    while x < ERFC_END:
+        pieces.append((x + 1 / 4, 1 / 4))
+        x += 1 / 2
+    return pieces
+
+
+def erfc_factor(x):
+    """F(x) = e^{x²} erfc(x), lisse et lentement variable."""
+    return mp.exp(x * x) * mp.erfc(x)
+
+
+def erfc_factor_taylor(c, degree):
+    """Coefficients de Taylor de F en c, par F' = 2xF − 2/√π : (k+1) f_{k+1} = 2c f_k + 2 f_{k−1}.
+    La récurrence amplifie l'erreur de f_0 d'un facteur e^{c²} (jusqu'à 2^1131) : on
+    la conduit à 1 700 bits."""
+    with mp.workprec(1700):
+        c = mpf(c)
+        f = [erfc_factor(c)]
+        f.append(2 * c * f[0] - 2 / mp.sqrt(mp.pi))
+        for k in range(1, degree):
+            f.append((2 * c * f[k] + 2 * f[k - 1]) / (k + 1))
+        return [+v for v in f]
+
+
+def erf_tables():
+    out = [HEADER, "#pragma once\n\n",
+           "// Constantes et tables de erf et erfc (voir error_function.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n"]
+    hi, lo = double_double(2 / mp.sqrt(mp.pi))
+    out.append(f"    inline constexpr double two_over_sqrt_pi_hi = {hexd(hi)};\n")
+    out.append(f"    inline constexpr double two_over_sqrt_pi_lo = {hexd(lo)};\n\n")
+    out.append(f"    // erf(x) = (2/√π) x (1 + x² Q(x²)) pour |x| < {ERF_SMALL} : Q(u) = Σ q_n u^(n−1),\n")
+    out.append("    // q_n = (−1)^n / (n! (2n + 1)).\n")
+    out.append("    inline constexpr double erf_small_q[] = {\n")
+    for n in range(1, ERF_SMALL_TERMS + 1):
+        q = mpf((-1) ** n) / (mp.factorial(n) * (2 * n + 1))
+        out.append(f"        {hexd(round_double(q))},\n")
+    out.append("    };\n\n")
+    pieces = erfc_pieces()
+    out.append(f"    inline constexpr int erfc_degree = {ERFC_DEGREE};\n")
+    out.append(f"    inline constexpr int erfc_fine_pieces = {sum(1 for c, h in pieces if c < ERFC_SPLIT)};\n\n")
+    out.append("    // F(x) = e^{x²} erfc(x) par morceaux : F(c + t) = Σ a_k t^k. Par ligne :\n")
+    out.append("    // a_0 (hi, lo), a_1 (hi, lo), a_2 … a_15. Morceaux de largeur 1/8 de 1/4 à 4,\n")
+    out.append("    // puis de largeur 1/2 jusqu'à 28 ; c au milieu.\n")
+    out.append("    inline constexpr double erfc_table[][4 + erfc_degree - 1] = {\n")
+    for c, half in pieces:
+        a = erfc_factor_taylor(c, ERFC_DEGREE)
+        # Reste de Taylor vérifié sur l'intervalle.
+        worst = 0
+        for step in range(-16, 17):
+            t = mpf(half) * step / 16
+            approx = sum(a[k] * t ** k for k in range(ERFC_DEGREE + 1))
+            worst = max(worst, abs(approx / erfc_factor(mpf(c) + t) - 1))
+        assert worst < mpf(2) ** -66, (c, worst)
+        a0, a0l = double_double(a[0])
+        a1, a1l = double_double(a[1])
+        row = [a0, a0l, a1, a1l] + [round_double(v) for v in a[2:]]
+        out.append("        {" + ", ".join(hexd(v) for v in row) + f"}},   // c = {c}\n")
     out.append("    };\n}\n")
     return "".join(out)
 
@@ -493,6 +575,40 @@ def hypot_points_float():
     return pts
 
 
+def erf_points_double():
+    xs = [math.copysign(2.0 ** rng.uniform(-40, -1), rng.choice((-1, 1))) for _ in range(600)]
+    xs += [rng.uniform(-6, 6) for _ in range(1500)]
+    for c, half in erfc_pieces()[:46]:                      # bords de morceaux
+        for b in (c - half, c + half):
+            xs += [b, math.nextafter(b, 0), math.nextafter(b, 10), -b]
+    xs += [2.0 ** -1074, -(2.0 ** -1074), 2.0 ** -1022, 1e-300, 0.25, math.nextafter(0.25, 0), 5.9, 6.0]
+    return xs
+
+
+def erfc_points_double():
+    xs = [rng.uniform(-6, 28) for _ in range(1500)]
+    xs += [rng.uniform(26, 27.3) for _ in range(300)]       # résultats sous-normaux
+    xs += [rng.uniform(-0.5, 0.5) for _ in range(300)]
+    xs += [math.copysign(2.0 ** rng.uniform(-40, -1), rng.choice((-1, 1))) for _ in range(300)]
+    for c, half in erfc_pieces():
+        for b in (c - half, c + half):
+            xs += [b, math.nextafter(b, 0), math.nextafter(b, 100)]
+    xs += [2.0 ** -1074, -6.0, -5.9, 0.25, -0.25, 27.0, 27.2]
+    return xs
+
+
+def erf_points_float():
+    xs = [to_f32(math.copysign(2.0 ** rng.uniform(-20, -1), rng.choice((-1, 1)))) for _ in range(300)]
+    xs += [to_f32(rng.uniform(-4.5, 4.5)) for _ in range(800)]
+    return xs
+
+
+def erfc_points_float():
+    xs = [to_f32(rng.uniform(-4.5, 10.05)) for _ in range(1000)]
+    xs += [to_f32(math.copysign(2.0 ** rng.uniform(-20, -1), rng.choice((-1, 1)))) for _ in range(200)]
+    return xs
+
+
 def pow_points_double():
     pts = []
     for _ in range(1500):                                   # x quelconque, |y log x| < 700
@@ -593,7 +709,11 @@ def reference_file():
             ("tan_float", trig_points_float(), mp.tan, round_float, ulp_float, hexf, "float"),
             ("atan_float", atan_points_float(), mp.atan, round_float, ulp_float, hexf, "float"),
             ("cbrt_double", cbrt_points_double(), real_cbrt, round_double, ulp_double, hexd, "double"),
-            ("cbrt_float", cbrt_points_float(), real_cbrt, round_float, ulp_float, hexf, "float")):
+            ("cbrt_float", cbrt_points_float(), real_cbrt, round_float, ulp_float, hexf, "float"),
+            ("erf_double", erf_points_double(), mp.erf, round_double, ulp_double, hexd, "double"),
+            ("erfc_double", erfc_points_double(), mp.erfc, round_double, ulp_double, hexd, "double"),
+            ("erf_float", erf_points_float(), mp.erf, round_float, ulp_float, hexf, "float"),
+            ("erfc_float", erfc_points_float(), mp.erfc, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
@@ -611,12 +731,23 @@ def reference_file():
 
 
 def main():
-    (ROOT / "include/wsl/special/detail/tables.hpp").write_text(tables())
-    (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
-    text, counts = reference_file()
-    (ROOT / "tests/data/special_elementary_reference.hpp").write_text(text)
-    for name, n in counts.items():
-        print(f"{name:12s} {n:5d} points")
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--tables", action="store_true", help="réécrire les tables des en-têtes")
+    parser.add_argument("--references", metavar="FICHIER", help="écrire les valeurs de référence des tests")
+    arguments = parser.parse_args()
+    if not arguments.tables and not arguments.references:
+        parser.error("préciser --tables et/ou --references FICHIER")
+    if arguments.tables:
+        (ROOT / "include/wsl/special/detail/tables.hpp").write_text(tables())
+        (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
+        (ROOT / "include/wsl/special/detail/erf_tables.hpp").write_text(erf_tables())
+    if arguments.references:
+        text, counts = reference_file()
+        output = Path(arguments.references)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text)
+        print(f"{sum(counts.values())} points de référence, {len(counts)} fonctions : {output}")
 
 
 if __name__ == "__main__":

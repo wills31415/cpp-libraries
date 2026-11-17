@@ -223,6 +223,16 @@ int main()
         return of_float(sp::hypot(x, y));
     });
 
+    // Fonction d'erreur : toute la zone utile (|x| < 30), et de petites valeurs.
+    auto const erf_input = [&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        return (choice & 1) ? uniform(g, -8, 30) : small(g, 0x3fdfffffffffffff);
+    };
+    auto const erf_double = fingerprint([&](splitmix64& g) { return of_double(sp::erf(erf_input(g))); });
+    auto const erfc_double = fingerprint([&](splitmix64& g) { return of_double(sp::erfc(erf_input(g))); });
+    auto const erf_float = fingerprint([&](splitmix64& g) { return of_float(sp::erf(static_cast<float>(erf_input(g)))); });
+    auto const erfc_float = fingerprint([&](splitmix64& g) { return of_float(sp::erfc(static_cast<float>(erf_input(g)))); });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -254,6 +264,10 @@ int main()
     ok &= check("hypot double", hypot_double, 0x6571c9f1c46dc8d9);
     ok &= check("cbrt float", cbrt_float, 0x2f8352bd44cdbd49);
     ok &= check("hypot float", hypot_float, 0x72174db6500aa335);
+    ok &= check("erf double", erf_double, 0x9f580fce49d9109c);
+    ok &= check("erfc double", erfc_double, 0x76e89f827c282603);
+    ok &= check("erf float", erf_float, 0x8d664252d9a17955);
+    ok &= check("erfc float", erfc_float, 0x8cef7e01c22f4892);
     assert(ok);
     return 0;
 }

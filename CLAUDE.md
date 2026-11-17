@@ -55,9 +55,11 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   fonction transcendante de `<cmath>`. **Tout produit qui entre dans une addition ou
   une soustraction passe par `detail::fmul`** (barrière contre la contraction en fma,
   qui changerait les résultats selon la plateforme et les options du consommateur).
-- Tables et valeurs de référence engendrées :
-  `uv run --no-project --with mpmath python tools/special/generate.py` (ne jamais
-  modifier `detail/tables.hpp` ni `tests/data/` à la main).
+- Tables engendrées et versionnées : `uv run --no-project --with mpmath python
+  tools/special/generate.py --tables` (ne jamais modifier `detail/*tables.hpp` à la
+  main). Valeurs de référence des tests : **non versionnées**, engendrées par CMake
+  dans `build/<preset>/generated/` (uv, ou python3 + mpmath ; sinon le test de
+  précision est sauté), et seulement quand `generate.py` change.
 - `tests/test_special_bitexact.cpp` contient les empreintes attendues : un changement
   voulu d'algorithme les change partout (rupture, à noter au CHANGELOG) ; un
   changement sur une seule plateforme est un bug.

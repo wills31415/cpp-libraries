@@ -39,6 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # uv engendre les valeurs de référence de wsl::special (mpmath), non versionnées.
+      - uses: astral-sh/setup-uv@v10.3.3
+
       - name: Compilateur
         run: |
           ${{ matrix.compiler.cxx }} --version

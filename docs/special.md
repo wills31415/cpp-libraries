@@ -4,9 +4,9 @@
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
-> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt` et `hypot`
-> (float, double) implémentés et vérifiés (§6). Restent `lgamma`, `tgamma`, `erf`,
-> `erfc` et leurs inverses.
+> `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`
+> et `erfc` (float, double) implémentés et vérifiés (§6). Restent `lgamma`, `tgamma`,
+> `erf_inv` et `erfc_inv`.
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -123,9 +123,10 @@ n'en utilise aucune.
 
 ## 4. Tests ◻︎
 
-1. **Précision** : tables de valeurs de référence calculées par `mpmath` (précision
-   arbitraire), générées par un script de `tools/reference/` lancé avec
-   `uv run --with mpmath` et versionnées. Points choisis aux bords de domaine, autour
+1. **Précision** : valeurs de référence calculées par `mpmath` (précision arbitraire)
+   par `tools/special/generate.py --references`, que CMake lance dans le dossier de
+   build (uv, ou python3 + mpmath). Elles ne sont pas versionnées : déterministes,
+   elles se régénèrent en quelques secondes, et pèseraient plusieurs Mo par version. Points choisis aux bords de domaine, autour
    des zéros, des pôles, des changements d'algorithme, plus des points aléatoires.
    Le test vérifie l'erreur en ulp de chaque point contre la borne documentée.
 2. **Bit-exactitude** : empreinte (hachage) des résultats sur un grand ensemble fixe
@@ -175,6 +176,8 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `sqrt` | arrondi correct (IEEE) | 100 % | arrondi correct |
 | `cbrt` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `hypot` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
+| `erf` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `erfc` | 0,503 ulp | 99,85 % | 0,499 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -211,6 +214,15 @@ itérations de Halley (2⁻⁴⁵), un pas de Newton à résidu exact (2⁻⁸�
 l'échelle par une puissance de 2, a² + b² en double-double, racine corrigée de son
 résidu exact.
 
+Fonction d'erreur : une seule table, celle de F(x) = e^{x²} erfc(x), lisse et lentement
+variable (≈ 1/(x√π)) : 78 morceaux de 1/4 à 28 (largeur 1/8 sous 4, 1/2 au-delà), Taylor
+de degré 15 autour du milieu, reste vérifié sous 2⁻⁶⁶ par le générateur. Les coefficients
+viennent de la récurrence (k+1) f_{k+1} = 2c f_k + 2 f_{k−1}, conduite à 1 700 bits : elle
+amplifie l'erreur de f_0 d'un facteur e^{c²}, jusqu'à 2¹¹³¹. Puis erfc(x) = e^{−x²} F(x),
+x² exact, e^{−x²} par le noyau de exp à argument double-double (celui de pow), un seul
+arrondi, sous-normaux compris ; erf(x) = 1 − erfc(x) pour x >= 1/4 (annulation au plus
+×2,6) et série pour |x| < 1/4 ; erfc(−x) = 2 − erfc(x).
+
 **Limites du produit de Dekker** (constatées) : il déborde si un facteur dépasse 2⁹⁹⁵
 (le découpage de Veltkamp multiplie par 2²⁷ + 1), et devient inexact si ses produits
 partiels tombent dans les sous-normaux. `atan2` l'a montré deux fois : 0,67 ulp pour
@@ -220,7 +232,7 @@ d'empreintes, les NaN rendus n'ayant pas les mêmes bits en `-O0` et en `-O1`. T
 utilisation de `two_product` doit garantir des facteurs sous 2⁹⁹⁵ et un produit loin
 des sous-normaux, ou accepter l'inexactitude là où elle est sans effet.
 
-**Bit-exactitude** : les 30 empreintes (15 fonctions × 2 types) sont identiques sur macOS
+**Bit-exactitude** : les 34 empreintes (17 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).

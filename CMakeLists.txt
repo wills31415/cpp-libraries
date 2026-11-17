@@ -151,7 +151,38 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(exact_random)
     wsl_add_test(elo)
     wsl_add_test(progress)
-    wsl_add_test(special_elementary LIBRARY special)
+    # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
+    # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
+    # le test de précision est sauté.
+    find_program(WSL_UV uv HINTS $ENV{HOME}/.local/bin)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    set(reference_generator "")
+    if(WSL_UV)
+        set(reference_generator ${WSL_UV} run --no-project --quiet --with mpmath python)
+    elseif(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import mpmath"
+                        RESULT_VARIABLE no_mpmath OUTPUT_QUIET ERROR_QUIET)
+        if(no_mpmath EQUAL 0)
+            set(reference_generator ${Python3_EXECUTABLE})
+        endif()
+    endif()
+
+    if(reference_generator)
+        set(references ${PROJECT_BINARY_DIR}/generated/data/special_elementary_reference.hpp)
+        add_custom_command(
+            OUTPUT ${references}
+            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/special/generate.py --references ${references}
+            DEPENDS ${PROJECT_SOURCE_DIR}/tools/special/generate.py
+            COMMENT "Valeurs de référence de wsl::special (mpmath)")
+        add_custom_target(special_references DEPENDS ${references})
+        wsl_add_test(special_elementary LIBRARY special)
+        foreach(test test_special_elementary test_special_elementary_cxx20)
+            add_dependencies(${test} special_references)
+            target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
+        endforeach()
+    else()
+        message(WARNING "Ni uv ni python3 avec mpmath : test de précision de wsl::special sauté")
+    endif()
     wsl_add_test(special_bitexact LIBRARY special)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     add_test(NAME special_no_contraction

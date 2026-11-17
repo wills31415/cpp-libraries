@@ -247,14 +247,29 @@ namespace wsl::special
         // 2^e 2^(j/N) exp(r + t) pour k = N e + j, t petit (|t| < 2^-40) :
         // exp(r + t) − 1 ≈ p(r) + t + r t, le terme croisé r t valant jusqu'à une
         // demi-ulp.
-        constexpr double exp_finish_dd(std::int64_t k, double r, double t) noexcept
+        // exp(x) = 2^e (t_hi + tail) avant l'arrondi final, t_hi + tail dans
+        // [0,99 ; 2), précis à 2^-60 près relativement : pour qui doit encore
+        // multiplier le résultat (erfc).
+        struct exp_parts
+        {
+            double t_hi, tail;
+            int e;
+        };
+
+        constexpr exp_parts exp_parts_dd(std::int64_t k, double r, double t) noexcept
         {
             double const r2 = r * r;
             double const p = r + ((t + fmul(r, t)) + fmul(r2, 0x1p-1 + fmul(r, 0x1.5555555555555p-3
                                        + fmul(r, 0x1.5555555555555p-5 + fmul(r, 0x1.1111111111111p-7)))));
             int const j = exp_index(k);
             double const t_hi = exp_table[j][0];
-            return scale_exp(t_hi, exp_table[j][1] + fmul(t_hi, p), exp_exponent(k));
+            return {t_hi, exp_table[j][1] + fmul(t_hi, p), exp_exponent(k)};
+        }
+
+        constexpr double exp_finish_dd(std::int64_t k, double r, double t) noexcept
+        {
+            auto const [t_hi, tail, e] = exp_parts_dd(k, r, t);
+            return scale_exp(t_hi, tail, e);
         }
 
         // Entier ? Impair ? (y fini.)

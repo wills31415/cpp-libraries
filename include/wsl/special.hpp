@@ -9,4 +9,5 @@
 
 #include <wsl/special/algebraic.hpp>
 #include <wsl/special/elementary.hpp>
+#include <wsl/special/error_function.hpp>
 #include <wsl/special/trigonometric.hpp>

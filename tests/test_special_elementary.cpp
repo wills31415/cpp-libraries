@@ -114,6 +114,7 @@ static_assert(sp::sin(0.0) == 0.0 && sp::cos(0.0) == 1.0 && sp::atan(1.0) == 0x1
 static_assert(sp::sin(1e300) == sp::sin(1e300) && sp::atan2(1.0, -1.0) == 0x1.2d97c7f3321d2p+1);
 static_assert(sp::sqrt(2.0) == 0x1.6a09e667f3bcdp+0 && sp::sqrt(0x1p-1074) == 0x1p-537);
 static_assert(sp::cbrt(27.0) == 3.0 && sp::cbrt(-8.0) == -2.0 && sp::hypot(3.0, 4.0) == 5.0);
+static_assert(sp::erf(0.5) == 0x1.0a7ef5c18edd2p-1 && sp::erfc(10.0) == sp::erfc(10.0));
 
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
@@ -151,6 +152,10 @@ int main()
     check<float>("cbrt float", reference_data::cbrt_float, [](float x) { return sp::cbrt(x); }, 0.5 + 0x1p-28);
     check2<double>("hypot double", reference_data::hypot_double, [](double x, double y) { return sp::hypot(x, y); }, 0.51);
     check2<float>("hypot float", reference_data::hypot_float, [](float x, float y) { return sp::hypot(x, y); }, 0.5 + 0x1p-28);
+    check<double>("erf double", reference_data::erf_double, [](double x) { return sp::erf(x); }, 0.51);
+    check<double>("erfc double", reference_data::erfc_double, [](double x) { return sp::erfc(x); }, 0.51);
+    check<float>("erf float", reference_data::erf_float, [](float x) { return sp::erf(x); }, 0.5 + 0x1p-28);
+    check<float>("erfc float", reference_data::erfc_float, [](float x) { return sp::erfc(x); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
@@ -304,6 +309,19 @@ int main()
     // Valeurs exactes (mpmath) : les libm ne sont pas toutes correctement arrondies.
     assert(sp::hypot(1e308, 1e308) == 0x1.92c80954c51f5p+1023 && sp::hypot(1.7e308, 1.7e308) == inf);
     assert(sp::hypot(0x1p-1074, 0x1p-1074) == 0x1p-1074);
+
+    // erf, erfc : cas à part, symétries, compléments.
+    assert(sp::erf(0.0) == 0.0 && std::signbit(sp::erf(-0.0)) && sp::erf(inf) == 1.0 && sp::erf(-inf) == -1.0);
+    assert(sp::erfc(0.0) == 1.0 && sp::erfc(-0.0) == 1.0 && is_positive_zero(sp::erfc(inf)) && sp::erfc(-inf) == 2.0);
+    assert(std::isnan(sp::erf(std::nan(""))) && std::isnan(sp::erfc(std::nan(""))));
+    assert(sp::erf(0x1p-1074) == 0x1p-1074 && sp::erf(1e-300) == sp::erf(1e-300));
+    assert(is_positive_zero(sp::erfc(28.0)) && sp::erfc(27.0) > 0 && sp::erf(6.0) == 1.0 && sp::erfc(-6.0) == 2.0);
+    for (double x = -7; x < 7; x += 0.0123)
+    {
+        assert(sp::erf(-x) == -sp::erf(x));
+        assert(std::abs(sp::erf(x) + sp::erfc(x) - 1) <= 3e-16);
+        assert(std::abs(sp::erfc(x) + sp::erfc(-x) - 2) <= 6e-16);
+    }
 
     // Entiers, comme <cmath>.
     assert(sp::exp(0) == 1.0 && sp::log(1) == 0.0);

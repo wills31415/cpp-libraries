@@ -24,4 +24,6 @@ extern "C"
     double check_atan2(double y, double x) { return wsl::special::atan2(y, x); }
     double check_cbrt(double x) { return wsl::special::cbrt(x); }
     double check_hypot(double x, double y) { return wsl::special::hypot(x, y); }
+    double check_erf(double x) { return wsl::special::erf(x); }
+    double check_erfc(double x) { return wsl::special::erfc(x); }
 }

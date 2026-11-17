@@ -22,6 +22,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   libm d'Apple.
 - `sqrt` (arrondi correct, évaluable à la compilation), `cbrt`, `hypot` (float,
   double) ; erreur maximale mesurée 0,500 ulp, 100 % d'arrondis corrects.
+- `erf`, `erfc` (float, double), mêmes garanties, `erfc` sous-normaux compris ; erreur
+  maximale mesurée 0,500 ulp (`erf`), 0,503 ulp (`erfc`).
 
 ## [0.1.0] — 2026-11-16
 
