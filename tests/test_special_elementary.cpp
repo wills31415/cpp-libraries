@@ -21,6 +21,7 @@
 namespace sp = wsl::special;
 using reference_data::reference;
 using reference_data::reference2;
+using reference_data::reference3;
 
 namespace
 {
@@ -94,6 +95,29 @@ namespace
         assert(r.max_error < bound);
     }
 
+    template <class T, class F>
+    void check3(char const* name, std::span<reference3<T> const> references, F f, double bound)
+    {
+        report r;
+        for (auto const& ref : references)
+        {
+            T const v = f(ref.a, ref.b, ref.x);
+            double const error = std::abs(double(v - ref.rounded) / double(ulp(ref.rounded)) - ref.offset);
+            if (v != ref.rounded)
+                ++r.not_rounded;
+            if (error > r.max_error)
+            {
+                r.max_error = error;
+                r.worst_x = double(ref.x);
+            }
+            ++r.points;
+        }
+        std::printf("%-12s %5zu points : erreur max %.4f ulp (x = %a), arrondi correct %.3f %%\n", name,
+                    r.points, r.max_error, r.worst_x,
+                    100.0 * double(r.points - r.not_rounded) / double(r.points));
+        assert(r.max_error < bound);
+    }
+
     constexpr double inf = std::numeric_limits<double>::infinity();
     constexpr float inff = std::numeric_limits<float>::infinity();
 
@@ -147,6 +171,12 @@ int main()
     check2<double>("gamma_p_inv dbl", reference_data::gamma_p_inv_double, [](double a, double p) { return sp::gamma_p_inv(a, p); }, 0.51);
     check2<double>("gamma_q_inv dbl", reference_data::gamma_q_inv_double, [](double a, double q) { return sp::gamma_q_inv(a, q); }, 0.51);
     check2<float>("gamma_p_inv flt", reference_data::gamma_p_inv_float, [](float a, float p) { return sp::gamma_p_inv(a, p); }, 0.5 + 0x1p-28);
+    check2<double>("lbeta dbl", reference_data::lbeta_double, [](double a, double b) { return sp::lbeta(a, b); }, 0.51);
+    check2<double>("beta dbl", reference_data::beta_double, [](double a, double b) { return sp::beta(a, b); }, 0.51);
+    check3<double>("ibeta dbl", reference_data::ibeta_double, [](double a, double b, double x) { return sp::ibeta(a, b, x); }, 0.51);
+    check3<double>("ibetac dbl", reference_data::ibetac_double, [](double a, double b, double x) { return sp::ibetac(a, b, x); }, 0.51);
+    check3<float>("ibeta float", reference_data::ibeta_float, [](float a, float b, float x) { return sp::ibeta(a, b, x); }, 0.5 + 0x1p-28);
+    check3<float>("ibetac float", reference_data::ibetac_float, [](float a, float b, float x) { return sp::ibetac(a, b, x); }, 0.5 + 0x1p-28);
     check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
     check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
     check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
@@ -396,6 +426,17 @@ int main()
         double const q1 = sp::gamma_q(0.5, x), e2 = sp::erfc(sp::sqrt(x));      // erfc amplifie l'arrondi
         assert(x > 1 || std::abs(q1 - e2) <= 2 * (std::nextafter(e2, inf) - e2));   // de √x d'un facteur 2x
         assert(sp::gamma_p(3.0, x) + sp::gamma_q(3.0, x) - 1 <= 0x1p-52);
+    }
+
+    // ibeta, ibetac, beta : bords, domaine, identités.
+    assert(sp::ibeta(2.0, 3.0, 0.0) == 0 && sp::ibeta(2.0, 3.0, 1.0) == 1 && sp::ibetac(2.0, 3.0, 0.0) == 1 && sp::ibetac(2.0, 3.0, 1.0) == 0);
+    assert(std::isnan(sp::ibeta(-1.0, 2.0, 0.5)) && std::isnan(sp::ibeta(1.0, 2.0, 1.5)) && std::isnan(sp::ibetac(1.0, std::nan(""), 0.5)));
+    assert(sp::beta(1.0, 1.0) == 1 && sp::beta(2.0, 3.0) == 1.0 / 12 && sp::lbeta(1.0, 1.0) == 0 && std::isnan(sp::beta(0.0, 1.0)));
+    for (double x : {1e-300, 1e-8, 0.1, 0.5, 0.77, 1 - 1e-9})
+    {
+        assert(sp::ibeta(1.0, 1.0, x) == x);                                // uniforme
+        double const p3 = sp::ibeta(3.0, 1.0, x), e3 = x * x * x;           // x³ (arrondis : 1 ulp)
+        assert(e3 == 0 || std::abs(p3 - e3) <= 1.5 * (std::nextafter(e3, inf) - e3));
     }
 
     // gamma_p_inv, gamma_q_inv : bords, domaine, aller-retour.

@@ -11,5 +11,6 @@
 #include <wsl/special/elementary.hpp>
 #include <wsl/special/error_function.hpp>
 #include <wsl/special/gamma.hpp>
+#include <wsl/special/incomplete_beta.hpp>
 #include <wsl/special/incomplete_gamma.hpp>
 #include <wsl/special/trigonometric.hpp>

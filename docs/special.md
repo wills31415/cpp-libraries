@@ -8,8 +8,8 @@
 > `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
 > vérifiés (§6) : **phase 1 terminée.** Produits exacts par fma quand la cible en a une
 > (§6, « Produits exacts »). **Phase 4 en cours** (2026-11-17, cible < 1 ulp mesurée,
-> inverses comprises) : `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`
-> faits ; bêta incomplète ensuite (§7).
+> inverses comprises) : `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`,
+> `beta`, `lbeta`, `ibeta`, `ibetac` faits ; inverses de la bêta ensuite (§7).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -190,6 +190,8 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `digamma`, x < 0 | 0,51 ulp, ou 2⁻⁶² en absolu près des zéros | | |
 | `gamma_p`, `gamma_q` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
 | `gamma_p_inv`, `gamma_q_inv` | 0,500 ulp | 100 % | 0,497 ulp (100 %) |
+| `beta`, `lbeta` | 0,500 ulp | 100 % | |
+| `ibeta`, `ibetac` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -429,3 +431,22 @@ de l'exponentielle (∞, puis NaN) ; un NaN calculé n'a pas les mêmes bits sur
 d'où des empreintes différentes. Corrigé (résultat nul quand bd0 > 1500) et couvert :
 test jusqu'à a = 10³⁰⁰, fouilles de P, Q et des inverses sur tout l'intervalle des
 doubles (0 défaut).
+
+**`beta`, `lbeta`, `ibeta`, `ibetac`** (`incomplete_beta.hpp`) : Iₓ(a, b) et 1 − Iₓ(a, b),
+la plus petite des deux calculée directement.
+- Préfixe xᵃ(1 − x)ᵇ/B(a, b) : décomposition de Loader (binomiale généralisée) si a, b > 2,
+  sinon directement avec log B en double-double sans compensation.
+- Fraction continue de Iₓ(a, b) (Lentz, double-double) pour x < (a + 1)/(a + b + 2), de
+  I_{1−x}(b, a) au-delà.
+- Si la valeur obtenue dépasse 1/2, c'est qu'un paramètre s est petit et que l'autre
+  côté lui est proportionnel (jusqu'à 10 000 ulp d'erreur avec 1 − v) : 1 − I_z(s, t) =
+  −expm1(s log z − log(sB(s, t))) − u s Σ (1 − t)_j z^j/(j!(s + j)), tout proportionnel à
+  s ; lgamma(t) − lgamma(t + s) par récurrence (log1p(s/(t + i))) puis Stirling, terme à
+  terme. (La fraction continue de l'autre côté, essayée d'abord, ne converge plus près
+  de x = 1.)
+- `lbeta` : comme `lgamma`, précise en valeur absolue (2⁻⁷⁰) près de la courbe
+  B(a, b) = 1 ; exacte pour a = 1 ou b = 1.
+- Références : fraction continue à 400 bits (validée contre `mp.betainc` à 10⁻⁴⁰ près),
+  a, b de 2⁻³⁰ à 2²⁰ ; au-delà (jusqu'à 2⁴⁰) comparé à part, écart nul ; fouille de
+  37 000 paires, a et b de 2⁻⁶⁰ à 2⁶⁰ : Iₓ + (1 − Iₓ) = 1, pas de NaN. Coût moyen 2 µs,
+  94 µs au pire (fraction continue pour a ~ 10⁹ près de x = 1).

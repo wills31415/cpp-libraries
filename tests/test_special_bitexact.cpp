@@ -13,6 +13,7 @@
 
 #include <wsl/special.hpp>
 
+#include <array>
 #include <bit>
 #include <cassert>
 #include <cmath>
@@ -266,6 +267,15 @@ int main()
     };
     auto const gamma_p_inv_double = fingerprint([&](splitmix64& g) { auto const [a, t] = gamma_inverse_input(g); return of_double(sp::gamma_p_inv(a, t)); }, 1 << 12);
     auto const gamma_q_inv_double = fingerprint([&](splitmix64& g) { auto const [a, t] = gamma_inverse_input(g); return of_double(sp::gamma_q_inv(a, t)); }, 1 << 12);
+    auto const beta_input = [&](splitmix64& g) {
+        double const a = std::bit_cast<double>((std::uint64_t{1023 - 30 + g() % 60} << 52) | (g() >> 12));   // 2^-30 … 2^30
+        double const b = std::bit_cast<double>((std::uint64_t{1023 - 30 + g() % 60} << 52) | (g() >> 12));
+        double const x = g() % 2 == 0 ? uniform(g, 0, 1) : std::bit_cast<double>((std::uint64_t{1023 - 1 - g() % 60} << 52) | (g() >> 12));
+        return std::array{a, b, g() % 2 == 0 ? x : 1 - x};
+    };
+    auto const ibeta_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibeta(a, b, x)); }, 1 << 14);
+    auto const ibetac_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); return of_double(sp::ibetac(a, b, x)); }, 1 << 14);
+    auto const lbeta_double = fingerprint([&](splitmix64& g) { auto const [a, b, x] = beta_input(g); (void)x; return of_double(sp::lbeta(a, b)); }, 1 << 16);
 
     // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
     auto const erf_inv_double = fingerprint([&](splitmix64& g) {
@@ -327,6 +337,9 @@ int main()
     ok &= check("gamma_q float", gamma_q_float, 0x84058102c180cb27);
     ok &= check("gamma_p_inv dbl", gamma_p_inv_double, 0x5cf887df114e68d5);
     ok &= check("gamma_q_inv dbl", gamma_q_inv_double, 0xd762c5cf914f3b15);
+    ok &= check("ibeta double", ibeta_double, 0x0d265d033540b4a3);
+    ok &= check("ibetac double", ibetac_double, 0xdd02552c768d4e19);
+    ok &= check("lbeta double", lbeta_double, 0x202f7d66e2367aa6);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);

@@ -1128,6 +1128,81 @@ def igamma_inverse_points(count, to_type=lambda v: v):
     return pts
 
 
+ibeta_rng = random.Random(20261120)
+_ibeta_cache = {}
+
+
+def ibeta_reference(a, b, x):
+    """(I, 1 − I) à 400 bits : fraction continue de Iₓ(a, b) (Lentz) si x < (a + 1)/(a + b + 2),
+    sinon celle de I_{1−x}(b, a) ; l'autre vaut 1 − elle."""
+    key = (a, b, x)
+    if key in _ibeta_cache:
+        return _ibeta_cache[key]
+    with mp.workprec(400):
+        a, b, x = mpf(a), mpf(b), mpf(x)
+        y = 1 - x
+        prefix = mp.exp(a * mp.log(x) + b * mp.log(y) - (mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b)))
+        def fraction(a, b, x):
+            tiny, eps = mpf(2) ** -1000, mpf(2) ** -410
+            c, d = mpf(1), 1 - (a + b) * x / (a + 1)
+            d = 1 / (d if abs(d) > tiny else tiny)
+            h = d
+            m = 1
+            while True:
+                for num in (m * (b - m) * x / ((a + 2 * m - 1) * (a + 2 * m)),
+                            -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 2 * m + 1))):
+                    d = 1 + num * d
+                    d = 1 / (d if abs(d) > tiny else tiny)
+                    c = 1 + num / c
+                    c = c if abs(c) > tiny else tiny
+                    delta = c * d
+                    h *= delta
+                if abs(delta - 1) < eps:
+                    return h
+                m += 1
+        if x < (a + 1) / (a + b + 2):
+            i = prefix * fraction(a, b, x) / a
+            result = (i, 1 - i)
+        else:
+            j = prefix * fraction(b, a, y) / b
+            result = (1 - j, j)
+    _ibeta_cache[key] = result
+    return result
+
+
+def ibeta_points(count, to_type=lambda v: v):
+    r = ibeta_rng
+    pts = []
+    for i in range(count):
+        kind = i % 4
+        if kind == 0:
+            a, b = 2.0 ** r.uniform(-20, 20), 2.0 ** r.uniform(-20, 20)
+        elif kind == 1:
+            a, b = r.uniform(0.1, 60), r.uniform(0.1, 60)
+        elif kind == 2:
+            a, b = 2.0 ** r.uniform(-30, 0), 2.0 ** r.uniform(-5, 15)
+        else:
+            a = 2.0 ** r.uniform(3, 20)
+            b = a * 2.0 ** r.uniform(-3, 3)
+        if r.random() < 0.5:
+            a, b = b, a
+        u = r.random()
+        mean = a / (a + b)
+        if u < 0.3:
+            x = r.random()
+        elif u < 0.5:
+            x = 2.0 ** -r.uniform(1, 60)
+        elif u < 0.7:
+            x = 1 - 2.0 ** -r.uniform(1, 53)
+        else:
+            sd = math.sqrt(a * b / ((a + b) ** 2 * (a + b + 1)))
+            x = mean + r.uniform(-6, 6) * sd
+        a, b, x = to_type(a), to_type(b), to_type(x)
+        if a > 0 and b > 0 and 0 < x < 1:
+            pts.append((a, b, x))
+    return pts
+
+
 def tgamma_points_float():
     xs = [to_f32(rng.uniform(0, 35.04)) for _ in range(800)]
     neg = []
@@ -1243,12 +1318,29 @@ def references2(name, pts, f, rounder, ulp, fmt, ctype):
     return "".join(lines), kept
 
 
+def references3(name, pts, f, rounder, ulp, fmt, ctype):
+    lines = [f"    // {name} : a, b, x, arrondi correct de f(a, b, x), position exacte en ulp\n",
+             f"    inline constexpr reference3<{ctype}> {name}[] = {{\n"]
+    kept = 0
+    for a, b, x in sorted(set(pts)):
+        exact = f(a, b, x)
+        cr = rounder(exact)
+        if math.isinf(cr) or cr == 0:
+            continue
+        offset = float((exact - mpf(cr)) / mpf(ulp(cr)))
+        lines.append(f"        {{{fmt(a)}, {fmt(b)}, {fmt(x)}, {fmt(cr)}, {offset!r}}},\n")
+        kept += 1
+    lines.append("    };\n\n")
+    return "".join(lines), kept
+
+
 def reference_file():
     out = [HEADER, "#pragma once\n\n",
            "// Valeurs de référence de wsl::special, calculées par mpmath à 256 bits.\n\n",
            "namespace reference_data\n{\n",
            "    template <class T>\n    struct reference\n    {\n        T x, rounded;\n        double offset;\n    };\n\n",
-           "    template <class T>\n    struct reference2\n    {\n        T x, y, rounded;\n        double offset;\n    };\n\n"]
+           "    template <class T>\n    struct reference2\n    {\n        T x, y, rounded;\n        double offset;\n    };\n\n",
+           "    template <class T>\n    struct reference3\n    {\n        T a, b, x, rounded;\n        double offset;\n    };\n\n"]
     counts = {}
     for name, xs, f, rounder, ulp, fmt, ctype in (
             ("exp_double", exp_points_double(), mp.exp, round_double, ulp_double, hexd, "double"),
@@ -1297,6 +1389,8 @@ def reference_file():
     igamma_double = igamma_points(3000)
     igamma_float = [(a, x) for a, x in igamma_points(800, to_f32_safe) if a < 3e38 and x < 3e38]
     igamma_inverse_double = igamma_inverse_points(500)
+    beta_points = [(2.0 ** ibeta_rng.uniform(-40, 40), 2.0 ** ibeta_rng.uniform(-40, 40)) for _ in range(1500)]
+    beta_points += [(ibeta_rng.uniform(0.01, 30), ibeta_rng.uniform(0.01, 30)) for _ in range(500)]
     igamma_inverse_float = igamma_inverse_points(200, to_f32_safe)
     for name, pts, f, rounder, ulp, fmt, ctype in (
             ("pow_double", pow_points_double(), pow_exact, round_double, ulp_double, hexd, "double"),
@@ -1311,8 +1405,19 @@ def reference_file():
             ("gamma_q_float", igamma_float, lambda a, x: igamma_exact(a, x, True), round_float, ulp_float, hexf, "float"),
             ("gamma_p_inv_double", igamma_inverse_double, lambda a, t: igamma_inverse_exact(a, t, False), round_double, ulp_double, hexd, "double"),
             ("gamma_q_inv_double", igamma_inverse_double, lambda a, t: igamma_inverse_exact(a, t, True), round_double, ulp_double, hexd, "double"),
-            ("gamma_p_inv_float", igamma_inverse_float, lambda a, t: igamma_inverse_exact(a, t, False), round_float, ulp_float, hexf, "float")):
+            ("gamma_p_inv_float", igamma_inverse_float, lambda a, t: igamma_inverse_exact(a, t, False), round_float, ulp_float, hexf, "float"),
+            ("lbeta_double", beta_points, lambda a, b: mp.loggamma(mpf(a)) + mp.loggamma(mpf(b)) - mp.loggamma(mpf(a) + mpf(b)), round_double, ulp_double, hexd, "double"),
+            ("beta_double", beta_points, lambda a, b: mp.exp(mp.loggamma(mpf(a)) + mp.loggamma(mpf(b)) - mp.loggamma(mpf(a) + mpf(b))), round_double, ulp_double, hexd, "double")):
         text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
+        out.append(text)
+    ibeta_double = ibeta_points(2400)
+    ibeta_float = [(a, b, x) for a, b, x in ibeta_points(600, to_f32_safe) if max(a, b) < 3e38]
+    for name, pts, f, rounder, ulp, fmt, ctype in (
+            ("ibeta_double", ibeta_double, lambda a, b, x: ibeta_reference(a, b, x)[0], round_double, ulp_double, hexd, "double"),
+            ("ibetac_double", ibeta_double, lambda a, b, x: ibeta_reference(a, b, x)[1], round_double, ulp_double, hexd, "double"),
+            ("ibeta_float", ibeta_float, lambda a, b, x: ibeta_reference(a, b, x)[0], round_float, ulp_float, hexf, "float"),
+            ("ibetac_float", ibeta_float, lambda a, b, x: ibeta_reference(a, b, x)[1], round_float, ulp_float, hexf, "float")):
+        text, counts[name] = references3(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
     out.append("}\n")
     return "".join(out), counts
