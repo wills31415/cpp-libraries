@@ -184,6 +184,15 @@ foreach(test_source IN LISTS TEST_SOURCES)
 endforeach()
 EOF
 
+# Release : toutes les instructions du processeur de compilation (fma, AVX2…) sur
+# x86-64, où elles ne sont pas disponibles par défaut. Les binaires ne tournent
+# plus sur des processeurs plus anciens ; les résultats de wsl::special restent
+# identiques au bit près. ARM64 a toujours la fma : rien à ajouter.
+release_flags=""
+if [[ "$(uname -m)" == "x86_64" ]]; then
+    release_flags=$',\n                "CMAKE_CXX_FLAGS": "-march=native"'
+fi
+
 write CMakePresets.json <<EOF
 {
     "version": 6,
@@ -217,7 +226,7 @@ write CMakePresets.json <<EOF
             "displayName": "Release",
             "inherits": "base",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
+                "CMAKE_BUILD_TYPE": "Release"${release_flags}
             }
         }
     ],
@@ -433,7 +442,9 @@ Les tâches s'ouvrent avec ⇧⌘P → « Tasks: Run Task ».
 ## Ce qui est généré
 
 - **CMake avec presets debug et release.** Le compilateur \`/usr/bin/clang++\` est
-  imposé, parce que miniconda passe avant lui dans le \`PATH\`.
+  imposé, parce que miniconda passe avant lui dans le \`PATH\`. Sur x86-64, le preset
+  release compile avec \`-march=native\` (fma, AVX2… du processeur de compilation) :
+  plus rapide, mais le binaire ne tourne plus sur un processeur plus ancien.
 - **Les fichiers sont pris en compte automatiquement.** Tout \`.cpp\` ajouté dans
   \`src/\` est compilé, sans toucher au \`CMakeLists.txt\`. \`src/main.cpp\` contient
   le point d'entrée ; les autres fichiers forment la bibliothèque \`${name}_core\`,
