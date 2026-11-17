@@ -51,4 +51,18 @@ extern "C"
     double check_normal_sample(double m, double s, wsl::xoshiro256pp& g) { return sample(wsl::normal({.mean = m, .sd = s}), g); }
     float check_normal_sample_float(float m, float s, wsl::xoshiro256pp& g) { return sample(wsl::normal<float>({.mean = m, .sd = s}), g); }
     double check_normal_fast(double m, double s, wsl::xoshiro256pp& g) { return sample(wsl::normal({.mean = m, .sd = s}), g, wsl::fast); }
+    double check_geometric_pmf(double p, long long k) { return pmf(wsl::geometric({.p = p}), k); }
+    double check_geometric_cdf(double p, long long k) { return cdf(wsl::geometric({.p = p}), k); }
+    long long check_geometric_quantile(double p, double u) { return quantile(wsl::geometric({.p = p}), u); }
+    double check_geometric_entropy(double p) { return wsl::geometric({.p = p}).entropy(); }
+    long long check_geometric_sample(double p, wsl::xoshiro256pp& g) { return sample(wsl::geometric({.p = p}), g); }
+    double check_poisson_pmf(double m, long long k) { return pmf(wsl::poisson({.mean = m}), k); }
+    double check_poisson_log_pmf(double m, long long k) { return log_pmf(wsl::poisson({.mean = m}), k); }
+    long long check_poisson_sample(wsl::poisson<> const& P, wsl::xoshiro256pp& g) { return sample(P, g); }
+    wsl::poisson<> check_poisson_make(double m) { return wsl::poisson({.mean = m}); }
+    double check_binomial_pmf(long long n, double p, long long k) { return pmf(wsl::binomial({.trials = n, .p = p}), k); }
+    double check_binomial_log_pmf(long long n, double p, long long k) { return log_pmf(wsl::binomial({.trials = n, .p = p}), k); }
+    double check_binomial_variance(long long n, double p) { return wsl::binomial({.trials = n, .p = p}).variance(); }
+    long long check_binomial_sample(wsl::binomial<> const& B, wsl::xoshiro256pp& g) { return sample(B, g); }
+    wsl::binomial<> check_binomial_make(long long n, double p) { return wsl::binomial({.trials = n, .p = p}); }
 }

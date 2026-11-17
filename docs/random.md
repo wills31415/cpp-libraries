@@ -367,3 +367,28 @@ Paramètres extrêmes compris (σ = 10⁻³⁰⁰ ou 10²⁰⁰, λ = 2^±1000).
 
 Tables de la ziggourat : `tools/random/ziggurat.py` (mpmath) écrit
 `detail/ziggurat_tables.hpp`, versionné.
+
+### Étape C1 : géométrique, Poisson, binomiale
+
+| Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `geometric<I>` | `{.p}`, échecs avant le premier succès (k >= 0) | pmf, log_pmf, cdf, ccdf, quantile **exact** ; moyenne, variance, mode, médiane, asymétrie, aplatissement, entropie | inversion ⌊log U / log1p(−p)⌋ |
+| `poisson<I>` | `{.mean}` | pmf, log_pmf ; moyenne, variance, mode, asymétrie, aplatissement | inversion séquentielle (μ < 10), PTRS (Hörmann 1993) |
+| `binomial<I>` | `{.trials, .p}` | pmf, log_pmf ; moyenne, variance, mode, asymétrie, aplatissement | inversion (n min(p, 1−p) < 10), BTRS (Hörmann 1993), symétrie |
+
+Convention de la géométrique : celle de `std::geometric_distribution` et de R (support
+{0, 1, …}) ; le nombre d'essais est X + 1.
+
+Masses de Poisson et binomiale : décomposition de Loader (2000), `detail/loader.hpp` —
+l'erreur de Stirling δ et la déviance bd0 en double-double (série de bd0 près de
+x = M en double-double aussi : elle pèse jusqu'à 1/15 d'un exposant qui peut valoir des
+centaines). Répartitions et quantiles de Poisson et binomiale : avec la gamma et la
+bêta incomplètes (phase 4 de wsl::special).
+
+Précision mesurée : au plus 0,5009 ulp pour toutes les masses, répartitions et survies,
+de μ = 10⁻⁵ à 10¹², n jusqu'à 10⁹, p jusqu'à 2⁻⁶⁰ ; quantile géométrique exact sur
+1 034 points (hors quotients à 2⁻⁹⁰ près d'un entier).
+
+Coût du tirage (même machine) : géométrique 18 ns (`std` 87), Poisson(4) 34 ns (53),
+Poisson(500) 40 ns (71), binomiale(20 ; 0,2) 40 ns (33), binomiale(10⁴ ; 0,3) 49 ns
+(165).

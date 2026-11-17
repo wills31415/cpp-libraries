@@ -32,7 +32,7 @@ def check_constants():
     exact = {
         "inv_sqrt2": 1 / mp.sqrt(2), "sqrt2": mp.sqrt(2), "inv_sqrt_2pi": 1 / mp.sqrt(2 * mp.pi),
         "half_log_2pi": mp.log(2 * mp.pi) / 2, "normal_entropy": (1 + mp.log(2 * mp.pi)) / 2,
-        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi),
+        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi), "one_twelfth": mpf(1) / 12,
     }
     for name, v in exact.items():
         hi = float(v)
@@ -113,6 +113,61 @@ def laws(kind):
     return out
 
 
+GEOMETRIC_P = [0.2, 0.5, 1e-3, 1e-12, 0.999, 2.0 ** -60, 0.75]
+POISSON_MEANS = [0.5, 3.5, 25.0, 1e3, 1e6, 1e-5, 1e12, 9.99, 10.0]
+BINOMIAL = [(20, 0.3), (1000, 0.5), (10 ** 6, 1e-3), (50, 0.999), (10 ** 9, 0.37), (3, 1e-10), (7, 0.5)]
+
+
+def integer_points(center, spread, low, high, count):
+    ks = {low, high, int(center)}
+    for _ in range(count):
+        k = int(round(center + spread * rng.uniform(-40, 40) * rng.random() ** 3))
+        ks.add(min(max(k, low), high))
+    return sorted(ks)
+
+
+def discrete_laws():
+    out = []
+    for p in GEOMETRIC_P:
+        pp = mpf(p)
+        mean = (1 - p) / p
+        ks = sorted({min(int(mean * log_uniform(2.0 ** -20, 600.0)), 2 ** 62) for _ in range(250)} | {0, 1})
+        lq = mp.log1p(-pp)
+        out.append(("geometric_pmf", p, 0.0, ks, lambda k, pp=pp: pp * (1 - pp) ** k))
+        out.append(("geometric_log_pmf", p, 0.0, ks, lambda k, pp=pp, lq=lq: mp.log(pp) + k * lq))
+        out.append(("geometric_cdf", p, 0.0, ks, lambda k, lq=lq: -mp.expm1((k + 1) * lq)))
+        out.append(("geometric_ccdf", p, 0.0, ks, lambda k, lq=lq: mp.exp((k + 1) * lq)))
+    for mu in POISSON_MEANS:
+        m = mpf(mu)
+        ks = integer_points(mu, math.sqrt(mu) + 1, 0, 2 ** 62, 250)
+        ks = [k for k in ks if k >= 0]
+        logpmf = lambda k, m=m: -m + k * mp.log(m) - mp.loggamma(k + 1)
+        out.append(("poisson_pmf", mu, 0.0, ks, lambda k, f=logpmf: mp.exp(f(k))))
+        out.append(("poisson_log_pmf", mu, 0.0, ks, logpmf))
+    for n, p in BINOMIAL:
+        pp = mpf(p)
+        sd = math.sqrt(n * p * (1 - p)) + 1
+        ks = list(range(n + 1)) if n <= 60 else integer_points(n * p, sd, 0, n, 250)
+        logpmf = lambda k, n=n, pp=pp: (mp.loggamma(n + 1) - mp.loggamma(k + 1) - mp.loggamma(n - k + 1)
+                                        + k * mp.log(pp) + (n - k) * mp.log1p(-pp))
+        out.append(("binomial_pmf", float(n), p, ks, lambda k, f=logpmf: mp.exp(f(k))))
+        out.append(("binomial_log_pmf", float(n), p, ks, logpmf))
+    return out
+
+
+def geometric_quantiles():
+    rows = []
+    for p in GEOMETRIC_P:
+        lq = mp.log1p(-mpf(p))
+        for u in probabilities(60):
+            t = mp.log1p(-mpf(u)) / lq
+            k = int(mp.ceil(t)) - 1
+            if abs(t - mp.nint(t)) < mpf(2) ** -90 * t or k >= 2 ** 62:
+                continue
+            rows.append(f"        {{{g.hexd(p)}, {g.hexd(u)}, {k}}},\n")
+    return rows
+
+
 def reference_file():
     out = [HEADER, "#pragma once\n\n", "// Valeurs de référence des lois de wsl::random (mpmath).\n\n",
            "namespace law_reference_data\n{\n",
@@ -121,7 +176,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []):
             rows = groups.setdefault(name, [])
             for x in xs:
                 exact = f(mpf(x))
@@ -129,12 +184,18 @@ def reference_file():
                 if math.isinf(cr) or cr == 0:
                     continue
                 offset = float((exact - mpf(cr)) / mpf(ulp(cr)))
-                rows.append(f"        {{{g.hexd(a)}, {g.hexd(b)}, {g.hexd(x)}, {fmt(cr)}, {offset!r}}},\n")
+                rows.append(f"        {{{g.hexd(float(a))}, {g.hexd(float(b))}, {g.hexd(float(x))}, {fmt(cr)}, {offset!r}}},\n")
         for name, rows in groups.items():
             out.append(f"    inline constexpr point<{kind}> {name}_{kind}[] = {{\n")
             out += rows
             out.append("    };\n\n")
             total += len(rows)
+    out.append("    struct quantile_point\n    {\n        double p, u;\n        long long k;\n    };\n\n")
+    out.append("    // Quantiles exacts de la loi géométrique.\n    inline constexpr quantile_point geometric_quantile[] = {\n")
+    rows = geometric_quantiles()
+    out += rows
+    out.append("    };\n")
+    total += len(rows)
     out.append("}\n")
     return "".join(out), total
 

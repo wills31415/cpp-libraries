@@ -70,6 +70,51 @@ namespace
         }
         return worst * std::sqrt(n);                                         // < 1,95 au seuil de 0,1 %
     }
+
+    // χ² d'ajustement d'un tirage discret à pmf, classes d'effectif attendu >= 20
+    // (queues regroupées) : écart réduit (χ² − ddl)/√(2 ddl), < 4 attendu.
+    template <class L, class G>
+    double chi_square(L const& law, G& g, int draws, long long low, long long high)
+    {
+        std::vector<long long> counts(static_cast<std::size_t>(high - low + 1));
+        long long below = 0, above = 0;
+        for (int i = 0; i < draws; ++i)
+        {
+            long long const k = sample(law, g);
+            if (k < low)
+                ++below;
+            else if (k > high)
+                ++above;
+            else
+                ++counts[static_cast<std::size_t>(k - low)];
+        }
+        double chi = 0, expected_below = 0, expected_above = 0;
+        int classes = 0;
+        double pooled_expected = 0, pooled_count = 0;
+        for (long long k = low; k <= high; ++k)
+        {
+            pooled_expected += draws * pmf(law, k);
+            pooled_count += double(counts[static_cast<std::size_t>(k - low)]);
+            if (pooled_expected >= 20)
+            {
+                chi += (pooled_count - pooled_expected) * (pooled_count - pooled_expected) / pooled_expected;
+                ++classes;
+                pooled_expected = pooled_count = 0;
+            }
+        }
+        for (long long k = low - 1; k >= 0 && k >= low - 100000; --k)
+            expected_below += draws * pmf(law, k);
+        double const total = draws - [&] { double e = 0; for (long long k = low; k <= high; ++k) e += draws * pmf(law, k); return e; }();
+        expected_above = total - expected_below;
+        for (auto [c, e] : {std::pair{double(below + 0) + 0.0, expected_below}, {double(above) + pooled_count, expected_above + pooled_expected}})
+            if (e >= 20)
+            {
+                chi += (c - e) * (c - e) / e;
+                ++classes;
+            }
+        int const freedom = classes - 1;
+        return (chi - freedom) / std::sqrt(2.0 * freedom);
+    }
 }
 
 // ---- Concept, attributs présents ou absents, déduction du type ------------------
@@ -97,6 +142,14 @@ static_assert(quantile(wsl::normal({.mean = 2.0, .sd = 3.0}), 0.5) == 2.0);
 // Tirages exacts en évaluation constante (réels paresseux, grands entiers, voie lente comprise).
 static_assert([] { wsl::pcg64 g(3); return sample(wsl::exponential({.rate = 2.0}), g) > 0; }());
 static_assert([] { wsl::pcg64 g(4); double const x = sample(wsl::normal({.mean = 0.0, .sd = 0x1p-900}), g); return x == x; }());
+
+static_assert(wsl::probability_law<wsl::geometric<>> && wsl::probability_law<wsl::poisson<int>> && wsl::probability_law<wsl::binomial<>>);
+static_assert(wsl::has_pmf<wsl::geometric<>> && wsl::has_cdf<wsl::geometric<>> && wsl::has_quantile<wsl::geometric<>>);
+static_assert(wsl::has_pmf<wsl::poisson<>> && !wsl::has_cdf<wsl::poisson<>> && wsl::has_pmf<wsl::binomial<>> && !wsl::has_quantile<wsl::binomial<>>);
+static_assert(wsl::geometric<>::sampling == wsl::exactness::approximate && wsl::poisson<>::sampling == wsl::exactness::approximate);
+static_assert([] { wsl::binomial X({.trials = 20, .p = 0.3}); return std::is_same_v<decltype(X), wsl::binomial<std::int64_t>>; }());
+static_assert(pmf(wsl::geometric({.p = 0.5}), 1) == 0.25 && quantile(wsl::geometric({.p = 0.5}), 0.75) == 1);
+static_assert([] { wsl::pcg64 g(5); return sample(wsl::poisson({.mean = 30.0}), g) > 0 && sample(wsl::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
 
 int main()
 {
@@ -260,6 +313,61 @@ int main()
         assert(kolmogorov_smirnov(T, slow) < 1.95);
     }
 
+    // ---- geometric ------------------------------------------------------------
+    {
+        wsl::geometric const G({.p = 0.5});
+        assert(G.mean() == 1 && G.variance() == 2 && G.mode() == 0 && G.median() == 0 && G.entropy() == 2 * std::log(2.0));
+        assert(pmf(G, 0) == 0.5 && pmf(G, -1) == 0 && cdf(G, 1) == 0.75 && ccdf(G, 1) == 0.25 && cdf(G, -1) == 0);
+        assert(quantile(G, 0.75) == 1 && quantile(G, std::nextafter(0.75, 1.0)) == 2 && quantile(G, 0.0) == 0);
+        assert(quantile(G, 1.0) == std::numeric_limits<std::int64_t>::max() && log_pmf(G, 3) == -4 * std::log(2.0));
+        wsl::geometric const one({.p = 1});
+        assert(pmf(one, 0) == 1 && pmf(one, 1) == 0 && cdf(one, 0) == 1 && one.mean() == 0 && sample(one, g) == 0);
+        wsl::geometric const tiny({.p = 0x1p-60});
+        assert(tiny.mean() == 0x1p60 - 1 && cdf(tiny, std::numeric_limits<std::int64_t>::max()) > 0.99);
+        assert(throws_domain_error([] { wsl::geometric X({.p = 0}); }) && throws_domain_error([] { wsl::geometric X({.p = 1.5}); }));
+        assert(std::abs(chi_square(wsl::geometric({.p = 0.3}), g, 200000, 0, 30)) < 4);
+        assert(std::abs(chi_square(wsl::geometric({.p = 0.001}), g, 200000, 0, 5000)) < 4);
+    }
+
+    // ---- poisson --------------------------------------------------------------
+    {
+        wsl::poisson const P({.mean = 3.5});
+        assert(P.mean() == 3.5 && P.variance() == 3.5 && P.mode() == 3 && pmf(P, -1) == 0 && log_pmf(P, 0) == -3.5);
+        assert(pmf(P, 0) == wsl::special::exp(-3.5));
+        double total = 0;
+        for (int k = 0; k < 60; ++k)
+            total += pmf(P, k);
+        assert(std::abs(total - 1) < 1e-15);
+        assert(pmf(wsl::poisson({.mean = 1e300}), 5) == 0 && pmf(wsl::poisson({.mean = 1e-300}), 1) == 1e-300);
+        assert(throws_domain_error([] { wsl::poisson X({.mean = 0}); }) && throws_domain_error([] { wsl::poisson X({.mean = INFINITY}); }));
+        for (double mu : {0.7, 3.5, 9.9, 10.0, 50.0, 1e4, 1e9})              // inversion, puis PTRS
+        {
+            double const sd = std::sqrt(mu);
+            auto const low = static_cast<long long>(std::max(0.0, mu - 6 * sd)), high = static_cast<long long>(mu + 6 * sd + 6);
+            assert(std::abs(chi_square(wsl::poisson({.mean = mu}), g, 200000, low, high)) < 4);
+        }
+    }
+
+    // ---- binomial -------------------------------------------------------------
+    {
+        wsl::binomial const B({.trials = 20, .p = 0.3});
+        assert(B.trials() == 20 && B.mean() == 6 && std::abs(B.variance() - 4.2) < 1e-15 && B.mode() == 6);
+        assert(pmf(B, 21) == 0 && pmf(B, -1) == 0 && pmf(B, 20) == wsl::special::pow(0.3, 20.0));
+        double total = 0;
+        for (int k = 0; k <= 20; ++k)
+            total += pmf(B, k);
+        assert(std::abs(total - 1) < 1e-15);
+        assert(pmf(wsl::binomial({.trials = 5, .p = 0.0}), 0) == 1 && pmf(wsl::binomial({.trials = 5, .p = 1.0}), 5) == 1);
+        assert(sample(wsl::binomial({.trials = 5, .p = 1.0}), g) == 5 && sample(wsl::binomial({.trials = 0, .p = 0.5}), g) == 0);
+        assert(throws_domain_error([] { wsl::binomial X({.trials = -1, .p = 0.5}); }) && throws_domain_error([] { wsl::binomial X({.trials = 3, .p = 2}); }));
+        for (auto [n, p] : {std::pair{20LL, 0.3}, {1000LL, 0.004}, {1000LL, 0.3}, {1000LL, 0.9}, {100000000LL, 0.5}, {50LL, 0.97}})
+        {
+            double const mean = double(n) * p, sd = std::sqrt(mean * (1 - p));
+            auto const low = static_cast<long long>(std::max(0.0, mean - 6 * sd)), high = std::min(n, static_cast<long long>(mean + 6 * sd + 6));
+            assert(std::abs(chi_square(wsl::binomial({.trials = n, .p = p}), g, 200000, low, high)) < 4);
+        }
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -316,6 +424,19 @@ int main()
             double const p = wsl::uniform_real(x), y = quantile(E, p);
             return bits(y) ^ bits(cdf(E, y)) ^ (bits(ccdf(E, y)) << 1) ^ (bits(pdf(E, y)) << 2) ^ (bits(log_pdf(E, y)) << 3);
         }, 1 << 13), 0x5c920e5f73d7dffd);
+        wsl::geometric const Gf({.p = 0.05});
+        wsl::poisson const Ps({.mean = 4.25}), Pl({.mean = 812.5});
+        wsl::binomial const Bs({.trials = 30, .p = 0.2}), Bl({.trials = 100000, .p = 0.7});
+        ok &= check("geometric", fingerprint([&] { return static_cast<std::uint64_t>(sample(Gf, x)); }), 0xf0cebc4b03f0655d);
+        ok &= check("poisson inversion", fingerprint([&] { return static_cast<std::uint64_t>(sample(Ps, x)); }), 0xab8d234f51d7332e);
+        ok &= check("poisson PTRS", fingerprint([&] { return static_cast<std::uint64_t>(sample(Pl, x)); }), 0x4bfc82d01b403440);
+        ok &= check("binomial inversion", fingerprint([&] { return static_cast<std::uint64_t>(sample(Bs, x)); }), 0x758aa2af1860fcd7);
+        ok &= check("binomial BTRS", fingerprint([&] { return static_cast<std::uint64_t>(sample(Bl, x)); }), 0xc68cde3109166ca4);
+        ok &= check("discrete functions", fingerprint([&] {
+            auto const k = static_cast<long long>(wsl::uniform_below(x, 2000));
+            return bits(pmf(Gf, k)) ^ (bits(cdf(Gf, k)) << 1) ^ (bits(pmf(Pl, k)) << 2) ^ (bits(log_pmf(Pl, k)) << 3)
+                 ^ (bits(pmf(Bl, k + 69000)) << 4) ^ (bits(log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(quantile(Gf, wsl::uniform_real(x)));
+        }, 1 << 13), 0x503c6014239c1d35);
     }
     assert(ok);
     return 0;

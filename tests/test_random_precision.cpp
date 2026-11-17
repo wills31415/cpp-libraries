@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <iterator>
 #include <span>
 
 namespace
@@ -78,5 +79,26 @@ int main()
     LAW_CHECKS(double, tight)
     LAW_CHECKS(float, loose)
 #undef LAW_CHECKS
+
+    // Lois discrètes (masses en double).
+    using K = long long;
+    auto const G = [](double a) { return wsl::geometric<K>({.p = a}); };
+    auto const P = [](double a) { return wsl::poisson<K>({.mean = a}); };
+    auto const B = [](double a, double b) { return wsl::binomial<K>({.trials = K(a), .p = b}); };
+    check<double>("geometric pmf", d::geometric_pmf_double, [&](double a, double, double x) { return pmf(G(a), K(x)); }, tight);
+    check<double>("geometric log_pmf", d::geometric_log_pmf_double, [&](double a, double, double x) { return log_pmf(G(a), K(x)); }, 1.0);
+    check<double>("geometric cdf", d::geometric_cdf_double, [&](double a, double, double x) { return cdf(G(a), K(x)); }, tight);
+    check<double>("geometric ccdf", d::geometric_ccdf_double, [&](double a, double, double x) { return ccdf(G(a), K(x)); }, tight);
+    check<double>("poisson pmf", d::poisson_pmf_double, [&](double a, double, double x) { return pmf(P(a), K(x)); }, tight);
+    check<double>("poisson log_pmf", d::poisson_log_pmf_double, [&](double a, double, double x) { return log_pmf(P(a), K(x)); }, 1.0);
+    check<double>("binomial pmf", d::binomial_pmf_double, [&](double a, double b, double x) { return pmf(B(a, b), K(x)); }, tight);
+    check<double>("binomial log_pmf", d::binomial_log_pmf_double, [&](double a, double b, double x) { return log_pmf(B(a, b), K(x)); }, 1.0);
+
+    // Quantile de la géométrique : exact.
+    std::size_t wrong = 0;
+    for (auto const& q : d::geometric_quantile)
+        wrong += quantile(G(q.p), q.u) != q.k;
+    std::printf("%-28s %5zu points : %zu faux\n", "geometric quantile", std::size(d::geometric_quantile), wrong);
+    failed |= wrong != 0;
     return failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }

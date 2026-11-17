@@ -116,6 +116,7 @@ namespace wsl::detail
     inline constexpr double normal_entropy_hi = 0x1.6b3f8e4325f5ap+0, normal_entropy_lo = 0x1.4d252f2400510p-54;  // (1 + log 2π)/2
     inline constexpr double half_sqrt_pi = 0x1.c5bf891b4ef6bp-1;
     inline constexpr double inv_sqrt_pi = 0x1.20dd750429b6dp-1;
+    inline constexpr double one_twelfth_hi = 0x1.5555555555555p-4, one_twelfth_lo = 0x1.5555555555555p-58;
 
     constexpr double magnitude(double x) noexcept { return x < 0 ? -x : x; }
 
@@ -127,10 +128,84 @@ namespace wsl::detail
         return sd::two_product(sd::scale_by_power_of_two(a, -shift), sd::scale_by_power_of_two(b, shift));
     }
 
-    // log(x) en double-double, x > 0 fini, à 2^-72 près relativement.
+    // a·b en double-double, a, b > 0 finis : exact si |ab| est dans [2^-900,
+    // 2^900] ; arrondi sinon (produit minuscule ou immense, sans erreur rendue).
+    constexpr sd::double_double product(double a, double b) noexcept
+    {
+        double const approx = magnitude(sd::fmul(a, b));
+        if (approx >= 0x1p-900 && approx <= 0x1p900)
+        {
+            auto const [p, p_error] = balanced_product(a, b);
+            return {p, p_error};
+        }
+        return {sd::fmul(a, b), 0.0};
+    }
+
+    // Entier de 64 bits en somme exacte de deux doubles (le second nul sous 2^53).
+    constexpr sd::double_double exact_split(std::uint64_t v) noexcept
+    {
+        if (v < (std::uint64_t{1} << 53))
+            return {static_cast<double>(v), 0.0};
+        return {static_cast<double>(v & ~std::uint64_t{0x7ff}), static_cast<double>(v & 0x7ff)};
+    }
+
+    // Produit et somme en double-double (produit exact dans [2^-900, 2^900]).
+    constexpr sd::double_double mul(sd::double_double a, sd::double_double b) noexcept
+    {
+        bool const negative = (a.hi < 0) != (b.hi < 0);
+        auto const [p, p_error] = product(magnitude(a.hi), magnitude(b.hi));
+        double const ph = negative ? -p : p, pe = negative ? -p_error : p_error;
+        auto const [hi, lo] = sd::fast_two_sum(ph, pe + (sd::fmul(a.hi, b.lo) + sd::fmul(a.lo, b.hi)));
+        return {hi, lo};
+    }
+
+    constexpr sd::double_double sum(sd::double_double a, sd::double_double b) noexcept
+    {
+        auto const [s, s_error] = sd::two_sum(a.hi, b.hi);
+        auto const [hi, lo] = sd::fast_two_sum(s, s_error + (a.lo + b.lo));
+        return {hi, lo};
+    }
+
+    // 1/n en double-double, n entier > 0 exact.
+    constexpr sd::double_double reciprocal(double n) noexcept
+    {
+        double const q = 1.0 / n;
+        auto const [p, p_error] = sd::two_product(q, n);
+        return {q, ((1.0 - p) - p_error) / n};
+    }
+
+    // (k_hi + k_lo)(l_hi + l_lo), en double-double : k entier exact, l quelconque.
+    constexpr sd::double_double times(sd::double_double k, sd::double_double l) noexcept
+    {
+        auto const [p, p_error] = product(k.hi, magnitude(l.hi));
+        double const signed_p = l.hi < 0 ? -p : p, signed_error = l.hi < 0 ? -p_error : p_error;
+        auto const [hi, lo] = sd::fast_two_sum(signed_p, signed_error + (sd::fmul(k.hi, l.lo) + sd::fmul(k.lo, l.hi)));
+        return {hi, lo};
+    }
+
+    // ⌊x⌋, 0 <= x < 2^63.
+    constexpr double floor_nonnegative(double x) noexcept
+    {
+        return static_cast<double>(static_cast<std::uint64_t>(x));
+    }
+
+    // ⌈hi + lo⌉, 0 <= hi + lo < 2^63, en entier.
+    constexpr std::uint64_t ceiling(double hi, double lo) noexcept
+    {
+        auto const n = static_cast<std::uint64_t>(hi);                      // ⌊hi⌋, exact en double
+        if (static_cast<double>(n) < hi)                                    // hi non entier : lo ne fait
+            return n + 1;                                                   // franchir aucun entier
+        // hi entier : ⌈hi + lo⌉ = hi + ⌈lo⌉ (lo peut dépasser 1 quand hi >= 2^54).
+        auto const m = static_cast<std::int64_t>(lo);                       // troncature vers 0
+        std::int64_t const c = (lo > 0 && static_cast<double>(m) < lo) ? m + 1 : m;
+        return static_cast<std::uint64_t>(static_cast<std::int64_t>(n) + c);
+    }
+
+    // log(x) en double-double, x > 0 fini (sous-normal compris), à 2^-72 près
+    // relativement.
     constexpr sd::double_double log_precise(double x) noexcept
     {
-        return sd::log_accurate(sd::bits(x));
+        return sd::log_dd(x);
     }
 
     // ---------------------------------------------------------------------
@@ -167,6 +242,41 @@ namespace wsl::detail
         auto const [p, p_error] = sd::two_product(q, m);
         auto const [hi, lo] = sd::fast_two_sum(q, (((a.hi - p) - p_error) + a.lo) / m);
         return normalized(hi, lo, a.e - ed);
+    }
+
+    // a / b.
+    constexpr scaled operator/(scaled const& a, scaled const& b) noexcept
+    {
+        double const q = a.hi / b.hi;                                       // dans (1/2, 2)
+        auto const [p, p_error] = sd::two_product(q, b.hi);
+        auto const [hi, lo] = sd::fast_two_sum(q, ((((a.hi - p) - p_error) + a.lo) - sd::fmul(q, b.lo)) / b.hi);
+        return normalized(hi, lo, a.e - b.e);
+    }
+
+    // √a.
+    constexpr scaled sqrt(scaled a) noexcept
+    {
+        if (a.e % 2 != 0)                                                   // exposant pair
+        {
+            a.hi = sd::fmul(a.hi, 2.0);
+            a.lo = sd::fmul(a.lo, 2.0);
+            --a.e;
+        }
+        double const s = wsl::special::sqrt(a.hi);
+        auto const [p, p_error] = sd::two_product(s, s);
+        auto const [hi, lo] = sd::fast_two_sum(s, (((a.hi - p) - p_error) + a.lo) / (s + s));
+        return normalized(hi, lo, a.e / 2);
+    }
+
+    // log a, en double-double.
+    constexpr sd::double_double log(scaled const& a) noexcept
+    {
+        auto const [l_hi, l_lo] = log_precise(a.hi);
+        double const ed = static_cast<double>(a.e);
+        auto const [m, m_error] = sd::two_product(ed, sd::ln2_hi);
+        auto const [s, s_error] = sd::two_sum(m, l_hi);
+        auto const [hi, lo] = sd::fast_two_sum(s, (s_error + m_error) + ((l_lo + a.lo / a.hi) + sd::fmul(ed, sd::ln2_lo)));
+        return {hi, lo};
     }
 
     // Au plus proche : un arrondi, sous-normaux compris.

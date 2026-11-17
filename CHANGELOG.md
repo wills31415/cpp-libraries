@@ -25,6 +25,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   (valeur tirée exactement selon la loi puis arrondie au plus proche, réels paresseux),
   tirage rapide `wsl::fast` (inversion ; ziggourat), densité, log-densité, répartition,
   survie, quantile mesurés sous 0,502 ulp contre mpmath.
+- Lois `geometric<I>` (`{.p}`, échecs avant le premier succès), `poisson<I>` (`{.mean}`),
+  `binomial<I>` (`{.trials, .p}`) : masses et log-masses sous 0,501 ulp (décomposition de
+  Loader), répartition, survie et quantile exact de la géométrique ; tirages bit-exacts
+  (inversion, PTRS, BTRS).
 - `scale_by_power_of_two` (wsl::special, détail) accepte tout exposant.
 
 ### exact_random (retirée)
