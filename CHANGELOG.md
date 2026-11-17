@@ -75,7 +75,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `gamma_p`, `gamma_q` (gamma incomplètes régularisées, float et double) : erreur maximale
   mesurée 0,500 ulp, arrondi correct sur 100 % des points ; chacune précise même
   minuscule (Temme pour a >= 50 près de x = a, série, fraction continue, série en a pour
-  les petits a).
+  les petits a). Domaine complet : a et x jusqu'à DBL_MAX (P + Q = 1 et croissance
+  vérifiées au-delà des références).
 - Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma

@@ -315,9 +315,9 @@ int main()
     ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
     ok &= check("digamma double", digamma_double, 0x3a9ec0df558f01bc);
     ok &= check("digamma float", digamma_float, 0x260ca54d39c41921);
-    ok &= check("gamma_p double", gamma_p_double, 0x232b63f41997b95a);
-    ok &= check("gamma_q double", gamma_q_double, 0xbe291aa0af67d269);
-    ok &= check("gamma_q float", gamma_q_float, 0x7a81c89c17df9e5f);
+    ok &= check("gamma_p double", gamma_p_double, 0xe7b7bbc1b3a35053);
+    ok &= check("gamma_q double", gamma_q_double, 0x9782b6a6da56fe8d);
+    ok &= check("gamma_q float", gamma_q_float, 0x84058102c180cb27);
     ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
     ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
     ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);

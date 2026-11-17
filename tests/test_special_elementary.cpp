@@ -395,6 +395,20 @@ int main()
         assert(sp::gamma_p(3.0, x) + sp::gamma_q(3.0, x) - 1 <= 0x1p-52);
     }
 
+    // gamma_p, gamma_q au-delà des références (a jusqu'à 10³⁰⁰) : dans [0, 1], P + Q = 1,
+    // P croissante en x.
+    for (double a : {1e7, 7e9, 1e12, 1e15, 1e50, 1e300})
+    {
+        double previous = 0;
+        for (int i = -200; i <= 200; ++i)
+        {
+            double const x = i < -100 ? a * std::exp2(-0.25 * (-100 - i)) : i > 100 ? a * std::exp2(0.05 * (i - 100)) : a + 0.25 * i * std::sqrt(a);
+            double const p = sp::gamma_p(a, x), q = sp::gamma_q(a, x);
+            assert(p >= 0 && p <= 1 && q >= 0 && q <= 1 && std::abs(p + q - 1) <= 0x1p-52 && p >= previous);
+            previous = p;
+        }
+    }
+
     // lgamma, tgamma : cas à part, factorielles exactes, signes.
     assert(is_positive_zero(sp::lgamma(1.0)) && is_positive_zero(sp::lgamma(2.0)));
     assert(sp::lgamma(0.0) == inf && sp::lgamma(-0.0) == inf && sp::lgamma(-3.0) == inf && sp::lgamma(-inf) == inf);

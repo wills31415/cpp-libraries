@@ -234,6 +234,8 @@ namespace wsl::special
                 q = xd::sum(q, xd::mul(ex, r));
                 return {to_scaled(q), true};
             }
+            if (b.hi > 1500)                                                // e^{−bd0} F/2 < 2^-2000 : nul (et hors
+                return {scaled_zero, above};                                // du domaine de exp_scaled)
             double_double const aw = above ? w : double_double{-w.hi, -w.lo};
             double_double const f = erfc_factor_dd(aw.hi, aw.lo);
             double_double const bracket = xd::sum({fmul(f.hi, 0.5), fmul(f.lo, 0.5)}, above ? r : double_double{-r.hi, -r.lo});
