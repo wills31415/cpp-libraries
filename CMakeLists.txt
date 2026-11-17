@@ -66,10 +66,10 @@ wsl_add_library(array2d      STANDARD 23)
 wsl_add_library(dlist        STANDARD 20)
 wsl_add_library(graded       STANDARD 20)
 wsl_add_library(graded_io    STANDARD 20 DEPENDS graded)
-wsl_add_library(exact_random STANDARD 20)
 wsl_add_library(elo          STANDARD 20)
 wsl_add_library(progress     STANDARD 23)
 wsl_add_library(special      STANDARD 20)
+wsl_add_library(random       STANDARD 20)
 
 # Tout d'un coup : wsl::libraries.
 add_library(wsl_libraries INTERFACE)
@@ -148,7 +148,6 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         target_link_libraries(${test} PRIVATE wsl_libraries_no_sign_compare)
     endforeach()
     wsl_add_test(graded_io)
-    wsl_add_test(exact_random)
     wsl_add_test(elo)
     wsl_add_test(progress)
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
@@ -184,6 +183,8 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         message(WARNING "Ni uv ni python3 avec mpmath : test de précision de wsl::special sauté")
     endif()
     wsl_add_test(special_bitexact LIBRARY special)
+    wsl_add_test(random_engines LIBRARY random)
+    wsl_add_test(random_uniform LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     add_test(NAME special_no_contraction
              COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include

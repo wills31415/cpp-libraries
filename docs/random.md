@@ -3,7 +3,8 @@
 > Document de conception. Décisions ✅ prises avec l'utilisateur le 2026-11-16 ;
 > les propositions ◻︎ ont été validées en bloc le même jour.
 >
-> **État** : rien n'est encore implémenté ; la phase 1 (`wsl::special`) est en cours.
+> **État** : phase 1 (`wsl::special`) terminée ; **phase 2 (socle) faite** le 2026-11-17 :
+> moteurs et primitives uniformes exactes (§4.1, §4.2, et §8 pour ce qui a été fixé).
 
 ## 1. Vision ✅
 
@@ -249,3 +250,36 @@ Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichier
 cpp-traversal, cpp-sudoku et puissance-4, dont `random_agent`, dont la promesse « même
 graine, mêmes coups » n'est aujourd'hui tenue que sur une même plateforme) et de
 `wsl::elo` (rééchantillonnage par `std::discrete_distribution`).
+
+## 8. Phase 2 : ce qui a été fixé
+
+**Moteurs** (`<wsl/random/engines.hpp>`), tous `std::uniform_random_bit_generator`,
+`constexpr`, comparables (`==`), avec `seed` et `discard` :
+
+| Moteur | Initialisation par une graine | Particularités |
+|---|---|---|
+| `splitmix64` | état = graine | `discard(n)` en O(1) (suite de Weyl) |
+| `xoshiro256pp` | 4 sorties de `splitmix64(graine)` | `jump()` (2¹²⁸), `long_jump()` (2¹⁹²) |
+| `pcg64` | (graine, flux) à la manière de pcg-cpp | `advance(n)` en O(log n) ; état brut accepté |
+| `philox4x64` | clé {graine, 0}, compteur 0 | `block(clé, compteur)` sans état ; rend bloc(c), puis c + 1 |
+
+Vérifiés contre des sources indépendantes de ce code : NumPy (PCG64, Philox, état brut
+fixé) ; xoshiro256++ par la première sortie calculable à la main et ses sauts par
+élévation de la matrice de transition dans GF(2).
+
+**Primitives** (`<wsl/random/uniform.hpp>`), pour tout générateur standard :
+
+- `random_bits(g)` : 64 bits uniformes ; plage 2^w : concaténation, premier appel en
+  poids fort ; autre plage (`minstd_rand`) : rejet sous 2^⌊log2 plage⌋.
+- `uniform_below(g, n)` : méthode de Lemire, exacte ; une valeur presque toujours.
+- `uniform_int(g, a, b)` : [a, b], jusqu'à la pleine plage de 64 bits.
+- `uniform_real<T>(g)` : **U arrondi vers le bas**, chaque flottant x de [0, 1) rendu avec
+  probabilité x⁺ − x exactement (sous-normaux compris, 1 jamais) ; exposant géométrique
+  lu sur les zéros de tête, mantisse prise dans le même mot quand il en reste assez :
+  une valeur consommée presque toujours. `uniform_real_fast<T>(g)` : 53 (24) bits de
+  tête, une valeur.
+- `bernoulli(g, p)` : U < p par comparaison des bits, mot par mot (une valeur presque
+  toujours) ; `bernoulli(g, num, den)` : `uniform_below(g, den) < num`.
+- `shuffle(range, g)` : Fisher–Yates, n − 1 tirages.
+
+`wsl::exact_random` est retirée : `wsl::random` la remplace.

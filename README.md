@@ -18,18 +18,18 @@ avertissements traités comme des erreurs.
 | `wsl::dlist` | `<wsl/dlist.hpp>` | C++20 | Liste à distances : valeurs placées à des positions entières, stockées par écarts relatifs (insertion et extraction de fragments) |
 | `wsl::graded` | `<wsl/graded.hpp>` | C++20 | N-uplets ordonnés lexicographiquement (jets) : `jet` (arité exacte), `series` (arité bornée), arithmétique, concaténation, hachage |
 | `wsl::graded_io` | `<wsl/graded_io.hpp>` | C++20 | `std::formatter`, `operator<<` et `to_string` pour `graded` |
-| `wsl::exact_random` | `<wsl/exact_random.hpp>` | C++20 | Tirages entiers exactement uniformes (64 et 128 bits), mélange de Fisher–Yates, générateur entièrement initialisé |
 | `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
 | `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
 | `wsl::special` | `<wsl/special.hpp>` | C++20 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma` ([conception](docs/special.md)) |
+| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, Bernoulli exacte, mélange ([conception](docs/random.md) ; les lois de probabilité viennent ensuite) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
 
 Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :
 lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
 
-En préparation : une bibliothèque de lois de probabilité « de mathématicien »,
-reproductible au bit près sur toute plateforme ([conception](docs/random.md)).
+En préparation dans `wsl::random` : les lois de probabilité « de mathématicien »
+([conception](docs/random.md)).
 
 ## Utiliser les bibliothèques dans un projet
 

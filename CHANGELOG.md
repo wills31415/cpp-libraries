@@ -6,6 +6,21 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 
 ## [Non publié]
 
+### random (nouvelle)
+- Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
+  128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
+  `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par
+  matrices sur GF(2).
+- `random_bits`, `uniform_below` (Lemire), `uniform_int`, `uniform_real` (exact : chaque
+  flottant de [0, 1) avec exactement sa probabilité, sous-normaux compris),
+  `uniform_real_fast`, `bernoulli` (p flottant ou rationnel, exacte), `shuffle`
+  (Fisher–Yates), pour tout générateur standard.
+
+### exact_random (retirée)
+- Remplacée par `wsl::random` : `uniform_below(g, n)` (exact, tout générateur, plus
+  rapide), `shuffle(range, g)`, et les moteurs initialisés à volonté. Rupture : l'ordre
+  des arguments et les suites tirées changent.
+
 ### cpp-init (outil)
 - Preset release des nouveaux projets en `-march=native` sur x86-64 (fma, AVX2…).
 

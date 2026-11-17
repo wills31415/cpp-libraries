@@ -83,6 +83,17 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
   `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
 
+## wsl::random
+
+- Conception : `docs/random.md`. Mêmes exigences que wsl::special : algorithmes fixés,
+  tirages bit-exacts partout ; le nombre de valeurs consommées sur le moteur fait partie
+  du contrat. Jamais de loi de `<random>` (non reproductibles d'une bibliothèque à
+  l'autre) ; les moteurs standard sont acceptés.
+- Vecteurs des moteurs : `uv run --no-project --with numpy python
+  tools/random/engine_vectors.py` écrit `tests/random_engine_vectors.hpp` (versionné,
+  petit ; NumPy pour pcg64 et philox4x64, sauts de xoshiro vérifiés par GF(2)).
+- Empreintes des suites tirées : `tests/test_random_uniform.cpp`.
+
 ## Structure
 
 - `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via
@@ -95,7 +106,8 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 ## Provenance
 
 Les originaux sont restés en place, non modifiés : `~/projets/cpp-array2d`,
-`~/projets/cpp-container-distance-list`, `cpp-sudoku/src/exact_random.hpp`,
+`~/projets/cpp-container-distance-list`, `cpp-sudoku/src/exact_random.hpp` (retirée
+d'ici depuis, remplacée par `wsl::random`),
 `cpp-traversal/src/util/{array2d,progress}.hpp`, `cpp-traversal/src/agents/elo.hpp`.
 cpp-traversal utilise encore sa propre copie d'`array2d.hpp`.
 
