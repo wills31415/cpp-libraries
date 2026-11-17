@@ -392,3 +392,32 @@ de μ = 10⁻⁵ à 10¹², n jusqu'à 10⁹, p jusqu'à 2⁻⁶⁰ ; quantile g
 Coût du tirage (même machine) : géométrique 18 ns (`std` 87), Poisson(4) 34 ns (53),
 Poisson(500) 40 ns (71), binomiale(20 ; 0,2) 40 ns (33), binomiale(10⁴ ; 0,3) 49 ns
 (165).
+
+### Étape C2 : gamma et bêta
+
+| Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `gamma<T>` | `{.shape, .rate}` ou `{.shape, .scale}` (le paramètre donné est gardé tel quel) | pdf, log_pdf ; moyenne, variance, mode, asymétrie, aplatissement | Marsaglia–Tsang (normale par la ziggourat) ; a < 1 : G(a + 1) U^{1/a} |
+| `beta<T>` | `{.alpha, .beta}` (lus par `a()`, `b()`) | pdf, log_pdf ; moyenne, variance, mode, asymétrie, aplatissement | G₁/(G₁ + G₂), en logarithmes si α < 1 ou β < 1 |
+
+Densités comme `dgamma` et `dbeta` de R : masse de Poisson généralisée pour la gamma,
+binomiale généralisée pour la bêta (α, β > 2), forme directe sinon avec log B(α, β) en
+double-double sans compensation (Stirling quand le plus grand paramètre dépasse 16 ;
+lgamma(a + b) corrigé au premier ordre par ψ). Répartitions, quantiles et entropies :
+phase 4 (gamma et bêta incomplètes, digamma).
+
+Deux leçons, qui ont amélioré au passage les lois des étapes B et C1 (empreintes des
+fonctions changées en conséquence) :
+- l'erreur de Stirling δ(y) pour y < 16 se calcule par récurrence jusqu'à y + n >= 16,
+  le produit y (y + 1) … tenu à l'échelle, et non par `lgamma_positive` de wsl::special,
+  précise à 2⁻⁵⁸ seulement ; δ(s) d'un argument double-double prend sa correction du
+  premier ordre −s_lo/(12 s²) ;
+- l'exponentielle à argument double-double a son propre noyau (Taylor de degré 7,
+  produit de tête exact) : 2⁻⁷⁰ près au lieu de 2⁻⁶⁰.
+
+Précision mesurée : densités et log-densités gamma et bêta au plus 0,5000 ulp
+(paramètres de 10⁻³⁰⁰ à 10¹², taux et échelles extrêmes) ; sur l'ensemble des lois,
+le maximum est maintenant 0,5032 ulp (`cdf` normale, limitée par erfc de wsl::special,
+à 2⁻⁶⁰ près).
+
+Coût du tirage : gamma(2,5) 23 ns (`std` 74), gamma(0,3) 62 ns (62), bêta(2, 5) 45 ns.

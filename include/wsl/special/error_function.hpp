@@ -128,7 +128,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x == 0)
             return x;                                                       // garde le signe de −0
         double const ax = x < 0 ? -x : x;
@@ -156,7 +156,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x >= 28.0)                                                      // erfc(28) < 2^-1100 ; +∞ compris
             return 0.0;
         double const ax = x < 0 ? -x : x;
@@ -267,7 +267,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(y == y))
-            return y + y;
+            return detail::opaque(y + y);
         double const ay = y < 0 ? -y : y;
         if (ay > 1.0)
             return quiet_nan;
@@ -296,7 +296,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(z == z))
-            return z + z;
+            return detail::opaque(z + z);
         if (z < 0 || z > 2)
             return quiet_nan;
         if (z == 0)

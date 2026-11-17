@@ -193,7 +193,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x == infinity || x == -infinity || x == 0)
             return infinity;
         double const ax = x < 0 ? -x : x;
@@ -218,7 +218,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x == infinity)
             return x;
         if (x == -infinity)

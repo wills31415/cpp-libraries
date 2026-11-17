@@ -29,6 +29,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `binomial<I>` (`{.trials, .p}`) : masses et log-masses sous 0,501 ulp (décomposition de
   Loader), répartition, survie et quantile exact de la géométrique ; tirages bit-exacts
   (inversion, PTRS, BTRS).
+- Lois `gamma<T>` (`{.shape, .rate}` ou `{.shape, .scale}`) et `beta<T>` (`{.alpha, .beta}`) :
+  densités et log-densités sous 0,501 ulp, moments, tirages bit-exacts (Marsaglia–Tsang).
+- Exponentielle à argument double-double et erreur de Stirling plus précises : quelques
+  résultats des fonctions des lois changent d'un ulp (empreintes des fonctions mises à jour).
 - `scale_by_power_of_two` (wsl::special, détail) accepte tout exposant.
 
 ### exact_random (retirée)
@@ -66,6 +70,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Produits exacts par fma quand la cible en a une (ARM64, x86-64 avec `-mfma` ou
   `-march=x86-64-v3`…) : 10 à 28 % plus rapide selon la fonction, **mêmes bits** que sans
   fma. `WSL_SPECIAL_NO_FMA` pour s'en passer.
+- Garantie bit-exacte renforcée face à GCC : les produits rendus (`return y · 2^e`) et les
+  `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
+  après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma
+  essaie désormais `1 + f(x)` pour chaque fonction.
 
 ## [0.1.0] — 2026-11-16
 

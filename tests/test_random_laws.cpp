@@ -71,6 +71,23 @@ namespace
         return worst * std::sqrt(n);                                         // < 1,95 au seuil de 0,1 %
     }
 
+    // Kolmogorov–Smirnov contre une répartition F donnée (lois sans cdf pour l'instant).
+    template <class L, class G, class F>
+    double kolmogorov_smirnov_against(L const& law, G& g, F F_, int n = 20000)
+    {
+        std::vector<double> v;
+        for (int i = 0; i < n; ++i)
+            v.push_back(double(sample(law, g)));
+        std::ranges::sort(v);
+        double worst = 0;
+        for (std::size_t i = 0; i < v.size(); ++i)
+        {
+            double const f = F_(v[i]);
+            worst = std::max({worst, std::abs(f - double(i) / n), std::abs(f - double(i + 1) / n)});
+        }
+        return worst * std::sqrt(double(n));
+    }
+
     // χ² d'ajustement d'un tirage discret à pmf, classes d'effectif attendu >= 20
     // (queues regroupées) : écart réduit (χ² − ddl)/√(2 ddl), < 4 attendu.
     template <class L, class G>
@@ -150,6 +167,13 @@ static_assert(wsl::geometric<>::sampling == wsl::exactness::approximate && wsl::
 static_assert([] { wsl::binomial X({.trials = 20, .p = 0.3}); return std::is_same_v<decltype(X), wsl::binomial<std::int64_t>>; }());
 static_assert(pmf(wsl::geometric({.p = 0.5}), 1) == 0.25 && quantile(wsl::geometric({.p = 0.5}), 0.75) == 1);
 static_assert([] { wsl::pcg64 g(5); return sample(wsl::poisson({.mean = 30.0}), g) > 0 && sample(wsl::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
+
+static_assert(wsl::probability_law<wsl::gamma<>> && wsl::probability_law<wsl::beta<float>>);
+static_assert(wsl::has_pdf<wsl::gamma<>> && !wsl::has_cdf<wsl::gamma<>> && wsl::has_mode<wsl::beta<>> && !wsl::has_entropy<wsl::beta<>>);
+static_assert([] { wsl::gamma X({.shape = 2, .rate = 3}); wsl::gamma Y({.shape = 2, .scale = 3}); return std::is_same_v<decltype(X), wsl::gamma<double>> && std::is_same_v<decltype(Y), wsl::gamma<double>>; }());
+static_assert([] { wsl::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wsl::beta<double>>; }());
+static_assert(wsl::gamma({.shape = 3.0, .rate = 2.0}).mean() == 1.5 && wsl::gamma({.shape = 3.0, .scale = 2.0}).mean() == 6);
+static_assert([] { wsl::pcg64 g(6); return sample(wsl::gamma({.shape = 0.5, .rate = 1.0}), g) > 0 && sample(wsl::beta({.alpha = 2.0, .beta = 0.5}), g) < 1; }());
 
 int main()
 {
@@ -368,6 +392,45 @@ int main()
         }
     }
 
+    // ---- gamma ----------------------------------------------------------------
+    {
+        wsl::gamma const X({.shape = 2.5, .rate = 2}), Y({.shape = 2.5, .scale = 0.5});
+        assert(X.mean() == 1.25 && X.variance() == 0.625 && X.mode() == 0.75 && X.shape() == 2.5 && X.rate() == 2 && Y.scale() == 0.5);
+        assert(Y.mean() == 1.25 && Y.variance() == 0.625 && pdf(X, 1.0) == pdf(Y, 1.0) && log_pdf(X, 0.3) == log_pdf(Y, 0.3));
+        assert(pdf(X, -1.0) == 0 && pdf(X, 0.0) == 0 && pdf(X, INFINITY) == 0 && std::isnan(pdf(X, NAN)) && log_pdf(X, -1.0) == -INFINITY);
+        assert(pdf(wsl::gamma({.shape = 1.0, .rate = 3.0}), 0.0) == 3 && pdf(wsl::gamma({.shape = 0.5, .rate = 3.0}), 0.0) == INFINITY);
+        assert(pdf(wsl::gamma({.shape = 1.0, .rate = 3.0}), 0.5) == pdf(wsl::exponential({.rate = 3.0}), 0.5));
+        assert(throws_domain_error([] { wsl::gamma Z({.shape = 0, .rate = 1}); }) && throws_domain_error([] { wsl::gamma Z({.shape = 1, .scale = -1}); }));
+        assert(std::isfinite(pdf(wsl::gamma({.shape = 1e-300, .rate = 1.0}), 1e-300)) && pdf(wsl::gamma({.shape = 1e300, .rate = 1.0}), 1e300) > 0);
+        // Répartitions en forme close : forme entière (Erlang), χ²₁ = gamma(1/2, taux 1/2).
+        auto const erlang3 = [](double x) { double const t = 2 * x; return 1 - std::exp(-t) * (1 + t + t * t / 2); };
+        assert(kolmogorov_smirnov_against(wsl::gamma({.shape = 3.0, .rate = 2.0}), g, erlang3) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::gamma({.shape = 3.0, .scale = 0.5}), g, erlang3) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::gamma({.shape = 0.5, .rate = 0.5}), g, [](double x) { return std::erf(std::sqrt(x / 2)); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::gamma<float>({.shape = 1, .rate = 4}), g, [](double x) { return 1 - std::exp(-4 * x); }) < 1.95);
+        double s = 0;
+        wsl::gamma const big({.shape = 400.0, .rate = 0.5});
+        for (int i = 0; i < 20000; ++i)
+            s += sample(big, g);
+        assert(std::abs(s / 20000 - 800) < 4 * std::sqrt(1600.0 / 20000));
+    }
+
+    // ---- beta -----------------------------------------------------------------
+    {
+        wsl::beta const B({.alpha = 2, .beta = 5});
+        assert(B.a() == 2 && B.b() == 5 && std::abs(B.mean() - 2.0 / 7) < 1e-16 && B.mode() == 0.2 && std::abs(B.variance() - 10.0 / 392) < 1e-17);
+        assert(pdf(B, 0.0) == 0 && pdf(B, 1.0) == 0 && pdf(B, -0.5) == 0 && std::abs(pdf(B, 0.3) - 2.1609) < 1e-15);
+        assert(pdf(wsl::beta({.alpha = 1.0, .beta = 3.0}), 0.0) == 3 && pdf(wsl::beta({.alpha = 0.5, .beta = 3.0}), 0.0) == INFINITY);
+        assert(pdf(wsl::beta({.alpha = 1.0, .beta = 1.0}), 0.7) == 1 && std::isnan(wsl::beta({.alpha = 0.5, .beta = 0.5}).mode()));
+        assert(throws_domain_error([] { wsl::beta Z({.alpha = 0, .beta = 1}); }));
+        double const pi = 3.141592653589793;
+        assert(kolmogorov_smirnov_against(wsl::beta({.alpha = 0.5, .beta = 0.5}), g, [&](double x) { return 2 / pi * std::asin(std::sqrt(x)); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::beta({.alpha = 3.0, .beta = 1.0}), g, [](double x) { return x * x * x; }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::beta({.alpha = 1.0, .beta = 0.2}), g, [](double x) { return 1 - std::pow(1 - x, 0.2); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::beta({.alpha = 0.05, .beta = 1.0}), g, [](double x) { return std::pow(x, 0.05); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::beta<float>({.alpha = 2, .beta = 1}), g, [](double x) { return x * x; }) < 1.95);
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -419,11 +482,11 @@ int main()
         ok &= check("normal functions", fingerprint([&] {
             double const p = wsl::uniform_real(x), y = quantile(N, p);
             return bits(y) ^ bits(cdf(N, y)) ^ (bits(ccdf(N, y)) << 1) ^ (bits(pdf(N, y)) << 2) ^ (bits(log_pdf(N, y)) << 3);
-        }, 1 << 13), 0x2c59eb64ebd4bc77);
+        }, 1 << 13), 0x16ac969b0974669b);
         ok &= check("exponential functions", fingerprint([&] {
             double const p = wsl::uniform_real(x), y = quantile(E, p);
             return bits(y) ^ bits(cdf(E, y)) ^ (bits(ccdf(E, y)) << 1) ^ (bits(pdf(E, y)) << 2) ^ (bits(log_pdf(E, y)) << 3);
-        }, 1 << 13), 0x5c920e5f73d7dffd);
+        }, 1 << 13), 0x7fd190e1632d6e27);
         wsl::geometric const Gf({.p = 0.05});
         wsl::poisson const Ps({.mean = 4.25}), Pl({.mean = 812.5});
         wsl::binomial const Bs({.trials = 30, .p = 0.2}), Bl({.trials = 100000, .p = 0.7});
@@ -436,7 +499,19 @@ int main()
             auto const k = static_cast<long long>(wsl::uniform_below(x, 2000));
             return bits(pmf(Gf, k)) ^ (bits(cdf(Gf, k)) << 1) ^ (bits(pmf(Pl, k)) << 2) ^ (bits(log_pmf(Pl, k)) << 3)
                  ^ (bits(pmf(Bl, k + 69000)) << 4) ^ (bits(log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(quantile(Gf, wsl::uniform_real(x)));
-        }, 1 << 13), 0x503c6014239c1d35);
+        }, 1 << 13), 0x994f5c2864bf1649);
+        wsl::gamma const Ga({.shape = 3.75, .rate = 1.5}), Ga_s({.shape = 0.4, .scale = 2.0});
+        wsl::gamma<float> const Ga_f({.shape = 9, .rate = 1});
+        wsl::beta const Be_a({.alpha = 2.5, .beta = 7.0}), Be_s({.alpha = 0.3, .beta = 0.8});
+        ok &= check("gamma", fingerprint([&] { return bits(sample(Ga, x)); }), 0xf1ec39e9eacde03c);
+        ok &= check("gamma small shape", fingerprint([&] { return bits(sample(Ga_s, x)); }), 0x965ae0d5f9d27c99);
+        ok &= check("gamma float", fingerprint([&] { return bits(sample(Ga_f, x)); }), 0xe510068f6c674400);
+        ok &= check("beta", fingerprint([&] { return bits(sample(Be_a, x)); }), 0x78abaeb973605116);
+        ok &= check("beta small shapes", fingerprint([&] { return bits(sample(Be_s, x)); }), 0xa2504ea65588f633);
+        ok &= check("gamma beta functions", fingerprint([&] {
+            double const u = wsl::uniform_real(x), y = 20 * u;
+            return bits(pdf(Ga, y)) ^ (bits(log_pdf(Ga_s, y)) << 1) ^ (bits(pdf(Be_a, u)) << 2) ^ (bits(log_pdf(Be_s, u)) << 3);
+        }, 1 << 13), 0x9d4f36e7cb669b74);
     }
     assert(ok);
     return 0;

@@ -22,7 +22,9 @@ namespace wsl::detail
     // quantité que ci-dessus, écrite avec lgamma(y) = lgamma(y + 1) − log y).
     // - y >= 16 : série de Stirling Σ B_2k / (2k (2k − 1) y^(2k−1)), le terme de
     //   tête 1/(12 y) en double-double, le reste (moins de 2^-20 de lui) en double ;
-    // - sinon : lgamma(y) en double-double, moins le reste, sommé exactement.
+    // - sinon : par récurrence (ci-dessous).
+    constexpr sd::double_double stirling_error(double s_hi, double s_lo) noexcept;
+
     constexpr sd::double_double stirling_error(double y) noexcept
     {
         if (y >= 16.0)
@@ -41,25 +43,38 @@ namespace wsl::detail
             auto const [hi, lo] = sd::fast_two_sum(m, tail);
             return {hi, lo};
         }
-        sd::double_double g{};
-        if (y >= 0x1p-54)
-            g = sd::lgamma_positive(y);
-        else                                                                // lgamma(y) = −log y − γ y, γ y négligeable
+        // y < 16 : récurrence jusqu'à s = y + n dans [16, 17), lgamma(y) = lgamma(s) − log P,
+        // P = y (y + 1) … (y + n − 1) à l'échelle (exact à 2^-100 près, quel que soit y) :
+        //     δ(y) = δ(s) + (s − 1/2) log s − (y − 1/2) log y − log P − n.
+        // (lgamma_positive de wsl::special, précise à 2^-58 près, ne suffit pas ici.)
+        int const n = 16 - static_cast<int>(y);
+        auto const [s_hi, s_lo] = sd::two_sum(y, static_cast<double>(n));
+        scaled product = normalized(y, 0.0);
+        for (int i = 1; i < n; ++i)
         {
-            auto const [l_hi, l_lo] = log_precise(y);
-            g = {-l_hi, -l_lo};
+            auto const [f_hi, f_lo] = sd::two_sum(y, static_cast<double>(i));
+            product = product * normalized(f_hi, f_lo);
         }
-        auto const [l_hi, l_lo] = log_precise(y);
-        // lgamma(y) − y log y + (log y)/2 + y − log(2π)/2
-        auto const [a, a_error] = sd::two_product(y, l_hi);
-        auto const [s1, e1] = sd::two_sum(g.hi, -a);
-        auto const [s2, e2] = sd::two_sum(s1, sd::fmul(l_hi, 0.5));         // exact
-        auto const [s3, e3] = sd::two_sum(s2, y);
-        auto const [s4, e4] = sd::two_sum(s3, -sd::half_log_two_pi_hi);
-        double const tail = ((e1 + e2) + (e3 + e4))
-                          + (((g.lo - a_error) - sd::fmul(y, l_lo)) + (sd::fmul(l_lo, 0.5) - sd::half_log_two_pi_lo));
-        auto const [hi, lo] = sd::fast_two_sum(s4, tail);
-        return {hi, lo};
+        sd::double_double result = stirling_error(s_hi, s_lo);
+        auto const [sh_hi, sh_lo] = sd::two_sum(s_hi, -0.5);
+        result = sum(result, mul({sh_hi, sh_lo + s_lo}, log(normalized(s_hi, s_lo))));
+        auto const [yh_hi, yh_lo] = sd::two_sum(y, -0.5);
+        auto const ly = mul({yh_hi, yh_lo}, log_precise(y));
+        result = sum(result, {-ly.hi, -ly.lo});
+        auto const lp = log(product);
+        result = sum(result, {-lp.hi, -lp.lo});
+        return sum(result, {-static_cast<double>(n), 0.0});
+    }
+
+    // δ(s_hi + s_lo), s_hi >= 16 : δ(s_hi) + δ'(s_hi) s_lo, δ'(s) ≈ −1/(12 s²) (le terme
+    // suivant, 1/(120 s⁴), et le second ordre sont négligeables).
+    constexpr sd::double_double stirling_error(double s_hi, double s_lo) noexcept
+    {
+        auto const [hi, lo] = stirling_error(s_hi);
+        if (s_lo == 0)
+            return {hi, lo};
+        auto const [h, l] = sd::fast_two_sum(hi, lo - s_lo / sd::fmul(12.0, sd::fmul(s_hi, s_hi)));
+        return {h, l};
     }
 
     // bd0(x, M) = x log(x/M) + M − x, x >= 0, M = m_hi + m_lo > 0, en
@@ -144,5 +159,70 @@ namespace wsl::detail
             lo = sd::scale_by_power_of_two(lo, -shift);
         }
         return {hi, lo};
+    }
+
+    // lgamma(y) = (y − 1/2) log y − y + log(2π)/2 + δ(y), en double-double, y > 0.
+    constexpr sd::double_double log_gamma(double y) noexcept
+    {
+        auto const [h_hi, h_lo] = sd::two_sum(y, -0.5);
+        sd::double_double result = mul({h_hi, h_lo}, log_precise(y));
+        result = sum(result, {-y, 0.0});
+        result = sum(result, {sd::half_log_two_pi_hi, sd::half_log_two_pi_lo});
+        return sum(result, stirling_error(y));
+    }
+
+    // ψ(s), s > 0, à 2^-30 près relativement : pour corriger lgamma d'un argument
+    // double-double au premier ordre (récurrence jusqu'à s >= 6, puis
+    // développement asymptotique).
+    constexpr double digamma_approximate(double s) noexcept
+    {
+        double shift = 0;
+        while (s < 6)
+        {
+            shift -= 1 / s;
+            s += 1;
+        }
+        double const z = 1 / sd::fmul(s, s);
+        return shift + ((wsl::special::log(s) - 0.5 / s)
+                        - sd::fmul(z, 1.0 / 12 - sd::fmul(z, 1.0 / 120 - sd::fmul(z, 1.0 / 252))));
+    }
+
+    // lgamma(s_hi + s_lo) = lgamma(s_hi) + ψ(s_hi) s_lo au premier ordre.
+    constexpr sd::double_double log_gamma(double s_hi, double s_lo) noexcept
+    {
+        auto const [g_hi, g_lo] = log_gamma(s_hi);
+        if (s_lo == 0)
+            return {g_hi, g_lo};
+        auto const [hi, lo] = sd::fast_two_sum(g_hi, g_lo + sd::fmul(digamma_approximate(s_hi), s_lo));
+        return {hi, lo};
+    }
+
+    // log B(a, b) = lgamma(a) + lgamma(b) − lgamma(a + b), en double-double, a, b > 0.
+    // Si le plus grand q dépasse 16, lgamma(q) − lgamma(p + q) se compense : on
+    // l'écrit δ(q) − δ(p + q) − (q − 1/2) log1p(p/q) − p log(p + q) + p.
+    constexpr sd::double_double log_beta(double a, double b) noexcept
+    {
+        double const p = a < b ? a : b, q = a < b ? b : a;
+        auto const [s_hi, s_lo] = sd::two_sum(p, q);
+        sd::double_double result = log_gamma(p);
+        if (q < 16)
+        {
+            result = sum(result, log_gamma(q));
+            auto const g = log_gamma(s_hi, s_lo);
+            return sum(result, {-g.hi, -g.lo});
+        }
+        scaled const ratio = normalized(p, 0.0) / q;
+        auto const [r_hi, r_lo] = unscaled(ratio);
+        auto const l1 = log1p_positive(r_hi, r_lo);
+        auto const ls = log(normalized(s_hi, s_lo));
+        auto const [h_hi, h_lo] = sd::two_sum(q, -0.5);
+        result = sum(result, stirling_error(q));
+        auto const ds = stirling_error(s_hi, s_lo);
+        result = sum(result, {-ds.hi, -ds.lo});
+        auto const t1 = mul({h_hi, h_lo}, l1);
+        result = sum(result, {-t1.hi, -t1.lo});
+        auto const t2 = mul({p, 0.0}, ls);
+        result = sum(result, {-t2.hi, -t2.lo});
+        return sum(result, {p, 0.0});
     }
 }

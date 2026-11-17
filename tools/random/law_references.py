@@ -110,7 +110,43 @@ def laws(kind):
         out.append(("normal_ccdf", mu, sigma, xs, lambda x, z=z: mp.erfc(z(x) / mp.sqrt(2)) / 2))
         out.append(("normal_quantile", mu, sigma, probabilities(100 if kind == "double" else 40),
                     lambda p, m=m, s=s: m + s * normal_quantile(p)))
+    for shape, rate, by_scale in GAMMA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (shape, rate)):
+            continue
+        a, r = mpf(to_type(shape)), mpf(to_type(rate))
+        lam = 1 / r if by_scale else r
+        xs = []
+        for _ in range(250 if kind == "double" else 100):
+            t = shape * log_uniform(2.0 ** -40, 40.0) if rng.random() < 0.8 else log_uniform(2.0 ** -60, 2.0)
+            xs.append(to_type(float(t / lam)))
+        xs = [x for x in xs if 0 < x < math.inf]
+        logpdf = lambda x, a=a, lam=lam: a * mp.log(lam) + (a - 1) * mp.log(x) - lam * x - mp.loggamma(a)
+        name = "gamma_scale" if by_scale else "gamma"
+        out.append((f"{name}_pdf", shape, rate, xs, lambda x, f=logpdf: mp.exp(f(x))))
+        out.append((f"{name}_log_pdf", shape, rate, xs, logpdf))
+    for alpha, beta in BETA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (alpha, beta)):
+            continue
+        a, b = mpf(to_type(alpha)), mpf(to_type(beta))
+        xs = []
+        for _ in range(250 if kind == "double" else 100):
+            u = rng.random()
+            x = rng.random() if u < 0.4 else log_uniform(2.0 ** -60, 0.5) if u < 0.7 else 1 - log_uniform(2.0 ** -53, 0.5)
+            xs.append(to_type(x))
+        m = alpha / (alpha + beta)
+        xs += [to_type(m * f) for f in (0.5, 0.9, 1.0, 1.1, 2.0)]
+        xs = [x for x in xs if 0 < x < 1]
+        lb = mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b)
+        logpdf = lambda x, a=a, b=b, lb=lb: (a - 1) * mp.log(x) + (b - 1) * mp.log1p(-x) - lb
+        out.append(("beta_pdf", alpha, beta, xs, lambda x, f=logpdf: mp.exp(f(x))))
+        out.append(("beta_log_pdf", alpha, beta, xs, logpdf))
     return out
+
+
+GAMMA = [(2.5, 2.0, False), (0.3, 1.0, False), (1.0, 3.0, False), (1e6, 1.0, False), (0.999, 1e3, False),
+         (1e-3, 5.0, True), (50.0, 1e-200, True), (7.25, 1e100, True), (3.0, 0.5, True), (1e-300, 1.0, False)]
+BETA = [(2.0, 5.0), (0.5, 0.5), (1.5, 1e8), (30.0, 70.0), (1e-3, 2.0), (2.5, 1e-2), (1e5, 3e5), (1.0, 1.0),
+        (1.0, 3.0), (0.2, 50.0), (3.0, 1e12), (2.0, 2.0), (12.0, 0.7)]
 
 
 GEOMETRIC_P = [0.2, 0.5, 1e-3, 1e-12, 0.999, 2.0 ** -60, 0.75]

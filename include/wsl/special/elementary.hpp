@@ -71,8 +71,8 @@ namespace wsl::special
             {
                 double const y = t_hi + tail;
                 if (e > 1023)                                       // résultat juste sous DBL_MAX
-                    return y * power_of_two(1023) * 2.0;
-                return y * power_of_two(e);
+                    return fmul(fmul(y, power_of_two(1023)), 2.0);   // produits rendus : protégés aussi (l'appelant peut les additionner)
+                return fmul(y, power_of_two(e));
             }
 
             // Résultat sous-normal. Arrondir y à 53 bits puis le ramener dans la
@@ -89,7 +89,7 @@ namespace wsl::special
             double const y_error = (a - y) + b;                     // exacte, |a| >= |b|
             double const high = 1.0 + y;
             double const low = ((1.0 - high) + y) + y_error;
-            return ((high + low) - 1.0) * 0x1p-1022;
+            return fmul((high + low) - 1.0, 0x1p-1022);
         }
 
         // 2^e 2^(j/N) exp(r) pour k = N e + j. exp(r) − 1 : Taylor de degré 5
@@ -153,7 +153,7 @@ namespace wsl::special
             if (ix - 0x0010000000000000 >= 0x7fe0000000000000) [[unlikely]]
             {
                 if (!(x == x))
-                    result = x + x;                                 // NaN
+                    result = opaque(x + x);                         // NaN
                 else if (x == 0)
                     result = -infinity;
                 else if (x < 0)
@@ -310,7 +310,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;                                           // NaN
+            return detail::opaque(x + x);                                           // NaN
         if (x > 0x1.62e42fefa39efp+9)                               // > ln(DBL_MAX) : +∞
             return infinity;
         if (x < -746.0)                                             // exp(x) < 2^-1076 : +0
@@ -326,7 +326,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x >= 1024.0)
             return infinity;
         if (x < -1080.0)                                            // 2^x < 2^-1076 : +0
@@ -347,7 +347,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x > 0x1.62e42fefa39efp+9)
             return infinity;
         if (x < -38.0)                                              // e^x < 2^-54 : −1 + e^x s'arrondit à −1
@@ -415,7 +415,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (x == 0)
             return x;                                               // garde le signe de −0
         if (x < -1.0)

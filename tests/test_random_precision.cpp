@@ -76,6 +76,16 @@ int main()
     check<T>("normal cdf " #T, d::normal_cdf_##T, [](double a, double b, double x) { return cdf(normal<T>(a, b), T(x)); }, bound); \
     check<T>("normal ccdf " #T, d::normal_ccdf_##T, [](double a, double b, double x) { return ccdf(normal<T>(a, b), T(x)); }, bound); \
     check<T>("normal quantile " #T, d::normal_quantile_##T, [](double a, double b, double p) { return quantile(normal<T>(a, b), p); }, bound);
+#define GAMMA_BETA_CHECKS(T, bound)                                                                                           \
+    check<T>("gamma pdf " #T, d::gamma_pdf_##T, [](double a, double b, double x) { return pdf(wsl::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
+    check<T>("gamma log_pdf " #T, d::gamma_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, 1.0); \
+    check<T>("gamma (échelle) pdf " #T, d::gamma_scale_pdf_##T, [](double a, double b, double x) { return pdf(wsl::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("gamma (échelle) log_pdf " #T, d::gamma_scale_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("beta pdf " #T, d::beta_pdf_##T, [](double a, double b, double x) { return pdf(wsl::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
+    check<T>("beta log_pdf " #T, d::beta_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, 1.0);
+    GAMMA_BETA_CHECKS(double, tight)
+    GAMMA_BETA_CHECKS(float, loose)
+#undef GAMMA_BETA_CHECKS
     LAW_CHECKS(double, tight)
     LAW_CHECKS(float, loose)
 #undef LAW_CHECKS

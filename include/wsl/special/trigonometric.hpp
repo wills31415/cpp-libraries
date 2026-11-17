@@ -269,7 +269,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (is_infinite(x))
             return quiet_nan;
         double const ax = x < 0 ? -x : x;
@@ -286,7 +286,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (is_infinite(x))
             return quiet_nan;
         double const ax = x < 0 ? -x : x;
@@ -304,7 +304,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         if (is_infinite(x))
             return quiet_nan;
         double const ax = x < 0 ? -x : x;
@@ -324,7 +324,7 @@ namespace wsl::special
     {
         using namespace detail;
         if (!(x == x))
-            return x + x;
+            return detail::opaque(x + x);
         double const ax = x < 0 ? -x : x;
         if (ax < 0x1p-27)                                               // atan x = x (1 − x²/3)
             return x;

@@ -1,0 +1,222 @@
+#pragma once
+
+// Loi bêta de paramètres α > 0 et β > 0 : densité x^{α−1} (1 − x)^{β−1} / B(α, β)
+// sur [0, 1].
+//
+//   wsl::beta X({.alpha = 2, .beta = 5});
+//   X.mean(); X.a(); X.b(); pdf(X, 0.3); log_pdf(X, 0.3); sample(X, g);
+//
+// (Une fonction membre ne peut pas s'appeler comme sa classe : les paramètres se
+// lisent par a() et b().)
+//
+// Densité : comme dbeta de R. Si α > 2 et β > 2, par la binomiale généralisée,
+//   (n + 1) e^{δ(n) − δ(k) − δ(n−k) − bd0(k, nx) − bd0(n−k, n(1−x))} √(n / (2π k (n−k))),
+// k = α − 1, n = α + β − 2 (décomposition de Loader, detail/loader.hpp) ; sinon
+// directement, (α − 1) log x + (β − 1) log1p(−x) − log B(α, β), log B en
+// double-double sans compensation (detail::log_beta). Un seul arrondi.
+// Répartition, quantile, entropie : avec la bêta incomplète et la digamma
+// (phase 4 de wsl::special).
+//
+// Tirage (approché, bit-exact) : X = G₁/(G₁ + G₂), G₁, G₂ de lois gamma(α) et
+// gamma(β) (Marsaglia–Tsang), en logarithmes si α < 1 ou β < 1.
+
+#include <wsl/random/basic_laws.hpp>
+#include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/lazy.hpp>
+#include <wsl/random/detail/loader.hpp>
+#include <wsl/random/gamma.hpp>
+#include <wsl/random/law.hpp>
+#include <wsl/special.hpp>
+
+#include <limits>
+#include <random>
+#include <stdexcept>
+
+namespace wsl
+{
+    template <law_real T = double>
+    class beta
+    {
+    public:
+        using value_type = T;
+        static constexpr exactness sampling = exactness::approximate;
+
+        struct shapes
+        {
+            T alpha, beta;
+        };
+
+        constexpr beta(shapes p) : a_(p.alpha), b_(p.beta)
+        {
+            namespace fp = detail::sd;
+            if (!(a_ > 0) || !detail::is_finite(a_) || !(b_ > 0) || !detail::is_finite(b_))
+                throw std::domain_error("wsl::beta : il faut alpha > 0 et beta > 0, finis");
+            double const a = a_ >= 1 ? double(a_) : double(a_) + 1, b = b_ >= 1 ? double(b_) : double(b_) + 1;
+            d_a_ = a - 1.0 / 3;
+            c_a_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_a_));
+            d_b_ = b - 1.0 / 3;
+            c_b_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_b_));
+        }
+
+        constexpr T a() const noexcept { return a_; }
+        constexpr T b() const noexcept { return b_; }
+        constexpr interval<T> support() const noexcept { return {T(0), T(1)}; }
+
+        // α/(α + β).
+        constexpr T mean() const noexcept { return static_cast<T>(detail::rounded(detail::normalized(a_, 0.0) / total())); }
+        // αβ / ((α + β)² (α + β + 1)).
+        constexpr T variance() const noexcept
+        {
+            detail::scaled const s = total();
+            auto const [s_hi, s_lo] = detail::sd::two_sum(double(a_), double(b_));
+            auto const [u_hi, u_lo] = detail::sum({s_hi, s_lo}, {1.0, 0.0});
+            return static_cast<T>(detail::rounded(detail::normalized(a_, 0.0) * detail::normalized(b_, 0.0) / (s * s * detail::normalized(u_hi, u_lo))));
+        }
+        // (α − 1)/(α + β − 2) si α, β > 1 ; 0 ou 1 au bord ; NaN si le mode n'est pas unique.
+        constexpr T mode() const noexcept
+        {
+            double const a = a_, b = b_;
+            if (a > 1 && b > 1)
+            {
+                auto const [p1, e1] = detail::sd::two_sum(a, -1.0);
+                auto const [p2, e2] = detail::sd::two_sum(b, -1.0);
+                auto const [n_hi, n_lo] = detail::sum({p1, e1}, {p2, e2});
+                return static_cast<T>(detail::rounded(detail::normalized(p1, e1) / detail::normalized(n_hi, n_lo)));
+            }
+            if (a <= 1 && b > 1)
+                return 0;
+            if (a > 1 && b <= 1)
+                return 1;
+            return std::numeric_limits<T>::quiet_NaN();
+        }
+        constexpr T skewness() const noexcept
+        {
+            double const a = a_, b = b_, s = a + b;
+            return static_cast<T>(2 * (b - a) * wsl::special::sqrt(s + 1) / ((s + 2) * wsl::special::sqrt(a * b)));
+        }
+        constexpr T excess_kurtosis() const noexcept
+        {
+            double const a = a_, b = b_, s = a + b;
+            double const d = a - b;
+            namespace fp = detail::sd;
+            double const numerator = fp::fmul(fp::fmul(d, d), s + 1) - fp::fmul(fp::fmul(a, b), s + 2);
+            return static_cast<T>(6 * numerator / (a * b * (s + 2) * (s + 3)));
+        }
+
+        friend constexpr T pdf(beta const& X, T x) noexcept
+        {
+            double const v = x, a = X.a_, b = X.b_;
+            if (!(v >= 0 && v <= 1))
+                return v == v ? T(0) : x;
+            if (v == 0 || v == 1)
+                return X.edge(v == 0 ? a : b, v == 0 ? b : a, false);
+            auto const [e_hi, e_lo, factor] = X.density_exponent(v);
+            if (e_hi < -1500)
+                return 0;
+            if (e_hi > 1400)
+                return std::numeric_limits<T>::infinity();
+            return static_cast<T>(detail::rounded(detail::exp_scaled(e_hi, e_lo) * factor));
+        }
+
+        friend constexpr T log_pdf(beta const& X, T x) noexcept
+        {
+            double const v = x, a = X.a_, b = X.b_;
+            if (!(v >= 0 && v <= 1))
+                return v == v ? -std::numeric_limits<T>::infinity() : x;
+            if (v == 0 || v == 1)
+                return X.edge(v == 0 ? a : b, v == 0 ? b : a, true);
+            auto const [e_hi, e_lo, factor] = X.density_exponent(v);
+            auto const e = detail::sum({e_hi, e_lo}, detail::log(factor));
+            return static_cast<T>(e.hi + e.lo);
+        }
+
+        template <std::uniform_random_bit_generator G>
+        friend constexpr T sample(beta const& X, G& g)
+        {
+            double const a = X.a_, b = X.b_;
+            double const ga = detail::marsaglia_tsang(X.d_a_, X.c_a_, g);
+            double const gb = detail::marsaglia_tsang(X.d_b_, X.c_b_, g);
+            if (a >= 1 && b >= 1)
+                return static_cast<T>(ga / (ga + gb));
+            // log G = log G(s + 1) + log(U)/s pour s < 1, puis 1/(1 + e^{log G₂ − log G₁}).
+            double la = wsl::special::log(ga), lb = wsl::special::log(gb);
+            if (a < 1)
+                la = la + wsl::special::log(detail::uniform_positive(g)) / a;
+            if (b < 1)
+                lb = lb + wsl::special::log(detail::uniform_positive(g)) / b;
+            return static_cast<T>(1 / (1 + wsl::special::exp(lb - la)));
+        }
+
+        friend constexpr bool operator==(beta const& p, beta const& q) noexcept { return p.a_ == q.a_ && p.b_ == q.b_; }
+
+    private:
+        struct exponent_and_factor
+        {
+            double hi, lo;
+            detail::scaled factor;
+        };
+
+        // pdf = e^{hi + lo} · factor.
+        constexpr exponent_and_factor density_exponent(double x) const noexcept
+        {
+            namespace fp = detail::sd;
+            double const a = a_, b = b_;
+            if (a > 2 && b > 2)                                             // binomiale généralisée
+            {
+                double const k = a - 1, m = b - 1;                          // exacts sous 2^53
+                auto const [n_hi, n_lo] = fp::two_sum(k, m);
+                auto const [q_hi, q_lo] = fp::two_sum(1.0, -x);
+                auto const np = detail::mul({n_hi, n_lo}, {x, 0.0});
+                auto const nq = detail::mul({n_hi, n_lo}, {q_hi, q_lo});
+                auto e = detail::stirling_error(n_hi);
+                auto const dk = detail::stirling_error(k), dm = detail::stirling_error(m);
+                auto const bk = detail::deviance(k, np.hi, np.lo), bm = detail::deviance(m, nq.hi, nq.lo);
+                e = detail::sum(e, {-dk.hi, -dk.lo});
+                e = detail::sum(e, {-dm.hi, -dm.lo});
+                e = detail::sum(e, {-bk.hi, -bk.lo});
+                e = detail::sum(e, {-bm.hi, -bm.lo});
+                detail::scaled const n = detail::normalized(n_hi, n_lo);
+                auto const [u_hi, u_lo] = detail::sum({n_hi, n_lo}, {1.0, 0.0});
+                detail::scaled const factor = detail::normalized(u_hi, u_lo)
+                                            * detail::sqrt(n / (detail::normalized(k, 0.0) * detail::normalized(m, 0.0)))
+                                            * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
+                return {e.hi, e.lo, factor};
+            }
+            // (α − 1) log x + (β − 1) log1p(−x) − log B(α, β)
+            auto const [am_hi, am_lo] = fp::two_sum(a, -1.0);
+            auto const [bm_hi, bm_lo] = fp::two_sum(b, -1.0);
+            auto e = detail::log_beta(a, b);
+            e = {-e.hi, -e.lo};
+            if (am_hi != 0)
+                e = detail::sum(e, detail::mul({am_hi, am_lo}, detail::log_precise(x)));
+            if (bm_hi != 0)
+                e = detail::sum(e, detail::mul({bm_hi, bm_lo}, detail::log1p_dd(-x)));
+            return {e.hi, e.lo, detail::normalized(1.0, 0.0)};
+        }
+
+        // Densité en 0 (s = α, t = β) ou en 1 (s = β, t = α).
+        constexpr T edge(double s, double t, bool logarithm) const noexcept
+        {
+            if (s < 1)
+                return std::numeric_limits<T>::infinity();
+            if (s > 1)
+                return logarithm ? -std::numeric_limits<T>::infinity() : T(0);
+            if (logarithm)                                                  // densité t
+            {
+                auto const [hi, lo] = detail::log_precise(t);
+                return static_cast<T>(hi + lo);
+            }
+            return static_cast<T>(t);
+        }
+
+        // α + β, à l'échelle.
+        constexpr detail::scaled total() const noexcept
+        {
+            auto const [s, s_error] = detail::sd::two_sum(double(a_), double(b_));
+            return detail::normalized(s, s_error);
+        }
+
+        T a_, b_;
+        double d_a_ = 0, c_a_ = 0, d_b_ = 0, c_b_ = 0;                      // Marsaglia–Tsang
+    };
+}

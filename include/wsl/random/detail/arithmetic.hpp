@@ -299,9 +299,13 @@ namespace wsl::detail
     // Fonctions à argument double-double.
     // ---------------------------------------------------------------------
 
-    // e^x, x = x_hi + x_lo dans [−1500, 709,7], à 2^-60 près relativement, à
+    // e^x, x = x_hi + x_lo dans [−1500, 1400], à 2^-70 près relativement, à
     // l'échelle. Au-dessous de −1400 (hors de la réduction de Cody–Waite),
-    // e^x = 2^-1024 e^{x + 1024 ln 2}.
+    // e^x = 2^-1024 e^{x + 1024 ln 2}. Réduction de wsl::special (x = k ln2/128 + r),
+    // puis e^r = 1 + r_hi + q, q = t + r t + r²/2 + … + r⁷/5040 (t = r_lo + x_lo,
+    // reste < 2^-80) et T (1 + r_hi + q) avec T r_hi exact : le noyau de
+    // wsl::special::exp, à 2^-60 près, ne suffit pas pour rester sous 0,501 ulp
+    // après les produits qui suivent.
     constexpr scaled exp_scaled(double x_hi, double x_lo) noexcept
     {
         int extra = 0;
@@ -313,9 +317,18 @@ namespace wsl::detail
             x_lo = lo;
             extra = -1024;
         }
-        auto const [k, r_hi, r_lo] = sd::reduce_exp(x_hi);
-        auto const [t_hi, tail, e] = sd::exp_parts_dd(k, r_hi, r_lo + x_lo);
-        return normalized(t_hi, tail, e + extra);
+        auto const [k, r, r_lo] = sd::reduce_exp(x_hi);
+        double const t = r_lo + x_lo;
+        double const r2 = sd::fmul(r, r);
+        double const q = (t + sd::fmul(r, t))
+                       + sd::fmul(r2, 0.5 + sd::fmul(r, 0x1.5555555555555p-3 + sd::fmul(r, 0x1.5555555555555p-5
+                                  + sd::fmul(r, 0x1.1111111111111p-7 + sd::fmul(r, 0x1.6c16c16c16c17p-10 + sd::fmul(r, 0x1.a01a01a01a01ap-13))))));
+        int const j = sd::exp_index(k);
+        double const t_hi = sd::exp_table[j][0], t_lo = sd::exp_table[j][1];
+        auto const [m, m_error] = sd::two_product(t_hi, r);
+        auto const [s, s_error] = sd::fast_two_sum(t_hi, m);               // |T| > |T r|
+        double const tail = s_error + (m_error + ((t_lo + sd::fmul(t_hi, q)) + sd::fmul(t_lo, r)));
+        return normalized(s, tail, sd::exp_exponent(k) + extra);
     }
 
     // e^x − 1, x = x_hi + x_lo dans [−40, 0], en double, arrondi une fois : la
@@ -346,6 +359,23 @@ namespace wsl::detail
         auto const [s2, s2_error] = sd::two_sum(s, sd::fmul(scale, m));
         double const rest = sd::fmul(scale, (m_error + sd::fmul(t_hi, p_lo)) + sd::fmul(t_lo, 1.0 + (r_hi + p_lo)));
         return s2 + ((s2_error + s_error) + rest);
+    }
+
+    // log(1 + r) en double-double, r = r_hi + r_lo >= 0, à 2^-69 près
+    // relativement.
+    constexpr sd::double_double log1p_positive(double r_hi, double r_lo) noexcept
+    {
+        if (r_hi == 0)
+            return {0.0, 0.0};
+        if (r_hi < 0x1p-10)
+        {
+            auto const [h, l] = sd::fast_two_sum(r_hi, sd::log1p_minus_identity(r_hi) + r_lo / (1.0 + r_hi));
+            return {h, l};
+        }
+        auto const [u, u_error] = sd::two_sum(1.0, r_hi);
+        auto const [hi, lo] = log_precise(u);
+        auto const [h, l] = sd::fast_two_sum(hi, lo + (u_error + r_lo) / u);
+        return {h, l};
     }
 
     // log(1 + x) en double-double, x dans (−1, 0], à 2^-69 près relativement.

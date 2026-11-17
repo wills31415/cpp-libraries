@@ -59,10 +59,40 @@ extern "C"
     double check_poisson_pmf(double m, long long k) { return pmf(wsl::poisson({.mean = m}), k); }
     double check_poisson_log_pmf(double m, long long k) { return log_pmf(wsl::poisson({.mean = m}), k); }
     long long check_poisson_sample(wsl::poisson<> const& P, wsl::xoshiro256pp& g) { return sample(P, g); }
-    wsl::poisson<> check_poisson_make(double m) { return wsl::poisson({.mean = m}); }
+    void check_poisson_make(double m, wsl::poisson<>* out) { *out = wsl::poisson({.mean = m}); }
     double check_binomial_pmf(long long n, double p, long long k) { return pmf(wsl::binomial({.trials = n, .p = p}), k); }
     double check_binomial_log_pmf(long long n, double p, long long k) { return log_pmf(wsl::binomial({.trials = n, .p = p}), k); }
     double check_binomial_variance(long long n, double p) { return wsl::binomial({.trials = n, .p = p}).variance(); }
     long long check_binomial_sample(wsl::binomial<> const& B, wsl::xoshiro256pp& g) { return sample(B, g); }
-    wsl::binomial<> check_binomial_make(long long n, double p) { return wsl::binomial({.trials = n, .p = p}); }
+    void check_binomial_make(long long n, double p, wsl::binomial<>* out) { *out = wsl::binomial({.trials = n, .p = p}); }
+    double check_gamma_pdf(double a, double r, double x) { return pdf(wsl::gamma({.shape = a, .rate = r}), x); }
+    double check_gamma_log_pdf(double a, double t, double x) { return log_pdf(wsl::gamma({.shape = a, .scale = t}), x); }
+    double check_gamma_sample(wsl::gamma<> const& G, wsl::xoshiro256pp& g) { return sample(G, g); }
+    void check_gamma_make(double a, double r, wsl::gamma<>* out) { *out = wsl::gamma({.shape = a, .rate = r}); }
+    double check_gamma_variance(double a, double t) { return wsl::gamma({.shape = a, .scale = t}).variance(); }
+    double check_beta_pdf(double a, double b, double x) { return pdf(wsl::beta({.alpha = a, .beta = b}), x); }
+    double check_beta_log_pdf(double a, double b, double x) { return log_pdf(wsl::beta({.alpha = a, .beta = b}), x); }
+    double check_beta_sample(wsl::beta<> const& B, wsl::xoshiro256pp& g) { return sample(B, g); }
+    void check_beta_make(double a, double b, wsl::beta<>* out) { *out = wsl::beta({.alpha = a, .beta = b}); }
+    double check_beta_moments(double a, double b) { wsl::beta const B({.alpha = a, .beta = b}); return B.variance() + B.excess_kurtosis() + B.skewness() + B.mode(); }
+    // Produits rendus puis additionnés par l'appelant (GCC les fusionne après intégration).
+    double check_sum_exp(double x) { return 1.0 + wsl::special::exp(x); }
+    double check_sum_log(double x) { return 1.0 + wsl::special::log(x); }
+    double check_sum_exp2(double x) { return 1.0 + wsl::special::exp2(x); }
+    double check_sum_expm1(double x) { return 1.0 + wsl::special::expm1(x); }
+    double check_sum_log2(double x) { return 1.0 + wsl::special::log2(x); }
+    double check_sum_log10(double x) { return 1.0 + wsl::special::log10(x); }
+    double check_sum_log1p(double x) { return 1.0 + wsl::special::log1p(x); }
+    double check_sum_sin(double x) { return 1.0 + wsl::special::sin(x); }
+    double check_sum_cos(double x) { return 1.0 + wsl::special::cos(x); }
+    double check_sum_tan(double x) { return 1.0 + wsl::special::tan(x); }
+    double check_sum_atan(double x) { return 1.0 + wsl::special::atan(x); }
+    double check_sum_cbrt(double x) { return 1.0 + wsl::special::cbrt(x); }
+    double check_sum_erf(double x) { return 1.0 + wsl::special::erf(x); }
+    double check_sum_erfc(double x) { return 1.0 + wsl::special::erfc(x); }
+    double check_sum_lgamma(double x) { return 1.0 + wsl::special::lgamma(x); }
+    double check_sum_tgamma(double x) { return 1.0 + wsl::special::tgamma(x); }
+    double check_sum_pow(double x, double y) { return 1.0 + wsl::special::pow(x, y); }
+    double check_sum_atan2(double y, double x) { return 1.0 + wsl::special::atan2(y, x); }
+    double check_sum_hypot(double x, double y) { return 1.0 + wsl::special::hypot(x, y); }
 }

@@ -67,6 +67,10 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
 - Le test `special_no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
   dans le code engendré ; il ne voit pas un produit non protégé à usages multiples.
+  Il essaie aussi `1 + f(x)` pour chaque fonction : GCC fusionne, après intégration, un
+  produit **rendu** (`return y * 2^e`) ou un `x + x` (chemins NaN) avec l'addition de
+  l'appelant ; d'où `fmul` sur les produits rendus et `opaque(x + x)`. Le reproduire
+  avec GCC aussi (conteneur), Apple Clang ne le fait pas.
 - `two_product` : fma(a, b, −p) quand la cible a une fma (`detail::hardware_fma`),
   Dekker sinon et en évaluation constante ; mêmes bits **tant que Dekker est exact** :
   facteurs sous 2^995 (sinon le découpage déborde en NaN) et somme des exposants
