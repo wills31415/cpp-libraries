@@ -5,8 +5,9 @@
 >
 > **État** : phase 1 en cours — `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`,
 > `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`,
-> `erfc`, `lgamma` et `tgamma` (float, double) implémentés et vérifiés (§6). Restent
-> `erf_inv` et `erfc_inv`.
+> `erfc`, `erf_inv`, `erfc_inv`, `lgamma` et `tgamma` (float, double) implémentés et
+> vérifiés (§6) : **phase 1 terminée.** Suite prévue : produits exacts par fma quand la
+> cible en a une (performances), puis la phase 4 (gamma et bêta incomplètes).
 
 ## 1. Pourquoi cette bibliothèque
 
@@ -181,6 +182,8 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `lgamma`, x > 0 | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 | `lgamma`, x < 0 | 0,500 ulp, ou 2⁻⁵⁸ en absolu près des zéros | voir ci-dessous | |
 | `tgamma` | 0,507 ulp | 99,88 % | 0,500 ulp (100 %) |
+| `erf_inv` | 0,502 ulp | 99,95 % | 0,500 ulp (100 %) |
+| `erfc_inv` | 0,506 ulp | 99,94 % | 0,500 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -235,6 +238,14 @@ pesant 10 % du résultat). Négatifs : réflexion log π − log |sin πx| − l
 sin πx avec réduction exacte (x = n + r par troncature, |r| <= 1/2). `tgamma` = ±exp de
 lgamma en double-double, avec 1/x − γ en double-double pour les tout petits x.
 
+Inverses de la fonction d'erreur : approximation initiale engendrée (Tchebychev, en la
+variable w = −log((1 − y)(1 + y)) de Giles : un polynôme de degré 14 au centre, six de
+degré 12 dans les queues, 2⁻³⁵ près), puis un seul pas de Newton — sur erf pour
+|y| <= 1/2, sur log erfc au-delà, le rapport erfc(x)/z formé en double-double par mises
+à l'échelle, ce qui tient jusqu'à z = 2⁻¹⁰⁷⁴. Le résidu doit être précis à 2⁻⁶³ : la série
+de erf pour |x| < 1/4 a été affinée pour cela (x² et −1/3 en double-double ; avec x²
+arrondi, erf_inv atteignait 0,511 ulp).
+
 **Limite connue, lgamma pour x < 0** : près des zéros de lgamma (x ≈ −2,457, −2,748,
 −3,144, −3,955…), la réflexion retranche deux termes presque égaux ; le résultat y est
 minuscule et l'erreur, bornée à 2⁻⁵⁸ en valeur absolue (mesuré : 2⁻⁵⁸·⁷), peut valoir des
@@ -253,7 +264,7 @@ d'empreintes, les NaN rendus n'ayant pas les mêmes bits en `-O0` et en `-O1`. T
 utilisation de `two_product` doit garantir des facteurs sous 2⁹⁹⁵ et un produit loin
 des sous-normaux, ou accepter l'inexactitude là où elle est sans effet.
 
-**Bit-exactitude** : les 38 empreintes (19 fonctions × 2 types) sont identiques sur macOS
+**Bit-exactitude** : les 42 empreintes (21 fonctions × 2 types) sont identiques sur macOS
 x86-64 et ARM64 (Apple Clang), Linux x86-64 (GCC 14 et Clang 18, Debug et Release) et,
 configurations hostiles, avec `-march=x86-64-v3 -ffp-contract=fast` (GCC, Clang) ou
 `-ffp-contract=fast` (ARM64).
@@ -282,6 +293,11 @@ chiffres varient de 10 à 20 % d'une exécution à l'autre) :
 | `cos` double | 29 | 7,0 | ×4,2 |
 | `tan` double | 38 | 9,7 | ×3,9 |
 | `atan` double | 26 | 7,4 | ×3,5 |
+| `erf` double | 44 | 20 | ×2,2 |
+| `erfc` double | 43 | 23 | ×1,9 |
+| `lgamma` double | 36 | 20 | ×1,8 |
+| `tgamma` double | 48 | 38 | ×1,2 |
+| `erf_inv`, `erfc_inv` double | 101 à 105 | — | (absentes de `<cmath>`) |
 
 `log` a été accéléré d'environ 30 % (13 → 9 à 10 ns), sans changer sa précision :
 table deux fois plus fine (polynôme de degré 7 au lieu de 8), évaluation d'Estrin au

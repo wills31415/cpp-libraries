@@ -28,4 +28,6 @@ extern "C"
     double check_erfc(double x) { return wsl::special::erfc(x); }
     double check_lgamma(double x) { return wsl::special::lgamma(x); }
     double check_tgamma(double x) { return wsl::special::tgamma(x); }
+    double check_erf_inv(double y) { return wsl::special::erf_inv(y); }
+    double check_erfc_inv(double z) { return wsl::special::erfc_inv(z); }
 }

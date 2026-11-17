@@ -22,6 +22,7 @@ namespace wsl::special::detail
         -0x1.3777c55568ccdp-23,
         0x1.c2e3054870b38p-27,
     };
+    inline constexpr double erf_small_q1_lo = -0x1.5555555555555p-56;      // −1/3 − q_1
 
     inline constexpr int erfc_degree = 15;
     inline constexpr int erfc_fine_pieces = 30;
@@ -108,5 +109,38 @@ namespace wsl::special::detail
         {0x1.595137b029e25p-6, 0x1.5ef0c6dd17cdcp-60, -0x1.9c83b7359ced3p-11, 0x1.22dfbc91801a7p-65, 0x1.ec722562d04cap-16, -0x1.25ba9c03bc25fp-20, 0x1.5e288c91bd2f9p-25, -0x1.a124030ccd151p-30, 0x1.f09806b7aaa3dp-35, -0x1.27631b028932cp-39, 0x1.5f2ac7b6a17cfp-44, -0x1.a131d5374af31p-49, 0x1.ef4c61ed77c87p-54, -0x1.25cfc3ebef193p-58, 0x1.5c57750158c47p-63, -0x1.9cb6391cdbae6p-68, 0x1.e8a54afc12b24p-73, -0x1.211461a336c0ap-77},   // c = 26.75
         {0x1.52fd5fc7e083dp-6, 0x1.b3463dda0e51ep-61, -0x1.8d8b9fa43478bp-11, 0x1.bfe109862dd26p-66, 0x1.d1e7582f54420p-16, -0x1.10d36533a09a9p-20, 0x1.3f4fd366bac51p-25, -0x1.757849d5b134cp-30, 0x1.b48609027d8b2p-35, -0x1.fde278a732970p-40, 0x1.2997220e3b47bp-44, -0x1.5b24bbfb63f6cp-49, 0x1.94ae61b9b93dfp-54, -0x1.d772025a57405p-59, 0x1.126e92ee5066cp-63, -0x1.3f49e15f7b777p-68, 0x1.733c01b79408cp-73, -0x1.af598d6a599b6p-78},   // c = 27.25
         {0x1.4ce3c9c849884p-6, 0x1.104b8bdbf05abp-60, -0x1.7f6043cf952f5p-11, -0x1.766fc85475c94p-66, 0x1.b93be918a4e96p-16, -0x1.fb7f209077dbfp-21, 0x1.23aadb5cf8a08p-25, -0x1.4f09af6084738p-30, 0x1.809c5f07b07cap-35, -0x1.b93c88f876376p-40, 0x1.f9e04039f899ap-45, -0x1.21cec9dcb9d7bp-49, 0x1.4bd73fa8e966ap-54, -0x1.7bbaa8e851fa0p-59, 0x1.b240ca4c35352p-64, -0x1.f04ac15fe6208p-69, 0x1.1b6b07ba2f1f5p-73, -0x1.437ffe212c500p-78},   // c = 27.75
+    };
+
+    inline constexpr double half_sqrt_pi_hi = 0x1.c5bf891b4ef6bp-1;
+    inline constexpr double half_sqrt_pi_lo = -0x1.618f13eb7ca89p-55;
+
+    // Centre : w dans [0, 5], u = (w − 5/2)/(5/2) ; coefficients du degré le plus haut.
+    inline constexpr double erfinv_central[] = {
+        0x1.5eccb43892d93p-23,
+        -0x1.b1c4c5c0405bep-25,
+        -0x1.e1f5211a1b1dap-20,
+        0x1.9f7032af4baddp-19,
+        0x1.20cbd42da1955p-17,
+        -0x1.5d0352e7ac81bp-15,
+        0x1.57ca2d1c70f62p-16,
+        0x1.3274a4fb19af8p-12,
+        -0x1.b55454f286b48p-11,
+        -0x1.ff9cfb6170b9dp-12,
+        0x1.175c3ff073a6ep-7,
+        -0x1.40b175c870d75p-6,
+        -0x1.abc1e0b7410aep-6,
+        0x1.3bb315fc2bb3bp-1,
+        0x1.805c5cfcedef5p+0,
+    };
+
+    // Queues : s = √w dans [√5, √(1075 ln 2)], six morceaux [a, b], u = (s − m)/h.
+    inline constexpr double erfinv_tail_bounds[] = {0x1.1e3779b97f4a8p+1, 0x1.999999999999ap+1, 0x1.2000000000000p+2, 0x1.c000000000000p+2, 0x1.8000000000000p+3, 0x1.4000000000000p+4, 0x1.b4c109b69b1bap+4};
+    inline constexpr double erfinv_tail[][13] = {
+        {-0x1.2b16dd754fdd8p-34, -0x1.d6c849f874989p-26, 0x1.c6c6644bd86bep-24, 0x1.47a5268b15cf0p-23, -0x1.3c19d7b6e9190p-19, 0x1.c6891e72de807p-18, 0x1.32888ca9afea9p-17, -0x1.3b8c1ef3f4145p-13, 0x1.5f3193ac0044dp-11, -0x1.0179ebe778ba4p-9, 0x1.29ce69ab02b1cp-8, 0x1.ea842eb6c9457p-2, 0x1.4697acee5d707p+1},
+        {-0x1.9d3a5e8200c53p-28, 0x1.6e5e565aa66fcp-27, 0x1.62696a8c226b9p-25, -0x1.359910ce84c42p-22, 0x1.21696144fbdafp-20, -0x1.a0bf7e463f2adp-19, 0x1.085d2fbf3318cp-17, -0x1.6d06ff7166f29p-16, 0x1.43ffa5be40b61p-14, -0x1.3a9aa2ad939f0p-12, 0x1.78471ff03133ep-11, 0x1.4fcffffcfca3bp-1, 0x1.d81d347058dacp+1},
+        {0x1.9b66bea61dd92p-29, -0x1.f0b382ee6b005p-28, 0x1.cef96c9ea9c9dp-27, -0x1.263e0b133194dp-24, 0x1.64cda8f6d92d3p-22, -0x1.8174fcb6ef9cfp-20, 0x1.8bbca93bd9bd4p-18, -0x1.77071b853ddbfp-16, 0x1.2d6c592948864p-14, -0x1.1775ce1bcfb13p-13, -0x1.619b256843578p-11, 0x1.432570b0040f3p+0, 0x1.66e100ad2b2e6p+2},
+        {0x1.82e8bf16fe454p-28, -0x1.5d3e0c115a272p-26, 0x1.cc22d1ddcb3e9p-25, -0x1.84b803c5b53fep-23, 0x1.4547032da9e57p-21, -0x1.e777ae97cd70fp-20, 0x1.386efeadb5370p-18, -0x1.f0fc5a3730055p-18, -0x1.501a6f8813ac9p-16, 0x1.43faf26f81247p-12, -0x1.362abf57255cfp-9, 0x1.4206daf91922dp+1, 0x1.2c66aec509226p+3},
+        {0x1.09366179bb847p-30, -0x1.b717aea93e954p-29, 0x1.cad7c053181e8p-28, -0x1.0bc5ff2f38293p-26, 0x1.15278ab289d88p-26, 0x1.64edc2a88eb64p-23, -0x1.d06ad2979de75p-20, 0x1.8f7e7edc4607fp-17, -0x1.2c8001376cc6bp-14, 0x1.aacf1d94ad917p-12, -0x1.29d481ea64e4fp-9, 0x1.00d46b9afda29p+2, 0x1.fd5833fe8721bp+3},
+        {0x1.80640dcbf365ep-43, 0x1.26716002b68a2p-40, -0x1.8ded79a990b9dp-36, 0x1.11af5e60ddd72p-32, -0x1.4334a42f89164p-29, 0x1.62cb582272c80p-26, -0x1.75a86eded9392p-23, 0x1.805749cbd48c8p-20, -0x1.86d90426cac84p-17, 0x1.8d439f9cc27bep-14, -0x1.991accad3587dp-11, 0x1.d3df059a94cc3p+1, 0x1.7958d4f076bc8p+4},
     };
 }

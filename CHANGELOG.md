@@ -27,6 +27,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `lgamma`, `tgamma` (float, double), mêmes garanties ; erreur maximale mesurée
   0,500 ulp (`lgamma`, x > 0) et 0,507 ulp (`tgamma`). Pour x < 0 près des zéros de
   lgamma, erreur bornée à 2⁻⁵⁸ en valeur absolue seulement (voir docs/special.md).
+- `erf_inv`, `erfc_inv` (float, double), mêmes garanties, `erfc_inv` jusqu'à 2⁻¹⁰⁷⁴ ;
+  erreur maximale mesurée 0,502 et 0,506 ulp. `erf` et `erfc` affinées pour leur servir
+  de résidu (mêmes précisions mesurées, bits changés pour quelques arguments).
 
 ## [0.1.0] — 2026-11-16
 

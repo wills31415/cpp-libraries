@@ -33,4 +33,8 @@ sin_large sin double 1e20 1e300
 cos_double cos double -10 10
 tan_double tan double -10 10
 atan_double atan double -10 10
+erf_double erf double -5 5
+erfc_double erfc double -5 27
+lgamma_double lgamma double 0.01 1000
+tgamma_double tgamma double 0.01 170
 TABLE

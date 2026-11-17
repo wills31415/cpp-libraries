@@ -73,7 +73,7 @@ namespace
     bool check(char const* name, std::uint64_t actual, std::uint64_t expected)
     {
         bool const ok = actual == expected;
-        std::printf("%-12s %016llx %s\n", name, static_cast<unsigned long long>(actual),
+        std::printf("%-16s %016llx %s\n", name, static_cast<unsigned long long>(actual),
                     ok ? "ok" : "DIFFÉRENTE de l'empreinte attendue");
         std::fflush(stdout);
         return ok;
@@ -247,6 +247,20 @@ int main()
     auto const lgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::lgamma(static_cast<float>(uniform(g, -40, 1e6)))); });
     auto const tgamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::tgamma(static_cast<float>(uniform(g, -40, 36)))); });
 
+    // Inverses de la fonction d'erreur : tout (−1, 1) et tout (0, 2), extrémités comprises.
+    auto const erf_inv_double = fingerprint([&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        double const y = (choice & 1) ? uniform(g, -1, 1) : 1.0 - std::bit_cast<double>(g() & 0x3fefffffffffffff);
+        return of_double(sp::erf_inv((choice & 2) ? -y : y));
+    });
+    auto const erfc_inv_double = fingerprint([&](splitmix64& g) {
+        std::uint64_t const choice = g();
+        double const z = (choice & 1) ? uniform(g, 0, 2) : std::bit_cast<double>(g() & 0x3fefffffffffffff);
+        return of_double(sp::erfc_inv(z));
+    });
+    auto const erf_inv_float = fingerprint([&](splitmix64& g) { return of_float(sp::erf_inv(static_cast<float>(uniform(g, -1, 1)))); });
+    auto const erfc_inv_float = fingerprint([&](splitmix64& g) { return of_float(sp::erfc_inv(static_cast<float>(uniform(g, 0, 2)))); });
+
     bool ok = true;
     ok &= check("exp double", exp_double, 0xdc7c71a0d207c234);
     ok &= check("log double", log_double, 0x75529ab2341c6559);
@@ -278,14 +292,18 @@ int main()
     ok &= check("hypot double", hypot_double, 0x6571c9f1c46dc8d9);
     ok &= check("cbrt float", cbrt_float, 0x2f8352bd44cdbd49);
     ok &= check("hypot float", hypot_float, 0x72174db6500aa335);
-    ok &= check("erf double", erf_double, 0x9f580fce49d9109c);
-    ok &= check("erfc double", erfc_double, 0x76e89f827c282603);
+    ok &= check("erf double", erf_double, 0xac731c85c5f4811d);
+    ok &= check("erfc double", erfc_double, 0xcca7cee2fa853ae9);
     ok &= check("erf float", erf_float, 0x8d664252d9a17955);
     ok &= check("erfc float", erfc_float, 0x8cef7e01c22f4892);
     ok &= check("lgamma double", lgamma_double, 0x4397c43ee6b5bcb9);
     ok &= check("tgamma double", tgamma_double, 0x8bb4f651e6380bcb);
     ok &= check("lgamma float", lgamma_float, 0xea350830d6044a96);
     ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
+    ok &= check("erf_inv double", erf_inv_double, 0xf3178cd1f5ba8e43);
+    ok &= check("erfc_inv double", erfc_inv_double, 0x4f276a282a6d14f2);
+    ok &= check("erf_inv float", erf_inv_float, 0x11aceac4e44c6603);
+    ok &= check("erfc_inv float", erfc_inv_float, 0xc04b1a3cf1bb8efb);
     assert(ok);
     return 0;
 }

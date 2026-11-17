@@ -308,7 +308,9 @@ def erf_tables():
     for n in range(1, ERF_SMALL_TERMS + 1):
         q = mpf((-1) ** n) / (mp.factorial(n) * (2 * n + 1))
         out.append(f"        {hexd(round_double(q))},\n")
-    out.append("    };\n\n")
+    out.append("    };\n")
+    q1_hi, q1_lo = double_double(mpf(-1) / 3)
+    out.append(f"    inline constexpr double erf_small_q1_lo = {hexd(q1_lo)};      // −1/3 − q_1\n\n")
     pieces = erfc_pieces()
     out.append(f"    inline constexpr int erfc_degree = {ERFC_DEGREE};\n")
     out.append(f"    inline constexpr int erfc_fine_pieces = {sum(1 for c, h in pieces if c < ERFC_SPLIT)};\n\n")
@@ -329,7 +331,61 @@ def erf_tables():
         a1, a1l = double_double(a[1])
         row = [a0, a0l, a1, a1l] + [round_double(v) for v in a[2:]]
         out.append("        {" + ", ".join(hexd(v) for v in row) + f"}},   // c = {c}\n")
-    out.append("    };\n}\n")
+    out.append("    };\n\n")
+    out.append(erf_inverse_tables())
+    out.append("}\n")
+    return "".join(out)
+
+
+ERFINV_CENTRAL_DEGREE = 14
+ERFINV_TAIL_DEGREE = 12
+ERFINV_TAIL_CUTS = [None, 3.2, 4.5, 7.0, 12.0, 20.0, None]   # bornes en s = √w ; extrêmes calculés
+
+
+def erfc_inverse_exact(z):
+    """erfc⁻¹(z), z dans (0, 1), par Newton sur log erfc (précis même pour z sous-normal)."""
+    z = mpf(z)
+    return mp.findroot(lambda x: mp.log(mp.erfc(x)) - mp.log(z), mp.sqrt(-mp.log(z)))
+
+
+def erf_inverse_tables():
+    """Approximation initiale de erf⁻¹(y) = y P, à 2^-35 près : P(w) au centre, P(√w) dans les queues,
+    w = −log((1 − y)(1 + y)), chaque polynôme ajusté (Tchebychev) en u dans [−1, 1]."""
+    out = []
+    hi, lo = double_double(mp.sqrt(mp.pi) / 2)
+    out.append(f"    inline constexpr double half_sqrt_pi_hi = {hexd(hi)};\n")
+    out.append(f"    inline constexpr double half_sqrt_pi_lo = {hexd(lo)};\n\n")
+    with mp.workprec(120):
+        def central(u):
+            w = (u + 1) * mpf(5) / 2
+            y = mp.sqrt(-mp.expm1(-w))
+            return mp.erfinv(y) / y if y != 0 else mp.sqrt(mp.pi) / 2
+        coefficients, error = mp.chebyfit(central, [mpf(-1), mpf(1)], ERFINV_CENTRAL_DEGREE + 1, error=True)
+        assert error < mpf(2) ** -34, error
+        out.append("    // Centre : w dans [0, 5], u = (w − 5/2)/(5/2) ; coefficients du degré le plus haut.\n")
+        out.append("    inline constexpr double erfinv_central[] = {\n")
+        out += [f"        {hexd(round_double(c))},\n" for c in coefficients]
+        out.append("    };\n\n")
+
+        def tail(s):
+            q = mp.exp(-s * s)
+            z = q / (1 + mp.sqrt(1 - q))
+            return erfc_inverse_exact(z) / (1 - z)
+        cuts = list(ERFINV_TAIL_CUTS)
+        cuts[0] = mp.sqrt(5)
+        cuts[-1] = mp.sqrt(mp.log(2) * 1075)
+        out.append("    // Queues : s = √w dans [√5, √(1075 ln 2)], six morceaux [a, b], u = (s − m)/h.\n")
+        out.append("    inline constexpr double erfinv_tail_bounds[] = {")
+        out.append(", ".join(hexd(round_double(c)) for c in cuts) + "};\n")
+        out.append("    inline constexpr double erfinv_tail[][%d] = {\n" % (ERFINV_TAIL_DEGREE + 1))
+        for a, b in zip(cuts, cuts[1:]):
+            a, b = mpf(round_double(a)), mpf(round_double(b))
+            mid, half = (a + b) / 2, (b - a) / 2
+            coefficients, error = mp.chebyfit(lambda u: tail(mid + half * u), [mpf(-1), mpf(1)],
+                                               ERFINV_TAIL_DEGREE + 1, error=True)
+            assert error / abs(tail(a)) < mpf(2) ** -35, (a, b, error)
+            out.append("        {" + ", ".join(hexd(round_double(c)) for c in coefficients) + "},\n")
+        out.append("    };\n")
     return "".join(out)
 
 
@@ -721,6 +777,42 @@ def tgamma_points_float():
     return xs + neg
 
 
+def erfinv_points_double():
+    ys = [rng.uniform(-1, 1) for _ in range(1500)]
+    ys += [math.copysign(1 - 2.0 ** -k, rng.choice((-1, 1))) for k in range(1, 54)]
+    ys += [math.copysign(2.0 ** rng.uniform(-60, -1), rng.choice((-1, 1))) for _ in range(300)]
+    ys += [0.5, -0.5, math.nextafter(0.5, 1), math.nextafter(1.0, 0), 2.0 ** -1074, 1e-300]
+    return [y for y in ys if abs(y) < 1 and y != 0]
+
+
+def erfcinv_exact(z):
+    z = mpf(z)
+    if z < 1:
+        return erfc_inverse_exact(z)
+    if z == 1:
+        return mpf(0)
+    return -erfc_inverse_exact(2 - z)
+
+
+def erfcinv_points_double():
+    zs = [rng.uniform(0, 2) for _ in range(800)]
+    zs += [2.0 ** -rng.uniform(1, 1074) for _ in range(800)]
+    zs += [2 - 2.0 ** -k for k in range(1, 53)] + [2.0 ** -1074, 2.0 ** -1022, 0.5, 1.5, math.nextafter(2.0, 0)]
+    return [z for z in zs if 0 < z < 2 and z != 1]
+
+
+def erfinv_points_float():
+    ys = [to_f32(rng.uniform(-1, 1)) for _ in range(800)]
+    ys += [to_f32(math.copysign(1 - 2.0 ** -k, rng.choice((-1, 1)))) for k in range(1, 24)]
+    return [y for y in ys if abs(y) < 1 and y != 0]
+
+
+def erfcinv_points_float():
+    zs = [to_f32(2.0 ** -rng.uniform(1, 149)) for _ in range(500)]
+    zs += [to_f32(rng.uniform(0, 2)) for _ in range(500)]
+    return [z for z in zs if 0 < z < 2 and z != 1]
+
+
 def pow_points_double():
     pts = []
     for _ in range(1500):                                   # x quelconque, |y log x| < 700
@@ -830,7 +922,11 @@ def reference_file():
             ("lgamma_negative_double", lgamma_negative_points_double(), log_abs_gamma, round_double, ulp_double, hexd, "double"),
             ("tgamma_double", tgamma_points_double(), mp.gamma, round_double, ulp_double, hexd, "double"),
             ("lgamma_float", lgamma_points_float(), log_abs_gamma, round_float, ulp_float, hexf, "float"),
-            ("tgamma_float", tgamma_points_float(), mp.gamma, round_float, ulp_float, hexf, "float")):
+            ("tgamma_float", tgamma_points_float(), mp.gamma, round_float, ulp_float, hexf, "float"),
+            ("erf_inv_double", erfinv_points_double(), mp.erfinv, round_double, ulp_double, hexd, "double"),
+            ("erfc_inv_double", erfcinv_points_double(), erfcinv_exact, round_double, ulp_double, hexd, "double"),
+            ("erf_inv_float", erfinv_points_float(), mp.erfinv, round_float, ulp_float, hexf, "float"),
+            ("erfc_inv_float", erfcinv_points_float(), erfcinv_exact, round_float, ulp_float, hexf, "float")):
         text, counts[name] = references(name, xs, f, rounder, ulp, fmt, ctype)
         out.append(text)
     atan2_exact = lambda y, x: mp.atan2(mpf(y), mpf(x))
