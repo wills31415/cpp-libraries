@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) faite (§13).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) faite (§13) ; **phase 8** (processus) : lot 1 fait (§14).
 
 ## 1. Vision ✅
 
@@ -246,6 +246,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, von Mises, von Mises–Fisher, Haar, GOE, GUE) |
 | 7 | Objets combinatoires ✅ (avec `wsl::permutation`) : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers et d'ensembles, compositions, graphes, arbres |
 | 8 | Processus |
+| (chantier futur) | Revue complète des interfaces de **toutes** les bibliothèques du dépôt, pour les harmoniser, les homogénéiser et les améliorer (rupture attendue) ; les incohérences repérées en route sont notées au §15 |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
 cpp-traversal, cpp-sudoku et puissance-4, dont `random_agent`, dont la promesse « même
@@ -715,3 +716,142 @@ Vérifications : χ² contre la loi exacte sur tous les objets d'une petite tail
 graphes à 4 sommets, C(10, 3), les 70 graphes 2-réguliers à 6 sommets, les 6 issues de
 Barabási–Albert (4, 1), 16 arbres de Cayley, 14 arbres binaires, 52 partitions, 32 et 10
 compositions) ; grandes tailles : degrés, arbres valides, B₂₀.
+
+## 14. Phase 8 : processus — proposition d'interface ◻︎
+
+### Principe
+
+Un processus est, comme une loi, un **objet mathématique** : il décrit la loi d'une
+trajectoire (X_t). Trois façons de s'en servir, du plus fini au plus paresseux :
+
+| Usage | Écriture | Valeur |
+|---|---|---|
+| Loi marginale | `P.at(t)` | une loi de la bibliothèque, quand elle est connue (`normal`, `poisson`, `categorical`…) |
+| Restriction finie | `P.steps(n)`, `P.on(T)`, `P.on_grid(ts)` | une **loi** ordinaire sur un objet fini (`sample`, `pmf`/`pdf` de la trajectoire quand ils existent) |
+| Trajectoire paresseuse | `trajectory(P, g)`, `events(P, g)` | une vue `std::ranges` (input_range, infinie ou jusqu'à absorption), tirée au fur et à mesure |
+
+**Contrat de reproductibilité** : la k-ième valeur d'une trajectoire ne dépend que de
+l'état initial du moteur et de k ; tronquer (`views::take(k)`, `take_while`) ne change
+pas les valeurs gardées, et le moteur a alors consommé exactement ce qu'il faut pour
+elles. La vue tient le moteur **par référence** (comme `uniform_below(g, n)`) : elle
+l'avance, et il doit lui survivre. ✅ (2026-11-18)
+
+Ordre ✅ : temps discret d'abord (catégorielle exacte, marches, chaînes de Markov, urnes
+de Pólya, restaurant chinois), puis temps continu.
+
+### Temps discret
+
+```cpp
+wsl::random_walk W({.start = 0, .step = wsl::normal({.mean = 0, .sd = 1})});
+W.at(10);                                   // normal(0, √10) : identités de sommes
+for (double x : wsl::trajectory(W, g) | std::views::take(100)) …
+
+wsl::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .initial = 0});
+C.at(5);                                    // wsl::categorical, π₀ P⁵
+C.stationary();                             // wsl::categorical
+auto path = sample(C.steps(100), g);        // std::vector<std::size_t>, 101 états
+pmf(C.steps(100), path);                    // produit des transitions
+```
+
+Brique nécessaire, en tête de phase : `wsl::categorical({.p = {…}})` (tirer i avec
+probabilité pᵢ), **exacte** (poids entiers à une puissance de 2 près, table d'alias de
+Walker–Vose pour l'O(1)).
+
+### Temps continu
+
+```cpp
+wsl::poisson_process N({.rate = 2.0});
+N.at(3.0);                                  // poisson({.mean = 6})
+for (double t : wsl::events(N, g) | std::views::take_while([](double t) { return t < 10; })) …
+auto times = sample(N.on(10.0), g);         // instants dans [0, 10]
+
+wsl::poisson_process M({.intensity = f, .bound = 5.0});        // inhomogène (amincissement)
+wsl::compound_poisson S({.rate = 2.0, .jump = wsl::exponential({.rate = 1.0})});
+
+wsl::brownian_motion B({.drift = 0, .volatility = 1});
+B.at(2.0);                                  // normal(0, √2)
+auto x = sample(B.on_grid(ts), g);          // accroissements N(μΔt, σ²Δt) exacts, cumulés
+for (auto [t, v] : wsl::trajectory(B, g, {.step = 0.01})) …
+wsl::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});        // grilles seulement (regard en avant)
+wsl::geometric_brownian_motion, wsl::ornstein_uhlenbeck        // transitions exactes (gaussiennes)
+wsl::continuous_markov_chain({.generator = Q, .initial = 0})   // instants et états des sauts
+```
+
+### Modèles bayésiens non paramétriques, urnes
+
+```cpp
+wsl::chinese_restaurant R({.theta = 1.5});
+for (std::size_t table : wsl::trajectory(R, g) | std::views::take(100)) …   // table de chaque client
+R.at(100);                                  // loi de la partition (formule d'Ewens)
+wsl::polya_urn U({.balls = {1, 2}, .added = 1});              // couleurs tirées ; U.at(n) : bêta-binomiale…
+wsl::dirichlet_process P({.concentration = 2, .base = wsl::normal({.mean = 0, .sd = 1})});
+for (auto [weight, atom] : wsl::trajectory(P, g)) …          // bâton brisé (stick-breaking)
+```
+
+### Exactitude ✅ (2026-11-18 : option B)
+
+Les choix discrets sont exacts (chaînes de Markov, restaurant, urnes : poids flottants
+décidés exactement). En temps continu et pour les marches à pas réels, **exact point par
+point par défaut** : chaque position est l'arrondi correct d'une trajectoire tirée
+exactement (somme de réels paresseux, affinés à la demande), la loi étant celle des
+paramètres arrondis une fois (√Δt, e^{−θΔt}…) ; `wsl::fast` : accroissements approchés
+(ziggourat), sommes en double-double. Brique nouvelle : réels paresseux additionnables
+et multipliables par un double (lot 2).
+
+### Concepts
+
+`stochastic_process<P>` : `state_type`, `trajectory(P, g)` ; `has_marginal<P>` :
+`P.at(t)` ; les restrictions finies sont des `probability_law`.
+
+### Lot 1 fait : temps discret
+
+| Objet | Paramètres | Fonctions | Tirage exact |
+|---|---|---|---|
+| `categorical<I>` | `{.p}` (poids normalisés exactement) | masse, répartition, quantile exact, moments, entropie | table d'alias de Walker–Vose sur des entiers exacts, O(1) (grands entiers sinon) |
+| `rademacher` | `{.p}` | ±1 | Bernoulli exacte |
+| `random_walk<L>` | `(pas, {.start})`, pas entiers | `mean(n)`, `variance(n)`, `steps(n)` (masse de la trajectoire) | sommes entières |
+| `markov_chain` | `{.transition, .start}` ou `{.transition, .initial}` | `at(n)` (π₀ Pⁿ), `stationary()`, `probability(i, j)`, `steps(n)` | lignes catégorielles |
+| `polya_urn` | `{.balls, .added}` (réels >= 0) | `at(n)` : `dirichlet_multinomial` ; `steps(n)` | poids entiers exacts (64 bits, grands entiers au-delà) |
+| `chinese_restaurant` | `{.theta, .discount}` (Pitman–Yor) | `at(n)` : `ewens_partition` (EPPF, `mean_blocks()`) | d = 0 : θ/(θ + n) exact puis un client uniforme ; d > 0 : poids entiers tenus à jour |
+
+Vue paresseuse générique (`process.hpp`) : un processus fournit un marcheur
+(`first(g)`, `next(g)`) ; une valeur n'est tirée qu'à sa lecture, de sorte que
+`views::take(k)` ne consomme rien au-delà des k valeurs (vérifié : mêmes valeurs et même
+état du moteur que `sample(P.steps(k − 1), g)`). Les marches à pas réels viennent au lot 2,
+avec les réels paresseux additionnables (exactitude point par point).
+
+Vérifications : χ² contre la loi exacte (catégorielle, position d'une marche contre la
+binomiale, X₅ d'une chaîne contre π₀P⁵, les 81 trajectoires de longueur 4, couleurs
+d'une urne contre la Dirichlet-multinomiale, partitions du restaurant contre l'EPPF pour
+quatre (θ, d), poids non entiers compris) ; π P = π ; masses de trajectoires sommant à 1 ;
+échangeabilité de l'urne.
+
+## 15. Incohérences notées pour la revue des interfaces
+
+Le chantier futur (§7) partira de cette liste :
+
+- types des valeurs : `wsl::permutation`, `wsl::edge_list`, `wsl::binary_tree` (types
+  propres) mais `std::vector<std::size_t>` pour sous-ensembles, mots, partitions et
+  compositions ; `wsl::square_matrix` pour les matrices, `std::array`/`std::vector` pour
+  les vecteurs ;
+- noms des paramètres de taille : `.size`, `.n`, `.vertices`, `.nodes`, `.length`,
+  `.dimension` ; `.mu`/`.sigma` (log-normale, von Mises) contre `.mean`/`.sd` (normale) ;
+- types des moments : `T` pour les lois continues, `double` pour les discrètes, tuples
+  pour `independent`, vecteurs (variances) et matrices (covariances) pour les lois
+  multivariées ;
+- constantes propres à certaines lois hors du vocabulaire commun : `mean_cycles()`,
+  `mean_inversions()`, `mean_size()`, `count()`, `mean_resultant_length()` ;
+- noms des constructions : `wsl::affine` (fonction) et `affine_image` (type),
+  `independent` (type, CTAD) et `independent_sum`, `truncate`/`truncated`,
+  `pushforward`/`image`/`monotone_image` ;
+- erreurs : `std::domain_error` à la construction et pour `quantile` hors de [0, 1],
+  mais NaN (sans exception) pour une somme continue sans identité ;
+- le support, facultatif depuis la phase 7 (`has_support`) ;
+- duplication interne : poids entiers d'un mélange (`mixture`) et `detail::choose`.
+- probabilités : `categorical` normalise ses poids exactement, `multinomial` exige une
+  somme égale à 1 (à 2⁻⁴⁰ près) ; `polya_urn::at` divise les boules par `added`
+  (paramètres arrondis) ;
+- processus : `at(n)` rend des lois de types variés ; `steps(n)` est une loi de
+  trajectoire, sauf pour le restaurant (`steps(n)` = `at(n + 1)`, partition) ;
+  `random_walk` se construit par position (`random_walk(pas, {.start})`), les autres par
+  paramètres nommés.

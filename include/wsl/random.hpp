@@ -52,4 +52,7 @@
 #include <wsl/random/von_mises.hpp>
 #include <wsl/random/subsets.hpp>
 #include <wsl/random/graphs.hpp>
+#include <wsl/random/discrete_processes.hpp>
+#include <wsl/random/process.hpp>
+#include <wsl/random/categorical.hpp>
 #include <wsl/random/permutations.hpp>

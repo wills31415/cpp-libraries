@@ -111,4 +111,113 @@ namespace wsl::detail
             return true;
         return integer_choice<true>(g, a, b);
     }
+
+    // Indice i avec probabilité wᵢ/Σ w, poids entiers (grands entiers), total = Σ w > 0.
+    template <class G>
+    constexpr std::size_t pick(G& g, std::vector<big> const& weights, big const& total)
+    {
+        big z = uniform_below_big(g, total);
+        for (std::size_t i = 0; i + 1 < weights.size(); ++i)
+        {
+            if (z < weights[i])
+                return i;
+            z = z - weights[i];
+        }
+        return weights.size() - 1;
+    }
+
+    // w = M 2^e exactement, M entier en grand entier, pour un exposant e <= celui de w.
+    constexpr big integer_at(double w, int e)
+    {
+        if (w == 0)
+            return big();
+        auto const d = dyadic_of(w);
+        return big(d.m).shifted_left(d.e - e);
+    }
+
+    // Poids entiers qui croissent (urnes, restaurants) : sur 64 bits tant que le total
+    // reste sous 2^63, en grands entiers ensuite (le passage ne dépend que des poids :
+    // tirages reproductibles ; exacts dans les deux modes).
+    class growing_weights
+    {
+    public:
+        constexpr growing_weights() = default;
+        constexpr explicit growing_weights(std::vector<big> const& w)
+        {
+            for (auto const& v : w)
+                push(v);
+        }
+
+        constexpr std::size_t size() const noexcept { return small_ ? w64_.size() : big_.size(); }
+
+        constexpr void push(big const& v)
+        {
+            if (small_ && fits(v))
+            {
+                w64_.push_back(v.is_zero() ? 0 : v.bits_at(0));
+                total64_ += w64_.back();
+                if (total64_ < (std::uint64_t{1} << 63))
+                    return;
+                to_big();
+                return;
+            }
+            if (small_)
+                to_big();
+            big_.push_back(v);
+            total_ = total_ + v;
+        }
+
+        // w_i += v
+        constexpr void add(std::size_t i, big const& v)
+        {
+            if (small_ && fits(v))
+            {
+                std::uint64_t const x = v.is_zero() ? 0 : v.bits_at(0);
+                if (total64_ + x < (std::uint64_t{1} << 63))
+                {
+                    w64_[i] += x;
+                    total64_ += x;
+                    return;
+                }
+            }
+            if (small_)
+                to_big();
+            big_[i] = big_[i] + v;
+            total_ = total_ + v;
+        }
+
+        // Indice i avec probabilité wᵢ/Σ w.
+        template <class G>
+        constexpr std::size_t pick(G& g) const
+        {
+            if (!small_)
+                return wsl::detail::pick(g, big_, total_);
+            std::uint64_t z = uniform_below(g, total64_);
+            for (std::size_t i = 0; i + 1 < w64_.size(); ++i)
+            {
+                if (z < w64_[i])
+                    return i;
+                z -= w64_[i];
+            }
+            return w64_.size() - 1;
+        }
+
+    private:
+        static constexpr bool fits(big const& v) noexcept { return v.bit_length() <= 62; }
+
+        constexpr void to_big()
+        {
+            for (std::uint64_t x : w64_)
+                big_.push_back(big(x));
+            total_ = big(total64_);
+            w64_.clear();
+            small_ = false;
+        }
+
+        bool small_ = true;
+        std::vector<std::uint64_t> w64_;
+        std::uint64_t total64_ = 0;
+        std::vector<big> big_;
+        big total_;
+    };
 }

@@ -148,6 +148,10 @@ extern "C"
     double check_graph_laws(double p) { wsl::erdos_renyi const G({.vertices = 6, .p = p}); wsl::uniform_graph const H({.vertices = 6, .edges = 3});
                                         return 1 + pmf(G, {{0, 1}, {2, 3}}) + log_pmf(G, {{0, 1}}) + G.mean_edges() + H.entropy() + wsl::uniform_tree({.vertices = 9}).entropy()
                                              + wsl::uniform_binary_tree({.nodes = 7}).entropy() + wsl::uniform_set_partition({.size = 9}).entropy() + wsl::uniform_composition({.n = 9, .parts = 3}).entropy(); }
+    double check_categorical(double a, double b) { wsl::categorical const C({.p = {a, b, 0.5}}); return 1 + pmf(C, 1) + log_pmf(C, 2) + cdf(C, 1) + ccdf(C, 0) + C.mean() + C.variance() + C.entropy(); }
+    double check_markov(double a) { wsl::markov_chain const M({.transition = {{a, 1 - a}, {0.5, 0.5}}, .start = 0}); return 1 + pmf(M.at(7), 1) + pmf(M.stationary(), 0) + pmf(M.steps(2), {0, 1, 0}); }
+    double check_urn_laws(double a, double t) { wsl::dirichlet_multinomial const D({.trials = 5, .alpha = {a, 1.5}}); wsl::ewens_partition const E({.size = 6, .theta = t, .discount = 0.3});
+                                                return 1 + pmf(D, {2, 3}) + D.mean()[0] + D.variance()[1] + pmf(E, {0, 1, 0, 2, 1, 0}) + E.mean_blocks() + pmf(wsl::polya_urn({.balls = {a, 2}, .added = t}).steps(2), {0, 1, 1}); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }
