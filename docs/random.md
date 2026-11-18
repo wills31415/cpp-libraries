@@ -421,3 +421,28 @@ le maximum est maintenant 0,5032 ulp (`cdf` normale, limitée par erfc de wsl::s
 à 2⁻⁶⁰ près).
 
 Coût du tirage : gamma(2,5) 23 ns (`std` 74), gamma(0,3) 62 ns (62), bêta(2, 5) 45 ns.
+
+### Phase 4 côté lois : répartitions, quantiles, entropies
+
+Avec les fonctions incomplètes de wsl::special (phase 4) :
+
+| Loi | Nouveau | Méthode |
+|---|---|---|
+| `poisson` | cdf, ccdf, quantile exact | Q(k + 1, μ), P(k + 1, μ) ; quantile : plus petit k tel que F(k) >= p, recherche depuis Cornish–Fisher, F(k) comparée à p en double-double du côté minoritaire (`detail/discrete.hpp`) |
+| `binomial` | cdf, ccdf, quantile exact | 1 − I_p(k + 1, n − k), I_p(k + 1, n − k), p tel quel ; quantile de même |
+| `gamma` | cdf, ccdf, quantile, entropie | P(a, t), Q(a, t), t = λx (ou x/θ) en double-double par la correction du premier ordre f(t) t_lo ; quantile : l'inverse en double-double divisé par λ (multiplié par θ) une fois — et, pour t < 2⁻⁹⁰⁰ (résultat près des sous-normaux), x = exp((log p + lgamma(1 + a))/a + log θ) directement |
+| `beta` | cdf, ccdf, quantile, entropie | `ibeta`, `ibetac`, `ibeta_inv` |
+
+Entropies réécrites avec l'erreur de Stirling δ et sa dérivée δ' (la forme usuelle
+compense des termes en a log a) :
+- gamma : ½ log a + ½ log 2π + ½ − 1/(2a) + δ(a) + (1 − a) δ'(a) − log λ ;
+- bêta (n = α + β) : ½ log(αβ/n³) + ½ log 2π + ½(1 − 1/α − 1/β + 2/n) + δ(α) + δ(β) − δ(n)
+  − (α − 1)δ'(α) − (β − 1)δ'(β) + (n − 2)δ'(n) (attention : (3/2) log n en double-double,
+  le produit par 1,5 n'est pas exact).
+
+Précision mesurée (références à 320 et 400 bits) : toutes ces fonctions sous 0,5 ulp,
+arrondi correct à 100 % (double et float) ; entropies sous 0,48 ulp ; quantiles de
+Poisson et binomiaux exacts sur 1 300 points.
+
+Ce qui reste hors du catalogue en route : entropies de Poisson et binomiale (sans forme
+close ; séries à venir), médianes de gamma, bêta, Poisson, binomiale (quantile(0,5)).

@@ -391,14 +391,15 @@ namespace wsl::special
             return x;
         }
 
-        constexpr double gamma_inverse(double a, double t, bool upper) noexcept
+        // En double-double (le dernier pas) : pour qui doit encore diviser le résultat.
+        constexpr double_double gamma_inverse_dd(double a, double t, bool upper) noexcept
         {
             auto const [lt_hi, lt_lo] = xd::log_precise(t);
             if (upper && a < 1)                                             // Q(a, x) <= Q(a, 2^-1074) < t :
             {                                                               // la solution est sous le plus petit double
                 auto const [l, slope] = gamma_side(a, 0x1p-1074, true);
                 if ((l.hi - lt_hi) + (l.lo - lt_lo) < 0)
-                    return 0.0;
+                    return {0.0, 0.0};
             }
             double x = gamma_inverse_start(a, t, upper);
             double low = 0, high = infinity;                                // encadrement de x
@@ -408,7 +409,7 @@ namespace wsl::special
                 double const g = (l.hi - lt_hi) + (l.lo - lt_lo);           // L − log t
                 double const s = upper ? -slope : slope;                    // dL/d(log x)
                 if (g == 0)
-                    return x;
+                    return {x, 0.0};
                 bool const too_far = (g > 0) == (s > 0);                    // x trop grand
                 if (too_far)
                     high = x;
@@ -421,7 +422,8 @@ namespace wsl::special
                 {
                     auto const [m, m_error] = two_product(x, delta);
                     auto const [r, r_error] = two_sum(x, -m);
-                    return r + (r_error - m_error);
+                    auto const [hi, lo] = fast_two_sum(r, r_error - m_error);
+                    return {hi, lo};
                 }
                 if (!(next > low && next < high))                           // bissection, en log
                 {
@@ -433,18 +435,24 @@ namespace wsl::special
                 if (!(next > 0))                                            // sous le plus petit sous-normal
                 {
                     if (high <= 0x1p-1074)
-                        return 0.0;
+                        return {0.0, 0.0};
                     next = 0x1p-1074;
                 }
                 if (!(next < infinity))
                 {
                     if (low >= 0x1.fffffffffffffp+1023)
-                        return infinity;
+                        return {infinity, 0.0};
                     next = 0x1.fffffffffffffp+1023;
                 }
                 x = next;
             }
-            return x;
+            return {x, 0.0};
+        }
+
+        constexpr double gamma_inverse(double a, double t, bool upper) noexcept
+        {
+            auto const [hi, lo] = gamma_inverse_dd(a, t, upper);
+            return hi + lo;
         }
 
         constexpr bool gamma_inverse_special(double a, double p, double& result) noexcept

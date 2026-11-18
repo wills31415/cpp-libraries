@@ -14,8 +14,11 @@
 // k = α − 1, n = α + β − 2 (décomposition de Loader, detail/loader.hpp) ; sinon
 // directement, (α − 1) log x + (β − 1) log1p(−x) − log B(α, β), log B en
 // double-double sans compensation (detail::log_beta). Un seul arrondi.
-// Répartition, quantile, entropie : avec la bêta incomplète et la digamma
-// (phase 4 de wsl::special).
+// Répartition, survie, quantile : ibeta, ibetac, ibeta_inv de wsl::special.
+// Entropie réécrite avec l'erreur de Stirling δ (n = α + β) :
+//     ½ log(αβ/n³) + ½ log 2π + ½(1 − 1/α − 1/β + 2/n) + δ(α) + δ(β) − δ(n)
+//     − (α − 1)δ'(α) − (β − 1)δ'(β) + (n − 2)δ'(n),
+// sans les compensations de la forme usuelle (log B − (α − 1)ψ(α) − …).
 //
 // Tirage (approché, bit-exact) : X = G₁/(G₁ + G₂), G₁, G₂ de lois gamma(α) et
 // gamma(β) (Marsaglia–Tsang), en logarithmes si α < 1 ou β < 1.
@@ -101,6 +104,60 @@ namespace wsl
             namespace fp = detail::sd;
             double const numerator = fp::fmul(fp::fmul(d, d), s + 1) - fp::fmul(fp::fmul(a, b), s + 2);
             return static_cast<T>(6 * numerator / (a * b * (s + 2) * (s + 3)));
+        }
+
+        constexpr T entropy() const noexcept
+        {
+            namespace fp = detail::sd;
+            double const a = a_, b = b_;
+            auto const [n_hi, n_lo] = fp::two_sum(a, b);
+            fp::double_double const n{n_hi, n_lo};
+            auto const half = [](fp::double_double v) { return fp::double_double{fp::fmul(v.hi, 0.5), fp::fmul(v.lo, 0.5)}; };
+            auto const negated = [](fp::double_double v) { return fp::double_double{-v.hi, -v.lo}; };
+            auto const reciprocal = [](fp::double_double v) {
+                double const q = 1.0 / v.hi;
+                auto const [m, m_error] = fp::two_product(q, v.hi);
+                return fp::double_double{q, (((1.0 - m) - m_error) - fp::fmul(q, v.lo)) / v.hi};
+            };
+            auto const ln = detail::log(detail::normalized(n_hi, n_lo));
+            fp::double_double h = half(detail::log_precise(a));
+            h = detail::sum(h, half(detail::log_precise(b)));
+            h = detail::sum(h, detail::mul(ln, {-1.5, 0.0}));                  // −(3/2) log n : 1,5 log n n'est pas exact
+            h = detail::sum(h, {fp::half_log_two_pi_hi, fp::half_log_two_pi_lo});
+            fp::double_double c{1.0, 0.0};                                  // 1 − 1/a − 1/b + 2/n
+            c = detail::sum(c, negated(reciprocal({a, 0.0})));
+            c = detail::sum(c, negated(reciprocal({b, 0.0})));
+            fp::double_double const two_over_n = reciprocal(n);
+            c = detail::sum(c, {fp::fmul(two_over_n.hi, 2.0), fp::fmul(two_over_n.lo, 2.0)});
+            h = detail::sum(h, half(c));
+            h = detail::sum(h, detail::stirling_error(a));
+            h = detail::sum(h, detail::stirling_error(b));
+            h = detail::sum(h, negated(detail::stirling_error(n_hi, n_lo)));
+            auto const [am_hi, am_lo] = fp::two_sum(a, -1.0);
+            auto const [bm_hi, bm_lo] = fp::two_sum(b, -1.0);
+            h = detail::sum(h, negated(detail::mul({am_hi, am_lo}, detail::stirling_error_derivative(a))));
+            h = detail::sum(h, negated(detail::mul({bm_hi, bm_lo}, detail::stirling_error_derivative(b))));
+            h = detail::sum(h, detail::mul(detail::sum(n, {-2.0, 0.0}), detail::stirling_error_derivative(n_hi)));
+            return static_cast<T>(h.hi + h.lo);
+        }
+
+        friend constexpr T cdf(beta const& X, T x) noexcept
+        {
+            if (!(x == x))
+                return x;
+            return static_cast<T>(x <= 0 ? 0.0 : x >= 1 ? 1.0 : wsl::special::ibeta(double(X.a_), double(X.b_), double(x)));
+        }
+        friend constexpr T ccdf(beta const& X, T x) noexcept
+        {
+            if (!(x == x))
+                return x;
+            return static_cast<T>(x <= 0 ? 1.0 : x >= 1 ? 0.0 : wsl::special::ibetac(double(X.a_), double(X.b_), double(x)));
+        }
+        friend constexpr T quantile(beta const& X, double p)
+        {
+            if (!(p >= 0 && p <= 1))
+                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+            return static_cast<T>(wsl::special::ibeta_inv(double(X.a_), double(X.b_), p));
         }
 
         friend constexpr T pdf(beta const& X, T x) noexcept

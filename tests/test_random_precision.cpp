@@ -86,6 +86,22 @@ int main()
     GAMMA_BETA_CHECKS(double, tight)
     GAMMA_BETA_CHECKS(float, loose)
 #undef GAMMA_BETA_CHECKS
+#define PHASE4_CHECKS(T, bound)                                                                                              \
+    check<T>("gamma cdf " #T, d::gamma_cdf_##T, [](double a, double b, double x) { return cdf(wsl::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
+    check<T>("gamma ccdf " #T, d::gamma_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
+    check<T>("gamma quantile " #T, d::gamma_quantile_##T, [](double a, double b, double p) { return quantile(wsl::gamma<T>({.shape = T(a), .rate = T(b)}), p); }, bound); \
+    check<T>("gamma (éch.) cdf " #T, d::gamma_scale_cdf_##T, [](double a, double b, double x) { return cdf(wsl::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("gamma (éch.) ccdf " #T, d::gamma_scale_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("gamma (éch.) quantile " #T, d::gamma_scale_quantile_##T, [](double a, double b, double p) { return quantile(wsl::gamma<T>({.shape = T(a), .scale = T(b)}), p); }, bound); \
+    check<T>("gamma entropy " #T, d::gamma_entropy_##T, [](double a, double b, double) { return wsl::gamma<T>({.shape = T(a), .rate = T(b)}).entropy(); }, 1.0); \
+    check<T>("gamma (éch.) entropy " #T, d::gamma_scale_entropy_##T, [](double a, double b, double) { return wsl::gamma<T>({.shape = T(a), .scale = T(b)}).entropy(); }, 1.0); \
+    check<T>("beta cdf " #T, d::beta_cdf_##T, [](double a, double b, double x) { return cdf(wsl::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
+    check<T>("beta ccdf " #T, d::beta_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
+    check<T>("beta quantile " #T, d::beta_quantile_##T, [](double a, double b, double p) { return quantile(wsl::beta<T>({.alpha = T(a), .beta = T(b)}), p); }, bound); \
+    check<T>("beta entropy " #T, d::beta_entropy_##T, [](double a, double b, double) { return wsl::beta<T>({.alpha = T(a), .beta = T(b)}).entropy(); }, 1.0);
+    PHASE4_CHECKS(double, tight)
+    PHASE4_CHECKS(float, loose)
+#undef PHASE4_CHECKS
     LAW_CHECKS(double, tight)
     LAW_CHECKS(float, loose)
 #undef LAW_CHECKS
@@ -103,6 +119,23 @@ int main()
     check<double>("poisson log_pmf", d::poisson_log_pmf_double, [&](double a, double, double x) { return log_pmf(P(a), K(x)); }, 1.0);
     check<double>("binomial pmf", d::binomial_pmf_double, [&](double a, double b, double x) { return pmf(B(a, b), K(x)); }, tight);
     check<double>("binomial log_pmf", d::binomial_log_pmf_double, [&](double a, double b, double x) { return log_pmf(B(a, b), K(x)); }, 1.0);
+
+    check<double>("poisson cdf", d::poisson_cdf_double, [](double a, double, double x) { return cdf(wsl::poisson<K>({.mean = a}), K(x)); }, tight);
+    check<double>("poisson ccdf", d::poisson_ccdf_double, [](double a, double, double x) { return ccdf(wsl::poisson<K>({.mean = a}), K(x)); }, tight);
+    check<double>("binomial cdf", d::binomial_cdf_double, [](double a, double b, double x) { return cdf(wsl::binomial<K>({.trials = K(a), .p = b}), K(x)); }, tight);
+    check<double>("binomial ccdf", d::binomial_ccdf_double, [](double a, double b, double x) { return ccdf(wsl::binomial<K>({.trials = K(a), .p = b}), K(x)); }, tight);
+    {
+        std::size_t wrong = 0;
+        for (auto const& q : d::poisson_quantile)
+            wrong += quantile(wsl::poisson<K>({.mean = q.a}), q.u) != q.k;
+        std::printf("%-28s %5zu points : %zu faux\n", "poisson quantile", std::size(d::poisson_quantile), wrong);
+        failed |= wrong != 0;
+        wrong = 0;
+        for (auto const& q : d::binomial_quantile)
+            wrong += quantile(wsl::binomial<K>({.trials = K(q.a), .p = q.b}), q.u) != q.k;
+        std::printf("%-28s %5zu points : %zu faux\n", "binomial quantile", std::size(d::binomial_quantile), wrong);
+        failed |= wrong != 0;
+    }
 
     // Quantile de la géométrique : exact.
     std::size_t wrong = 0;

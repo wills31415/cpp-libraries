@@ -82,6 +82,14 @@ extern "C"
     long long check_binomial_sample(wsl::binomial<> const& B, wsl::xoshiro256pp& g) { return sample(B, g); }
     void check_binomial_make(long long n, double p, wsl::binomial<>* out) { *out = wsl::binomial({.trials = n, .p = p}); }
     double check_gamma_pdf(double a, double r, double x) { return pdf(wsl::gamma({.shape = a, .rate = r}), x); }
+    double check_gamma_cdf(double a, double r, double x) { return cdf(wsl::gamma({.shape = a, .rate = r}), x); }
+    double check_gamma_quantile(double a, double t, double p) { return quantile(wsl::gamma({.shape = a, .scale = t}), p); }
+    double check_gamma_entropy(double a, double r) { return wsl::gamma({.shape = a, .rate = r}).entropy(); }
+    double check_beta_entropy(double a, double b) { return wsl::beta({.alpha = a, .beta = b}).entropy(); }
+    double check_beta_cdf(double a, double b, double x) { return cdf(wsl::beta({.alpha = a, .beta = b}), x); }
+    double check_poisson_cdf(double m, long long k) { return cdf(wsl::poisson({.mean = m}), k); }
+    long long check_poisson_quantile(double m, double u) { return quantile(wsl::poisson({.mean = m}), u); }
+    long long check_binomial_quantile(long long n, double p, double u) { return quantile(wsl::binomial({.trials = n, .p = p}), u); }
     double check_gamma_log_pdf(double a, double t, double x) { return log_pdf(wsl::gamma({.shape = a, .scale = t}), x); }
     double check_gamma_sample(wsl::gamma<> const& G, wsl::xoshiro256pp& g) { return sample(G, g); }
     void check_gamma_make(double a, double r, wsl::gamma<>* out) { *out = wsl::gamma({.shape = a, .rate = r}); }

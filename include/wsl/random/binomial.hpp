@@ -8,8 +8,9 @@
 //
 // Masse : décomposition de Loader (voir detail/loader.hpp),
 //   e^{δ(n) − δ(k) − δ(n−k) − bd0(k, np) − bd0(n−k, n(1−p))} √(n / (2π k (n−k))),
-// np et n(1 − p) en double-double, un seul arrondi. Répartition et quantile :
-// avec la bêta incomplète (phase 4 de wsl::special).
+// np et n(1 − p) en double-double, un seul arrondi. Répartition P(X <= k) =
+// 1 − I_p(k + 1, n − k) et survie I_p(k + 1, n − k) par la bêta incomplète de
+// wsl::special (p tel quel) ; quantile exact (voir detail/discrete.hpp).
 //
 // Tirage (approché, bit-exact), avec p' = min(p, 1 − p) puis symétrie :
 // inversion séquentielle si n p' < 10, BTRS (rejet transformé, Hörmann 1993)
@@ -17,6 +18,7 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/special.hpp>
@@ -134,6 +136,55 @@ namespace wsl
             if (k != 0 && k != X.n_)
                 e = detail::add(e, detail::log(X.prefactor(k)));
             return e.hi + e.lo;
+        }
+
+        // P(X <= k) = 1 − I_p(k + 1, n − k).
+        friend constexpr double cdf(binomial const& X, I k) noexcept
+        {
+            if (k < 0)
+                return 0;
+            if (k >= X.n_ || X.p_ == 0)
+                return 1;
+            if (X.p_ == 1)
+                return 0;
+            return wsl::special::ibetac(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
+        }
+
+        // P(X > k) = I_p(k + 1, n − k).
+        friend constexpr double ccdf(binomial const& X, I k) noexcept
+        {
+            if (k < 0)
+                return 1;
+            if (k >= X.n_ || X.p_ == 0)
+                return 0;
+            if (X.p_ == 1)
+                return 1;
+            return wsl::special::ibeta(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
+        }
+
+        // Plus petit k tel que P(X <= k) >= u.
+        friend constexpr I quantile(binomial const& X, double u)
+        {
+            namespace sd = detail::sd;
+            if (!(u >= 0 && u <= 1))
+                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+            if (u == 0 || X.p_ == 0 || X.n_ == 0)
+                return 0;
+            if (u == 1 || X.p_ == 1)
+                return X.n_;
+            double const n = static_cast<double>(X.n_), q = 1 - X.p_;
+            double const z = detail::normal_quantile_guess(u);
+            double const mean = sd::fmul(n, X.p_);
+            double guess = (mean + sd::fmul(z, wsl::special::sqrt(sd::fmul(mean, q))))
+                         + sd::fmul(sd::fmul(z, z) - 1.0, q - X.p_) / 6;     // Cornish–Fisher
+            guess = guess < 0 ? 0 : guess > n ? n : guess;
+            auto const ge = [&](I k) {                                      // P(X <= k) >= u
+                if (k >= X.n_)
+                    return true;
+                auto const [value, complement] = sd::incomplete_beta(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
+                return detail::at_least(value, complement, u);              // complement : value = 1 − I = F
+            };
+            return detail::smallest_true(static_cast<I>(guess), I(0), X.n_, ge);
         }
 
         template <std::uniform_random_bit_generator G>

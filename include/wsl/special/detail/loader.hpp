@@ -76,6 +76,28 @@ namespace wsl::special::detail::extended
         return {h, l};
     }
 
+    // δ'(y) = ψ(y) − log y + 1/(2y), y > 0, en double-double (précis en valeur absolue) :
+    // y >= 16, −Σ (2k − 1) c_k y^{−2k} (série de Stirling dérivée) ; sinon ψ par
+    // wsl::special (double-double) et le reste exactement.
+    constexpr sd::double_double stirling_error_derivative(double y) noexcept
+    {
+        if (y >= 16.0)
+        {
+            double const z = 1.0 / sd::fmul(y, y);
+            constexpr int terms = sizeof(sd::stirling) / sizeof(sd::stirling[0]);
+            double series = sd::fmul(static_cast<double>(2 * terms - 1), sd::stirling[terms - 1]);
+            for (int k = terms - 1; k >= 1; --k)
+                series = sd::fmul(static_cast<double>(2 * k - 1), sd::stirling[k - 1]) + sd::fmul(z, series);
+            return {-sd::fmul(z, series), 0.0};
+        }
+        sd::double_double result = sd::digamma_positive_dd(y);
+        auto const l = log_precise(y);
+        result = sum(result, {-l.hi, -l.lo});
+        double const h = 0.5 / y;
+        auto const [p, p_error] = sd::two_product(h, y);
+        return sum(result, {h, ((0.5 - p) - p_error) / y});
+    }
+
     // bd0(x, M) = x log(x/M) + M − x, x >= 0, M = m_hi + m_lo > 0, en
     // double-double. Homogène de degré 1 : mis à l'échelle s'il le faut.
     // - |x − M| < (x + M)/10 : v = (x − M)/(x + M), bd0 = (x − M) v + 2x Σ v^(2j+1)/(2j+1)

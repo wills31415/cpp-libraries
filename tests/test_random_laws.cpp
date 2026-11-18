@@ -162,14 +162,14 @@ static_assert([] { wsl::pcg64 g(4); double const x = sample(wsl::normal({.mean =
 
 static_assert(wsl::probability_law<wsl::geometric<>> && wsl::probability_law<wsl::poisson<int>> && wsl::probability_law<wsl::binomial<>>);
 static_assert(wsl::has_pmf<wsl::geometric<>> && wsl::has_cdf<wsl::geometric<>> && wsl::has_quantile<wsl::geometric<>>);
-static_assert(wsl::has_pmf<wsl::poisson<>> && !wsl::has_cdf<wsl::poisson<>> && wsl::has_pmf<wsl::binomial<>> && !wsl::has_quantile<wsl::binomial<>>);
+static_assert(wsl::has_pmf<wsl::poisson<>> && wsl::has_cdf<wsl::poisson<>> && wsl::has_ccdf<wsl::binomial<>> && wsl::has_quantile<wsl::binomial<>>);
 static_assert(wsl::geometric<>::sampling == wsl::exactness::approximate && wsl::poisson<>::sampling == wsl::exactness::approximate);
 static_assert([] { wsl::binomial X({.trials = 20, .p = 0.3}); return std::is_same_v<decltype(X), wsl::binomial<std::int64_t>>; }());
 static_assert(pmf(wsl::geometric({.p = 0.5}), 1) == 0.25 && quantile(wsl::geometric({.p = 0.5}), 0.75) == 1);
 static_assert([] { wsl::pcg64 g(5); return sample(wsl::poisson({.mean = 30.0}), g) > 0 && sample(wsl::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
 
 static_assert(wsl::probability_law<wsl::gamma<>> && wsl::probability_law<wsl::beta<float>>);
-static_assert(wsl::has_pdf<wsl::gamma<>> && !wsl::has_cdf<wsl::gamma<>> && wsl::has_mode<wsl::beta<>> && !wsl::has_entropy<wsl::beta<>>);
+static_assert(wsl::has_pdf<wsl::gamma<>> && wsl::has_cdf<wsl::gamma<>> && wsl::has_quantile<wsl::gamma<>> && wsl::has_mode<wsl::beta<>> && wsl::has_entropy<wsl::beta<>> && wsl::has_entropy<wsl::gamma<>>);
 static_assert([] { wsl::gamma X({.shape = 2, .rate = 3}); wsl::gamma Y({.shape = 2, .scale = 3}); return std::is_same_v<decltype(X), wsl::gamma<double>> && std::is_same_v<decltype(Y), wsl::gamma<double>>; }());
 static_assert([] { wsl::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wsl::beta<double>>; }());
 static_assert(wsl::gamma({.shape = 3.0, .rate = 2.0}).mean() == 1.5 && wsl::gamma({.shape = 3.0, .scale = 2.0}).mean() == 6);
@@ -431,6 +431,38 @@ int main()
         assert(kolmogorov_smirnov_against(wsl::beta<float>({.alpha = 2, .beta = 1}), g, [](double x) { return x * x; }) < 1.95);
     }
 
+    // ---- Répartitions et quantiles (phase 4) : cohérences ---------------------------
+    {
+        wsl::poisson const P({.mean = 3.5});
+        wsl::binomial const B({.trials = 20, .p = 0.3});
+        double sp = 0, sb = 0;
+        for (int k = 0; k <= 20; ++k)
+        {
+            sp += pmf(P, k);
+            sb += pmf(B, k);
+            assert(std::abs(cdf(P, k) - sp) < 1e-15 && std::abs(cdf(B, k) - sb) < 1e-15);
+            assert(std::abs(cdf(P, k) + ccdf(P, k) - 1) < 1e-15 && std::abs(cdf(B, k) + ccdf(B, k) - 1) < 1e-15);
+        }
+        assert(cdf(P, -1) == 0 && ccdf(P, -1) == 1 && cdf(B, 20) == 1 && ccdf(B, 25) == 0);
+        for (double u : {1e-300, 1e-9, 0.1, 0.5, 0.75, 0.999999})
+        {
+            long long const k = quantile(P, u), j = quantile(B, u);          // quantile ∘ cdf : plus petit k
+            assert(cdf(P, k) >= u && (k == 0 || cdf(P, k - 1) < u) && cdf(B, j) >= u && (j == 0 || cdf(B, j - 1) < u));
+        }
+        assert(quantile(P, 0.0) == 0 && quantile(B, 1.0) == 20 && quantile(wsl::binomial({.trials = 5, .p = 1.0}), 0.3) == 5);
+        wsl::gamma const G({.shape = 2.5, .rate = 3});
+        wsl::beta const Be({.alpha = 2, .beta = 5});
+        for (double u : {1e-200, 1e-6, 0.3, 0.5, 0.9, 1 - 1e-10})
+        {
+            double const x = quantile(G, u), y = quantile(Be, u);
+            assert(std::abs(cdf(G, x) / u - 1) < 1e-14 && std::abs(cdf(Be, y) / u - 1) < 1e-14);
+        }
+        assert(cdf(G, 0.0) == 0 && ccdf(G, INFINITY) == 0 && quantile(G, 1.0) == INFINITY && cdf(Be, 1.0) == 1 && quantile(Be, 0.0) == 0);
+        assert(std::abs(wsl::gamma({.shape = 1.0, .rate = 2.0}).entropy() - wsl::exponential({.rate = 2.0}).entropy()) < 1e-16);
+        assert(std::abs(wsl::beta({.alpha = 1.0, .beta = 1.0}).entropy()) < 1e-20);
+        assert(std::abs(cdf(wsl::gamma({.shape = 1.0, .rate = 2.0}), 0.7) - cdf(wsl::exponential({.rate = 2.0}), 0.7)) < 1e-16);
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -512,6 +544,12 @@ int main()
             double const u = wsl::uniform_real(x), y = 20 * u;
             return bits(pdf(Ga, y)) ^ (bits(log_pdf(Ga_s, y)) << 1) ^ (bits(pdf(Be_a, u)) << 2) ^ (bits(log_pdf(Be_s, u)) << 3);
         }, 1 << 13), 0x9d4f36e7cb669b74);
+        ok &= check("phase 4 functions", fingerprint([&] {
+            double const u = wsl::uniform_real(x);
+            auto const k = static_cast<long long>(wsl::uniform_below(x, 2000));
+            return bits(cdf(Ga, 10 * u)) ^ (bits(quantile(Ga_s, u)) << 1) ^ (bits(cdf(Be_a, u)) << 2) ^ (bits(quantile(Be_s, u)) << 3)
+                 ^ (bits(cdf(Pl, k)) << 4) ^ static_cast<std::uint64_t>(quantile(Bl, u)) ^ (bits(Ga.entropy() + Be_s.entropy()) << 5);
+        }, 1 << 10), 0x1a38363ea9e3931d);
     }
     assert(ok);
     return 0;

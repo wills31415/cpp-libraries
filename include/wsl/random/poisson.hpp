@@ -6,14 +6,16 @@
 //   N.variance(); pmf(N, 2); log_pmf(N, 40); sample(N, g);
 //
 // Masse : décomposition de Loader, e^{−δ(k) − bd0(k, μ)} / √(2πk) (voir
-// detail/loader.hpp), un seul arrondi. Répartition et quantile : avec la gamma
-// incomplète (phase 4 de wsl::special).
+// detail/loader.hpp), un seul arrondi. Répartition P(N <= k) = Q(k + 1, μ) et survie
+// P(k + 1, μ) par la gamma incomplète de wsl::special ; quantile exact (recherche
+// depuis Cornish–Fisher, comparaisons en double-double, voir detail/discrete.hpp).
 //
 // Tirage (approché, bit-exact) : inversion séquentielle pour μ < 10 ; au-delà,
 // PTRS, rejet transformé de Hörmann (1993), en O(1).
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/law.hpp>
@@ -94,6 +96,40 @@ namespace wsl
             auto const [s1, f1] = sd::two_sum(e_hi, -sd::half_log_two_pi_hi);
             auto const [s2, f2] = sd::two_sum(s1, sd::fmul(l_hi, -0.5));
             return s2 + ((f1 + f2) + (e_lo - (sd::half_log_two_pi_lo + sd::fmul(l_lo, 0.5))));
+        }
+
+        // P(N <= k) = Q(k + 1, μ).
+        friend constexpr double cdf(poisson const& X, I k) noexcept
+        {
+            return k < 0 ? 0.0 : wsl::special::gamma_q(static_cast<double>(k) + 1, X.mu_);
+        }
+
+        // P(N > k) = P(k + 1, μ).
+        friend constexpr double ccdf(poisson const& X, I k) noexcept
+        {
+            return k < 0 ? 1.0 : wsl::special::gamma_p(static_cast<double>(k) + 1, X.mu_);
+        }
+
+        // Plus petit k tel que P(N <= k) >= p.
+        friend constexpr I quantile(poisson const& X, double p)
+        {
+            namespace sd = detail::sd;
+            if (!(p >= 0 && p <= 1))
+                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+            constexpr I top = std::numeric_limits<I>::max();
+            if (p == 0)
+                return 0;
+            if (p == 1)
+                return top;
+            double const z = detail::normal_quantile_guess(p);
+            double const smu = wsl::special::sqrt(X.mu_);
+            double guess = (X.mu_ + sd::fmul(z, smu)) + (sd::fmul(z, z) - 1.0) / 6;   // Cornish–Fisher
+            guess = guess < 0 ? 0 : guess >= static_cast<double>(top) / 2 ? static_cast<double>(top) / 2 : guess;
+            auto const ge = [&](I k) {                                      // Q(k + 1, μ) >= p
+                auto const [value, upper] = sd::incomplete_gamma(static_cast<double>(k) + 1, X.mu_);
+                return detail::at_least(value, upper, p);
+            };
+            return detail::smallest_true(static_cast<I>(guess), I(0), top, ge);
         }
 
         template <std::uniform_random_bit_generator G>

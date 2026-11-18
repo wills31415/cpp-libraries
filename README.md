@@ -28,9 +28,8 @@ Le standard indiqué est le minimum exigé. Il est transmis au projet consommate
 lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
 
-En préparation dans `wsl::random` : les répartitions et quantiles de Poisson, binomiale,
-gamma et bêta (fonctions incomplètes de wsl::special), les autres lois (Student, χ²,
-Fisher, multivariées…), et leur algèbre ([conception](docs/random.md)).
+En préparation dans `wsl::random` : les autres lois (χ², Student, Fisher, Cauchy,
+multivariées…) et leur algèbre ([conception](docs/random.md)).
 
 ## Utiliser les bibliothèques dans un projet
 

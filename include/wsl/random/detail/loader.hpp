@@ -15,4 +15,5 @@ namespace wsl::detail
     using xd::log_beta;
     using xd::log_gamma;
     using xd::stirling_error;
+    using xd::stirling_error_derivative;
 }

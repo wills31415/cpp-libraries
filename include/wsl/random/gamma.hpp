@@ -13,8 +13,12 @@
 // Densité : comme dgamma de R, par la masse de Poisson généralisée,
 //   a >= 1 : λ p(a − 1, λx),   a < 1 : (a/x) p(a, λx),   p(ν, t) = t^ν e^{−t}/Γ(ν + 1),
 // p(ν, t) = e^{−δ(ν) − bd0(ν, t)} / √(2πν) par la décomposition de Loader (voir
-// detail/loader.hpp), un seul arrondi. Répartition, quantile, entropie : avec la
-// gamma incomplète et la digamma (phase 4 de wsl::special).
+// detail/loader.hpp), un seul arrondi. Répartition et survie : P(a, λx) et Q(a, λx)
+// de wsl::special, λx en double-double (correction du premier ordre f(t) t_lo) ;
+// quantile : l'inverse de wsl::special en double-double, divisé par λ (ou multiplié
+// par θ) avec un seul arrondi ; entropie réécrite avec l'erreur de Stirling δ :
+//     a − log λ + lgamma(a) + (1 − a)ψ(a) = ½ log a + ½ log 2π + ½ − 1/(2a) + δ(a) + (1 − a)δ'(a) − log λ,
+// sans les compensations de la forme usuelle.
 //
 // Tirage (approché, bit-exact) : Marsaglia et Tsang (2000), la normale par la
 // ziggourat ; a < 1 : G(a + 1) U^{1/a}.
@@ -199,6 +203,63 @@ namespace wsl
             return static_cast<T>(e.hi + e.lo);
         }
 
+        constexpr T entropy() const noexcept
+        {
+            namespace fp = detail::sd;
+            double const a = shape_;
+            auto const la = detail::log_precise(a);
+            fp::double_double h{fp::fmul(la.hi, 0.5), fp::fmul(la.lo, 0.5)};
+            h = detail::sum(h, {fp::half_log_two_pi_hi, fp::half_log_two_pi_lo});
+            h = detail::sum(h, {0.5, 0.0});
+            double const r = 0.5 / a;
+            auto const [m, m_error] = fp::two_product(r, a);
+            h = detail::sum(h, {-r, -(((0.5 - m) - m_error) / a)});         // −1/(2a)
+            h = detail::sum(h, detail::stirling_error(a));
+            auto const [c_hi, c_lo] = fp::two_sum(1.0, -a);
+            h = detail::sum(h, detail::mul({c_hi, c_lo}, detail::stirling_error_derivative(a)));
+            auto const lr = log_rate();
+            h = detail::sum(h, {-lr.hi, -lr.lo});
+            return static_cast<T>(h.hi + h.lo);
+        }
+
+        friend constexpr T cdf(gamma const& X, T x) noexcept { return X.tail(x, false); }
+        friend constexpr T ccdf(gamma const& X, T x) noexcept { return X.tail(x, true); }
+
+        friend constexpr T quantile(gamma const& X, double p)
+        {
+            namespace fp = detail::sd;
+            if (!(p >= 0 && p <= 1))
+                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+            if (p == 0)
+                return 0;
+            if (p == 1)
+                return std::numeric_limits<T>::infinity();
+            auto const [t_hi, t_lo] = p <= 0.5 ? fp::gamma_inverse_dd(double(X.shape_), p, false)
+                                              : fp::gamma_inverse_dd(double(X.shape_), 1.0 - p, true);
+            if (!detail::is_finite(t_hi))
+                return std::numeric_limits<T>::infinity();
+            if (t_hi < 0x1p-900)                                            // t sous-normal ou presque : perdu à
+            {                                                               // l'échelle 2^-1074 ; or P(a, t) = tᵃ/Γ(a + 1)
+                double const a = X.shape_;                                  // à 2^-900 près, d'où
+                auto const lp = detail::log_precise(p);                     // log t = (log p + lgamma(1 + a))/a
+                fp::double_double lg{};
+                if (a <= 0.25)
+                    lg = fp::lgamma1p_small(a);
+                else
+                {
+                    auto const [s_hi, s_lo] = fp::two_sum(1.0, a);
+                    lg = detail::log_gamma(s_hi, s_lo);
+                }
+                fp::double_double l = fp::quotient_dd(detail::sum(lp, lg), {a, 0.0});
+                auto const lr = X.log_rate();
+                l = detail::sum(l, {-lr.hi, -lr.lo});                       // x = t/λ = t θ
+                if (l.hi < -1500)
+                    return 0;
+                return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
+            }
+            return static_cast<T>(detail::rounded(X.per_rate(detail::normalized(t_hi, t_lo))));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(gamma const& X, G& g)
         {
@@ -228,6 +289,46 @@ namespace wsl
             double const a = shape_ >= 1 ? double(shape_) : double(shape_) + 1;
             d_ = a - 1.0 / 3;
             c_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_));
+        }
+
+        // P(X <= x) (ou P(X > x)) : P(a, t) de wsl::special en t = t_hi, corrigé de
+        // f(t_hi) t_lo (f la densité de la gamma standard), t = λx (ou x/θ) en double-double.
+        constexpr T tail(T x, bool upper) const noexcept
+        {
+            namespace fp = detail::sd;
+            double const v = x;
+            if (!(v == v))
+                return x;
+            if (!(v > 0))
+                return upper ? T(1) : T(0);
+            if (v == std::numeric_limits<double>::infinity())
+                return upper ? T(0) : T(1);
+            double t_hi = 0, t_lo = 0;
+            if (by_rate_)
+            {
+                auto const [h, l] = detail::product(v, double(parameter_));
+                t_hi = h;
+                t_lo = l;
+            }
+            else
+            {
+                auto const [h, l] = detail::unscaled(detail::normalized(v, 0.0) / double(parameter_));
+                t_hi = h;
+                t_lo = l;
+            }
+            double special = 0;
+            if (fp::incomplete_gamma_special(double(shape_), t_hi, upper, special))
+                return static_cast<T>(special);
+            auto [value, value_upper] = fp::incomplete_gamma(double(shape_), t_hi);
+            if (t_lo != 0 && value.hi != 0)
+            {
+                detail::scaled const density = detail::normalized(double(shape_), 0.0) * fp::gamma_prefix(double(shape_), t_hi) / t_hi;
+                double const r = detail::rounded(density * detail::normalized(detail::magnitude(t_lo), 0.0) / value);
+                double const signed_r = (t_lo > 0) != value_upper ? r : -r;  // dP/dt = f, dQ/dt = −f
+                auto const [c_hi, c_lo] = fp::two_sum(1.0, signed_r);
+                value = value * detail::normalized(c_hi, c_lo);
+            }
+            return static_cast<T>(value_upper == upper ? detail::rounded(value) : fp::one_minus(value));
         }
 
         static constexpr double fmul_exp(double h, double l) noexcept

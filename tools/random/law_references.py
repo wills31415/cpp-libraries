@@ -204,6 +204,91 @@ def geometric_quantiles():
     return rows
 
 
+# Phase 4 : répartitions, survies, quantiles (gamma et bêta incomplètes), entropies.
+P4_POISSON = [0.5, 3.5, 25.0, 1e3, 1e6, 1e-5, 9.99]
+P4_BINOMIAL = [(20, 0.3), (1000, 0.5), (10 ** 6, 1e-3), (50, 0.999), (3, 1e-10), (7, 0.5)]
+
+
+def phase4_laws(kind):
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    out = []
+    count = 120 if kind == "double" else 50
+    for shape, rate, by_scale in GAMMA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (shape, rate)):
+            continue
+        a, r = to_type(shape), to_type(rate)
+        lam = 1 / mpf(r) if by_scale else mpf(r)
+        xs = [to_type(float(shape * log_uniform(2.0 ** -20, 8.0) / lam)) for _ in range(count)]
+        xs = [x for x in xs if 0 < x < math.inf]
+        t = lambda x, lam=lam, r=r, by_scale=by_scale: (mpf(x) / mpf(r)) if by_scale else mpf(x) * lam
+        name = "gamma_scale" if by_scale else "gamma"
+        out.append((f"{name}_cdf", shape, rate, xs, lambda x, a=a, t=t: g.igamma_reference(a, t(x))[0]))
+        out.append((f"{name}_ccdf", shape, rate, xs, lambda x, a=a, t=t: g.igamma_reference(a, t(x))[1]))
+        ps = probabilities(count // 3)
+        if shape <= 1e4:                                                # coût de la référence (inverse à 320 bits)
+            out.append((f"{name}_quantile", shape, rate, ps,
+                        lambda u, a=a, r=r, by_scale=by_scale: g.igamma_inverse_exact(a, u, False) * (mpf(r) if by_scale else 1 / mpf(r))))
+    for alpha, beta in BETA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (alpha, beta)):
+            continue
+        a, b = to_type(alpha), to_type(beta)
+        xs = []
+        for _ in range(count):
+            u = rng.random()
+            xs.append(to_type(rng.random() if u < 0.4 else log_uniform(2.0 ** -40, 0.5) if u < 0.7 else 1 - log_uniform(2.0 ** -40, 0.5)))
+        xs = [x for x in xs if 0 < x < 1]
+        out.append(("beta_cdf", alpha, beta, xs, lambda x, a=a, b=b: g.ibeta_reference(a, b, x)[0]))
+        out.append(("beta_ccdf", alpha, beta, xs, lambda x, a=a, b=b: g.ibeta_reference(a, b, x)[1]))
+        if max(alpha, beta) <= 2.0 ** 12:
+            out.append(("beta_quantile", alpha, beta, probabilities(count // 3),
+                        lambda u, a=a, b=b: g.ibeta_inverse_exact(a, b, u, False)))
+    # Entropies : une valeur par loi (x sans objet).
+    for shape, rate, by_scale in GAMMA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (shape, rate)):
+            continue
+        a, r = mpf(to_type(shape)), mpf(to_type(rate))
+        lam = 1 / r if by_scale else r
+        name = "gamma_scale" if by_scale else "gamma"
+        out.append((f"{name}_entropy", shape, rate, [0.0],
+                    lambda _, a=a, lam=lam: a - mp.log(lam) + mp.loggamma(a) + (1 - a) * mp.digamma(a)))
+    for alpha, beta in BETA:
+        if kind == "float" and not all(2.0 ** -120 < v < 2.0 ** 120 for v in (alpha, beta)):
+            continue
+        a, b = mpf(to_type(alpha)), mpf(to_type(beta))
+        out.append(("beta_entropy", alpha, beta, [0.0],
+                    lambda _, a=a, b=b: (mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b)) - (a - 1) * mp.digamma(a)
+                    - (b - 1) * mp.digamma(b) + (a + b - 2) * mp.digamma(a + b)))
+    if kind == "double":
+        for mu in P4_POISSON:
+            ks = [k for k in integer_points(mu, math.sqrt(mu) + 1, 0, 2 ** 62, 80) if k >= 0]
+            out.append(("poisson_cdf", mu, 0.0, ks, lambda k, mu=mu: g.igamma_reference(float(k) + 1, mu)[1]))
+            out.append(("poisson_ccdf", mu, 0.0, ks, lambda k, mu=mu: g.igamma_reference(float(k) + 1, mu)[0]))
+        for n, pp in P4_BINOMIAL:
+            sd = math.sqrt(n * pp * (1 - pp)) + 1
+            ks = [k for k in (list(range(n)) if n <= 60 else integer_points(n * pp, sd, 0, n - 1, 80)) if k < n]
+            out.append(("binomial_cdf", float(n), pp, ks, lambda k, n=n, pp=pp: g.ibeta_reference(float(k) + 1, float(n - k), pp)[1]))
+            out.append(("binomial_ccdf", float(n), pp, ks, lambda k, n=n, pp=pp: g.ibeta_reference(float(k) + 1, float(n - k), pp)[0]))
+    return out
+
+
+def discrete_quantiles(name, cases, cdf, start):
+    """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
+    tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
+    def solve(a, b, u):
+        k = max(0, int(start(a, b, u)))
+        while k > 0 and cdf(a, b, k - 1) >= u:
+            k -= 1
+        while cdf(a, b, k) < u:
+            k += 1
+        near = lambda j: j >= 0 and abs(cdf(a, b, j) - u) < mpf(2) ** -90 * u
+        return mpf(-1) if near(k) or near(k - 1) or k >= 2 ** 62 else mpf(k)
+    rows = []
+    for (a, b, u), k in zip(tasks, g.parallel_map(solve, tasks)):
+        if k >= 0:
+            rows.append(f"        {{{g.hexd(float(a))}, {g.hexd(float(b))}, {g.hexd(u)}, {int(k)}}},\n")
+    return rows
+
+
 def reference_file():
     out = [HEADER, "#pragma once\n\n", "// Valeurs de référence des lois de wsl::random (mpmath).\n\n",
            "namespace law_reference_data\n{\n",
@@ -212,10 +297,9 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind):
             rows = groups.setdefault(name, [])
-            for x in xs:
-                exact = f(mpf(x))
+            for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)
                 if math.isinf(cr) or cr == 0:
                     continue
@@ -230,8 +314,21 @@ def reference_file():
     out.append("    // Quantiles exacts de la loi géométrique.\n    inline constexpr quantile_point geometric_quantile[] = {\n")
     rows = geometric_quantiles()
     out += rows
-    out.append("    };\n")
+    out.append("    };\n\n")
     total += len(rows)
+    out.append("    struct quantile_point2\n    {\n        double a, b, u;\n        long long k;\n    };\n\n")
+    import math as _m
+    poisson_cdf = lambda mu, _, k: g.igamma_reference(float(k) + 1, mu)[1]
+    poisson_start = lambda mu, _, u: mu + _m.sqrt(mu) * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u)))
+    binomial_cdf = lambda n, pp, k: mpf(1) if k >= n else g.ibeta_reference(float(k) + 1, float(n - k), pp)[1]
+    binomial_start = lambda n, pp, u: min(n, max(0.0, n * pp + _m.sqrt(n * pp * (1 - pp)) * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u)))))
+    for name, cases, cdf, start in (("poisson_quantile", [(mu, 0.0) for mu in P4_POISSON], poisson_cdf, poisson_start),
+                                    ("binomial_quantile", [(float(n), pp) for n, pp in P4_BINOMIAL], binomial_cdf, binomial_start)):
+        rows = discrete_quantiles(name, cases, cdf, start)
+        out.append(f"    // Quantiles exacts.\n    inline constexpr quantile_point2 {name}[] = {{\n")
+        out += rows
+        out.append("    };\n\n")
+        total += len(rows)
     out.append("}\n")
     return "".join(out), total
 
