@@ -32,6 +32,9 @@ extern "C"
     double check_digamma(double x) { return wsl::special::digamma(x); }
     double check_gamma_p(double a, double x) { return wsl::special::gamma_p(a, x); }
     double check_gamma_q(double a, double x) { return wsl::special::gamma_q(a, x); }
+    double check_bessel_i(double nu, double x) { return wsl::special::cyl_bessel_i(nu, x); }
+    float check_bessel_if(float nu, float x) { return wsl::special::cyl_bessel_i(nu, x); }
+    double check_sum_bessel_i(double nu, double x) { return 1.0 + wsl::special::cyl_bessel_i(nu, x); }
     double check_sum_gamma_p(double a, double x) { return 1.0 + wsl::special::gamma_p(a, x); }
     double check_gamma_p_inv(double a, double p) { return wsl::special::gamma_p_inv(a, p); }
     double check_ibeta(double a, double b, double x) { return wsl::special::ibeta(a, b, x); }
@@ -135,6 +138,9 @@ extern "C"
                                                 return 1 + pdf(W, A) + log_pdf(W, A) + W.entropy() + W.mean()(0, 1) + W.variance()(0, 0) + W.mode()(1, 1) + log_pdf(I, A) + I.entropy() + I.mean()(0, 0); }
     double check_random_matrix(double x) { wsl::goe<double, 2> const H; wsl::gue<double, 2> const K;
                                            return 1 + pdf(H, wsl::square_matrix<double, 2>{{x, 0.5}, {0.5, x}}) + log_pdf(K, wsl::square_matrix<std::complex<double>, 2>{{x, {0.5, x}}, {{0.5, -x}, 1}}); }
+    double check_von_mises(double m, double k, double x) { wsl::von_mises const V({.mu = m, .kappa = k}); return 1 + pdf(V, x) + log_pdf(V, x) + V.entropy() + V.circular_variance() + V.mean_resultant_length(); }
+    double check_vmf(double k, double t) { wsl::von_mises_fisher<double, 3> const F({.mean_direction = {0, 0.6, 0.8}, .kappa = k});
+                                           return 1 + pdf(F, {t, 0.0, 0.0}) + log_pdf(F, {0.0, t, t}) + F.entropy() + F.mean()[1]; }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

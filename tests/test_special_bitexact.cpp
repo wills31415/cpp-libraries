@@ -257,6 +257,14 @@ int main()
                                       : a * std::bit_cast<double>((std::uint64_t{1023 - 6 + g() % 12} << 52) | (g() >> 12));
         return std::pair{a, x < 0 ? -x : x};
     };
+    auto const bessel_input = [&](splitmix64& g) {                    // ν : 2^-10 … 2^17 ou entier ; x : 2^-20 ν … 8ν, ou 2^-30 … 2^10
+        double const nu = g() % 4 == 0 ? double(g() % 80) : std::bit_cast<double>((std::uint64_t{1023 - 10 + g() % 28} << 52) | (g() >> 12));
+        double const x = g() % 2 == 0 && nu > 0 ? nu * std::bit_cast<double>((std::uint64_t{1023 - 20 + g() % 24} << 52) | (g() >> 12))
+                                                : std::bit_cast<double>((std::uint64_t{1023 - 30 + g() % 40} << 52) | (g() >> 12));
+        return std::pair{nu, x};
+    };
+    auto const bessel_double = fingerprint([&](splitmix64& g) { auto const [nu, x] = bessel_input(g); return of_double(sp::cyl_bessel_i(nu, x)); }, 1 << 13);
+    auto const bessel_float = fingerprint([&](splitmix64& g) { auto const [nu, x] = bessel_input(g); return of_float(sp::cyl_bessel_i(static_cast<float>(nu), static_cast<float>(x))); }, 1 << 13);
     auto const gamma_p_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_p(a, x)); }, 1 << 15);
     auto const gamma_q_double = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_double(sp::gamma_q(a, x)); }, 1 << 15);
     auto const gamma_q_float = fingerprint([&](splitmix64& g) { auto const [a, x] = igamma_input(g); return of_float(sp::gamma_q(static_cast<float>(a), static_cast<float>(x))); }, 1 << 15);
@@ -334,6 +342,8 @@ int main()
     ok &= check("tgamma float", tgamma_float, 0x99520856f145ad49);
     ok &= check("digamma double", digamma_double, 0x3a9ec0df558f01bc);
     ok &= check("digamma float", digamma_float, 0x260ca54d39c41921);
+    ok &= check("cyl_bessel_i double", bessel_double, 0x09e45f5f0113e296);
+    ok &= check("cyl_bessel_i float", bessel_float, 0x57bcfafd01e44f18);
     ok &= check("gamma_p double", gamma_p_double, 0xe7b7bbc1b3a35053);
     ok &= check("gamma_q double", gamma_q_double, 0x9782b6a6da56fe8d);
     ok &= check("gamma_q float", gamma_q_float, 0x84058102c180cb27);

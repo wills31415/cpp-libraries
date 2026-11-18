@@ -57,6 +57,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `uniform_sphere`, `uniform_ball`, en dimension fixe ou `wsl::dynamic` ;
   `wsl::square_matrix`. Densités et masses en logarithme double-double, moments,
   covariances, entropies, marginales.
+- Lois `von_mises` (cercle) et `von_mises_fisher` (sphère, dimension fixe ou dynamique) :
+  densités, longueurs résultantes, entropies sous 0,5 ulp ; tirages de Best–Fisher et Wood.
 - Lois multivariées, lot 2 : `multivariate_student_t`, `wishart`, `inverse_wishart`,
   `haar_orthogonal`, `haar_unitary`, `goe`, `gue` (valeurs `wsl::square_matrix`, réelles
   ou `std::complex`, produits complexes protégés de la contraction).
@@ -77,6 +79,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Preset release des nouveaux projets en `-march=native` sur x86-64 (fma, AVX2…).
 
 ### special (nouvelle)
+- `cyl_bessel_i(ν, x)` (Bessel modifiée I_ν, float et double) : série, Hankel, Debye
+  (polynômes engendrés exactement) ; 0,4993 ulp mesurée, arrondi correct partout.
 - `wsl::special::exp` et `wsl::special::log`, en `float` et en `double` : même
   résultat au bit près sur toute plateforme, quelles que soient les options de
   compilation du projet (fma, `-ffp-contract=fast`), et `constexpr`. Erreur

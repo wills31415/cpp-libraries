@@ -49,3 +49,4 @@
 #include <wsl/random/multivariate_student_t.hpp>
 #include <wsl/random/wishart.hpp>
 #include <wsl/random/random_matrix.hpp>
+#include <wsl/random/von_mises.hpp>

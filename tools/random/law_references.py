@@ -586,6 +586,42 @@ def algebra_laws(kind):
     return out
 
 
+VON_MISES = [(0.0, 0.01), (0.5, 0.5), (-2.0, 4.0), (1.0, 30.0), (0.0, 1e3), (3.0, 1e5)]
+VON_MISES_FISHER = [(0.5, 3), (10.0, 3), (1e3, 3), (3.5, 5), (50.0, 10), (1e4, 4), (200.0, 120)]
+
+
+def circular_laws(kind):
+    """von Mises (a = μ, b = κ) ; von Mises–Fisher (a = κ, b = p, μ = e_p, x = (√(1 − t²), 0, …, 0, t))."""
+    if kind != "double":
+        return []
+    out = []
+    count = 120
+    bessel = lambda nu, k: mp.besseli(mpf(nu), mpf(k), maxterms=10 ** 7)
+    for mu, kappa in VON_MISES:
+        m, k = mpf(mu), mpf(kappa)
+        xs = [float(mu + rng.uniform(-math.pi, math.pi) * (2.0 ** -rng.uniform(0, 12) if rng.random() < 0.4 else 1)) for _ in range(count)]
+        with mp.workprec(400):
+            i0, i1 = bessel(0, k), bessel(1, k)
+            lnorm = mp.log(2 * mp.pi) + mp.log(i0)
+        out.append(("von_mises_pdf", mu, kappa, xs, lambda x, m=m, k=k, lnorm=lnorm: mp.exp(k * mp.cos(mpf(x) - m) - lnorm)))
+        out.append(("von_mises_log_pdf", mu, kappa, xs, lambda x, m=m, k=k, lnorm=lnorm: k * mp.cos(mpf(x) - m) - lnorm))
+        out.append(("von_mises_resultant", mu, kappa, [0.0], lambda _, i0=i0, i1=i1: i1 / i0))
+        out.append(("von_mises_circular_variance", mu, kappa, [0.0], lambda _, i0=i0, i1=i1: 1 - i1 / i0))
+        out.append(("von_mises_entropy", mu, kappa, [0.0], lambda _, k=k, i0=i0, i1=i1, lnorm=lnorm: lnorm - k * i1 / i0))
+    for kappa, dim in VON_MISES_FISHER:
+        k, d = mpf(kappa), dim
+        ts = sorted({1 - 2.0 ** -rng.uniform(1, 40) if rng.random() < 0.5 else rng.uniform(-1, 1) for _ in range(count)})
+        with mp.workprec(400):
+            nu = mpf(d) / 2 - 1
+            lc = nu * mp.log(k) - (mpf(d) / 2) * mp.log(2 * mp.pi) - mp.log(bessel(nu, k))
+            a = bessel(nu + 1, k) / bessel(nu, k)
+        out.append(("von_mises_fisher_pdf", kappa, float(d), ts, lambda t, k=k, lc=lc: mp.exp(lc + k * mpf(t))))
+        out.append(("von_mises_fisher_log_pdf", kappa, float(d), ts, lambda t, k=k, lc=lc: lc + k * mpf(t)))
+        out.append(("von_mises_fisher_resultant", kappa, float(d), [0.0], lambda _, a=a: a))
+        out.append(("von_mises_fisher_entropy", kappa, float(d), [0.0], lambda _, k=k, lc=lc, a=a: -lc - k * a))
+    return out
+
+
 def discrete_quantiles(name, cases, cdf, start):
     """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
     tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
@@ -612,7 +648,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind):
             rows = groups.setdefault(name, [])
             for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)

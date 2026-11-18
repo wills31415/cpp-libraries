@@ -318,6 +318,63 @@ int main()
         assert(std::abs(vr / n - 0.5) < 0.02);
     }
 
+    // ---- von Mises, von Mises–Fisher -----------------------------------------------
+    {
+        for (double kappa : {0.3, 4.0, 50.0})
+        {
+            wsl::von_mises const V({.mu = 1.0, .kappa = kappa});
+            // Répartition par intégration (trapèzes, 2^16 pas) de la densité.
+            int const steps = 1 << 16;
+            double const lo = V.support().lower, h = (V.support().upper - lo) / steps;
+            std::vector<double> F(steps + 1, 0.0);
+            for (int i = 1; i <= steps; ++i)
+                F[i] = F[i - 1] + h * (pdf(V, lo + (i - 1) * h) + pdf(V, lo + i * h)) / 2;
+            assert(std::abs(F[steps] - 1) < 1e-9);
+            std::vector<double> v;
+            double c = 0;
+            for (int i = 0; i < n; ++i)
+            {
+                double const x = sample(V, g);
+                assert(x >= V.support().lower - 1e-15 && x <= V.support().upper + 1e-15);
+                v.push_back(x);
+                c += std::cos(x - 1);
+            }
+            assert(std::abs(c / n - V.mean_resultant_length()) < 0.02);
+            assert(kolmogorov_smirnov(v, [&](double x) {
+                double const r = (x - lo) / h;
+                int const i = std::clamp(static_cast<int>(r), 0, steps - 1);
+                return F[i] + (F[i + 1] - F[i]) * (r - i);
+            }) < 1.95);
+        }
+        wsl::von_mises const U({.mu = 0.0, .kappa = 0.0});                    // uniforme sur le cercle
+        assert(ulps(pdf(U, 2.0), 1 / (2 * std::numbers::pi), 1) && pdf(U, 3.5) == 0 && U.circular_variance() == 1);
+        assert(throws_domain_error([] { wsl::von_mises X({.mu = 0.0, .kappa = -1.0}); }));
+        // p = 3 : t = μᵀX de répartition (e^{κt} − e^{−κ})/(e^κ − e^{−κ}), azimut uniforme.
+        for (double kappa : {0.5, 10.0, 300.0})
+        {
+            wsl::von_mises_fisher<double, 3> const M({.mean_direction = {0, 0, 1}, .kappa = kappa});
+            std::vector<double> t, phi;
+            for (int i = 0; i < n; ++i)
+            {
+                auto const x = sample(M, g);
+                assert(std::abs(x[0] * x[0] + x[1] * x[1] + x[2] * x[2] - 1) < 1e-15);
+                t.push_back(x[2]);
+                phi.push_back(std::atan2(x[1], x[0]));
+            }
+            assert(kolmogorov_smirnov(t, [&](double z) { return std::expm1(kappa * (z + 1)) / std::expm1(2 * kappa); }) < 1.95);
+            assert(kolmogorov_smirnov(phi, [](double a) { return (a + std::numbers::pi) / (2 * std::numbers::pi); }) < 1.95);
+        }
+        wsl::von_mises_fisher<double> const D({.mean_direction = {1, 2, 2, 0, -1}, .kappa = 3.5});
+        assert(ulps(D.mean_direction()[1], 2 / std::sqrt(10.0), 1) && ulps(D.entropy(), 2.447886519925983, 2) && ulps(D.mean_resultant_length(), 0.53928842320413421, 2));
+        double m1 = 0;
+        for (int i = 0; i < n; ++i)
+            m1 += sample(D, g)[1];
+        assert(std::abs(m1 / n - D.mean()[1]) < 0.01);
+        wsl::von_mises_fisher<double, 3> const Z({.mean_direction = {0, -1, 0}, .kappa = 0.0});
+        assert(ulps(pdf(Z, {0.0, 1.0, 0.0}), 1 / (4 * std::numbers::pi), 1));
+        assert(throws_domain_error([] { wsl::von_mises_fisher<double, 2> X({.mean_direction = {0, 0}, .kappa = 1.0}); }));
+    }
+
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
@@ -348,15 +405,21 @@ int main()
         ok &= check("haar_unitary", fingerprint([&](fnv1a& h) { all(h, sample(HU, x)); }), 0xcf6b88432f8193b9);
         ok &= check("goe", fingerprint([&](fnv1a& h) { all(h, sample(GO, x)); }), 0xddb4938359d8b2e9);
         ok &= check("gue", fingerprint([&](fnv1a& h) { all(h, sample(GU, x)); }), 0xfd93e1b6acc6374f);
+        wsl::von_mises const VM({.mu = -1.0, .kappa = 6.0});
+        wsl::von_mises_fisher<double, 3> const VF({.mean_direction = {0.6, 0, -0.8}, .kappa = 20.0});
+        wsl::von_mises_fisher<double> const VD({.mean_direction = {1, 1, 1, 1, 1, 1}, .kappa = 2.0});
+        ok &= check("von_mises", fingerprint([&](fnv1a& h) { h.add(bits(sample(VM, x))); }), 0xc6ba70678de3be7f);
+        ok &= check("von_mises_fisher", fingerprint([&](fnv1a& h) { for (double v : sample(VF, x)) h.add(bits(v)); }), 0x1aea2eb0da6a278b);
+        ok &= check("vmf (dynamique)", fingerprint([&](fnv1a& h) { for (double v : sample(VD, x)) h.add(bits(v)); }), 0xb45be65456b07a76);
         ok &= check("functions 2", fingerprint([&](fnv1a& h) {
             auto const w = sample(W, x);
             h.add(bits(log_pdf(W, w)) ^ (bits(log_pdf(T2, {w(0, 0), w(1, 2)})) << 1) ^ (bits(log_pdf(GO, sample(GO, x))) << 2));
-        }, 1 << 8), 0x273956bed6d9dcb2);
+        }, 1 << 8), 0xcebc860185777128);
         ok &= check("functions", fingerprint([&](fnv1a& h) {
             namespace fp = wsl::special::detail;
             double const u = wsl::uniform_real(x), v = fp::fmul(0.5, u);
             h.add(bits(pdf(D, {v, 0.25, 0.75 - v})) ^ (bits(log_pdf(X, {u, v, -u})) << 1) ^ (bits(pmf(M, {5, 10, 15, 20})) << 2));
-        }, 1 << 9), 0xbaa7a011035b04e8);
+        }, 1 << 9), 0x5e2d79ac0279d5e6);
     }
     assert(ok);
     std::printf("test_random_multivariate : ok\n");

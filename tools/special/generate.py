@@ -631,6 +631,59 @@ def incomplete_gamma_tables():
 rng = random.Random(20261116)
 
 
+# Bessel modifiée I_ν : développement uniforme de Debye (DLMF 10.41.3), ν >= BESSEL_DEBYE_FROM.
+BESSEL_DEBYE_FROM = 50
+BESSEL_DEBYE_TERMS = 28                         # u_0 … u_27 (reste < 2^-112 vérifié, ν >= 50)
+BESSEL_HANKEL_FROM = 60                         # Hankel pour x >= max(60, ν²/2), ν < 50
+
+
+def debye_polynomials(count):
+    """u_k(t), DLMF 10.41.10 : u_{k+1} = ½ t²(1 − t²) u_k' + ⅛ ∫₀ᵗ (1 − 5s²) u_k(s) ds, en rationnels."""
+    from fractions import Fraction
+
+    def deriv(q):
+        return {e - 1: c * e for e, c in q.items() if e > 0}
+
+    def mul(a, b):
+        r = {}
+        for e1, c1 in a.items():
+            for e2, c2 in b.items():
+                r[e1 + e2] = r.get(e1 + e2, 0) + c1 * c2
+        return r
+
+    u = [{0: Fraction(1)}]
+    while len(u) < count + 1:
+        r = mul({2: Fraction(1, 2), 4: Fraction(-1, 2)}, deriv(u[-1]))
+        for e, c in mul({0: Fraction(1), 2: Fraction(-5)}, u[-1]).items():
+            r[e + 1] = r.get(e + 1, 0) + c / (e + 1) / 8
+        u.append({e: c for e, c in r.items() if c != 0})
+    return u
+
+
+def bessel_tables():
+    u = debye_polynomials(BESSEL_DEBYE_TERMS)
+    worst = max(abs(sum(mpf(c.numerator) / c.denominator * mpf(t) ** e for e, c in u[BESSEL_DEBYE_TERMS].items()))
+                for t in [i / mpf(400) for i in range(401)])
+    rest = worst / mpf(BESSEL_DEBYE_FROM) ** BESSEL_DEBYE_TERMS
+    assert rest < mpf(2) ** -112, rest
+    out = [HEADER, "#pragma once\n\n",
+           "// Tables de la fonction de Bessel modifiée I_ν (voir bessel.hpp).\n\n",
+           "namespace wsl::special::detail\n{\n",
+           f"    inline constexpr double bessel_debye_from = {BESSEL_DEBYE_FROM};\n",
+           f"    inline constexpr int bessel_debye_terms = {BESSEL_DEBYE_TERMS};\n",
+           f"    inline constexpr double bessel_hankel_from = {BESSEL_HANKEL_FROM};\n\n",
+           "    // Polynômes de Debye u_k(t) = Σ_j c_kj t^{k + 2j}, j = 0 … k, k = 0 … terms − 1 :\n",
+           "    // c_kj (hi, lo) en k(k + 1)/2 + j. Reste après u_{terms − 1} < 2^-112 pour ν >= 50.\n",
+           "    inline constexpr double bessel_debye[][2] = {\n"]
+    for k in range(BESSEL_DEBYE_TERMS):
+        for j in range(k + 1):
+            c = u[k].get(k + 2 * j, 0)
+            hi, lo = double_double(mpf(c.numerator) / c.denominator) if c != 0 else (0.0, 0.0)
+            out.append(f"        {{{hexd(hi)}, {hexd(lo)}}},\n")
+    out.append("    };\n}\n")
+    return "".join(out)
+
+
 def random_positive_double():
     while True:
         b = rng.getrandbits(63)
@@ -1409,6 +1462,36 @@ def references2(name, pts, f, rounder, ulp, fmt, ctype):
     return "".join(lines), kept
 
 
+bessel_rng = random.Random(20261118)
+
+
+def bessel_points(count, convert=float, low=-700.0, high=700.0):
+    """(ν, x) : ν entiers, quelconques sous 50, autour de 50 (bascule vers Debye), grands ;
+    x log-uniforme ou autour de ν ; résultat dans l'intervalle [e^low, e^high] (estimé)."""
+    pts = []
+    while len(pts) < count:
+        u = bessel_rng.random()
+        nu = (float(bessel_rng.randrange(0, 61)) if u < 0.3 else 2.0 ** bessel_rng.uniform(-20, math.log2(50)) if u < 0.6
+              else bessel_rng.uniform(45, 55) if u < 0.75 else 2.0 ** bessel_rng.uniform(math.log2(50), math.log2(2e5)))
+        x = 2.0 ** bessel_rng.uniform(-30, 11) if bessel_rng.random() < 0.6 or nu < 1 else nu * 2.0 ** bessel_rng.uniform(-3, 2)
+        nu, x = convert(nu), convert(x)
+        if not (x > 0 and nu >= 0) or math.isinf(x) or math.isinf(nu):
+            continue
+        if nu >= 1:
+            z = x / nu
+            q = math.sqrt(1 + z * z)
+            estimate = nu * (q + math.log(z / (1 + q))) - 0.5 * math.log(2 * math.pi * nu) - 0.5 * math.log(q)
+        else:
+            estimate = max(x - 0.5 * math.log(2 * math.pi * x), nu * math.log(x / 2) - math.lgamma(nu + 1))
+        if low < estimate < high:
+            pts.append((nu, x))
+    return pts
+
+
+def bessel_exact(nu, x):
+    return mp.besseli(mpf(nu), mpf(x), maxterms=10 ** 7)
+
+
 def references3(name, pts, f, rounder, ulp, fmt, ctype):
     lines = [f"    // {name} : a, b, x, arrondi correct de f(a, b, x), position exacte en ulp\n",
              f"    inline constexpr reference3<{ctype}> {name}[] = {{\n"]
@@ -1498,6 +1581,8 @@ def reference_file():
             ("gamma_q_inv_double", igamma_inverse_double, lambda a, t: igamma_inverse_exact(a, t, True), round_double, ulp_double, hexd, "double"),
             ("gamma_p_inv_float", igamma_inverse_float, lambda a, t: igamma_inverse_exact(a, t, False), round_float, ulp_float, hexf, "float"),
             ("lbeta_double", beta_points, lambda a, b: mp.loggamma(mpf(a)) + mp.loggamma(mpf(b)) - mp.loggamma(mpf(a) + mpf(b)), round_double, ulp_double, hexd, "double"),
+            ("cyl_bessel_i_double", bessel_points(1500), bessel_exact, round_double, ulp_double, hexd, "double"),
+            ("cyl_bessel_i_float", bessel_points(400, to_f32_safe, -100.0, 88.0), bessel_exact, round_float, ulp_float, hexf, "float"),
             ("beta_double", beta_points, lambda a, b: mp.exp(mp.loggamma(mpf(a)) + mp.loggamma(mpf(b)) - mp.loggamma(mpf(a) + mpf(b))), round_double, ulp_double, hexd, "double")):
         text, counts[name] = references2(name, pts, f, rounder, ulp, fmt, ctype)
         out.append(text)
@@ -1534,6 +1619,7 @@ def main():
         (ROOT / "include/wsl/special/detail/gamma_tables.hpp").write_text(gamma_tables())
         (ROOT / "include/wsl/special/detail/digamma_tables.hpp").write_text(digamma_tables())
         (ROOT / "include/wsl/special/detail/incomplete_gamma_tables.hpp").write_text(incomplete_gamma_tables())
+        (ROOT / "include/wsl/special/detail/bessel_tables.hpp").write_text(bessel_tables())
     if arguments.references:
         text, counts = reference_file()
         output = Path(arguments.references)

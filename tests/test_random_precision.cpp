@@ -8,6 +8,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -177,6 +178,30 @@ int main()
     CQ(T, bound, logistic, "logistic", (wsl::logistic<T>({.location = T(a), .scale = T(b)})))                                         \
     CQ(T, bound, pareto, "pareto", (wsl::pareto<T>({.scale = T(a), .shape = T(b)})))
     SURVIVAL_CHECKS(double, tight)
+    {
+        // von Mises et von Mises–Fisher (μ = e_p, x = (√(1 − t²), 0, …, 0, t)).
+        auto const V = [](double m, double k) { return wsl::von_mises({.mu = m, .kappa = k}); };
+        check<double>("von_mises pdf", d::von_mises_pdf_double, [&](double a, double b, double x) { return pdf(V(a, b), x); }, tight);
+        check<double>("von_mises log_pdf", d::von_mises_log_pdf_double, [&](double a, double b, double x) { return log_pdf(V(a, b), x); }, 1.0);
+        check<double>("von_mises resultant", d::von_mises_resultant_double, [&](double a, double b, double) { return V(a, b).mean_resultant_length(); }, tight);
+        check<double>("von_mises circ. var.", d::von_mises_circular_variance_double, [&](double a, double b, double) { return V(a, b).circular_variance(); }, tight);
+        check<double>("von_mises entropy", d::von_mises_entropy_double, [&](double a, double b, double) { return V(a, b).entropy(); }, 1.0);
+        auto const F = [](double k, double p) {
+            std::vector<double> mu(static_cast<std::size_t>(p), 0.0);
+            mu.back() = 1;
+            return wsl::von_mises_fisher<double>({.mean_direction = mu, .kappa = k});
+        };
+        auto const point = [](double p, double t) {
+            std::vector<double> x(static_cast<std::size_t>(p), 0.0);
+            x.front() = wsl::special::sqrt(wsl::special::detail::fmul(1 - t, 1 + t));
+            x.back() = t;
+            return x;
+        };
+        check<double>("vmf pdf", d::von_mises_fisher_pdf_double, [&](double a, double b, double t) { return pdf(F(a, b), point(b, t)); }, tight);
+        check<double>("vmf log_pdf", d::von_mises_fisher_log_pdf_double, [&](double a, double b, double t) { return log_pdf(F(a, b), point(b, t)); }, 1.0);
+        check<double>("vmf resultant", d::von_mises_fisher_resultant_double, [&](double a, double b, double) { return F(a, b).mean_resultant_length(); }, tight);
+        check<double>("vmf entropy", d::von_mises_fisher_entropy_double, [&](double a, double b, double) { return F(a, b).entropy(); }, 1.0);
+    }
     {
         // Lois construites : erreur de composition (docs/random.md), bornes mesurées.
         auto const Z = [](double nu) { return wsl::affine(wsl::student_t({.degrees_of_freedom = nu}), {.scale = -2, .shift = 5}); };

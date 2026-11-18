@@ -164,6 +164,8 @@ int main()
     check<float>("log10 float", reference_data::log10_float, [](float x) { return sp::log10(x); }, 0.5 + 0x1p-28);
     check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
     check2<double>("pow double", reference_data::pow_double, [](double x, double y) { return sp::pow(x, y); }, 0.51);
+    check2<double>("cyl_bessel_i dbl", reference_data::cyl_bessel_i_double, [](double nu, double x) { return sp::cyl_bessel_i(nu, x); }, 0.51);
+    check2<float>("cyl_bessel_i flt", reference_data::cyl_bessel_i_float, [](float nu, float x) { return sp::cyl_bessel_i(nu, x); }, 0.5 + 0x1p-28);
     check2<double>("gamma_p dbl", reference_data::gamma_p_double, [](double a, double x) { return sp::gamma_p(a, x); }, 0.51);
     check2<double>("gamma_q dbl", reference_data::gamma_q_double, [](double a, double x) { return sp::gamma_q(a, x); }, 0.51);
     check2<float>("gamma_p float", reference_data::gamma_p_float, [](float a, float x) { return sp::gamma_p(a, x); }, 0.5 + 0x1p-28);

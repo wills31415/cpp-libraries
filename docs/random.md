@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite, sauf von Mises–Fisher (§12).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12).
 
 ## 1. Vision ✅
 
@@ -243,7 +243,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
-| 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, Haar, GOE, GUE ; von Mises–Fisher avec I_ν) |
+| 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, von Mises, von Mises–Fisher, Haar, GOE, GUE) |
 | 7 | Objets combinatoires (avec `wsl::permutation`) |
 | 8 | Processus |
 
@@ -649,7 +649,17 @@ gamma), moyennes empiriques, marginales par Kolmogorov–Smirnov, orthogonalité
 unitarité à 2·10⁻¹⁵, colonne de Haar uniforme sur S², |u₀₀|² de loi bêta(1, n − 1),
 déterminant ±1 équiprobable.
 
-**von Mises–Fisher, reportée** : sa constante de normalisation demande la fonction de
-Bessel modifiée I_ν(κ), absente de `wsl::special` ; elle viendra avec I_ν (série,
-développement asymptotique, régime uniforme pour ν grand) au même niveau d'exigence que
-les autres fonctions spéciales.
+### von Mises et von Mises–Fisher
+
+Avec `wsl::special::cyl_bessel_i` (docs/special.md §8) :
+
+| Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `von_mises<T>` | `{.mu, .kappa}`, support [μ − π, μ + π] | densité exp(−2κ sin²((x − μ)/2) − log 2π − log(e^{−κ}I₀(κ))), x − μ et le sinus en double-double ; longueur résultante A = I₁/I₀, variance circulaire 1 − A, entropie | Best et Fisher (1979) |
+| `von_mises_fisher<T, N>` | `{.mean_direction, .kappa}` (μ normalisé) | densité exp(κ(μᵀx − 1) + log C_p + κ), μᵀx − 1 en double-double ; moyenne A_p μ, entropie ; κ = 0 : uniforme | Wood (1994), réflexion de Householder e₁ → μ |
+
+Mesure contre mpmath : densités, log-densités, A, variance circulaire, entropies sous
+0,5 ulp, arrondi correct sur 100 % des 2 900 points (κ de 0,01 à 10⁵, dimensions 3 à
+120). Tirages : Kolmogorov–Smirnov contre la répartition intégrée (von Mises) et contre
+la loi exacte de μᵀX pour p = 3, azimut uniforme, E[X] = A_p μ. Pas de répartition de
+von Mises (pas de forme close ; série de Bessel possible plus tard).

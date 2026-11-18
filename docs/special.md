@@ -147,7 +147,8 @@ n'en utilise aucune.
 | **1** | `exp`, `exp2`, `expm1`, `log`, `log2`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `cbrt`, `hypot` | Toutes les lois continues : exponentielle, normale (Box–Muller), Cauchy, sphère, von Mises… |
 | **1** | `lgamma`, `tgamma`, `erf`, `erfc`, `erf_inv`, `erfc_inv` | Densités de gamma, bêta, Poisson ; normale (répartition, quantile) |
 | **4** | `gamma_p`, `gamma_q` (gamma incomplètes régularisées) et inverses ; `beta`, `lbeta`, `beta_inc` et inverse ; `digamma` | Répartition et quantiles : gamma, χ², Poisson, bêta, binomiale, Student, Fisher |
-| plus tard | Bessel (`cyl_bessel_i`…), `riemann_zeta` et zeta de Hurwitz, `expint`, Owen T, fonctions de Lambert, polylogarithme… | von Mises, Zipf, Skellam, normale asymétrique, Rice… |
+| **5** | `cyl_bessel_i` (Bessel modifiée I_ν) | von Mises, von Mises–Fisher |
+| plus tard | Bessel (`cyl_bessel_k`, `cyl_bessel_j`…), `riemann_zeta` et zeta de Hurwitz, `expint`, Owen T, fonctions de Lambert, polylogarithme… | von Mises, Zipf, Skellam, normale asymétrique, Rice… |
 
 L'ordre dans la phase 1 suit les dépendances : `exp`/`log` d'abord (tout le reste
 s'appuie dessus), puis `pow`, puis les fonctions trigonométriques (réduction d'argument
@@ -194,6 +195,7 @@ zones délicates — petits arguments de `expm1` et `log1p`, voisinage de −1 p
 | `beta`, `lbeta` | 0,500 ulp | 100 % | |
 | `ibeta`, `ibetac` | 0,500 ulp | 100 % | 0,499 ulp (100 %) |
 | `ibeta_inv`, `ibetac_inv` | 0,500 ulp | 100 % | 0,500 ulp (100 %) |
+| `cyl_bessel_i` | 0,499 ulp | 100 % | 0,499 ulp (100 %) |
 
 Les points de `sin`, `cos` et `tan` (3 200 en double) couvrent les petits, moyens et
 immenses arguments (jusqu'à `DBL_MAX`), les doubles les plus proches de multiples de
@@ -472,3 +474,22 @@ Générateur : `--references` calcule les valeurs exactes sur tous les cœurs
 (`multiprocessing`, fork), sortie identique octet pour octet au calcul séquentiel
 (attention : dépicler un `mpf` l'arrondit à la précision courante ; les fils renvoient
 le tuple brut). Environ 2 minutes.
+
+## 8. Bessel modifiée I_ν
+
+`cyl_bessel_i(ν, x)`, comme `std::cyl_bessel_i` : ν >= 0, x >= 0 (ν entier : ν < 0 et
+x < 0 aussi, par I_{−n} = I_n et la parité). Trois régimes, tout en double-double, un
+arrondi final :
+
+| Régime | Méthode |
+|---|---|
+| ν >= 50 | développement uniforme de Debye (DLMF 10.41.3), 28 polynômes u_k(t) en rationnels exacts (`--tables`, reste < 2⁻¹¹² vérifié par le générateur) |
+| ν < 50, x >= max(60, ν²/2) | développement de Hankel e^x/√(2πx) Σ(−1)^k a_k(ν)/x^k, au plus 36 termes (terme exponentiellement petit omis : e^{−2x}) |
+| sinon | série entière, termes positifs, somme tenue à l'échelle (elle dépasse 2^1024 vers x = 1 250) |
+
+Mesure : 1 500 points en double (ν jusqu'à 2·10⁵, autour de la bascule ν = 50, x de
+2⁻³⁰ à ~2·10⁵, résultats de e^{−700} à e^{700}) et 400 en float : 0,4993 ulp, arrondi
+correct partout ; références `mp.besseli` à 300 bits. Coût : 1 à 3 µs (série courte,
+Hankel), ~9 µs (Debye), jusqu'à ~24 µs (série pour ν proche de 50 et x proche de 1 250).
+`detail::log_cyl_bessel_i(ν, x)` donne log I_ν(x) en double-double, sans débordement,
+pour les lois de von Mises.
