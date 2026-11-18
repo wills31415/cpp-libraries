@@ -31,6 +31,9 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   (macOS), Debug + Release, `-DWSL_LIBRARIES_WERROR=ON`, plus `tests/package/`.
   Reproduire la partie Linux en local : conteneur `ubuntu:24.04` avec
   `cmake make g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
+  Y compiler les tests **optimisés** (`-O2`, comme les jobs release) : certains
+  avertissements de GCC (`-Warray-bounds`…) n'apparaissent qu'avec l'optimisation ;
+  `-fsyntax-only` ne suffit pas.
 - Les projets consomment le dépôt par FetchContent figé sur un tag ; cpp-init le
   configure par défaut.
 

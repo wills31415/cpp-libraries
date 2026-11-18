@@ -186,15 +186,17 @@ int main()
         check<double>("von_mises resultant", d::von_mises_resultant_double, [&](double a, double b, double) { return V(a, b).mean_resultant_length(); }, tight);
         check<double>("von_mises circ. var.", d::von_mises_circular_variance_double, [&](double a, double b, double) { return V(a, b).circular_variance(); }, tight);
         check<double>("von_mises entropy", d::von_mises_entropy_double, [&](double a, double b, double) { return V(a, b).entropy(); }, 1.0);
+        // (dimension p >= 3 : vecteurs construits par push_back, sans front()/back() que GCC -O2
+        // croit pouvoir viser un vecteur vide, -Warray-bounds)
         auto const F = [](double k, double p) {
-            std::vector<double> mu(static_cast<std::size_t>(p), 0.0);
-            mu.back() = 1;
+            std::vector<double> mu(static_cast<std::size_t>(p) - 1, 0.0);
+            mu.push_back(1.0);
             return wsl::von_mises_fisher<double>({.mean_direction = mu, .kappa = k});
         };
         auto const point = [](double p, double t) {
-            std::vector<double> x(static_cast<std::size_t>(p), 0.0);
-            x.front() = wsl::special::sqrt(wsl::special::detail::fmul(1 - t, 1 + t));
-            x.back() = t;
+            std::vector<double> x{wsl::special::sqrt(wsl::special::detail::fmul(1 - t, 1 + t))};
+            x.resize(static_cast<std::size_t>(p) - 1, 0.0);
+            x.push_back(t);
             return x;
         };
         check<double>("vmf pdf", d::von_mises_fisher_pdf_double, [&](double a, double b, double t) { return pdf(F(a, b), point(b, t)); }, tight);
