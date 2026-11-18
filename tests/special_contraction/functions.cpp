@@ -128,6 +128,13 @@ extern "C"
                                            return 1 + pdf(X, {x, a}) + log_pdf(X, {x, a}) + X.entropy() + X.mahalanobis_squared({x, x}); }
     double check_sphere(double x) { wsl::uniform_sphere<double, 3> const S; wsl::uniform_ball<double, 5> const B;
                                     return 1 + pdf(S, {x, 0.0, 0.0}) + S.surface_area() + S.entropy() + B.volume() + pdf(B, {x, 0, 0, 0, 0}); }
+    double check_mvt(double nu, double x) { wsl::multivariate_student_t<double, 2> const X({.degrees_of_freedom = nu, .location = {x, 0}, .scale = {{2, 0.5}, {0.5, 1}}});
+                                            return 1 + pdf(X, {x, 1}) + log_pdf(X, {x, x}) + X.entropy() + X.covariance()(0, 1); }
+    double check_wishart(double nu, double x) { wsl::wishart<double, 2> const W({.degrees_of_freedom = nu, .scale = {{2, 0.5}, {0.5, 1}}}); wsl::square_matrix<double, 2> const A{{x, 0.1}, {0.1, 1}};
+                                                wsl::inverse_wishart<double, 2> const I({.degrees_of_freedom = nu, .scale = {{2, 0.5}, {0.5, 1}}});
+                                                return 1 + pdf(W, A) + log_pdf(W, A) + W.entropy() + W.mean()(0, 1) + W.variance()(0, 0) + W.mode()(1, 1) + log_pdf(I, A) + I.entropy() + I.mean()(0, 0); }
+    double check_random_matrix(double x) { wsl::goe<double, 2> const H; wsl::gue<double, 2> const K;
+                                           return 1 + pdf(H, wsl::square_matrix<double, 2>{{x, 0.5}, {0.5, x}}) + log_pdf(K, wsl::square_matrix<std::complex<double>, 2>{{x, {0.5, x}}, {{0.5, -x}, 1}}); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

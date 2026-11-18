@@ -8,6 +8,7 @@
 #include <bit>
 #include <cassert>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <cstdio>
 #include <numbers>
@@ -202,6 +203,121 @@ int main()
         assert(throws_domain_error([] { wsl::uniform_sphere<double, 3> X({.dimension = 2}); }));
     }
 
+    // ---- Student multivariée --------------------------------------------------------
+    {
+        wsl::multivariate_student_t<double, 2> const X({.degrees_of_freedom = 4, .location = {0, 1}, .scale = {{1, 0.3}, {0.3, 2}}});
+        assert(ulps(pdf(X, {0.5, 0.5}), 0.082453654979996737) && ulps(X.entropy(), 3.6614286874386147));
+        assert(X.covariance()(0, 0) == 2 && ulps(X.covariance()(0, 1), 0.6, 1) && X.mean()[1] == 1);
+        assert(std::isinf(wsl::multivariate_student_t<double, 2>({.degrees_of_freedom = 1.5, .location = {0, 0}, .scale = {{1, 0}, {0, 1}}}).covariance()(0, 0)));
+        assert(std::isnan(wsl::multivariate_student_t<double, 2>({.degrees_of_freedom = 1.0, .location = {0, 0}, .scale = {{1, 0}, {0, 1}}}).mean()[0]));
+        wsl::multivariate_student_t<double, 1> const One({.degrees_of_freedom = 3, .location = {0}, .scale = {{1}}});   // = Student
+        for (double t : {-4.0, 0.0, 0.7, 12.0})
+            assert(close(pdf(One, {t}), pdf(wsl::student_t({.degrees_of_freedom = 3.0}), t), 2e-15));
+        std::vector<double> first;
+        for (int i = 0; i < n; ++i)
+            first.push_back(sample(X, g)[1]);
+        auto const M1 = X.marginal(1);
+        assert(kolmogorov_smirnov(first, [&](double v) { return cdf(M1, v); }) < 1.95);
+    }
+
+    // ---- Wishart, inverse-Wishart --------------------------------------------------
+    {
+        wsl::square_matrix<double, 2> const A{{4, 1}, {1, 9}};
+        wsl::wishart<double, 2> const W({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
+        assert(ulps(log_pdf(W, A), -6.6844907153650172, 2) && ulps(W.entropy(), 7.8199650891973836, 2));
+        assert(W.mean()(1, 1) == 10 && ulps(W.variance()(0, 1), 10.2, 1) && W.mode()(0, 0) == 2 && log_pdf(W, wsl::square_matrix<double, 2>{{1, 2}, {2, 1}}) == -INFINITY);
+        wsl::wishart<double, 1> const W1({.degrees_of_freedom = 3, .scale = {{2}}});   // = gamma(3/2, échelle 4)
+        for (double x : {0.5, 3.0, 20.0})
+            assert(close(log_pdf(W1, wsl::square_matrix<double, 1>{{x}}), log_pdf(wsl::gamma({.shape = 1.5, .scale = 4.0}), x), 1e-14));
+        double m01 = 0;
+        std::vector<double> d;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const w = sample(W, g);
+            assert(w(0, 1) == w(1, 0) && w(0, 0) > 0 && w(0, 0) * w(1, 1) > w(0, 1) * w(0, 1));
+            m01 += w(0, 1);
+            d.push_back(w(1, 1));
+        }
+        assert(std::abs(m01 / n - 1) < 0.06);
+        auto const G = W.marginal(1);
+        assert(kolmogorov_smirnov(d, [&](double v) { return cdf(G, v); }) < 1.95);
+        wsl::inverse_wishart<double, 2> const I({.degrees_of_freedom = 6, .scale = {{1, 0.2}, {0.2, 2}}});
+        assert(ulps(log_pdf(I, A), -19.926453791435178, 2) && std::abs(I.entropy() - -0.83656422870532905) < 1e-15);
+        assert(ulps(I.mean()(1, 1), 2.0 / 3, 1) && ulps(I.mode()(0, 0), 1.0 / 9, 1));
+        double i00 = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const x = sample(I, g);
+            assert(x(0, 1) == x(1, 0) && x(0, 0) > 0);
+            i00 += x(0, 0);
+        }
+        assert(std::abs(i00 / n - 1.0 / 3) < 0.02);
+        assert(throws_domain_error([] { wsl::wishart<double, 2> Y({.degrees_of_freedom = 0.9, .scale = {{1, 0}, {0, 1}}}); }));
+        assert(throws_domain_error([] { wsl::inverse_wishart<double, 2> Y({.degrees_of_freedom = 3, .scale = {{1, 2}, {2, 1}}}); }));
+    }
+
+    // ---- Matrices aléatoires -------------------------------------------------------
+    {
+        wsl::haar_orthogonal<double, 3> const O;
+        std::vector<double> z;
+        int positive = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const q = sample(O, g);
+            for (int a = 0; a < 3; ++a)
+                for (int b = 0; b < 3; ++b)
+                {
+                    double s = 0;
+                    for (int k = 0; k < 3; ++k)
+                        s += q(k, a) * q(k, b);
+                    assert(std::abs(s - (a == b)) < 1e-15);
+                }
+            double const det = q(0, 0) * (q(1, 1) * q(2, 2) - q(1, 2) * q(2, 1)) - q(0, 1) * (q(1, 0) * q(2, 2) - q(1, 2) * q(2, 0)) + q(0, 2) * (q(1, 0) * q(2, 1) - q(1, 1) * q(2, 0));
+            positive += det > 0;
+            z.push_back(q(2, 0));                                           // colonne uniforme sur S² : Archimède
+        }
+        assert(kolmogorov_smirnov(z, [](double v) { return (v + 1) / 2; }) < 1.95 && std::abs(positive / double(n) - 0.5) < 0.015);
+        wsl::haar_unitary<double> const U({.dimension = 4});
+        std::vector<double> u2;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const u = sample(U, g);
+            for (int a = 0; a < 4; ++a)
+                for (int b = 0; b < 4; ++b)
+                {
+                    std::complex<double> s = 0;
+                    for (int k = 0; k < 4; ++k)
+                        s += std::conj(u(k, a)) * u(k, b);
+                    assert(std::abs(s - double(a == b)) < 2e-15);
+                }
+            u2.push_back(std::norm(u(0, 0)));                               // |u₀₀|² ~ bêta(1, n − 1)
+        }
+        assert(kolmogorov_smirnov(u2, [](double t) { return 1 - std::pow(1 - t, 3); }) < 1.95);
+        wsl::goe<double, 3> const H;
+        assert(ulps(pdf(H, wsl::square_matrix<double, 3>{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}), 0.011402639350693397, 1));
+        assert(log_pdf(H, wsl::square_matrix<double, 3>{{0, 1, 0}, {0, 0, 0}, {0, 0, 0}}) == -INFINITY);
+        double v00 = 0, v01 = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const h = sample(H, g);
+            assert(h(0, 2) == h(2, 0));
+            v00 += h(0, 0) * h(0, 0);
+            v01 += h(0, 1) * h(0, 1);
+        }
+        assert(std::abs(v00 / n - 1) < 0.04 && std::abs(v01 / n - 0.5) < 0.02);
+        wsl::gue<double, 2> const K;
+        assert(ulps(pdf(K, wsl::square_matrix<std::complex<double>, 2>{{0, 0}, {0, 0}}), 0.050660591821168886, 1));
+        assert(log_pdf(K, wsl::square_matrix<std::complex<double>, 2>{{{0, 1}, 0}, {0, 0}}) == -INFINITY);   // diagonale non réelle
+        double vr = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const k = sample(K, g);
+            assert(k(0, 1) == std::conj(k(1, 0)) && k(0, 0).imag() == 0);
+            vr += k(0, 1).real() * k(0, 1).real();
+        }
+        assert(std::abs(vr / n - 0.5) < 0.02);
+    }
+
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
@@ -217,11 +333,30 @@ int main()
         ok &= check("mvn (fast)", fingerprint([&](fnv1a& h) { for (double v : sample(X, x, wsl::fast)) h.add(bits(v)); }), 0x885b367a151c3b43);
         ok &= check("uniform_sphere", fingerprint([&](fnv1a& h) { for (double v : sample(S, x)) h.add(bits(v)); }), 0xd472b57b4039a242);
         ok &= check("uniform_ball", fingerprint([&](fnv1a& h) { for (double v : sample(B, x)) h.add(bits(v)); }), 0x9a77e07637a1c221);
+        wsl::multivariate_student_t<double, 2> const T2({.degrees_of_freedom = 3.5, .location = {1, 0}, .scale = {{2, -0.4}, {-0.4, 1}}});
+        wsl::wishart<double> const W({.degrees_of_freedom = 4.5, .scale = {{1, 0.3, 0}, {0.3, 2, 0.1}, {0, 0.1, 0.5}}});
+        wsl::inverse_wishart<double, 2> const IW({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
+        wsl::haar_orthogonal<double, 4> const HO;
+        wsl::haar_unitary<double, 3> const HU;
+        wsl::goe<double, 3> const GO;
+        wsl::gue<double, 3> const GU;
+        auto const all = [](fnv1a& h, auto const& m) { for (std::size_t i = 0; i < m.size(); ++i) for (std::size_t j = 0; j < m.size(); ++j) { if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m(i, j))>, double>) h.add(bits(m(i, j))); else { h.add(bits(m(i, j).real())); h.add(bits(m(i, j).imag())); } } };
+        ok &= check("multivariate_student", fingerprint([&](fnv1a& h) { for (double v : sample(T2, x)) h.add(bits(v)); }), 0x66189197e5f2a049);
+        ok &= check("wishart", fingerprint([&](fnv1a& h) { all(h, sample(W, x)); }), 0x3526188a6af0a6bd);
+        ok &= check("inverse_wishart", fingerprint([&](fnv1a& h) { all(h, sample(IW, x)); }), 0x621e8af1f4c88f70);
+        ok &= check("haar_orthogonal", fingerprint([&](fnv1a& h) { all(h, sample(HO, x)); }), 0x57ac6de9964d4ba7);
+        ok &= check("haar_unitary", fingerprint([&](fnv1a& h) { all(h, sample(HU, x)); }), 0xcf6b88432f8193b9);
+        ok &= check("goe", fingerprint([&](fnv1a& h) { all(h, sample(GO, x)); }), 0xddb4938359d8b2e9);
+        ok &= check("gue", fingerprint([&](fnv1a& h) { all(h, sample(GU, x)); }), 0xfd93e1b6acc6374f);
+        ok &= check("functions 2", fingerprint([&](fnv1a& h) {
+            auto const w = sample(W, x);
+            h.add(bits(log_pdf(W, w)) ^ (bits(log_pdf(T2, {w(0, 0), w(1, 2)})) << 1) ^ (bits(log_pdf(GO, sample(GO, x))) << 2));
+        }, 1 << 8), 0x273956bed6d9dcb2);
         ok &= check("functions", fingerprint([&](fnv1a& h) {
             namespace fp = wsl::special::detail;
             double const u = wsl::uniform_real(x), v = fp::fmul(0.5, u);
             h.add(bits(pdf(D, {v, 0.25, 0.75 - v})) ^ (bits(log_pdf(X, {u, v, -u})) << 1) ^ (bits(pmf(M, {5, 10, 15, 20})) << 2));
-        }, 1 << 9), 0x22fd3630ae225505);
+        }, 1 << 9), 0xbaa7a011035b04e8);
     }
     assert(ok);
     std::printf("test_random_multivariate : ok\n");

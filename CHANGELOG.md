@@ -57,6 +57,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `uniform_sphere`, `uniform_ball`, en dimension fixe ou `wsl::dynamic` ;
   `wsl::square_matrix`. Densités et masses en logarithme double-double, moments,
   covariances, entropies, marginales.
+- Lois multivariées, lot 2 : `multivariate_student_t`, `wishart`, `inverse_wishart`,
+  `haar_orthogonal`, `haar_unitary`, `goe`, `gue` (valeurs `wsl::square_matrix`, réelles
+  ou `std::complex`, produits complexes protégés de la contraction).
 - `ccdf`, `pdf`, `log_pdf` de Cauchy justes au-delà de |z| = 2⁶⁰⁰ (rendaient 0 ou −∞) ;
   log-densités de Laplace et de la logistique de même.
 - Variance de la normale et du χ², tirage gamma par l'échelle : produits rendus protégés

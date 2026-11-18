@@ -12,6 +12,7 @@
 // triangulaire, bit-exactes.
 
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/loader.hpp>
 #include <wsl/special.hpp>
 
 #include <array>
@@ -132,6 +133,109 @@ namespace wsl
                     l(i, j) = 0;
             }
             return true;
+        }
+
+        template <class T, std::size_t N>
+        constexpr square_matrix<T, N> make_matrix(std::size_t n)
+        {
+            if constexpr (N == dynamic)
+                return square_matrix<T, N>(n);
+            else
+                return square_matrix<T, N>();
+        }
+
+        // Σ log Lᵢᵢ (½ log det de L Lᵀ), en double-double.
+        template <std::size_t N>
+        constexpr sd::double_double half_log_determinant(square_matrix<double, N> const& l) noexcept
+        {
+            sd::double_double s{0.0, 0.0};
+            for (std::size_t i = 0; i < l.size(); ++i)
+                s = sum(s, log_precise(l(i, i)));
+            return s;
+        }
+
+        // A B, A et B quelconques ; chaque coefficient arrondi une fois.
+        template <std::size_t N>
+        constexpr square_matrix<double, N> multiply(square_matrix<double, N> const& a, square_matrix<double, N> const& b)
+        {
+            std::size_t const n = a.size();
+            auto c = make_matrix<double, N>(n);
+            for (std::size_t i = 0; i < n; ++i)
+                for (std::size_t j = 0; j < n; ++j)
+                {
+                    auto const t = dot(n, [&](std::size_t k) { return std::pair{a(i, k), b(k, j)}; });
+                    c(i, j) = t.hi + t.lo;
+                }
+            return c;
+        }
+
+        // B Bᵀ (symétrique exactement : (i, j) calculé une fois).
+        template <class T, std::size_t N>
+        constexpr square_matrix<T, N> gram(square_matrix<double, N> const& b)
+        {
+            std::size_t const n = b.size();
+            auto c = make_matrix<T, N>(n);
+            for (std::size_t i = 0; i < n; ++i)
+                for (std::size_t j = 0; j <= i; ++j)
+                {
+                    auto const t = dot(n, [&](std::size_t k) { return std::pair{b(i, k), b(j, k)}; });
+                    c(i, j) = c(j, i) = static_cast<T>(t.hi + t.lo);
+                }
+            return c;
+        }
+
+        // A⁻¹, A triangulaire inférieure inversible (colonne par colonne).
+        template <std::size_t N>
+        constexpr square_matrix<double, N> lower_inverse(square_matrix<double, N> const& a)
+        {
+            std::size_t const n = a.size();
+            auto r = make_matrix<double, N>(n);
+            for (std::size_t j = 0; j < n; ++j)
+                for (std::size_t i = j; i < n; ++i)
+                {
+                    auto const e = dot(i - j, [&](std::size_t k) { return std::pair{a(i, j + k), r(j + k, j)}; });
+                    auto const t = sum({i == j ? 1.0 : 0.0, 0.0}, {-e.hi, -e.lo});
+                    r(i, j) = (t.hi + t.lo) / a(i, i);
+                }
+            return r;
+        }
+
+        // ‖L⁻¹ M‖²_F, L triangulaire inférieure : tr(Mᵀ (L Lᵀ)⁻¹ M), en double-double.
+        template <std::size_t N>
+        constexpr sd::double_double trace_solve(square_matrix<double, N> const& l, square_matrix<double, N> const& m)
+        {
+            std::size_t const n = l.size();
+            sd::double_double s{0.0, 0.0};
+            auto column = make_vector<double, N>(n);
+            for (std::size_t j = 0; j < n; ++j)
+            {
+                for (std::size_t i = 0; i < n; ++i)
+                {
+                    auto const e = dot(i, [&](std::size_t k) { return std::pair{l(i, k), column[k]}; });
+                    auto const t = sum({m(i, j), 0.0}, {-e.hi, -e.lo});
+                    column[i] = (t.hi + t.lo) / l(i, i);
+                }
+                s = sum(s, dot(n, [&](std::size_t k) { return std::pair{column[k], column[k]}; }));
+            }
+            return s;
+        }
+
+        // log Γ_p(a) = p(p − 1)/4 log π + Σⱼ lgamma(a − j/2), a > (p − 1)/2, en double-double.
+        constexpr sd::double_double log_multivariate_gamma(std::size_t p, double a) noexcept
+        {
+            double const c = sd::fmul(double(p) * double(p - 1), 0.25);    // exact
+            sd::double_double s = mul({c, 0.0}, {sd::log_pi_hi, sd::log_pi_lo});
+            for (std::size_t j = 0; j < p; ++j)
+                s = sum(s, log_gamma(a - sd::fmul(double(j), 0.5)));
+            return s;
+        }
+        // ψ_p(a) = Σⱼ ψ(a − j/2).
+        constexpr double multivariate_digamma(std::size_t p, double a) noexcept
+        {
+            sd::double_double s{0.0, 0.0};
+            for (std::size_t j = 0; j < p; ++j)
+                s = sum(s, {wsl::special::digamma(a - sd::fmul(double(j), 0.5)), 0.0});
+            return s.hi + s.lo;
         }
 
         // z tel que L z = b (L triangulaire inférieure).

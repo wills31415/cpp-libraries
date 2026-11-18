@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) : lot 1 fait (§12).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite, sauf von Mises–Fisher (§12).
 
 ## 1. Vision ✅
 
@@ -243,7 +243,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
-| 6 | Lois multivariées (lot 1 fait : Dirichlet, multinomiale, normale multivariée, sphère, boule) |
+| 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, Haar, GOE, GUE ; von Mises–Fisher avec I_ν) |
 | 7 | Objets combinatoires (avec `wsl::permutation`) |
 | 8 | Processus |
 
@@ -631,5 +631,25 @@ Vérifications : valeurs contre mpmath à 2 ulp (densités, masses, entropies),
 moments empiriques, marginales par Kolmogorov–Smirnov, x₃ uniforme sur [−1, 1] pour la
 sphère S² (Archimède), \|x\|ⁿ uniforme pour la boule.
 
-Suite (lot 2) : Student multivariée, Wishart et inverse-Wishart, von Mises–Fisher,
-matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE).
+### Lot 2
+
+| Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `multivariate_student_t<T, N>` | `{.degrees_of_freedom, .location, .scale}` | log-densité en double-double (log1p(q/ν)), moyenne, covariance ν/(ν − 2) Σ, entropie, marginale `affine_image<student_t>` | μ + L z √(ν/V) |
+| `wishart<T, N>` | `{.degrees_of_freedom, .scale}` | log-densité par Cholesky de X, tr(V⁻¹X) = ‖L⁻¹L_X‖²_F ; moyenne, variances, mode, entropie (ψ_p), marginale gamma | Bartlett : (LA)(LA)ᵀ |
+| `inverse_wishart<T, N>` | `{.degrees_of_freedom, .scale}` | log-densité, moyenne, mode, entropie | (LA⁻ᵀ)(LA⁻ᵀ)ᵀ |
+| `haar_orthogonal<T, N>`, `haar_unitary<T, N>` | dimension | moyenne | Q de la QR d'une matrice gaussienne (Gram–Schmidt réorthogonalisé, diagonale de R positive : exactement Haar) |
+| `goe<T, N>`, `gue<T, N>` | dimension | densité ∝ e^{−tr H²/2} (diagonale N(0, 1), hors diagonale N(0, ½)), log en double-double | triangle supérieur ligne par ligne |
+
+Valeurs complexes : `std::complex<T>`, mais les produits sont faits ici avec `fmul`,
+jamais par l'opérateur `*` de `std::complex` (contractable en fma dans l'unité de
+compilation de l'utilisateur). Vérifications : densités et entropies contre mpmath
+(2 ulp ; entropie de l'inverse-Wishart à 3 ulp, ψ en double), cas n = 1 (Student,
+gamma), moyennes empiriques, marginales par Kolmogorov–Smirnov, orthogonalité et
+unitarité à 2·10⁻¹⁵, colonne de Haar uniforme sur S², |u₀₀|² de loi bêta(1, n − 1),
+déterminant ±1 équiprobable.
+
+**von Mises–Fisher, reportée** : sa constante de normalisation demande la fonction de
+Bessel modifiée I_ν(κ), absente de `wsl::special` ; elle viendra avec I_ν (série,
+développement asymptotique, régime uniforme pour ν grand) au même niveau d'exigence que
+les autres fonctions spéciales.

@@ -46,3 +46,6 @@
 #include <wsl/random/multivariate.hpp>
 #include <wsl/random/multivariate_normal.hpp>
 #include <wsl/random/sphere.hpp>
+#include <wsl/random/multivariate_student_t.hpp>
+#include <wsl/random/wishart.hpp>
+#include <wsl/random/random_matrix.hpp>
