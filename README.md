@@ -21,15 +21,15 @@ avertissements traités comme des erreurs.
 | `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
 | `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
 | `wsl::special` | `<wsl/special.hpp>` | C++20 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv` ([conception](docs/special.md)) |
-| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (`uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta` : moments, densité ou masse, répartition, quantile sous 0,51 ulp ; tirage exact pour les cinq premières) ([conception](docs/random.md)) |
+| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (`uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy` : moments, densité ou masse, répartition, quantile sous 0,51 ulp ; tirage exact pour les cinq premières) ([conception](docs/random.md)) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
 
 Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :
 lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
 
-En préparation dans `wsl::random` : les autres lois (χ², Student, Fisher, Cauchy,
-multivariées…) et leur algèbre ([conception](docs/random.md)).
+En préparation dans `wsl::random` : les autres lois (Fisher, Weibull, Laplace, logistique,
+Pareto, multivariées…) et leur algèbre ([conception](docs/random.md)).
 
 ## Utiliser les bibliothèques dans un projet
 

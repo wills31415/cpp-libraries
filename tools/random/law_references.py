@@ -32,7 +32,7 @@ def check_constants():
     exact = {
         "inv_sqrt2": 1 / mp.sqrt(2), "sqrt2": mp.sqrt(2), "inv_sqrt_2pi": 1 / mp.sqrt(2 * mp.pi),
         "half_log_2pi": mp.log(2 * mp.pi) / 2, "normal_entropy": (1 + mp.log(2 * mp.pi)) / 2,
-        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi), "one_twelfth": mpf(1) / 12,
+        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi), "one_twelfth": mpf(1) / 12, "inv_pi": 1 / mp.pi, "log_4pi": mp.log(4 * mp.pi),
     }
     for name, v in exact.items():
         hi = float(v)
@@ -271,6 +271,81 @@ def phase4_laws(kind):
     return out
 
 
+CHI2 = [1.0, 3.0, 10.0, 0.5, 100.0, 2500.0]
+STUDENT = [1.0, 2.0, 5.0, 0.5, 30.0, 1e3, 3.7, 1e4]
+LOGNORMAL = [(0.0, 1.0), (0.3, 0.5), (-5.0, 2.0), (10.0, 0.01), (0.0, 1e-3)]
+CAUCHY = [(0.0, 1.0), (1.0, 2.0), (-1e5, 3.0), (0.0, 1e-10), (1e10, 1e3)]
+
+
+def student_tail(nu, t):
+    """P(T > |t|) = I_x(ν/2, ½)/2, x = ν/(ν + t²)."""
+    with mp.workprec(450):
+        nu, t = mpf(nu), mpf(t)
+        x = nu / (nu + t * t)
+        return g.ibeta_reference(nu / 2, mpf(1) / 2, x)[0] / 2
+
+
+def derived_laws(kind):
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    count = 120 if kind == "double" else 50
+    out = []
+    for k in CHI2:
+        kk = mpf(to_type(k))
+        xs = [to_type(float(k * log_uniform(2.0 ** -20, 8.0))) for _ in range(count)]
+        out.append(("chi_squared_cdf", k, 0.0, xs, lambda x, kk=kk: g.igamma_reference(kk / 2, mpf(x) / 2)[0]))
+        if k <= 100:                                                    # coût des références
+            out.append(("chi_squared_quantile", k, 0.0, probabilities(count // 3), lambda u, kk=kk: 2 * g.igamma_inverse_exact(kk / 2, u, False)))
+    for nu in STUDENT:
+        n = mpf(to_type(nu))
+        xs = [to_type(r) for r in [rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 2.0 ** 30) for _ in range(count)]]
+        c = mp.loggamma((n + 1) / 2) - mp.loggamma(n / 2) - mp.log(n * mp.pi) / 2
+        logpdf = lambda x, n=n, c=c: c - (n + 1) / 2 * mp.log1p(mpf(x) ** 2 / n)
+        out.append(("student_t_pdf", nu, 0.0, xs, lambda x, f=logpdf: mp.exp(f(x))))
+        out.append(("student_t_log_pdf", nu, 0.0, xs, logpdf))
+        out.append(("student_t_cdf", nu, 0.0, xs, lambda x, n=n: student_tail(n, x) if x < 0 else 1 - student_tail(n, x)))
+        out.append(("student_t_ccdf", nu, 0.0, xs, lambda x, n=n: student_tail(n, x) if x > 0 else 1 - student_tail(n, x)))
+        def quantile(u, n=n):
+            if u == 0.5:
+                return mpf(0)
+            tail = min(mpf(u), 1 - mpf(u))
+            with mp.workprec(450):
+                x = g.ibeta_inverse_exact(n / 2, mpf(1) / 2, 2 * tail, False)
+                t = mp.sqrt(n * (1 - x) / x)
+            return -t if u < 0.5 else t
+        if nu <= 100:                                                   # coût des références (inverse de la bêta)
+            out.append(("student_t_quantile", nu, 0.0, probabilities(count // 3), quantile))
+        h = n / 2
+        out.append(("student_t_entropy", nu, 0.0, [0.0], lambda _, n=n, h=h: (h + mpf(1) / 2) * (mp.digamma(h + mpf(1) / 2) - mp.digamma(h))
+                    + mp.log(mp.sqrt(n)) + (mp.loggamma(h) + mp.loggamma(mpf(1) / 2) - mp.loggamma(h + mpf(1) / 2))))
+    for mu, sigma in LOGNORMAL:
+        m, sg = mpf(to_type(mu)), mpf(to_type(sigma))
+        xs = [to_type(float(mp.exp(m + sg * rng.uniform(-30, 30)))) for _ in range(count)]
+        xs = [x for x in xs if 0 < x < math.inf]
+        z = lambda x, m=m, sg=sg: (mp.log(mpf(x)) - m) / sg
+        logpdf = lambda x, z=z, sg=sg: -z(x) ** 2 / 2 - mp.log(sg) - mp.log(mpf(x)) - mp.log(2 * mp.pi) / 2
+        out.append(("lognormal_pdf", mu, sigma, xs, lambda x, f=logpdf: mp.exp(f(x))))
+        out.append(("lognormal_log_pdf", mu, sigma, xs, logpdf))
+        out.append(("lognormal_cdf", mu, sigma, xs, lambda x, z=z: mp.erfc(-z(x) / mp.sqrt(2)) / 2))
+        out.append(("lognormal_ccdf", mu, sigma, xs, lambda x, z=z: mp.erfc(z(x) / mp.sqrt(2)) / 2))
+        out.append(("lognormal_quantile", mu, sigma, probabilities(count // 3), lambda u, m=m, sg=sg: mp.exp(m + sg * normal_quantile(u))))
+        out.append(("lognormal_mean", mu, sigma, [0.0], lambda _, m=m, sg=sg: mp.exp(m + sg ** 2 / 2)))
+        out.append(("lognormal_variance", mu, sigma, [0.0], lambda _, m=m, sg=sg: mp.expm1(sg ** 2) * mp.exp(2 * m + sg ** 2)))
+        out.append(("lognormal_entropy", mu, sigma, [0.0], lambda _, m=m, sg=sg: m + mp.log(sg) + (1 + mp.log(2 * mp.pi)) / 2))
+    for x0, gm in CAUCHY:
+        a, b = mpf(to_type(x0)), mpf(to_type(gm))
+        xs = [to_type(float(a + b * rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 2.0 ** 60))) for _ in range(count)]
+        z = lambda x, a=a, b=b: (mpf(x) - a) / b
+        out.append(("cauchy_pdf", x0, gm, xs, lambda x, z=z, b=b: 1 / (mp.pi * b * (1 + z(x) ** 2))))
+        out.append(("cauchy_log_pdf", x0, gm, xs, lambda x, z=z, b=b: -mp.log(mp.pi * b * (1 + z(x) ** 2))))
+        out.append(("cauchy_cdf", x0, gm, xs, lambda x, z=z: mp.atan2(1, -z(x)) / mp.pi))
+        out.append(("cauchy_ccdf", x0, gm, xs, lambda x, z=z: mp.atan2(1, z(x)) / mp.pi))
+        # −γ cot(πu) (u < ½), γ cot(π(1 − u)) : tan(π(u − ½)) perdrait u minuscule dans u − ½.
+        out.append(("cauchy_quantile", x0, gm, probabilities(count // 3),
+                    lambda u, a=a, b=b: a - b / mp.tan(mp.pi * mpf(u)) if u < 0.5 else a + b / mp.tan(mp.pi * (1 - mpf(u)))))
+        out.append(("cauchy_entropy", x0, gm, [0.0], lambda _, b=b: mp.log(4 * mp.pi * b)))
+    return out
+
+
 def discrete_quantiles(name, cases, cdf, start):
     """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
     tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
@@ -297,7 +372,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind):
             rows = groups.setdefault(name, [])
             for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)

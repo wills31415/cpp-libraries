@@ -129,11 +129,9 @@ namespace wsl
             return upper ? sd::double_double{x_hi, x_lo} : sd::double_double{-x_hi, -x_lo};
         }
 
-        // μ + σ x arrondi une fois, x en double-double non nul.
-        constexpr double affine(double mu, double sigma, double x_hi, double x_lo) noexcept
+        // μ ± t arrondi une fois, t > 0 à l'échelle (au-delà des doubles s'il le faut).
+        constexpr double affine_scaled(double mu, bool negative, scaled t) noexcept
         {
-            bool const negative = x_hi < 0;
-            scaled t = normalized(negative ? -x_hi : x_hi, negative ? -x_lo : x_lo) * normalized(sigma, 0.0);
             if (mu == 0)
                 return negative ? -rounded(t) : rounded(t);
             // Près du débordement, calcul à l'échelle 2^-k (exacte dans les deux sens :
@@ -148,6 +146,13 @@ namespace wsl
             auto const [s, s_error] = sd::two_sum(mu, negative ? -t_hi : t_hi);
             double const y = s + (s_error + (negative ? -t_lo : t_lo));
             return k > 0 ? sd::scale_by_power_of_two(y, k) : y;
+        }
+
+        // μ + σ x arrondi une fois, x en double-double non nul.
+        constexpr double affine(double mu, double sigma, double x_hi, double x_lo) noexcept
+        {
+            bool const negative = x_hi < 0;
+            return affine_scaled(mu, negative, normalized(negative ? -x_hi : x_hi, negative ? -x_lo : x_lo) * normalized(sigma, 0.0));
         }
     }
 

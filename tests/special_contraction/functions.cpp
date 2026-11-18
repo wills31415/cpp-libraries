@@ -83,6 +83,17 @@ extern "C"
     void check_binomial_make(long long n, double p, wsl::binomial<>* out) { *out = wsl::binomial({.trials = n, .p = p}); }
     double check_gamma_pdf(double a, double r, double x) { return pdf(wsl::gamma({.shape = a, .rate = r}), x); }
     double check_gamma_cdf(double a, double r, double x) { return cdf(wsl::gamma({.shape = a, .rate = r}), x); }
+    double check_student_cdf(double n, double t) { return cdf(wsl::student_t({.degrees_of_freedom = n}), t); }
+    double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
+    double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }
+    double check_student_entropy(double n) { return wsl::student_t({.degrees_of_freedom = n}).entropy(); }
+    double check_student_sample(double n, wsl::xoshiro256pp& g) { return sample(wsl::student_t({.degrees_of_freedom = n}), g); }
+    double check_lognormal_cdf(double m, double s, double x) { return cdf(wsl::lognormal({.mu = m, .sigma = s}), x); }
+    double check_lognormal_quantile(double m, double s, double p) { return quantile(wsl::lognormal({.mu = m, .sigma = s}), p); }
+    double check_lognormal_variance(double m, double s) { return wsl::lognormal({.mu = m, .sigma = s}).variance(); }
+    double check_cauchy_cdf(double a, double b, double x) { return cdf(wsl::cauchy({.location = a, .scale = b}), x); }
+    double check_cauchy_quantile(double a, double b, double p) { return quantile(wsl::cauchy({.location = a, .scale = b}), p); }
+    double check_cauchy_sample(double a, double b, wsl::xoshiro256pp& g) { return sample(wsl::cauchy({.location = a, .scale = b}), g); }
     double check_gamma_quantile(double a, double t, double p) { return quantile(wsl::gamma({.shape = a, .scale = t}), p); }
     double check_gamma_entropy(double a, double r) { return wsl::gamma({.shape = a, .rate = r}).entropy(); }
     double check_beta_entropy(double a, double b) { return wsl::beta({.alpha = a, .beta = b}).entropy(); }

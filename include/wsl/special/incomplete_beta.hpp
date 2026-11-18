@@ -223,6 +223,28 @@ namespace wsl::special
             return {v, !below};                                             // 1 − v : assez précis ici
         }
 
+        // Iₓ(a, b) du côté minoritaire en x = x_hi + x_lo, y = 1 − x = y_hi + y_lo (en
+        // double-double tous deux) : évaluée en la plus petite des parties hautes, puis
+        // corrigée au premier ordre (dI/dx = xᵃ⁻¹yᵇ⁻¹/B, le second ordre est négligeable).
+        constexpr incomplete_beta_result incomplete_beta_dd(double a, double b, double_double x, double_double y) noexcept
+        {
+            bool const in_x = x.hi <= y.hi;
+            double const s = in_x ? a : b, t = in_x ? b : a;
+            double_double const u = in_x ? x : y;
+            auto [value, complement] = incomplete_beta(s, t, u.hi);         // I_u(s, t), au point u_hi
+            if (u.lo != 0 && value.hi != 0)
+            {
+                auto const [w_hi, w_lo] = two_sum(1.0, -u.hi);
+                xd::scaled const density = beta_prefix(s, t, u.hi, {w_hi, w_lo}) / xd::normalized(u.hi, 0.0)
+                                         / xd::normalized(w_hi, w_lo);
+                double const r = xd::rounded(density * xd::normalized(xd::magnitude(u.lo), 0.0) / value);
+                double const signed_r = (u.lo > 0) != complement ? r : -r;  // dI/du = f, d(1 − I)/du = −f
+                auto const [c_hi, c_lo] = two_sum(1.0, signed_r);
+                value = value * xd::normalized(c_hi, c_lo);
+            }
+            return {value, in_x ? complement : !complement};              // Iₓ(a, b) = 1 − I_y(b, a)
+        }
+
         constexpr bool incomplete_beta_special(double a, double b, double x, bool complement, double& result) noexcept
         {
             if (!(a == a) || !(b == b) || !(x == x))
@@ -366,6 +388,27 @@ namespace wsl::special
                 u = next;
             }
             return {u, 0.0};
+        }
+
+        // x et y = 1 − x, en double-double tous deux, tels que Iₓ(a, b) = p (complement :
+        // 1 − Iₓ(a, b) = p), p dans (0, 1) : le plus petit est exact à l'arrondi près,
+        // l'autre vaut 1 − lui.
+        struct beta_solution
+        {
+            double_double x, y;
+        };
+
+        constexpr beta_solution beta_inverse_xy(double a, double b, double p, bool complement) noexcept
+        {
+            auto const [half_lower, half_upper] = ibeta_halves(a, b);
+            bool const in_x = complement ? p >= half_upper : p <= half_lower;
+            bool const minority_upper = complement ? p <= 0.5 : p > 0.5;
+            double const t = p <= 0.5 ? p : 1.0 - p;
+            double_double const u = in_x ? beta_inverse_u(a, b, t, minority_upper) : beta_inverse_u(b, a, t, !minority_upper);
+            auto const [r, r_error] = two_sum(1.0, -u.hi);
+            auto const [w_hi, w_lo] = fast_two_sum(r, r_error - u.lo);
+            double_double const w{w_hi, w_lo};
+            return in_x ? beta_solution{u, w} : beta_solution{w, u};
         }
 
         // x tel que Iₓ(a, b) = p (complement : 1 − Iₓ(a, b) = p), p dans (0, 1).

@@ -446,3 +446,21 @@ Poisson et binomiaux exacts sur 1 300 points.
 
 Ce qui reste hors du catalogue en route : entropies de Poisson et binomiale (sans forme
 close ; séries à venir), médianes de gamma, bêta, Poisson, binomiale (quantile(0,5)).
+
+### Lois dérivées, premier lot : χ², Student, log-normale, Cauchy
+
+| Loi | Paramètres | Méthode | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `chi_squared<T>` | `{.degrees_of_freedom}` | délégué à `gamma` (forme k/2, échelle 2, exactes) | gamma |
+| `student_t<T>` | `{.degrees_of_freedom}` | queue I_x(ν/2, ½)/2, x et 1 − x en double-double, bêta incomplète à argument double-double (premier ordre) ; quantile par l'inverse de la bêta en (x, 1 − x) double-double, t² = ν(1 − x)/x ; densité sans compensation (lgamma((ν+1)/2) − lgamma(ν/2) par récurrence et Stirling) ; moments NaN ou ∞ là où ils n'existent pas | Z/√(V/ν) |
+| `lognormal<T>` | `{.mu, .sigma}` (de log X) | z = (log x − μ)/σ, log x en double-double, puis la normale ; quantile e^{μ+σΦ⁻¹(p)}, un arrondi ; moments en double-double | e^Y, Y exacte ; `wsl::fast` : ziggourat |
+| `cauchy<T>` | `{.location, .scale}` | queue atan(1/z)/π (z >= 1) ou ½ − atan(z)/π, noyau atan à argument double-double ; quantile x₀ − γ cot(πp) ; pas de moyenne ni de variance (membres absents) | x₀ ± γ cot(πW/2) |
+
+Précision mesurée : tout sous 0,5 ulp, arrondi correct à 100 % (double et float).
+Défauts trouvés en route, tous dans les queues extrêmes :
+- quantile de Student pour p minuscule : x = I⁻¹(2p) sous les sous-normaux alors que
+  t ~ √(ν/x) reste représentable (rendait ∞) ; x y est donné par log x =
+  (log 2p + log a + log B(a, ½))/a, d'où t directement ;
+- cot(πp) pour p < 2⁻⁹⁷⁰ (produit exact hors domaine) : (1/(πp))(1 − (πp)²/3) à
+  l'échelle, sans débordement intermédiaire ;
+- atan(v) ≈ v pour v < 2⁻²⁷ oubliait −v³/3 (0,55 ulp).

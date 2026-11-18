@@ -122,6 +122,8 @@ namespace wsl::special::detail::extended
     inline constexpr double normal_entropy_hi = 0x1.6b3f8e4325f5ap+0, normal_entropy_lo = 0x1.4d252f2400510p-54;  // (1 + log 2π)/2
     inline constexpr double half_sqrt_pi = 0x1.c5bf891b4ef6bp-1;
     inline constexpr double inv_sqrt_pi = 0x1.20dd750429b6dp-1;
+    inline constexpr double inv_pi_hi = 0x1.45f306dc9c883p-2, inv_pi_lo = -0x1.6b01ec5417056p-56;
+    inline constexpr double log_4pi_hi = 0x1.43f89a3f0edd6p+1, log_4pi_lo = 0x1.053cd734e6a31p-54;
     inline constexpr double one_twelfth_hi = 0x1.5555555555555p-4, one_twelfth_lo = 0x1.5555555555555p-58;
 
     constexpr double magnitude(double x) noexcept { return x < 0 ? -x : x; }

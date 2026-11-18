@@ -36,6 +36,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Répartitions, survies et quantiles de `poisson`, `binomial` (quantiles exacts), `gamma`,
   `beta` ; entropies de `gamma` et `beta` : tout sous 0,5 ulp, arrondi correct à 100 % des
   points mesurés.
+- Lois `chi_squared`, `student_t`, `lognormal`, `cauchy` : densité, log-densité, répartition,
+  survie, quantile, moments (là où ils existent), entropie, tirage ; tout sous 0,5 ulp.
 - `scale_by_power_of_two` (wsl::special, détail) accepte tout exposant.
 
 ### exact_random (retirée)

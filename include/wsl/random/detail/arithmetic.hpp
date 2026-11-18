@@ -15,6 +15,7 @@ namespace wsl::detail
     using xd::exact_split;
     using xd::exp_scaled;
     using xd::expm1_dd;
+    using xd::expm1_double_double;
     using xd::floor_nonnegative;
     using xd::half_log_2pi_hi;
     using xd::half_log_2pi_lo;
@@ -22,7 +23,11 @@ namespace wsl::detail
     using xd::interpolate;
     using xd::inv_sqrt2_hi;
     using xd::inv_sqrt2_lo;
+    using xd::inv_pi_hi;
+    using xd::inv_pi_lo;
     using xd::inv_sqrt_2pi_hi;
+    using xd::log_4pi_hi;
+    using xd::log_4pi_lo;
     using xd::inv_sqrt_2pi_lo;
     using xd::inv_sqrt_pi;
     using xd::is_finite;

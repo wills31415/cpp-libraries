@@ -169,6 +169,10 @@ static_assert(pmf(wsl::geometric({.p = 0.5}), 1) == 0.25 && quantile(wsl::geomet
 static_assert([] { wsl::pcg64 g(5); return sample(wsl::poisson({.mean = 30.0}), g) > 0 && sample(wsl::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
 
 static_assert(wsl::probability_law<wsl::gamma<>> && wsl::probability_law<wsl::beta<float>>);
+static_assert(wsl::probability_law<wsl::chi_squared<>> && wsl::probability_law<wsl::student_t<>> && wsl::probability_law<wsl::lognormal<float>> && wsl::probability_law<wsl::cauchy<>>);
+static_assert(!wsl::has_mean<wsl::cauchy<>> && !wsl::has_variance<wsl::cauchy<>> && wsl::has_median<wsl::cauchy<>> && wsl::has_quantile<wsl::student_t<>>);
+static_assert([] { wsl::student_t X({.degrees_of_freedom = 3}); wsl::cauchy C({.location = 0, .scale = 1}); return std::is_same_v<decltype(X), wsl::student_t<double>> && std::is_same_v<decltype(C), wsl::cauchy<double>>; }());
+static_assert(quantile(wsl::cauchy({.location = 2.0, .scale = 3.0}), 0.5) == 2 && cdf(wsl::student_t({.degrees_of_freedom = 4.0}), 0.0) == 0.5);
 static_assert(wsl::has_pdf<wsl::gamma<>> && wsl::has_cdf<wsl::gamma<>> && wsl::has_quantile<wsl::gamma<>> && wsl::has_mode<wsl::beta<>> && wsl::has_entropy<wsl::beta<>> && wsl::has_entropy<wsl::gamma<>>);
 static_assert([] { wsl::gamma X({.shape = 2, .rate = 3}); wsl::gamma Y({.shape = 2, .scale = 3}); return std::is_same_v<decltype(X), wsl::gamma<double>> && std::is_same_v<decltype(Y), wsl::gamma<double>>; }());
 static_assert([] { wsl::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wsl::beta<double>>; }());
@@ -463,6 +467,40 @@ int main()
         assert(std::abs(cdf(wsl::gamma({.shape = 1.0, .rate = 2.0}), 0.7) - cdf(wsl::exponential({.rate = 2.0}), 0.7)) < 1e-16);
     }
 
+    // ---- Lois dérivées -----------------------------------------------------------
+    {
+        wsl::chi_squared const C({.degrees_of_freedom = 4});
+        assert(C.mean() == 4 && C.variance() == 8 && C.mode() == 2 && std::abs(cdf(C, 2.0) - (1 - 2 * std::exp(-1.0))) < 1e-16);
+        assert(kolmogorov_smirnov(C, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(sample(C, g)); return v; }()) < 1.95);
+        wsl::student_t const T1({.degrees_of_freedom = 1}), T5({.degrees_of_freedom = 5});
+        assert(std::isnan(T1.mean()) && T5.mean() == 0 && std::abs(T5.variance() - 5.0 / 3) < 1e-16 && std::isinf(wsl::student_t({.degrees_of_freedom = 1.5}).variance()));
+        // t à 1 degré de liberté = Cauchy standard.
+        wsl::cauchy const K({.location = 0, .scale = 1});
+        for (double t : {-1e6, -3.0, -0.25, 0.5, 2.0, 1e12})
+        {
+            assert(std::abs(cdf(T1, t) - cdf(K, t)) <= 2e-16 * cdf(K, t) && std::abs(pdf(T1, t) / pdf(K, t) - 1) < 3e-16);
+            assert(std::abs(ccdf(T5, t) - cdf(T5, -t)) <= 2e-16 * ccdf(T5, t));                   // symétrie
+        }
+        assert(quantile(T5, 0.25) == -quantile(T5, 0.75));                  // 1 − 0,25 exact
+        for (double u : {1e-300, 1e-8, 0.2, 0.5, 0.975})
+        {
+            double const t = quantile(T5, u);
+            assert(u == 0.5 ? t == 0 : std::abs(cdf(T5, t) / u - 1) < 1e-14);
+        }
+        assert(kolmogorov_smirnov(T5, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(sample(T5, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(wsl::student_t({.degrees_of_freedom = 0.7}), [&] { std::vector<double> v; wsl::student_t const T({.degrees_of_freedom = 0.7}); for (int i = 0; i < 20000; ++i) v.push_back(sample(T, g)); return v; }()) < 1.95);
+        wsl::lognormal const L({.mu = 0.3, .sigma = 0.5});
+        assert(std::abs(L.median() - std::exp(0.3)) < 3e-16 && std::abs(L.mean() - std::exp(0.3 + 0.125)) < 1e-15 && std::abs(cdf(L, L.median()) - 0.5) < 2e-16);
+        assert(cdf(L, 0.0) == 0 && pdf(L, -1.0) == 0 && quantile(L, 0.0) == 0 && quantile(L, 1.0) == INFINITY);
+        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(sample(L, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(sample(L, g, wsl::fast)); return v; }()) < 1.95);
+        wsl::cauchy const C2({.location = 1, .scale = 2});
+        assert(cdf(C2, 3.0) == 0.75 && quantile(C2, 0.75) == 3 && C2.median() == 1 && std::abs(C2.entropy() - std::log(8 * 3.141592653589793)) < 1e-15);
+        assert(kolmogorov_smirnov(C2, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(sample(C2, g)); return v; }()) < 1.95);
+        assert(throws_domain_error([] { wsl::student_t X({.degrees_of_freedom = 0}); }) && throws_domain_error([] { wsl::cauchy X({.location = 0, .scale = -1}); }));
+        assert(throws_domain_error([] { wsl::chi_squared X({.degrees_of_freedom = -2}); }) && throws_domain_error([] { wsl::lognormal X({.mu = 0, .sigma = 0}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -550,6 +588,20 @@ int main()
             return bits(cdf(Ga, 10 * u)) ^ (bits(quantile(Ga_s, u)) << 1) ^ (bits(cdf(Be_a, u)) << 2) ^ (bits(quantile(Be_s, u)) << 3)
                  ^ (bits(cdf(Pl, k)) << 4) ^ static_cast<std::uint64_t>(quantile(Bl, u)) ^ (bits(Ga.entropy() + Be_s.entropy()) << 5);
         }, 1 << 10), 0x1a38363ea9e3931d);
+        wsl::chi_squared const Cq({.degrees_of_freedom = 7});
+        wsl::student_t const St({.degrees_of_freedom = 3.5});
+        wsl::lognormal const Ln({.mu = -1, .sigma = 0.8});
+        wsl::cauchy const Cy({.location = 5, .scale = 0.5});
+        ok &= check("chi_squared", fingerprint([&] { return bits(sample(Cq, x)); }), 0x8b01e521b2059e12);
+        ok &= check("student_t", fingerprint([&] { return bits(sample(St, x)); }), 0xb833b44187ecf66a);
+        ok &= check("lognormal", fingerprint([&] { return bits(sample(Ln, x)); }), 0xc6350ba1601077cb);
+        ok &= check("cauchy", fingerprint([&] { return bits(sample(Cy, x)); }), 0xf82fd9546762bb11);
+        ok &= check("derived functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;                            // entrées protégées de la contraction
+            double const u = wsl::uniform_real(x), t = fp::fmul(20.0, u) - 10;
+            return bits(cdf(St, t)) ^ (bits(quantile(St, u)) << 1) ^ (bits(pdf(Ln, fp::fmul(3.0, u))) << 2) ^ (bits(quantile(Ln, u)) << 3)
+                 ^ (bits(cdf(Cy, t)) << 4) ^ (bits(quantile(Cy, u)) << 5) ^ (bits(cdf(Cq, fp::fmul(10.0, u))) << 6);
+        }, 1 << 10), 0x6e71d9a455e07fde);
     }
     assert(ok);
     return 0;

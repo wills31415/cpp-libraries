@@ -102,6 +102,32 @@ int main()
     PHASE4_CHECKS(double, tight)
     PHASE4_CHECKS(float, loose)
 #undef PHASE4_CHECKS
+#define DERIVED_CHECKS(T, bound)                                                                                              \
+    check<T>("chi_squared cdf " #T, d::chi_squared_cdf_##T, [](double a, double, double x) { return cdf(wsl::chi_squared<T>({.degrees_of_freedom = T(a)}), T(x)); }, bound); \
+    check<T>("chi_squared quantile " #T, d::chi_squared_quantile_##T, [](double a, double, double p) { return quantile(wsl::chi_squared<T>({.degrees_of_freedom = T(a)}), p); }, bound); \
+    check<T>("student_t pdf " #T, d::student_t_pdf_##T, [](double a, double, double x) { return pdf(wsl::student_t<T>({.degrees_of_freedom = T(a)}), T(x)); }, bound); \
+    check<T>("student_t log_pdf " #T, d::student_t_log_pdf_##T, [](double a, double, double x) { return log_pdf(wsl::student_t<T>({.degrees_of_freedom = T(a)}), T(x)); }, 1.0); \
+    check<T>("student_t cdf " #T, d::student_t_cdf_##T, [](double a, double, double x) { return cdf(wsl::student_t<T>({.degrees_of_freedom = T(a)}), T(x)); }, bound); \
+    check<T>("student_t ccdf " #T, d::student_t_ccdf_##T, [](double a, double, double x) { return ccdf(wsl::student_t<T>({.degrees_of_freedom = T(a)}), T(x)); }, bound); \
+    check<T>("student_t quantile " #T, d::student_t_quantile_##T, [](double a, double, double p) { return quantile(wsl::student_t<T>({.degrees_of_freedom = T(a)}), p); }, bound); \
+    check<T>("student_t entropy " #T, d::student_t_entropy_##T, [](double a, double, double) { return wsl::student_t<T>({.degrees_of_freedom = T(a)}).entropy(); }, 1.0); \
+    check<T>("lognormal pdf " #T, d::lognormal_pdf_##T, [](double a, double b, double x) { return pdf(wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal log_pdf " #T, d::lognormal_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, 1.0); \
+    check<T>("lognormal cdf " #T, d::lognormal_cdf_##T, [](double a, double b, double x) { return cdf(wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal ccdf " #T, d::lognormal_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal quantile " #T, d::lognormal_quantile_##T, [](double a, double b, double p) { return quantile(wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}), p); }, bound); \
+    check<T>("lognormal mean " #T, d::lognormal_mean_##T, [](double a, double b, double) { return wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}).mean(); }, bound); \
+    check<T>("lognormal variance " #T, d::lognormal_variance_##T, [](double a, double b, double) { return wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}).variance(); }, bound); \
+    check<T>("lognormal entropy " #T, d::lognormal_entropy_##T, [](double a, double b, double) { return wsl::lognormal<T>({.mu = T(a), .sigma = T(b)}).entropy(); }, 1.0); \
+    check<T>("cauchy pdf " #T, d::cauchy_pdf_##T, [](double a, double b, double x) { return pdf(wsl::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("cauchy log_pdf " #T, d::cauchy_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("cauchy cdf " #T, d::cauchy_cdf_##T, [](double a, double b, double x) { return cdf(wsl::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("cauchy ccdf " #T, d::cauchy_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("cauchy quantile " #T, d::cauchy_quantile_##T, [](double a, double b, double p) { return quantile(wsl::cauchy<T>({.location = T(a), .scale = T(b)}), p); }, bound); \
+    check<T>("cauchy entropy " #T, d::cauchy_entropy_##T, [](double a, double b, double) { return wsl::cauchy<T>({.location = T(a), .scale = T(b)}).entropy(); }, 1.0);
+    DERIVED_CHECKS(double, tight)
+    DERIVED_CHECKS(float, loose)
+#undef DERIVED_CHECKS
     LAW_CHECKS(double, tight)
     LAW_CHECKS(float, loose)
 #undef LAW_CHECKS
