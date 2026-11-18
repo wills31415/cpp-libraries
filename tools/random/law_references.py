@@ -274,7 +274,7 @@ def phase4_laws(kind):
 CHI2 = [1.0, 3.0, 10.0, 0.5, 100.0, 2500.0]
 STUDENT = [1.0, 2.0, 5.0, 0.5, 30.0, 1e3, 3.7, 1e4]
 LOGNORMAL = [(0.0, 1.0), (0.3, 0.5), (-5.0, 2.0), (10.0, 0.01), (0.0, 1e-3)]
-CAUCHY = [(0.0, 1.0), (1.0, 2.0), (-1e5, 3.0), (0.0, 1e-10), (1e10, 1e3)]
+CAUCHY = [(0.0, 1.0), (1.0, 2.0), (-1e5, 3.0), (0.0, 1e-10), (1e10, 1e3), (0.0, 2.0 ** -900)]
 
 
 def student_tail(nu, t):
@@ -332,8 +332,11 @@ def derived_laws(kind):
         out.append(("lognormal_variance", mu, sigma, [0.0], lambda _, m=m, sg=sg: mp.expm1(sg ** 2) * mp.exp(2 * m + sg ** 2)))
         out.append(("lognormal_entropy", mu, sigma, [0.0], lambda _, m=m, sg=sg: m + mp.log(sg) + (1 + mp.log(2 * mp.pi)) / 2))
     for x0, gm in CAUCHY:
+        if kind == "float" and not 2.0 ** -120 < gm < 2.0 ** 120:
+            continue
         a, b = mpf(to_type(x0)), mpf(to_type(gm))
-        xs = [to_type(float(a + b * rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 2.0 ** 60))) for _ in range(count)]
+        top = 2.0 ** 1000 if kind == "double" else 2.0 ** 90                   # |z| > 2^600 compris (double)
+        xs = [to_type(float(a + b * rng.choice([-1, 1]) * log_uniform(2.0 ** -30, top))) for _ in range(count)]
         z = lambda x, a=a, b=b: (mpf(x) - a) / b
         out.append(("cauchy_pdf", x0, gm, xs, lambda x, z=z, b=b: 1 / (mp.pi * b * (1 + z(x) ** 2))))
         out.append(("cauchy_log_pdf", x0, gm, xs, lambda x, z=z, b=b: -mp.log(mp.pi * b * (1 + z(x) ** 2))))
@@ -394,7 +397,8 @@ def second_batch(kind):
     for name, params, tail in (("laplace", LAPLACE, lambda z: mp.exp(-abs(z)) / 2), ("logistic", LOGISTIC, lambda z: mp.exp(-abs(z)) / (1 + mp.exp(-abs(z))))):
         for mu, sc in params:
             m, s_ = mpf(to_type(mu)), mpf(to_type(sc))
-            xs = [to_type(float(m + s_ * rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 700.0))) for _ in range(count)]
+            far = (lambda: log_uniform(2.0 ** 600, 2.0 ** 900)) if kind == "double" else (lambda: log_uniform(2.0 ** 60, 2.0 ** 100))
+            xs = [to_type(float(m + s_ * rng.choice([-1, 1]) * (log_uniform(2.0 ** -30, 700.0) if rng.random() < 0.9 else far()))) for _ in range(count)]
             z = lambda x, m=m, s_=s_: (mpf(x) - m) / s_
             if name == "laplace":
                 pdf = lambda x, z=z, s_=s_: mp.exp(-abs(z(x))) / (2 * s_)
@@ -417,6 +421,154 @@ def second_batch(kind):
         out.append(("pareto_ccdf", xm, al, xs, lambda x, x0=x0, a=a: (x0 / mpf(x)) ** a))
         out.append(("pareto_quantile", xm, al, probabilities(count // 3), lambda p, x0=x0, a=a: x0 * mp.exp(-mp.log1p(-mpf(p)) / a)))
         out.append(("pareto_entropy", xm, al, [0.0], lambda _, x0=x0, a=a: mp.log(x0 / a) + 1 + 1 / a))
+    return out
+
+
+def survival_quantiles(kind):
+    """Quantiles de survie : x tel que P(X > x) = q, écrits sur la queue (q exact, jamais 1 − q
+    arrondi)."""
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    count = 40 if kind == "double" else 16
+    fits = lambda *v: kind == "double" or all(2.0 ** -120 < abs(x) < 2.0 ** 120 or x == 0 for x in v)
+    out = []
+    qs = lambda: probabilities(count)
+    for rate in EXPONENTIAL_RATES:
+        if fits(rate):
+            r = mpf(to_type(rate))
+            out.append(("exponential_cquantile", rate, 0.0, qs(), lambda q, r=r: -mp.log(mpf(q)) / r))
+    for mu, sigma in NORMAL_PARAMETERS:
+        if fits(mu, sigma):
+            m, sg = mpf(to_type(mu)), mpf(to_type(sigma))
+            out.append(("normal_cquantile", mu, sigma, qs(), lambda q, m=m, sg=sg: m - sg * normal_quantile(q)))
+    for shape, rate, by_scale in GAMMA:
+        if fits(shape, rate) and 1e-100 < shape <= 1e4:              # forme 1e-300 : solution hors de toute échelle
+            a, r = to_type(shape), to_type(rate)
+            out.append(("gamma_scale_cquantile" if by_scale else "gamma_cquantile", shape, rate, probabilities(count // 2),
+                        lambda q, a=a, r=r, by_scale=by_scale: g.igamma_inverse_exact(a, q, True) * (mpf(r) if by_scale else 1 / mpf(r))))
+    for alpha, beta in BETA:
+        if fits(alpha, beta) and max(alpha, beta) <= 2.0 ** 12:
+            a, b = to_type(alpha), to_type(beta)
+            out.append(("beta_cquantile", alpha, beta, probabilities(count // 2), lambda q, a=a, b=b: g.ibeta_inverse_exact(a, b, q, True)))
+    for k in CHI2:
+        if k <= 100:
+            kk = mpf(to_type(k))
+            out.append(("chi_squared_cquantile", k, 0.0, probabilities(count // 2), lambda q, kk=kk: 2 * g.igamma_inverse_exact(kk / 2, q, True)))
+    for nu in STUDENT:
+        if nu <= 100:
+            n = mpf(to_type(nu))
+            def survival(q, n=n):
+                if q == 0.5:
+                    return mpf(0)
+                tail = min(mpf(q), 1 - mpf(q))
+                with mp.workprec(450):
+                    x = g.ibeta_inverse_exact(n / 2, mpf(1) / 2, 2 * tail, False)
+                    t = mp.sqrt(n * (1 - x) / x)
+                return t if q < 0.5 else -t
+            out.append(("student_t_cquantile", nu, 0.0, probabilities(count // 2), survival))
+    for mu, sigma in LOGNORMAL:
+        m, sg = mpf(to_type(mu)), mpf(to_type(sigma))
+        out.append(("lognormal_cquantile", mu, sigma, qs(), lambda q, m=m, sg=sg: mp.exp(m - sg * normal_quantile(q))))
+    for x0, gm in CAUCHY:
+        if fits(x0, gm):
+            a, b = mpf(to_type(x0)), mpf(to_type(gm))
+            out.append(("cauchy_cquantile", x0, gm, qs(),
+                        lambda q, a=a, b=b: a + b / mp.tan(mp.pi * mpf(q)) if q < 0.5 else a - b / mp.tan(mp.pi * (1 - mpf(q)))))
+    for d1, d2 in FISHER:
+        a1, a2 = mpf(to_type(d1)), mpf(to_type(d2))
+        def survival(q, a1=a1, a2=a2):
+            with mp.workprec(450):
+                w = g.ibeta_inverse_exact(a2 / 2, a1 / 2, q, False)     # 1 − u, I_w(b, a) = q (1 − u minuscule)
+                return a2 * (1 - w) / (a1 * w)
+        out.append(("fisher_f_cquantile", d1, d2, probabilities(count // 2), survival))
+    for k, lam in WEIBULL:
+        kk, ll = mpf(to_type(k)), mpf(to_type(lam))
+        out.append(("weibull_cquantile", k, lam, qs(), lambda q, kk=kk, ll=ll: ll * (-mp.log(mpf(q))) ** (1 / kk)))
+    for mu, sc in LAPLACE:
+        m, b = mpf(to_type(mu)), mpf(to_type(sc))
+        out.append(("laplace_cquantile", mu, sc, [q for q in qs() if q != 0.5],
+                    lambda q, m=m, b=b: m - b * mp.log(2 * mpf(q)) if q < 0.5 else m + b * mp.log(2 * (1 - mpf(q)))))
+    for mu, sc in LOGISTIC:
+        m, sl = mpf(to_type(mu)), mpf(to_type(sc))
+        out.append(("logistic_cquantile", mu, sc, [q for q in qs() if q != 0.5], lambda q, m=m, sl=sl: m - sl * (mp.log(mpf(q)) - mp.log1p(-mpf(q)))))
+    for xm, al in PARETO:
+        x0, a = mpf(to_type(xm)), mpf(to_type(al))
+        out.append(("pareto_cquantile", xm, al, qs(), lambda q, x0=x0, a=a: x0 * mp.exp(-mp.log(mpf(q)) / a)))
+    return out
+
+
+TRUNCATED = [(-1.0, 2.0), (10.0, 1e300), (-1e300, -5.0), (3.0, 4.0), (-0.5, 0.75)]   # zéro du quantile loin de p = ½
+
+
+def algebra_laws(kind):
+    """Lois construites (erreur de composition mesurée) : Z = −2T + 5, T de Student ; N(0, 1)
+    tronquée à [a, b] ; mélange 0,3 N(−2, 1) + 0,7 gamma(3, 1). En double seulement."""
+    if kind != "double":
+        return []
+    out = []
+    count = 60
+    for nu in [4.0, 1.5, 30.0]:
+        n = mpf(nu)
+        ys = [float(5 + rng.choice([-1, 1]) * log_uniform(2.0 ** -20, 2.0 ** 40)) for _ in range(count)]
+        z = lambda y: (5 - mpf(y)) / 2                                  # cdf_Z(y) = P(T >= z)
+        upper = lambda t, n=n: student_tail(n, t) if t > 0 else 1 - student_tail(n, t)
+        c = mp.loggamma((n + 1) / 2) - mp.loggamma(n / 2) - mp.log(n * mp.pi) / 2
+        out.append(("affine_student_pdf", nu, 0.0, ys, lambda y, n=n, c=c: mp.exp(c - (n + 1) / 2 * mp.log1p(z(y) ** 2 / n)) / 2))
+        out.append(("affine_student_cdf", nu, 0.0, ys, lambda y, upper=upper: upper(z(y))))
+        out.append(("affine_student_ccdf", nu, 0.0, ys, lambda y, n=n: 1 - student_tail(n, z(y)) if z(y) > 0 else student_tail(n, z(y))))
+        def quantile(u, n=n):                                           # 5 − 2 Q_T(1 − u) = 5 + 2 Q_T(u)
+            if u == 0.5:
+                return mpf(5)
+            tail = min(mpf(u), 1 - mpf(u))
+            with mp.workprec(450):
+                x = g.ibeta_inverse_exact(n / 2, mpf(1) / 2, 2 * tail, False)
+                t = mp.sqrt(n * (1 - x) / x)
+            return 5 - 2 * t if u < 0.5 else 5 + 2 * t
+        out.append(("affine_student_quantile", nu, 0.0, probabilities(count // 3), quantile))
+    S = lambda x: mpf(0) if x > 60 else mpf(1) if x < -60 else mp.erfc(mpf(x) / mp.sqrt(2)) / 2   # S(60) < 2^-2600
+    for a, b in TRUNCATED:
+        # Mesure hors des bornes (conditionnement |x|/(x − a)) et là où la survie de X reste
+        # normale (|x| < 37) : ailleurs la composition perd ses bits (docs/random.md).
+        lo_, hi_ = max(a, -37.0), min(b, 37.0)
+        w = (hi_ - lo_) / 8
+        xs = [float(rng.uniform(lo_ + w, hi_ - w)) for _ in range(count)]
+        def cdf_t(x, a=a, b=b):
+            with mp.workprec(1200):                                     # 1 − S(x) jusqu'à 10⁻³⁰⁰
+                return (S(a) - S(x)) / (S(a) - S(b))
+        def ccdf_t(x, a=a, b=b):
+            with mp.workprec(1200):
+                return (S(x) - S(b)) / (S(a) - S(b))
+        def quantile_t(p, a=a, b=b):
+            with mp.workprec(1200):
+                t = S(a) - mpf(p) * (S(a) - S(b))                       # S(x) = t
+                if t <= mpf(1) / 2:
+                    return mp.sqrt(2) * g.erfcinv_exact(2 * t)
+                u = S(-a) + mpf(p) * (S(a) - S(b))                      # Φ(x) = 1 − t, sans compensation
+                return -mp.sqrt(2) * g.erfcinv_exact(2 * u)
+        out.append(("truncated_normal_cdf", a, b, xs, cdf_t))
+        out.append(("truncated_normal_ccdf", a, b, xs, ccdf_t))
+        out.append(("truncated_normal_quantile", a, b, [p for p in probabilities(count // 3) if 2.0 ** -900 < p < 1 - 2.0 ** -40], quantile_t))
+    def mix_cdf(x):
+        x = mpf(x)
+        with mp.workprec(400):
+            g3 = 0 if x <= 0 else 1 - mp.exp(-x) * (1 + x + x ** 2 / 2)
+            return mpf(3) / 10 * mp.erfc(-(x + 2) / mp.sqrt(2)) / 2 + mpf(7) / 10 * g3
+    def mix_pdf(x):
+        x = mpf(x)
+        return mpf(3) / 10 * mp.exp(-(x + 2) ** 2 / 2) / mp.sqrt(2 * mp.pi) + (mpf(7) / 10 * x ** 2 * mp.exp(-x) / 2 if x > 0 else 0)
+    def mix_quantile(p):
+        lo_, hi_ = mpf(-40), mpf(800)
+        with mp.workprec(300):
+            for _ in range(300):
+                m = (lo_ + hi_) / 2
+                if mix_cdf(m) < p:
+                    lo_ = m
+                else:
+                    hi_ = m
+            return (lo_ + hi_) / 2
+    xs = [float(rng.uniform(-8, 20)) for _ in range(count)]
+    out.append(("mixture_pdf", 0.0, 0.0, xs, mix_pdf))
+    out.append(("mixture_cdf", 0.0, 0.0, xs, mix_cdf))
+    out.append(("mixture_quantile", 0.0, 0.0, [p for p in probabilities(count // 4) if p > 1e-300], mix_quantile))
     return out
 
 
@@ -446,7 +598,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind):
             rows = groups.setdefault(name, [])
             for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)

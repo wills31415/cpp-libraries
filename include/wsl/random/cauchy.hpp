@@ -89,9 +89,10 @@ namespace wsl
             namespace fp = detail::sd;
             if (!(x == x))
                 return x;
-            auto const [z_hi, z_lo] = detail::standardize(x, X.x0_, X.gamma_);
+            if (!detail::is_finite(x))
+                return 0;
             detail::scaled const c = detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo) / double(X.gamma_);
-            return static_cast<T>(detail::rounded(c / X.one_plus_square(z_hi, z_lo)));
+            return static_cast<T>(detail::rounded(c / one_plus_square(X.standard(x).z)));
         }
 
         // −log π − log γ − log(1 + z²)
@@ -100,8 +101,9 @@ namespace wsl
             namespace fp = detail::sd;
             if (!(x == x))
                 return x;
-            auto const [z_hi, z_lo] = detail::standardize(x, X.x0_, X.gamma_);
-            auto e = detail::log(X.one_plus_square(z_hi, z_lo));
+            if (!detail::is_finite(x))
+                return -std::numeric_limits<T>::infinity();
+            auto e = detail::log(one_plus_square(X.standard(x).z));
             auto const lg = detail::log_precise(double(X.gamma_));
             e = detail::sum(e, lg);
             e = detail::sum(e, {fp::log_pi_hi, fp::log_pi_lo});
@@ -127,6 +129,19 @@ namespace wsl
             return static_cast<T>(detail::affine_scaled(X.x0_, lower, t));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(cauchy const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            detail::scaled const t = detail::cot_pi(q) * detail::normalized(double(X.gamma_), 0.0);   // x₀ + γ cot(πq)
+            return static_cast<T>(detail::affine_scaled(X.x0_, false, t));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(cauchy const& X, G& g)
         {
@@ -140,13 +155,14 @@ namespace wsl
 
     private:
         // 1 + z², à l'échelle.
-        static constexpr detail::scaled one_plus_square(double z_hi, double z_lo) noexcept
+        // |x − x₀|/γ à l'échelle, sans saturation : la queue de Cauchy reste représentable bien
+        // au-delà de |z| = 2^600 (detail::standardize sature).
+        constexpr detail::standardized_scaled standard(double x) const noexcept { return detail::standardize_scaled(x, double(x0_), double(gamma_)); }
+
+        static constexpr detail::scaled one_plus_square(detail::scaled const& z) noexcept
         {
-            namespace fp = detail::sd;
-            double const a = detail::magnitude(z_hi);
-            if (a == 0)
+            if (z.hi == 0)
                 return detail::normalized(1.0, 0.0);
-            detail::scaled const z = detail::normalized(a, z_hi < 0 ? -z_lo : z_lo);
             detail::scaled const z2 = z * z;
             if (z2.e > 120)                                                  // 1 négligeable
                 return z2;
@@ -161,31 +177,27 @@ namespace wsl
             namespace fp = detail::sd;
             if (!(x == x))
                 return x;
-            auto [z_hi, z_lo] = detail::standardize(x, x0_, gamma_);
-            if (z_hi == 0)
+            if (!detail::is_finite(x))
+                return (x < 0) != upper ? T(0) : T(1);
+            auto const [negative, z] = standard(x);
+            if (z.hi == 0 || z.e < -600)                                    // ½ ± z/π s'arrondit à ½
                 return T(0.5);
-            bool const tail_side = (z_hi < 0) != upper;
-            if (!detail::is_finite(z_hi))
-                return tail_side ? T(0) : T(1);
-            double const a = detail::magnitude(z_hi), a_lo = z_hi < 0 ? -z_lo : z_lo;
+            bool const tail_side = negative != upper;
             detail::scaled tail{};
-            if (a >= 1)
+            if (z.e >= 512)                                                 // atan(1/z)/π = (1/z)/π à 2^-1024 près ; et
+                                                                            // 1/z par Dekker sortirait de son domaine (2^995)
+                tail = detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo) / z;
+            else if (z.e >= 0)
             {
-                double v_hi = 0, v_lo = 0;                                  // 1/|z|
-                if (a < 0x1p1000)
-                {
-                    auto const [r_hi, r_lo] = fp::quotient_dd({1.0, 0.0}, {a, a_lo});
-                    v_hi = r_hi;
-                    v_lo = r_lo;
-                }
-                else
-                    v_hi = 1.0 / a;
+                auto const [a, a_lo] = detail::unscaled(z);
+                auto const [v_hi, v_lo] = fp::quotient_dd({1.0, 0.0}, {a, a_lo});   // 1/|z|
                 fp::double_double const at = v_hi < 0x1p-27                    // atan v = v − v³/3 (le terme suivant : 2^-108)
                     ? fp::double_double{v_hi, v_lo - fp::fmul(fp::fmul(v_hi, v_hi), v_hi) / 3} : fp::atan_kernel(v_hi, v_lo);
                 tail = detail::normalized(at.hi, at.lo) * detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo);
             }
             else
             {
+                auto const [a, a_lo] = detail::unscaled(z);
                 auto const at = fp::atan_kernel(a, a_lo);
                 auto const q = detail::unscaled(detail::normalized(at.hi, at.lo) * detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo));
                 auto const [t_hi, t_lo] = detail::sum({0.5, 0.0}, {-q.hi, -q.lo});

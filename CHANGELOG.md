@@ -41,6 +41,18 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Lois `fisher_f`, `weibull`, `laplace` (tirage exact), `logistic`, `pareto` : densité,
   log-densité, répartition, survie, quantile, moments, entropie, tirage ; tout sous 0,5 ulp.
 - `scale_by_power_of_two` (wsl::special, détail) accepte tout exposant.
+- `cquantile(X, q)` (quantile de survie, sans former 1 − q) pour les quatorze lois
+  continues, sous 0,5 ulp ; concept `has_cquantile`.
+- Algèbre des lois, lot 1 : image affine (`a * X + b`, `-X`, `X / a`, `wsl::affine`), les
+  familles fermées gardant leur type (normale, Cauchy, Laplace, logistique, uniforme) ou
+  leurs fonctions (exponentielle, gamma, Weibull, Pareto, log-normale) ;
+  `wsl::truncate(X, a, b)` ; `wsl::mixture(wsl::weighted(w, X)…)`, tirage exact si les
+  composantes le sont. Erreurs de composition mesurées (docs/random.md §10).
+- `ccdf`, `pdf`, `log_pdf` de Cauchy justes au-delà de |z| = 2⁶⁰⁰ (rendaient 0 ou −∞) ;
+  log-densités de Laplace et de la logistique de même.
+- Variance de la normale et du χ², tirage gamma par l'échelle : produits rendus protégés
+  de la contraction (GCC les fusionnait avec l'addition de l'appelant ; mêmes bits sans
+  contraction).
 - `exp_scaled` (wsl::special, détail) rend une paire normalisée (précision des
   exponentielles enchaînées).
 

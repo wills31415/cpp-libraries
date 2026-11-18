@@ -159,6 +159,44 @@ int main()
     check<T>("pareto ccdf " #T, d::pareto_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), T(x)); }, bound); \
     check<T>("pareto quantile " #T, d::pareto_quantile_##T, [](double a, double b, double p) { return quantile(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), p); }, bound); \
     check<T>("pareto entropy " #T, d::pareto_entropy_##T, [](double a, double b, double) { return wsl::pareto<T>({.scale = T(a), .shape = T(b)}).entropy(); }, 1.0);
+#define CQ(T, bound, name, label, make)                                                                                                \
+    check<T>(label " cquantile " #T, d::name##_cquantile_##T, [](double a, double b, double q) { (void)a; (void)b; return cquantile(make, q); }, bound);
+#define SURVIVAL_CHECKS(T, bound)                                                                                            \
+    CQ(T, bound, exponential, "exponential", (exponential<T>(a, b)))                                                                  \
+    CQ(T, bound, normal, "normal", (normal<T>(a, b)))                                                                                 \
+    CQ(T, bound, gamma, "gamma", (wsl::gamma<T>({.shape = T(a), .rate = T(b)})))                                                      \
+    CQ(T, bound, gamma_scale, "gamma (éch.)", (wsl::gamma<T>({.shape = T(a), .scale = T(b)})))                                         \
+    CQ(T, bound, beta, "beta", (wsl::beta<T>({.alpha = T(a), .beta = T(b)})))                                                         \
+    CQ(T, bound, chi_squared, "chi_squared", (wsl::chi_squared<T>({.degrees_of_freedom = T(a)})))                                     \
+    CQ(T, bound, student_t, "student_t", (wsl::student_t<T>({.degrees_of_freedom = T(a)})))                                           \
+    CQ(T, bound, lognormal, "lognormal", (wsl::lognormal<T>({.mu = T(a), .sigma = T(b)})))                                            \
+    CQ(T, bound, cauchy, "cauchy", (wsl::cauchy<T>({.location = T(a), .scale = T(b)})))                                               \
+    CQ(T, bound, fisher_f, "fisher_f", (wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)})))                                                  \
+    CQ(T, bound, weibull, "weibull", (wsl::weibull<T>({.shape = T(a), .scale = T(b)})))                                               \
+    CQ(T, bound, laplace, "laplace", (wsl::laplace<T>({.location = T(a), .scale = T(b)})))                                            \
+    CQ(T, bound, logistic, "logistic", (wsl::logistic<T>({.location = T(a), .scale = T(b)})))                                         \
+    CQ(T, bound, pareto, "pareto", (wsl::pareto<T>({.scale = T(a), .shape = T(b)})))
+    SURVIVAL_CHECKS(double, tight)
+    {
+        // Lois construites : erreur de composition (docs/random.md), bornes mesurées.
+        auto const Z = [](double nu) { return wsl::affine(wsl::student_t({.degrees_of_freedom = nu}), {.scale = -2, .shift = 5}); };
+        auto const N = [](double a, double b) { return wsl::truncate(wsl::normal({.mean = 0.0, .sd = 1.0}), a, b); };
+        wsl::mixture const M(wsl::weighted(0.3, wsl::normal({.mean = -2.0, .sd = 1.0})), wsl::weighted(0.7, wsl::gamma({.shape = 3.0, .rate = 1.0})));
+        // Bornes : mesures arrondies au-dessus ; le quantile tronqué près d'un zéro du résultat.
+        check<double>("affine student pdf", d::affine_student_pdf_double, [&](double a, double, double y) { return pdf(Z(a), y); }, 0.51);
+        check<double>("affine student cdf", d::affine_student_cdf_double, [&](double a, double, double y) { return cdf(Z(a), y); }, 0.51);
+        check<double>("affine student ccdf", d::affine_student_ccdf_double, [&](double a, double, double y) { return ccdf(Z(a), y); }, 0.51);
+        check<double>("affine student quantile", d::affine_student_quantile_double, [&](double a, double, double p) { return quantile(Z(a), p); }, 4.0);
+        check<double>("truncated normal cdf", d::truncated_normal_cdf_double, [&](double a, double b, double x) { return cdf(N(a, b), x); }, 3.0);
+        check<double>("truncated normal ccdf", d::truncated_normal_ccdf_double, [&](double a, double b, double x) { return ccdf(N(a, b), x); }, 6.0);
+        check<double>("truncated normal quantile", d::truncated_normal_quantile_double, [&](double a, double b, double p) { return quantile(N(a, b), p); }, 64.0);
+        check<double>("mixture pdf", d::mixture_pdf_double, [&](double, double, double x) { return pdf(M, x); }, 1.5);
+        check<double>("mixture cdf", d::mixture_cdf_double, [&](double, double, double x) { return cdf(M, x); }, 1.5);
+        check<double>("mixture quantile", d::mixture_quantile_double, [&](double, double, double p) { return quantile(M, p); }, 1.5);
+    }
+    SURVIVAL_CHECKS(float, loose)
+#undef SURVIVAL_CHECKS
+#undef CQ
     SECOND_CHECKS(double, tight)
     SECOND_CHECKS(float, loose)
 #undef SECOND_CHECKS

@@ -175,36 +175,19 @@ namespace wsl
                 return 0;
             if (p == 1)
                 return std::numeric_limits<T>::infinity();
-            double const a = half(X.d1_), b = half(X.d2_);
-            auto const [u, w] = fp::beta_inverse_xy(a, b, p, false);
-            // u (ou 1 − u) sous 2^-960 n'a plus tous ses bits : I_u(a, b) = uᵃ/(a B(a, b)) (1 + O(b u)),
-            // d'où log u = (log p + log a + log B)/a, et x = (d₂/d₁) u/(1 − u) en un arrondi.
-            bool const tiny_u = u.hi < 0x1p-960 && fp::fmul(u.hi, b) < 0x1p-900;
-            bool const tiny_w = !tiny_u && w.hi < 0x1p-960 && fp::fmul(w.hi, a) < 0x1p-900;
-            if (tiny_u || tiny_w)
-            {
-                double const s = tiny_u ? a : b;
-                auto l = detail::sum(detail::log_precise(tiny_u ? p : 1.0 - p), detail::log_precise(s));   // 1 − p exact (p > ½)
-                l = detail::sum(l, detail::log_beta(a, b));
-                l = fp::quotient_dd(l, {s, 0.0});                           // log u (ou log(1 − u))
-                if (!tiny_u)
-                    l = {-l.hi, -l.lo};
-                l = detail::sum(l, detail::log_precise(double(X.d2_)));
-                auto const l1 = detail::log_precise(double(X.d1_));
-                l = detail::sum(l, {-l1.hi, -l1.lo});
-                if (l.hi < -1500)
-                    return 0;
-                if (l.hi > 1400)
-                    return std::numeric_limits<T>::infinity();
-                return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
-            }
-            if (u.hi == 0)
-                return 0;
-            if (w.hi == 0)
+            return X.inverse(p, false);
+        }
+
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(fisher_f const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
                 return std::numeric_limits<T>::infinity();
-            detail::scaled const q = detail::normalized(double(X.d2_), 0.0) * detail::normalized(u.hi, u.lo)
-                                   / (detail::normalized(double(X.d1_), 0.0) * detail::normalized(w.hi, w.lo));
-            return static_cast<T>(detail::rounded(q));
+            return X.inverse(q, true);
         }
 
         template <std::uniform_random_bit_generator G>
@@ -224,6 +207,43 @@ namespace wsl
         friend constexpr bool operator==(fisher_f const& p, fisher_f const& q) noexcept { return p.d1_ == q.d1_ && p.d2_ == q.d2_; }
 
     private:
+        // x tel que I_u(a, b) = t (1 − I_u(a, b) = t si complement), t dans (0, 1).
+        constexpr T inverse(double t, bool complement) const noexcept
+        {
+            namespace fp = detail::sd;
+            double const a = half(d1_), b = half(d2_);
+            auto const [u, w] = fp::beta_inverse_xy(a, b, t, complement);
+            // u (ou 1 − u) sous 2^-960 n'a plus tous ses bits : I_u(a, b) = uᵃ/(a B(a, b)) (1 + O(b u)),
+            // d'où log u = (log p + log a + log B)/a, et x = (d₂/d₁) u/(1 − u) en un arrondi.
+            bool const tiny_u = u.hi < 0x1p-960 && fp::fmul(u.hi, b) < 0x1p-900;
+            bool const tiny_w = !tiny_u && w.hi < 0x1p-960 && fp::fmul(w.hi, a) < 0x1p-900;
+            if (tiny_u || tiny_w)
+            {
+                double const s = tiny_u ? a : b;
+                fp::double_double const lt = detail::log_precise(t), l1 = detail::log1p_dd(-t);   // log t, log(1 − t)
+                auto l = detail::sum(tiny_u == complement ? l1 : lt, detail::log_precise(s));      // log de la queue de u (ou de 1 − u)
+                l = detail::sum(l, detail::log_beta(a, b));
+                l = fp::quotient_dd(l, {s, 0.0});                           // log u (ou log(1 − u))
+                if (!tiny_u)
+                    l = {-l.hi, -l.lo};
+                l = detail::sum(l, detail::log_precise(double(d2_)));
+                auto const ld1 = detail::log_precise(double(d1_));
+                l = detail::sum(l, {-ld1.hi, -ld1.lo});
+                if (l.hi < -1500)
+                    return 0;
+                if (l.hi > 1400)
+                    return std::numeric_limits<T>::infinity();
+                return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
+            }
+            if (u.hi == 0)
+                return 0;
+            if (w.hi == 0)
+                return std::numeric_limits<T>::infinity();
+            detail::scaled const x = detail::normalized(double(d2_), 0.0) * detail::normalized(u.hi, u.lo)
+                                   / (detail::normalized(double(d1_), 0.0) * detail::normalized(w.hi, w.lo));
+            return static_cast<T>(detail::rounded(x));
+        }
+
         static constexpr double half(T d) noexcept { return detail::sd::fmul(double(d), 0.5); }
 
         // u = d₁x/(d₁x + d₂), 1 − u = d₂/(d₁x + d₂), en double-double.

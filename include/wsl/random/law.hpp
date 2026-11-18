@@ -11,7 +11,8 @@
 //   - ses opérations, en fonctions libres trouvées par ADL (appel sans
 //     qualification, comme swap) : sample(X, g), sample(X, g, wsl::fast),
 //     pdf / pmf (densité, fonction de masse), log_pdf / log_pmf, cdf, ccdf
-//     (survie, 1 − cdf calculée sans annulation), quantile.
+//     (survie, 1 − cdf calculée sans annulation), quantile, cquantile (quantile de
+//     survie : x tel que P(X > x) = q, sans passer par 1 − q).
 //
 // Ce qui n'existe pas mathématiquement — l'espérance d'une loi de Cauchy — ou
 // n'est pas implémenté n'est pas déclaré : l'appel ne compile pas, et les
@@ -68,6 +69,7 @@ namespace wsl
     template <class L> concept has_cdf = requires(L const& law, typename L::value_type x) { cdf(law, x); };
     template <class L> concept has_ccdf = requires(L const& law, typename L::value_type x) { ccdf(law, x); };
     template <class L> concept has_quantile = requires(L const& law) { quantile(law, 0.5); };
+    template <class L> concept has_cquantile = requires(L const& law) { cquantile(law, 0.5); };
 
     template <class L, class G>
     concept samplable = std::uniform_random_bit_generator<G> && requires(L const& law, G& g) { sample(law, g); };

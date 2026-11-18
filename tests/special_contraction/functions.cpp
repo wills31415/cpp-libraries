@@ -99,6 +99,19 @@ extern "C"
     double check_logistic_quantile(double m, double s, double p) { return quantile(wsl::logistic({.location = m, .scale = s}), p); }
     double check_laplace_variance(double m, double b) { return 1 + wsl::laplace({.location = m, .scale = b}).variance(); }
     double check_pareto_cdf(double a, double b, double x) { return cdf(wsl::pareto({.scale = a, .shape = b}), x); }
+    // Quantiles de survie et algèbre des lois.
+    double check_cquantile_gamma(double a, double q) { return cquantile(wsl::gamma({.shape = a, .rate = 1.0}), q); }
+    double check_cquantile_fisher(double a, double b, double q) { return cquantile(wsl::fisher_f({.d1 = a, .d2 = b}), q); }
+    double check_cquantile_sum(double a, double q) { return 1 + cquantile(wsl::weibull({.shape = a, .scale = 2.0}), q) + cquantile(wsl::logistic({.location = a, .scale = 2.0}), q)
+                                                            + cquantile(wsl::lognormal({.mu = a, .sigma = 2.0}), q) + cquantile(wsl::uniform({.low = a, .high = a + 2}), q); }
+    double check_affine_closure(double a, double b, double x) { return cdf(a * wsl::normal({.mean = 1.0, .sd = 2.0}) + b, x) + (a * wsl::laplace({.location = 1.0, .scale = 2.0}) + b).location(); }
+    double check_affine_cdf(double a, double b, double x) { return cdf(wsl::affine(wsl::student_t({.degrees_of_freedom = 3.0}), {.scale = a, .shift = b}), x); }
+    double check_affine_quantile(double a, double b, double p) { return 1 + quantile(wsl::affine(wsl::student_t({.degrees_of_freedom = 3.0}), {.scale = a, .shift = b}), p); }
+    double check_affine_moments(double a, double b) { auto const Z = wsl::affine(wsl::gamma({.shape = 3.0, .rate = 1.0}), {.scale = a, .shift = b}); return Z.mean() + Z.variance() + Z.entropy() + Z.support().upper; }
+    double check_truncated_cdf(double a, double b, double x) { auto const T = wsl::truncate(wsl::normal({.mean = 0.0, .sd = 1.0}), a, b); return cdf(T, x) + ccdf(T, x) + log_pdf(T, x); }
+    double check_truncated_quantile(double a, double b, double p) { auto const T = wsl::truncate(wsl::normal({.mean = 0.0, .sd = 1.0}), a, b); return 1 + quantile(T, p) + cquantile(T, p); }
+    double check_mixture_functions(double w, double x) { wsl::mixture const M(wsl::weighted(w, wsl::normal({.mean = -2.0, .sd = 1.0})), wsl::weighted(1.0, wsl::gamma({.shape = 3.0, .rate = 1.0})));
+                                                         return pdf(M, x) + cdf(M, x) + log_pdf(M, x) + quantile(M, 0.25) + M.mean() + M.variance() + M.skewness() + M.excess_kurtosis(); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

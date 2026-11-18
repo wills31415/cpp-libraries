@@ -162,6 +162,16 @@ namespace wsl
             return static_cast<T>(p < 0.5 ? -t : t);
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(student_t const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            return -quantile(X, q);                                         // loi symétrique
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(student_t const& X, G& g)
         {

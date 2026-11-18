@@ -34,7 +34,7 @@ namespace wsl
         constexpr T degrees_of_freedom() const noexcept { return k_; }
         constexpr interval<T> support() const noexcept { return g_.support(); }
         constexpr T mean() const noexcept { return k_; }
-        constexpr T variance() const noexcept { return static_cast<T>(2.0 * double(k_)); }
+        constexpr T variance() const noexcept { return static_cast<T>(detail::sd::fmul(2.0, double(k_))); }
         constexpr T mode() const noexcept { return g_.mode(); }
         constexpr T skewness() const noexcept { return g_.skewness(); }
         constexpr T excess_kurtosis() const noexcept { return g_.excess_kurtosis(); }
@@ -45,6 +45,7 @@ namespace wsl
         friend constexpr T cdf(chi_squared const& X, T x) noexcept { return cdf(X.g_, x); }
         friend constexpr T ccdf(chi_squared const& X, T x) noexcept { return ccdf(X.g_, x); }
         friend constexpr T quantile(chi_squared const& X, double p) { return quantile(X.g_, p); }
+        friend constexpr T cquantile(chi_squared const& X, double q) { return cquantile(X.g_, q); }
 
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(chi_squared const& X, G& g)

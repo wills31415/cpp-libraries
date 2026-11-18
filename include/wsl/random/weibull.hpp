@@ -177,6 +177,21 @@ namespace wsl
             return static_cast<T>(exp_of(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(weibull const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            namespace fp = detail::sd;
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [l_hi, l_lo] = detail::log_precise(q);               // λ (−log q)^{1/k}
+            auto const ll = detail::log(detail::normalized(-l_hi, -l_lo));
+            return static_cast<T>(exp_of(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(weibull const& X, G& g)
         {

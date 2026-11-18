@@ -126,6 +126,18 @@ namespace wsl
             return X.clamp(detail::interpolate(X.low_, X.high_, p));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(uniform const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return X.high_;
+            return X.clamp(-detail::interpolate(-X.high_, -X.low_, q));     // b − q (b − a), un arrondi
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(uniform const& X, G& g)
         {

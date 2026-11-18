@@ -152,6 +152,24 @@ namespace wsl
             return static_cast<T>(detail::rounded(detail::exp_scaled(y.hi, y.lo)));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(lognormal const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [x_hi, x_lo] = detail::standard_quantile(q);         // e^{μ − σ Φ⁻¹(q)}
+            auto const y = detail::sum({double(X.mu_), 0.0}, detail::mul({double(X.sigma_), 0.0}, {-x_hi, -x_lo}));
+            if (y.hi > 1400)
+                return std::numeric_limits<T>::infinity();
+            if (y.hi < -1500)
+                return 0;
+            return static_cast<T>(detail::rounded(detail::exp_scaled(y.hi, y.lo)));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(lognormal const& X, G& g)
         {

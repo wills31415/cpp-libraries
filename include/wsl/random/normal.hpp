@@ -64,6 +64,31 @@ namespace wsl
             return negative ? sd::double_double{-hi, -lo} : sd::double_double{hi, lo};
         }
 
+        // |x − μ|/σ à l'échelle, sans saturation, et son signe ; x fini.
+        struct standardized_scaled
+        {
+            bool negative;
+            scaled z;                                                       // z.hi == 0 si x = μ
+        };
+        constexpr standardized_scaled standardize_scaled(double x, double mu, double sigma) noexcept
+        {
+            auto [n, n_error] = sd::two_sum(x, -mu);
+            int doubled = 0;
+            if (!is_finite(n))                                              // sur les moitiés
+            {
+                auto const [h, h_error] = sd::two_sum(sd::fmul(x, 0.5), -sd::fmul(mu, 0.5));
+                n = h;
+                n_error = h_error;
+                doubled = 1;
+            }
+            if (n == 0)
+                return {false, {0.0, 0.0, 0}};
+            bool const negative = n < 0;
+            scaled q = normalized(negative ? -n : n, negative ? -n_error : n_error) / sigma;
+            q.e += doubled;
+            return {negative, q};
+        }
+
         // erfc(w)/2, w = w_hi + w_lo, arrondi une fois. erfc(w_hi + w_lo) =
         // erfc(w_hi) (1 − w_lo (2/√π) / F(w_hi)) au premier ordre, F(x) = e^{x²}
         // erfc(x) (le second ordre est sous 2^-90 relativement).
@@ -218,7 +243,7 @@ namespace wsl
         constexpr T mean() const noexcept { return mean_; }
         constexpr T median() const noexcept { return mean_; }
         constexpr T mode() const noexcept { return mean_; }
-        constexpr T variance() const noexcept { return static_cast<T>(double(sd_) * double(sd_)); }
+        constexpr T variance() const noexcept { return static_cast<T>(detail::sd::fmul(double(sd_), double(sd_))); }
         constexpr T skewness() const noexcept { return 0; }
         constexpr T excess_kurtosis() const noexcept { return 0; }
         // log σ + (1 + log 2π)/2.
@@ -296,6 +321,19 @@ namespace wsl
             if (x_hi == 0)
                 return X.mean_;
             return static_cast<T>(detail::affine(X.mean_, X.sd_, x_hi, x_lo));
+        }
+
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(normal const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [x_hi, x_lo] = detail::standard_quantile(q);         // μ − σ Φ⁻¹(q)
+            return static_cast<T>(detail::affine(X.mean_, X.sd_, -x_hi, -x_lo));
         }
 
         template <std::uniform_random_bit_generator G>

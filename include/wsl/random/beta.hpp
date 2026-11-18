@@ -169,6 +169,16 @@ namespace wsl
             return static_cast<T>(wsl::special::ibeta_inv(double(X.a_), double(X.b_), p));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(beta const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            return static_cast<T>(wsl::special::ibetac_inv(double(X.a_), double(X.b_), q));
+        }
+
         friend constexpr T pdf(beta const& X, T x) noexcept
         {
             double const v = x, a = X.a_, b = X.b_;

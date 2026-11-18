@@ -32,6 +32,7 @@
 #include <wsl/special.hpp>
 
 #include <limits>
+#include <optional>
 #include <random>
 #include <stdexcept>
 
@@ -260,6 +261,41 @@ namespace wsl
             return static_cast<T>(detail::rounded(X.per_rate(detail::normalized(t_hi, t_lo))));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(gamma const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            namespace fp = detail::sd;
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [t_hi, t_lo] = fp::gamma_inverse_dd(double(X.shape_), q, true);
+            if (!detail::is_finite(t_hi))
+                return std::numeric_limits<T>::infinity();
+            if (t_hi < 0x1p-900)                                            // (petite forme) comme pour quantile,
+            {                                                               // log p = log1p(−q)
+                double const a = X.shape_;
+                auto const lp = detail::log1p_dd(-q);
+                fp::double_double lg{};
+                if (a <= 0.25)
+                    lg = fp::lgamma1p_small(a);
+                else
+                {
+                    auto const [s_hi, s_lo] = fp::two_sum(1.0, a);
+                    lg = detail::log_gamma(s_hi, s_lo);
+                }
+                fp::double_double l = fp::quotient_dd(detail::sum(lp, lg), {a, 0.0});
+                auto const lr = X.log_rate();
+                l = detail::sum(l, {-lr.hi, -lr.lo});
+                if (l.hi < -1500)
+                    return 0;
+                return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
+            }
+            return static_cast<T>(detail::rounded(X.per_rate(detail::normalized(t_hi, t_lo))));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(gamma const& X, G& g)
         {
@@ -272,7 +308,18 @@ namespace wsl
                 double const u = detail::uniform_positive(g);
                 y = fmul_exp(h, wsl::special::log(u) / double(X.shape_));
             }
-            return static_cast<T>(X.by_rate_ ? y / double(X.parameter_) : y * double(X.parameter_));
+            return static_cast<T>(X.by_rate_ ? y / double(X.parameter_) : detail::sd::fmul(y, double(X.parameter_)));
+        }
+
+        // Identité de l'algèbre (voir affine.hpp) : c X, c > 0, est gamma(a, θc) (ou λ/c), dans la
+        // même paramétrisation ; vide si le paramètre n'est plus représentable.
+        friend constexpr std::optional<gamma> scale_closure(gamma const& X, double c) noexcept
+        {
+            double const v = X.by_rate_ ? double(X.parameter_) / c : detail::sd::fmul(double(X.parameter_), c);
+            auto const t = static_cast<T>(v);
+            if (!(t > 0) || !detail::is_finite(t))
+                return std::nullopt;
+            return X.by_rate_ ? gamma(shape_rate{X.shape_, t}) : gamma(shape_scale{X.shape_, t});
         }
 
         friend constexpr bool operator==(gamma const& a, gamma const& b) noexcept

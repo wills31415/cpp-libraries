@@ -142,6 +142,19 @@ namespace wsl
             return static_cast<T>(detail::rounded(detail::normalized(-hi, -lo) / double(X.rate_)));
         }
 
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(exponential const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [hi, lo] = detail::log_precise(q);                   // x = −log q / λ
+            return static_cast<T>(detail::rounded(detail::normalized(-hi, -lo) / double(X.rate_)));
+        }
+
         template <std::uniform_random_bit_generator G>
         friend constexpr T sample(exponential const& X, G& g)
         {

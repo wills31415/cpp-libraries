@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9).
+> premières lois (§9) ; **phase 5** (algèbre des lois) : lot 1 fait (§10).
 
 ## 1. Vision ✅
 
@@ -127,6 +127,7 @@ Une loi est un type qui déclare :
 | Densité / fonction de masse | `pdf(X, x)`, `log_pdf(X, x)` | toutes les lois classiques |
 | Fonction de répartition, survie | `cdf(X, x)`, `ccdf(X, x)` | normale, gamma… |
 | Quantile | `quantile(X, p)` | exponentielle, Cauchy… |
+| Quantile de survie | `cquantile(X, q)` : x tel que P(X > x) = q, sans former 1 − q | toutes les lois continues |
 | Moments | `X.mean()`, `X.variance()`, `X.skewness()`, `X.kurtosis()` | absents pour Cauchy : l'appel ne compile pas |
 | Mode, médiane, entropie | `X.mode()`, `X.median()`, `X.entropy()` | |
 | Fonctions caractéristique et génératrice | `characteristic(X, t)`, `mgf(X, t)` | |
@@ -186,21 +187,20 @@ Quand un algorithme exact existe, il est utilisé par défaut ; la variante rapi
 demande explicitement (`sample(X, gen, wsl::fast)`) et porte sa borne d'erreur.
 Quand aucun n'est connu, le meilleur algorithme est utilisé et marqué `approximate`.
 
-### 4.6 Algèbre des lois ◻︎
+### 4.6 Algèbre des lois ✅ (lot 1, phase 5)
 
 | Construction | Écriture | Ce qui est hérité |
 |---|---|---|
-| Image affine | `2 * X + 1` | densité, répartition, quantile, moments transformés exactement |
-| Image par une fonction | `pushforward(X, f)` | tirage ; le reste seulement si `f` est déclarée monotone et dérivable |
-| Troncature, conditionnement | `truncate(X, a, b)`, `condition(X, event)` | densité, répartition, quantile renormalisés |
-| Mélange | `mixture({w1, X1}, {w2, X2})` | densité, répartition, moments |
-| Produit (indépendance) | `product(X, Y)` | loi jointe ; densité produit |
-| Somme indépendante | `X + Y` (lois de même famille) | identités : normale + normale, gamma + gamma de même intensité, Poisson + Poisson… |
+| Image affine | `2 * X + 1`, `-X`, `X / 4`, `wsl::affine(X, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
+| Troncature, conditionnement | `wsl::truncate(X, a, b)` | densité, répartition, quantiles renormalisés |
+| Mélange | `wsl::mixture(wsl::weighted(w1, X1), wsl::weighted(w2, X2), …)` | densité ou masse, répartition, quantiles, moments |
+| Image par une fonction | `pushforward(X, f)` | lot 2 |
+| Produit (indépendance) | `product(X, Y)` | lot 2 |
+| Somme indépendante | `X + Y` | lot 2 (identités : normale + normale, gamma + gamma de même intensité, Poisson + Poisson…) |
 
-Les identités connues sont résolues **à la compilation** : `normal + normal` a pour type
-`normal`, avec ses paramètres calculés. Sans identité, le résultat est une loi
-générique (tirage par composition ; densité par convolution seulement si elle est
-déclarée).
+Les identités connues sont résolues **à la compilation** : `2 * normal + 1` a pour type
+`normal`, avec ses paramètres calculés (voir §10). Sans identité, le résultat est une loi
+générique qui compose.
 
 ### 4.7 Adaptateur vers `<random>` ✅
 
@@ -242,7 +242,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 2 | `wsl::random`, socle : moteurs, uniformes exacts, Bernoulli exacte ; `exact_random` est absorbé |
 | 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
-| 5 | Algèbre des lois |
+| 5 | Algèbre des lois (lot 1 fait : image affine, troncature, mélanges, quantile de survie) |
 | 6 | Lois multivariées |
 | 7 | Objets combinatoires (avec `wsl::permutation`) |
 | 8 | Processus |
@@ -483,3 +483,73 @@ Précision mesurée : tout sous 0,5 ulp (double et float), arrondi correct sur
 - log-densité de Fisher pour d₁ = 2 : f(0) = 1, log f ≈ 0 près de 0 se compensait
   (120 ulp) ;
 - quantile de Fisher sous-normal : u sous-normal n'a plus tous ses bits (2 ulp).
+
+## 10. Phase 5 : algèbre des lois, lot 1
+
+Décision (2026-11-18) : **identités de familles, puis composition**. Une famille fermée
+donne une loi de la famille, sous 0,5 ulp comme toute loi ; sinon la loi construite
+compose les fonctions de ses lois de base, bit-exacte partout, avec une erreur mesurée
+et bornée par le conditionnement.
+
+### Quantile de survie
+
+`cquantile(X, q)`, x tel que P(X > x) = q, pour les quatorze lois continues : pour
+q >= ½, `quantile(X, 1 − q)` (1 − q exact) ; sinon une branche propre à chaque loi, q
+exact (−log q/λ, μ − σΦ⁻¹(q), Q⁻¹(a, q), I⁻¹ complémentaire, x₀ + γ cot(πq)…). Tout sous
+0,5 ulp, arrondi correct à 99,4–100 % (14 lois × double et float, références mpmath
+écrites sur la queue). Sans lui, l'image par a < 0 et la troncature dans une queue
+perdraient tout pour q minuscule.
+
+### Image affine
+
+| Famille | aX + b |
+|---|---|
+| normale, Cauchy, Laplace, logistique, uniforme | même famille (`affine_closure`), type conservé ; paramètres arrondis une fois par opération (`wsl::affine(X, {a, b})` : une fois en tout) |
+| exponentielle, gamma, Weibull, Pareto, log-normale | `affine_image<L>`, mais pour a > 0, b = 0 toutes les fonctions sont celles de la loi de la famille (`scale_closure`) : mêmes bits |
+| autres | `affine_image<L>` : z = (y − b)/a arrondi une fois, cdf/ccdf échangées si a < 0, quantile a·Q(p) + b ou a·cQ(p) + b en un arrondi, moments a·m + b, a²v, ±asymétrie, H + log a |
+
+Les points de personnalisation `affine_closure(X, a, b)` et `scale_closure(X, c)` sont
+des fonctions libres trouvées par ADL : une loi de l'utilisateur peut les fournir.
+
+### Troncature
+
+`truncate(X, a, b)`, loi de X sachant a <= X <= b. Masse, répartition et survie sont des
+différences de F ou de S de X choisies point par point (deux termes <= ½ dès que
+possible) ; les cibles des quantiles sont des sommes de positifs, F(a) + p·m ou
+S(b) + (1 − p)·m, résolues par `quantile` ou `cquantile` de X : N | N >= 10 (masse
+7,6·10⁻²⁴) garde sa précision. Tirage par rejet sur X si m >= ¼ (exact si celui de X
+l'est), par inversion sinon.
+
+### Mélange
+
+`mixture(weighted(w₁, X₁), …)`, composantes de types quelconques, de même `value_type`
+(réel ou entier). Densité, masse, répartition : Σ wᵢ fᵢ / W en double-double ;
+variance Σ wᵢ (vᵢ + (mᵢ − m)²) / W, sans compensation ; asymétrie et kurtosis par les
+moments centrés ; quantiles par dichotomie sur les flottants (ou les entiers) entre
+les quantiles extrêmes des composantes. **Tirage exact** si chaque composante l'est :
+les poids flottants sont des entiers à un 2^e commun près, la composante est tirée
+uniformément sous leur somme (64 bits, ou grands entiers quand les poids s'étendent
+de 2^-1000 à 2^1000).
+
+### Erreur de composition mesurée
+
+| Loi construite | pdf | cdf | ccdf | quantile |
+|---|---|---|---|---|
+| −2T + 5, T de Student (ν = 1,5 ; 4 ; 30) | 0,50 | 0,50 | 0,50 | 3,7 (quand 5 + 2Q se compense) |
+| N(0, 1) tronquée (cinq intervalles, queues comprises) | — | 2,2 | 5,2 | 61 (près du zéro du quantile) |
+| 0,3 N(−2, 1) + 0,7 gamma(3, 1) | 1,2 | 1,0 | — | 1,0 |
+
+(ulp, double ; points loin des bornes de troncature.) Limites inhérentes à la
+composition, documentées : près d'une borne de troncature, l'erreur suit le
+conditionnement |x|/(x − a) ; près d'un zéro du résultat (quantile tronqué, image
+affine), seule l'erreur absolue reste petite ; une valeur de F ou de S de X sous les
+sous-normaux (N tronquée au-delà de |x| = 38) perd ses bits.
+
+### Défauts trouvés en route
+
+- `ccdf` de Cauchy nulle au-delà de |z| = 2⁶⁰⁰ (`detail::standardize` sature, juste pour
+  les lois à queue exponentielle) : z gardé à l'échelle, sans saturation ; et 1/z par
+  Dekker sortait de son domaine au-delà de 2⁹⁹⁵. Log-densités de Laplace et de la
+  logistique de même (−|z|, et non −∞). Références étendues à |z| = 2¹⁰⁰⁰.
+- Produits rendus sans `fmul` (variance de la normale et du χ², **tirage gamma** par
+  l'échelle) : GCC les fusionnait avec l'addition de l'appelant.

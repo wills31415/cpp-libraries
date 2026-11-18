@@ -81,6 +81,8 @@ namespace wsl
             if (!(x == x))
                 return x;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mu_, X.b_);
+            if (!detail::is_finite(z_hi) && detail::is_finite(x))           // |z| > 2^600 : −|z| (le reste, négligeable)
+                return static_cast<T>(-detail::rounded(detail::standardize_scaled(x, X.mu_, X.b_).z));
             double const a = detail::magnitude(z_hi), a_lo = z_hi < 0 ? -z_lo : z_lo;
             auto e = detail::sum(detail::log_precise(double(X.b_)), {detail::sd::ln2_hi, detail::sd::ln2_lo});
             e = detail::sum(e, {a, a_lo});
@@ -106,6 +108,20 @@ namespace wsl
             auto const [l_hi, l_lo] = detail::log_precise(q);               // < 0
             detail::scaled const t = detail::normalized(-l_hi, -l_lo) * detail::normalized(double(X.b_), 0.0);
             return static_cast<T>(detail::affine_scaled(X.mu_, lower, t));
+        }
+
+        // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
+        friend constexpr T cquantile(laplace const& X, double q)
+        {
+            if (!(q >= 0 && q <= 1))
+                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+            if (q >= 0.5)
+                return quantile(X, 1.0 - q);                                // 1 − q exact
+            if (q == 0)
+                return std::numeric_limits<T>::infinity();
+            auto const [l_hi, l_lo] = detail::log_precise(detail::sd::fmul(q, 2.0));   // μ − b log(2q)
+            detail::scaled const t = detail::normalized(-l_hi, -l_lo) * detail::normalized(double(X.b_), 0.0);
+            return static_cast<T>(detail::affine_scaled(X.mu_, false, t));
         }
 
         template <std::uniform_random_bit_generator G>

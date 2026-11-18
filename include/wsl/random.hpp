@@ -15,6 +15,7 @@
 // indépendants de la bibliothèque standard. Tout générateur standard (mt19937…)
 // est accepté.
 
+#include <wsl/random/affine.hpp>
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/beta.hpp>
 #include <wsl/random/binomial.hpp>
@@ -28,10 +29,12 @@
 #include <wsl/random/laplace.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/logistic.hpp>
+#include <wsl/random/mixture.hpp>
 #include <wsl/random/lognormal.hpp>
 #include <wsl/random/normal.hpp>
 #include <wsl/random/pareto.hpp>
 #include <wsl/random/poisson.hpp>
 #include <wsl/random/student_t.hpp>
+#include <wsl/random/truncated.hpp>
 #include <wsl/random/uniform.hpp>
 #include <wsl/random/weibull.hpp>
