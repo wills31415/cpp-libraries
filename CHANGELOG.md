@@ -68,6 +68,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   logarithme double-double. Choix exacts à poids flottants (`detail::choose`,
   `detail::fraction`). `wsl::random` dépend désormais de `wsl::permutation`.
 - Le support devient facultatif dans le concept de loi (`has_support`).
+- Objets combinatoires, lot 2, tirages exacts : `erdos_renyi`, `uniform_graph`,
+  `barabasi_albert`, `random_regular_graph`, `uniform_tree` (Cayley, Prüfer),
+  `uniform_binary_tree` (Rémy), `uniform_set_partition`, `uniform_composition` ;
+  `wsl::edge_list`, `wsl::binary_tree`.
 - Lois `von_mises` (cercle) et `von_mises_fisher` (sphère, dimension fixe ou dynamique) :
   densités, longueurs résultantes, entropies sous 0,5 ulp ; tirages de Best–Fisher et Wood.
 - Lois multivariées, lot 2 : `multivariate_student_t`, `wishart`, `inverse_wishart`,

@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) : lot 1 fait (§13).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) faite (§13).
 
 ## 1. Vision ✅
 
@@ -244,7 +244,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
 | 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, von Mises, von Mises–Fisher, Haar, GOE, GUE) |
-| 7 | Objets combinatoires (avec `wsl::permutation`) — lot 1 fait : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers |
+| 7 | Objets combinatoires ✅ (avec `wsl::permutation`) : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers et d'ensembles, compositions, graphes, arbres |
 | 8 | Processus |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
@@ -694,6 +694,24 @@ lettres, parts décroissantes). Vérifications : χ² contre la masse exacte sur
 objets d'une petite taille (S₄, 2⁴ sous-ensembles, C(6, 3), 3³ mots, 22 partitions de 8),
 masses sommant à 1 sur S₆, espérances (cycles, inversions) exactes, p(100) et p(1000).
 
-Suite (lot 2) : graphes (Erdős–Rényi G(n, p) et G(n, m), Barabási–Albert, graphes
-réguliers), arbres (Cayley par Prüfer, binaires de Catalan par Rémy), partitions
-d'ensembles, compositions.
+### Lot 2 : graphes, arbres, partitions d'ensemble, compositions
+
+Valeurs : `wsl::edge_list` (arêtes (u, v), u < v, triées) ; `wsl::binary_tree` (enfants
+{gauche, droit} numérotés en préordre, racine 0, `binary_tree::none`) ; partition
+d'ensemble : mot à croissance restreinte ; composition : liste des parts.
+
+| Loi | Paramètres | Masse | Tirage exact |
+|---|---|---|---|
+| `erdos_renyi` | `{.vertices, .p}` | p^m (1 − p)^{N−m} | une épreuve par paire (O(n²)) |
+| `uniform_graph` | `{.vertices, .edges}` | 1/C(N, m) | Floyd sur les indices des paires |
+| `barabasi_albert` | `{.vertices, .edges}` | — | K_{m+1}, puis m cibles distinctes ∝ degré (extrémité uniforme d'arête, doublons rejetés) |
+| `random_regular_graph` | `{.vertices, .degree}` | — (uniforme) | modèle de configuration rejeté jusqu'à un graphe simple (e^{(d² − 1)/4} essais : petits d) |
+| `uniform_tree` | `{.vertices}` | n^{−(n−2)} | suite de Prüfer, décodage O(n) |
+| `uniform_binary_tree` | `{.nodes}` | 1/C_n | Rémy (arbres complets), feuilles retirées |
+| `uniform_set_partition` | `{.size}` | 1/B_n ; `count()` | élément par élément, poids T(r, k) des complétions (grands entiers, table O(n²)) |
+| `uniform_composition` | `{.n}` ou `{.n, .parts}` | 2^{1−n}, 1/C(n − 1, k − 1) | points de coupure uniformes |
+
+Vérifications : χ² contre la loi exacte sur tous les objets d'une petite taille (64
+graphes à 4 sommets, C(10, 3), les 70 graphes 2-réguliers à 6 sommets, les 6 issues de
+Barabási–Albert (4, 1), 16 arbres de Cayley, 14 arbres binaires, 52 partitions, 32 et 10
+compositions) ; grandes tailles : degrés, arbres valides, B₂₀.

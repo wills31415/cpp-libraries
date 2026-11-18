@@ -51,4 +51,5 @@
 #include <wsl/random/random_matrix.hpp>
 #include <wsl/random/von_mises.hpp>
 #include <wsl/random/subsets.hpp>
+#include <wsl/random/graphs.hpp>
 #include <wsl/random/permutations.hpp>

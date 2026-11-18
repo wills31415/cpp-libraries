@@ -57,8 +57,17 @@ namespace
 
     // χ² de draws tirages de law contre sa masse, sur tous les objets de objects ;
     // écart réduit (χ² − ddl)/√(2 ddl), < 4 attendu.
+    template <class L, class G, class V, class P>
+    double chi_square(L const& law, G& g, std::vector<V> const& objects, int draws, P probability);
+
     template <class L, class G, class V>
     double chi_square(L const& law, G& g, std::vector<V> const& objects, int draws)
+    {
+        return chi_square(law, g, objects, draws, [&](V const& o) { return pmf(law, o); });
+    }
+
+    template <class L, class G, class V, class P>
+    double chi_square(L const& law, G& g, std::vector<V> const& objects, int draws, P probability)
     {
         std::map<V, int> counts;
         for (int i = 0; i < draws; ++i)
@@ -66,8 +75,8 @@ namespace
         double chi = 0, total = 0;
         for (auto const& o : objects)
         {
-            double const e = draws * pmf(law, o);
-            total += pmf(law, o);
+            double const e = draws * probability(o);
+            total += probability(o);
             auto const it = counts.find(o);
             double const c = it == counts.end() ? 0 : it->second;
             chi += (c - e) * (c - e) / e;
@@ -104,6 +113,75 @@ namespace
                 r.push_back(s);
         }
         return r;
+    }
+
+    // Graphes sur n sommets, arêtes parmi les C(n, 2) paires (ordre lexicographique).
+    std::vector<wsl::edge_list> all_graphs(std::size_t n, std::size_t edges = SIZE_MAX)
+    {
+        wsl::edge_list pairs;
+        for (std::size_t u = 0; u < n; ++u)
+            for (std::size_t v = u + 1; v < n; ++v)
+                pairs.emplace_back(u, v);
+        std::vector<wsl::edge_list> r;
+        for (std::uint64_t m = 0; m < (std::uint64_t{1} << pairs.size()); ++m)
+        {
+            wsl::edge_list e;
+            for (std::size_t i = 0; i < pairs.size(); ++i)
+                if ((m >> i) & 1)
+                    e.push_back(pairs[i]);
+            if (edges == SIZE_MAX || e.size() == edges)
+                r.push_back(e);
+        }
+        return r;
+    }
+
+    std::vector<std::size_t> degrees(wsl::edge_list const& e, std::size_t n)
+    {
+        std::vector<std::size_t> d(n, 0);
+        for (auto const& [u, v] : e)
+        {
+            ++d[u];
+            ++d[v];
+        }
+        return d;
+    }
+
+    // Arbres binaires à n nœuds, numérotés en préordre.
+    std::vector<wsl::binary_tree> all_binary_trees(std::size_t n)
+    {
+        constexpr std::size_t none = wsl::binary_tree::none;
+        if (n == 0)
+            return {wsl::binary_tree{}};
+        std::vector<wsl::binary_tree> r;
+        for (std::size_t l = 0; l < n; ++l)
+            for (auto const& left : all_binary_trees(l))
+                for (auto const& right : all_binary_trees(n - 1 - l))
+                {
+                    wsl::binary_tree t;
+                    t.children.push_back({l > 0 ? 1 : none, n - 1 - l > 0 ? 1 + l : none});
+                    for (auto c : left.children)
+                        t.children.push_back({c[0] == none ? none : c[0] + 1, c[1] == none ? none : c[1] + 1});
+                    for (auto c : right.children)
+                        t.children.push_back({c[0] == none ? none : c[0] + 1 + l, c[1] == none ? none : c[1] + 1 + l});
+                    r.push_back(t);
+                }
+        return r;
+    }
+
+    // Mots à croissance restreinte de longueur n (partitions d'ensemble).
+    void restricted_growth(std::size_t n, std::size_t blocks, std::vector<std::size_t>& a, std::vector<std::vector<std::size_t>>& out)
+    {
+        if (a.size() == n)
+        {
+            out.push_back(a);
+            return;
+        }
+        for (std::size_t v = 0; v <= blocks; ++v)
+        {
+            a.push_back(v);
+            restricted_growth(n, v == blocks ? blocks + 1 : blocks, a, out);
+            a.pop_back();
+        }
     }
 
     void partitions(std::size_t n, std::size_t largest, std::vector<std::size_t>& current, std::vector<std::vector<std::size_t>>& out)
@@ -221,6 +299,88 @@ int main()
         assert(total == 500 && std::is_sorted(q.rbegin(), q.rend()) && pmf(P, q) > 0 && pmf(P, {3, 4}) == 0);
     }
 
+    // ---- Graphes ------------------------------------------------------------------------
+    {
+        assert(chi_square(wsl::erdos_renyi({.vertices = 4, .p = 0.35}), g, all_graphs(4), draws) < 4);
+        assert(chi_square(wsl::uniform_graph({.vertices = 5, .edges = 3}), g, all_graphs(5, 3), draws) < 4);
+        std::vector<wsl::edge_list> regular;                                 // 2-réguliers sur 6 sommets : 70
+        for (auto const& e : all_graphs(6, 6))
+            if (std::ranges::all_of(degrees(e, 6), [](std::size_t d) { return d == 2; }))
+                regular.push_back(e);
+        assert(regular.size() == 70);
+        assert(chi_square(wsl::random_regular_graph({.vertices = 6, .degree = 2}), g, regular, draws, [](wsl::edge_list const&) { return 1.0 / 70; }) < 4);
+        // Barabási–Albert, n = 4, m = 1 : {01, x2, y3}, P(x) = ½, P(y = x) = ½, sinon ¼.
+        std::vector<wsl::edge_list> ba;
+        std::vector<double> pr;
+        for (std::size_t x : {0, 1})
+            for (std::size_t y : {0, 1, 2})
+            {
+                wsl::edge_list e{{0, 1}, {x, 2}, {y, 3}};
+                std::ranges::sort(e);
+                ba.push_back(e);
+                pr.push_back(0.5 * (y == x ? 0.5 : 0.25));
+            }
+        assert(chi_square(wsl::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4);
+        wsl::barabasi_albert const B({.vertices = 2000, .edges = 3});
+        auto const be = sample(B, g);
+        assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::detail::is_edge_list(be, 2000));
+        auto const re = sample(wsl::random_regular_graph({.vertices = 500, .degree = 3}), g);
+        assert(std::ranges::all_of(degrees(re, 500), [](std::size_t d) { return d == 3; }) && wsl::detail::is_edge_list(re, 500));
+        auto const er = sample(wsl::erdos_renyi({.vertices = 300, .p = 0.1}), g);
+        assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && pmf(wsl::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
+        assert(throws_domain_error([] { wsl::random_regular_graph X({.vertices = 5, .degree = 3}); }) && throws_domain_error([] { wsl::uniform_graph X({.vertices = 4, .edges = 7}); }));
+    }
+
+    // ---- Arbres ------------------------------------------------------------------------
+    {
+        std::vector<wsl::edge_list> trees;
+        for (auto const& e : all_graphs(4, 3))
+            if (wsl::detail::is_tree(e, 4))
+                trees.push_back(e);
+        assert(trees.size() == 16);                                          // Cayley : 4²
+        assert(chi_square(wsl::uniform_tree({.vertices = 4}), g, trees, draws) < 4);
+        auto const binary = all_binary_trees(4);
+        assert(binary.size() == 14);                                         // Catalan C₄
+        assert(chi_square(wsl::uniform_binary_tree({.nodes = 4}), g, binary, draws) < 4);
+        wsl::uniform_tree const T({.vertices = 1000});
+        auto const t = sample(T, g);
+        assert(wsl::detail::is_tree(t, 1000) && pmf(T, t) == 0 && log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
+        wsl::uniform_binary_tree const A({.nodes = 1000});
+        auto const a = sample(A, g);
+        assert(a.size() == 1000 && log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
+        assert(pmf(wsl::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && pmf(wsl::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
+    }
+
+    // ---- Partitions d'ensemble, compositions --------------------------------------------
+    {
+        std::vector<std::vector<std::size_t>> rgs, current_rgs;
+        std::vector<std::size_t> a;
+        restricted_growth(5, 0, a, rgs);
+        assert(rgs.size() == 52);                                            // Bell B₅
+        assert(chi_square(wsl::uniform_set_partition({.size = 5}), g, rgs, draws) < 4);
+        assert(wsl::uniform_set_partition({.size = 20}).count() == 51724158235372.0);
+        std::vector<std::vector<std::size_t>> comps, comps3;
+        for (std::uint64_t m = 0; m < 32; ++m)                               // coupures parmi 1 … 5
+        {
+            std::vector<std::size_t> c;
+            std::size_t last = 0;
+            for (std::size_t i = 1; i < 6; ++i)
+                if ((m >> (i - 1)) & 1)
+                {
+                    c.push_back(i - last);
+                    last = i;
+                }
+            c.push_back(6 - last);
+            comps.push_back(c);
+            if (c.size() == 3)
+                comps3.push_back(c);
+        }
+        assert(chi_square(wsl::uniform_composition({.n = 6}), g, comps, draws) < 4);
+        assert(comps3.size() == 10 && chi_square(wsl::uniform_composition({.n = 6, .parts = 3}), g, comps3, draws) < 4);
+        auto const sp = sample(wsl::uniform_set_partition({.size = 150}), g);
+        assert(pmf(wsl::uniform_set_partition({.size = 150}), sp) > 0 && pmf(wsl::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
+    }
+
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
@@ -237,8 +397,22 @@ int main()
             add_vec(h, sample(wsl::uniform_combination({.size = 100, .count = 7}), x));
             add_vec(h, sample(wsl::uniform_word({.length = 9, .alphabet = 26}), x));
         }), 0x0ed6bf2a62e76d9b);
+        auto const add_edges = [](fnv1a& h, wsl::edge_list const& e) { h.add(e.size()); for (auto [u, v] : e) h.add((std::uint64_t(u) << 32) | v); };
+        ok &= check("graphs", fingerprint([&](fnv1a& h) {
+            add_edges(h, sample(wsl::erdos_renyi({.vertices = 12, .p = 0.3}), x));
+            add_edges(h, sample(wsl::uniform_graph({.vertices = 12, .edges = 15}), x));
+            add_edges(h, sample(wsl::barabasi_albert({.vertices = 20, .edges = 2}), x));
+            add_edges(h, sample(wsl::random_regular_graph({.vertices = 12, .degree = 3}), x));
+        }, 1 << 10), 0x553dd3266e70997e);
+        ok &= check("trees", fingerprint([&](fnv1a& h) {
+            add_edges(h, sample(wsl::uniform_tree({.vertices = 30}), x));
+            for (auto c : sample(wsl::uniform_binary_tree({.nodes = 20}), x).children)
+                h.add((std::uint64_t(c[0]) << 32) ^ c[1]);
+        }, 1 << 10), 0xd9ba05da9d874029);
+        wsl::uniform_set_partition const SP({.size = 25});
+        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(SP, x)); add_vec(h, sample(wsl::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
         wsl::uniform_integer_partition const P({.n = 60});
-        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(P, x)); }, 1 << 10), 0x8d0ee620a5ae13cc);
+        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
     }
     assert(ok);
     std::printf("test_random_combinatorics : ok\n");

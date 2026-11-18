@@ -145,6 +145,9 @@ extern "C"
                                                             return 1 + pmf(E, p) + log_pmf(M, p) + E.mean_cycles() + M.mean_inversions() + pmf(wsl::uniform_permutation({.size = 5}), p); }
     double check_subset_laws(double p) { wsl::bernoulli_subset const B({.size = 10, .p = p}); wsl::uniform_combination const C({.size = 10, .count = 3});
                                          return 1 + pmf(B, {1, 4}) + log_pmf(C, {1, 4, 7}) + B.mean_size() + C.entropy() + wsl::uniform_word({.length = 3, .alphabet = 5}).entropy(); }
+    double check_graph_laws(double p) { wsl::erdos_renyi const G({.vertices = 6, .p = p}); wsl::uniform_graph const H({.vertices = 6, .edges = 3});
+                                        return 1 + pmf(G, {{0, 1}, {2, 3}}) + log_pmf(G, {{0, 1}}) + G.mean_edges() + H.entropy() + wsl::uniform_tree({.vertices = 9}).entropy()
+                                             + wsl::uniform_binary_tree({.nodes = 7}).entropy() + wsl::uniform_set_partition({.size = 9}).entropy() + wsl::uniform_composition({.n = 9, .parts = 3}).entropy(); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

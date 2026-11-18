@@ -9,11 +9,19 @@
 //   wsl::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
 //   wsl::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
 //   wsl::uniform_integer_partition P({.n = 100});           // 1/p(n)
+//   wsl::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
+//   wsl::uniform_composition K({.n = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
 //
 // Tirages exacts : bits uniformes ; épreuves de Bernoulli exactes ; algorithme de Floyd
 // (k entiers uniformes) ; lettres uniformes ; partitions par l'algorithme de Nijenhuis et
 // Wilf (1978) — (d, j) de poids d p(m − jd), m p(m) au total, p(·) en grands entiers
-// (récurrence pentagonale d'Euler), puis j parts égales à d. Masses en logarithme
+// (récurrence pentagonale d'Euler), puis j parts égales à d ; partitions d'ensemble :
+// l'élément suivant rejoint chaque bloc existant avec poids T(r − 1, k), ou en ouvre un
+// avec poids T(r − 1, k + 1), T(r, k) = k T(r − 1, k) + T(r − 1, k + 1) (nombre de façons
+// de finir, r éléments restants, k blocs), en grands entiers (table en O(n²)) ;
+// compositions : points de coupure uniformes (sous-ensemble ou combinaison).
+// Partition d'ensemble : mot à croissance restreinte a (a₀ = 0, aᵢ <= max(a₀…aᵢ₋₁) + 1,
+// aᵢ le bloc de i). Masses en logarithme
 // double-double ; 0 hors du support (éléments non croissants, hors de {0, …, n − 1}…).
 
 #include <wsl/random/detail/arithmetic.hpp>
@@ -302,6 +310,162 @@ namespace wsl
         }
 
         std::size_t length_, k_;
+    };
+
+    class uniform_set_partition
+    {
+    public:
+        using value_type = std::vector<std::size_t>;
+        static constexpr exactness sampling = exactness::exact;
+
+        struct parameters
+        {
+            std::size_t size;
+        };
+
+        constexpr explicit uniform_set_partition(parameters q) : n_(q.size)
+        {
+            // T(r, k), r = 0 … n, k = 0 … n − r + 1 : T(0, k) = 1, T(r, k) = k T(r − 1, k) + T(r − 1, k + 1).
+            table_.resize(n_ + 1);
+            for (std::size_t r = 0; r <= n_; ++r)
+            {
+                std::size_t const width = n_ - r + 2;
+                table_[r].assign(width, detail::big(1));
+                if (r == 0)
+                    continue;
+                for (std::size_t k = 0; k < width; ++k)
+                    table_[r][k] = detail::big(k) * table_[r - 1][k] + table_[r - 1][k + 1];
+            }
+            log_count_ = n_ == 0 ? detail::sd::double_double{0.0, 0.0} : detail::log_big(table_[n_][0]);   // B_n = T(n, 0)
+        }
+
+        constexpr std::size_t size() const noexcept { return n_; }
+        // B_n (en double ; +∞ au-delà).
+        constexpr double count() const noexcept { return detail::exp_of_dd(log_count_); }
+        constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
+
+        friend constexpr double log_pmf(uniform_set_partition const& P, value_type const& a) noexcept
+        {
+            return P.valid(a) ? -P.entropy() : -std::numeric_limits<double>::infinity();
+        }
+        friend constexpr double pmf(uniform_set_partition const& P, value_type const& a) noexcept
+        {
+            return P.valid(a) ? detail::exp_of_dd({-P.log_count_.hi, -P.log_count_.lo}) : 0.0;
+        }
+
+        template <std::uniform_random_bit_generator G>
+        friend constexpr value_type sample(uniform_set_partition const& P, G& g)
+        {
+            value_type a(P.n_);
+            std::size_t blocks = 0;
+            for (std::size_t i = 0; i < P.n_; ++i)
+            {
+                std::size_t const rest = P.n_ - i - 1;                      // éléments après i
+                auto const& next = P.table_[rest];
+                // z sous T(rest + 1, blocks) = blocks T(rest, blocks) + T(rest, blocks + 1)
+                detail::big z = detail::uniform_below_big(g, P.table_[rest + 1][blocks]);
+                if (z < next[blocks + 1])
+                    a[i] = blocks++;                                        // nouveau bloc
+                else
+                {
+                    auto const [quotient, remainder] = detail::divide(z - next[blocks + 1], next[blocks]);
+                    (void)remainder;
+                    a[i] = static_cast<std::size_t>(quotient.bits_at(0));
+                }
+            }
+            return a;
+        }
+
+        friend constexpr bool operator==(uniform_set_partition const& a, uniform_set_partition const& b) noexcept { return a.n_ == b.n_; }
+
+    private:
+        constexpr bool valid(value_type const& a) const noexcept
+        {
+            if (a.size() != n_)
+                return false;
+            std::size_t blocks = 0;
+            for (std::size_t v : a)
+            {
+                if (v > blocks)
+                    return false;
+                if (v == blocks)
+                    ++blocks;
+            }
+            return true;
+        }
+
+        std::size_t n_;
+        std::vector<std::vector<detail::big>> table_;
+        detail::sd::double_double log_count_{};
+    };
+
+    class uniform_composition
+    {
+    public:
+        using value_type = std::vector<std::size_t>;
+        static constexpr exactness sampling = exactness::exact;
+
+        struct parameters
+        {
+            std::size_t n;
+            std::size_t parts = 0;                                          // 0 : nombre de parts libre
+        };
+
+        constexpr explicit uniform_composition(parameters q) : n_(q.n), k_(q.parts)
+        {
+            if (n_ < 1 || k_ > n_)
+                throw std::domain_error("wsl::uniform_composition : il faut n >= 1 et parts <= n");
+            log_count_ = k_ == 0 ? detail::mul({double(n_ - 1), 0.0}, {detail::sd::ln2_hi, detail::sd::ln2_lo}) : detail::log_binomial(n_ - 1, k_ - 1);
+        }
+
+        constexpr std::size_t n() const noexcept { return n_; }
+        constexpr std::size_t parts() const noexcept { return k_; }
+        constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
+
+        friend constexpr double log_pmf(uniform_composition const& C, value_type const& c) noexcept
+        {
+            return C.valid(c) ? -C.entropy() : -std::numeric_limits<double>::infinity();
+        }
+        friend constexpr double pmf(uniform_composition const& C, value_type const& c) noexcept
+        {
+            return C.valid(c) ? detail::exp_of_dd({-C.log_count_.hi, -C.log_count_.lo}) : 0.0;
+        }
+
+        // Points de coupure dans {1, …, n − 1} : sous-ensemble uniforme, ou combinaison de k − 1.
+        template <std::uniform_random_bit_generator G>
+        friend constexpr value_type sample(uniform_composition const& C, G& g)
+        {
+            auto const cuts = C.k_ == 0 ? sample(uniform_subset({.size = C.n_ - 1}), g) : sample(uniform_combination({.size = C.n_ - 1, .count = C.k_ - 1}), g);
+            value_type c;
+            std::size_t last = 0;
+            for (std::size_t x : cuts)
+            {
+                c.push_back(x + 1 - last);
+                last = x + 1;
+            }
+            c.push_back(C.n_ - last);
+            return c;
+        }
+
+        friend constexpr bool operator==(uniform_composition const& a, uniform_composition const& b) noexcept { return a.n_ == b.n_ && a.k_ == b.k_; }
+
+    private:
+        constexpr bool valid(value_type const& c) const noexcept
+        {
+            if (k_ != 0 && c.size() != k_)
+                return false;
+            std::size_t total = 0;
+            for (std::size_t v : c)
+            {
+                if (v == 0 || v > n_ - total)
+                    return false;
+                total += v;
+            }
+            return total == n_;
+        }
+
+        std::size_t n_, k_;
+        detail::sd::double_double log_count_{};
     };
 
     class uniform_integer_partition
