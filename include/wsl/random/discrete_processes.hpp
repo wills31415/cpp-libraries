@@ -25,6 +25,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/detail/choice.hpp>
+#include <wsl/random/detail/lazy_sum.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/multinomial.hpp>
@@ -136,7 +137,7 @@ namespace wsl
     // Marche aléatoire à pas entiers : X₀ = start, X_{k+1} = X_k + pas.
     // -----------------------------------------------------------------------
     template <probability_law L>
-        requires std::integral<typename L::value_type>
+        requires std::integral<typename L::value_type> || std::floating_point<typename L::value_type>
     class random_walk
     {
     public:
@@ -157,14 +158,30 @@ namespace wsl
         constexpr double mean(std::size_t n) const noexcept requires has_mean<L> { return double(start_) + detail::sd::fmul(double(n), double(step_.mean())); }
         constexpr double variance(std::size_t n) const noexcept requires has_variance<L> { return detail::sd::fmul(double(n), double(step_.variance())); }
 
+        // Pas entiers : somme entière (saturée). Pas réels : somme paresseuse exacte, arrondie
+        // une fois (pas tirés paresseusement si la loi le permet, sinon pas arrondis sommés
+        // exactement).
         struct walker_type
         {
             L step;
             state_type x;
+            [[no_unique_address]] std::conditional_t<std::floating_point<state_type>, detail::lazy_sum, detail::sd::double_double> sum{};
             template <class G>
             constexpr state_type first(G&) { return x; }
             template <class G>
-            constexpr state_type next(G& g) { return x = detail::saturated_sum(x, static_cast<state_type>(sample(step, g))); }
+            constexpr state_type next(G& g)
+            {
+                if constexpr (std::integral<state_type>)
+                    return x = detail::saturated_sum(x, static_cast<state_type>(sample(step, g)));
+                else
+                {
+                    if constexpr (detail::lazy_samplable<L, G>)
+                        sum.add(detail::lazy_sample(step, g), g);
+                    else
+                        sum.add_constant(detail::to_dyadic(double(sample(step, g))));
+                    return static_cast<state_type>(sum.template rounded<double>(g, detail::to_dyadic(double(x)), {}, 0, detail::to_dyadic(1.0)));
+                }
+            }
         };
         constexpr walker_type walker() const { return {step_, start_}; }
         constexpr detail::finite_path<random_walk> steps(std::size_t n) const { return {*this, n}; }

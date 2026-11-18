@@ -68,6 +68,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   logarithme double-double. Choix exacts à poids flottants (`detail::choose`,
   `detail::fraction`). `wsl::random` dépend désormais de `wsl::permutation`.
 - Le support devient facultatif dans le concept de loi (`has_support`).
+- Processus, lot 2 (temps continu, exacts point par point) : `detail::lazy_sum` (sommes
+  de réels paresseux arrondies correctement), `brownian_motion`, `brownian_bridge`,
+  `ornstein_uhlenbeck`, `geometric_brownian_motion`, `poisson_process`,
+  `inhomogeneous_poisson_process`, `compound_poisson`, `continuous_markov_chain` ;
+  `random_walk` à pas réels ; variantes `wsl::fast`.
 - Processus, lot 1 (temps discret, tirages exacts) : vue paresseuse `trajectory(P, g)`
   (`std::ranges`, valeurs tirées à la lecture), concept `stochastic_process` ;
   `categorical` (alias de Walker–Vose exact), `rademacher`, `random_walk`,

@@ -152,6 +152,18 @@ extern "C"
     double check_markov(double a) { wsl::markov_chain const M({.transition = {{a, 1 - a}, {0.5, 0.5}}, .start = 0}); return 1 + pmf(M.at(7), 1) + pmf(M.stationary(), 0) + pmf(M.steps(2), {0, 1, 0}); }
     double check_urn_laws(double a, double t) { wsl::dirichlet_multinomial const D({.trials = 5, .alpha = {a, 1.5}}); wsl::ewens_partition const E({.size = 6, .theta = t, .discount = 0.3});
                                                 return 1 + pmf(D, {2, 3}) + D.mean()[0] + D.variance()[1] + pmf(E, {0, 1, 0, 2, 1, 0}) + E.mean_blocks() + pmf(wsl::polya_urn({.balls = {a, 2}, .added = t}).steps(2), {0, 1, 1}); }
+    // Tirages exacts des processus (sommes paresseuses : verdicts de la voie rapide bit-exacts).
+    double check_process_sampling(double a, unsigned long long seed)
+    {
+        wsl::xoshiro256pp g(seed);
+        double s = 1;
+        for (double v : sample(wsl::brownian_motion({.drift = a, .volatility = 1.5}).on_grid({0.5, 1.0}), g)) s += v;
+        for (double v : sample(wsl::brownian_bridge({.from = {0, a}, .to = {1, 0}}).on_grid({0.5}), g)) s += v;
+        for (double v : sample(wsl::ornstein_uhlenbeck({.theta = a, .mean = 1.0, .volatility = 0.5, .start = 0.0}).on_grid({0.5, 2.0}), g)) s += v;
+        for (double v : sample(wsl::poisson_process({.rate = a}).on(2.0), g)) s += v;
+        for (double v : sample(wsl::random_walk(wsl::laplace({.location = 0.0, .scale = a})).steps(3), g)) s += v;
+        return s;
+    }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

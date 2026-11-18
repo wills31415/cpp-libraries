@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) faite (§13) ; **phase 8** (processus) : lot 1 fait (§14).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) faite (§13) ; **phase 8** (processus) faite (§14), temps continu exact point par point.
 
 ## 1. Vision ✅
 
@@ -245,7 +245,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
 | 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, von Mises, von Mises–Fisher, Haar, GOE, GUE) |
 | 7 | Objets combinatoires ✅ (avec `wsl::permutation`) : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers et d'ensembles, compositions, graphes, arbres |
-| 8 | Processus |
+| 8 | Processus ✅ (temps discret et continu, exacts) |
 | (chantier futur) | Revue complète des interfaces de **toutes** les bibliothèques du dépôt, pour les harmoniser, les homogénéiser et les améliorer (rupture attendue) ; les incohérences repérées en route sont notées au §15 |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
@@ -826,6 +826,41 @@ d'une urne contre la Dirichlet-multinomiale, partitions du restaurant contre l'E
 quatre (θ, d), poids non entiers compris) ; π P = π ; masses de trajectoires sommant à 1 ;
 échangeabilité de l'urne.
 
+### Lot 2 fait : temps continu, exact point par point (option B)
+
+Brique : `detail::lazy_sum`, somme de termes c V / q (c dyadique exact, V réel
+paresseux, q diviseur flottant), arrondie correctement. Voie rapide en double-double avec
+une borne rigoureuse séparée en largeurs (réductibles en raffinant) et erreurs d'arrondi
+(fixes) ; si les largeurs dominent, tous les termes gagnent un mot (amorti) ; sinon, voie
+exacte en grands entiers (bornes rationnelles, dénominateur commun des diviseurs). Les
+verdicts de la voie rapide décident du nombre de mots tirés : tous leurs calculs passent
+par `fmul` (vérifié par le scan de contraction, qui tire désormais des trajectoires).
+Contrôle : 1 500 sommes aléatoires (compensations, poids α, β, diviseurs) et 300 valeurs
+visées au milieu de deux doubles, toutes confirmées par raffinement de deux mots de plus.
+Coût mesuré : environ 2 µs par point de brownien, constant jusqu'à 10⁵ points (voie rapide
+`wsl::fast` : quelques dizaines de ns) ; mémoire linéaire en la longueur.
+
+| Processus | Paramètres | Usage | Construction exacte |
+|---|---|---|---|
+| `brownian_motion` | `{.drift, .volatility, .start}` | `at(t)`, `on_grid(ts)`, `trajectory(B, g, {.step})`, `wsl::fast` | x₀ + μt (exact) + σ Σ √Δt Z, √Δt arrondi une fois |
+| `brownian_bridge` | `{.from, .to, .volatility}` | `at(t)`, `on_grid(ts)` | a + r(b − a) + σ(W(t) − r W(T)), r arrondi ; extrémités exactes |
+| `ornstein_uhlenbeck` | `{.theta, .mean, .volatility, .start}` | `at(t)`, `stationary()`, `on_grid`, `trajectory(…, {.step})` | changement de temps μ + a(x₀ − μ) + r W(u), a, r, u arrondis par instant ; θt <= 350 |
+| `geometric_brownian_motion` | `{.drift, .volatility, .start}` | `at(t)` (log-normale), `on_grid` | logarithme exact, exponentielle approchée (wsl::special::exp) |
+| `poisson_process` | `{.rate}` | `at(t)`, `on(T)`, `trajectory` (instants), `wsl::fast` | Tₖ = Σ Eⱼ/λ |
+| `inhomogeneous_poisson_process` | `(f, borne)` | `on(T)`, `trajectory` | amincissement, f(t)/Λ exact, f à l'instant arrondi (approché) |
+| `compound_poisson` | `(taux, loi des sauts)` | `mean(t)`, `variance(t)`, `trajectory` (instant, valeur) | sauts paresseux (normale, exponentielle, Laplace, uniforme) ou arrondis sommés exactement |
+| `continuous_markov_chain` | `{.generator, .start}` | `at(t)` (π₀ e^{Qt}), `trajectory` (instant, état) | séjours E/q_x exacts, sauts catégoriels ; +∞ après absorption |
+| `random_walk` (pas réels) | `(pas, {.start})` | `trajectory`, `steps(n)` | somme paresseuse exacte |
+
+Vérifications : Kolmogorov–Smirnov contre les lois exactes (B(1), accroissements, pont au
+milieu, Ornstein–Uhlenbeck à deux instants et stationnaire, brownien géométrique, marches
+normales et exponentielles contre normale et gamma, premier instant de Poisson), χ² des
+comptages de Poisson et de l'état d'une chaîne en temps continu contre π₀ e^{Qt}, moyennes
+du Poisson inhomogène (∫ f) et composé ; contrat de préfixe (trajectoire = grille, même
+consommation). Défauts trouvés en route : boucle sans fin près de 0 (les erreurs d'arrondi
+ne diminuent pas en raffinant : désormais séparées des largeurs), et poids qui s'annulent
+(pont en T : largeurs pondérées par α + β et β séparément).
+
 ## 15. Incohérences notées pour la revue des interfaces
 
 Le chantier futur (§7) partira de cette liste :
@@ -851,7 +886,10 @@ Le chantier futur (§7) partira de cette liste :
 - probabilités : `categorical` normalise ses poids exactement, `multinomial` exige une
   somme égale à 1 (à 2⁻⁴⁰ près) ; `polya_urn::at` divise les boules par `added`
   (paramètres arrondis) ;
-- processus : `at(n)` rend des lois de types variés ; `steps(n)` est une loi de
+- processus : pas régulier par `trajectory(P, g, {.step})` pour le brownien et
+  Ornstein–Uhlenbeck, mais `trajectory(P, g)` ailleurs ; valeurs (instant, valeur) ou
+  instants seuls ; constructeurs positionnels (`compound_poisson(taux, loi)`,
+  `inhomogeneous_poisson_process(f, borne)`) ; `at(n)` rend des lois de types variés ; `steps(n)` est une loi de
   trajectoire, sauf pour le restaurant (`steps(n)` = `at(n + 1)`, partition) ;
   `random_walk` se construit par position (`random_walk(pas, {.start})`), les autres par
   paramètres nommés.
