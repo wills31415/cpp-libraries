@@ -6,6 +6,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 
 ## [Non publié]
 
+### permutation (nouvelle)
+- `wsl::permutation` : construction vérifiée (images, cycles), composition `s * t` (s∘t),
+  inverse, puissances, cycles canoniques, type de cycles, points fixes, signature,
+  inversions en O(n log n), rang lexicographique (n <= 20), `permute`, `constexpr`.
+
 ### random (nouvelle)
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
@@ -57,6 +62,12 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `uniform_sphere`, `uniform_ball`, en dimension fixe ou `wsl::dynamic` ;
   `wsl::square_matrix`. Densités et masses en logarithme double-double, moments,
   covariances, entropies, marginales.
+- Objets combinatoires, lot 1, tirages exacts : `uniform_permutation`, `ewens`,
+  `mallows` (valeurs `wsl::permutation`), `uniform_subset`, `bernoulli_subset`,
+  `uniform_combination`, `uniform_word`, `uniform_integer_partition` ; masses en
+  logarithme double-double. Choix exacts à poids flottants (`detail::choose`,
+  `detail::fraction`). `wsl::random` dépend désormais de `wsl::permutation`.
+- Le support devient facultatif dans le concept de loi (`has_support`).
 - Lois `von_mises` (cercle) et `von_mises_fisher` (sphère, dimension fixe ou dynamique) :
   densités, longueurs résultantes, entropies sous 0,5 ulp ; tirages de Best–Fisher et Wood.
 - Lois multivariées, lot 2 : `multivariate_student_t`, `wishart`, `inverse_wishart`,

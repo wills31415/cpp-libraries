@@ -80,7 +80,7 @@ namespace wsl
 
     // Lois à valeurs réelles.
     template <class L>
-    concept real_law = probability_law<L> && std::floating_point<typename L::value_type>;
+    concept real_law = has_support<L> && std::floating_point<typename L::value_type>;
 
     template <class L>
     concept affine_closed = real_law<L> && requires(L const& X) {

@@ -141,6 +141,10 @@ extern "C"
     double check_von_mises(double m, double k, double x) { wsl::von_mises const V({.mu = m, .kappa = k}); return 1 + pdf(V, x) + log_pdf(V, x) + V.entropy() + V.circular_variance() + V.mean_resultant_length(); }
     double check_vmf(double k, double t) { wsl::von_mises_fisher<double, 3> const F({.mean_direction = {0, 0.6, 0.8}, .kappa = k});
                                            return 1 + pdf(F, {t, 0.0, 0.0}) + log_pdf(F, {0.0, t, t}) + F.entropy() + F.mean()[1]; }
+    double check_permutation_laws(double theta, double q) { wsl::permutation const p{2, 0, 1, 4, 3}; wsl::ewens const E({.size = 5, .theta = theta}); wsl::mallows const M({.size = 5, .q = q});
+                                                            return 1 + pmf(E, p) + log_pmf(M, p) + E.mean_cycles() + M.mean_inversions() + pmf(wsl::uniform_permutation({.size = 5}), p); }
+    double check_subset_laws(double p) { wsl::bernoulli_subset const B({.size = 10, .p = p}); wsl::uniform_combination const C({.size = 10, .count = 3});
+                                         return 1 + pmf(B, {1, 4}) + log_pmf(C, {1, 4, 7}) + B.mean_size() + C.entropy() + wsl::uniform_word({.length = 3, .alphabet = 5}).entropy(); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

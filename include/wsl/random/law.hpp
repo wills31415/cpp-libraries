@@ -5,7 +5,8 @@
 // Une loi est un type qui déclare :
 //   - value_type : le type des valeurs tirées ;
 //   - sampling   : l'exactitude de son tirage par défaut (exact ou approximate) ;
-//   - support()  : l'intervalle [lower, upper] des valeurs possibles ;
+//   - support()  : l'intervalle [lower, upper] des valeurs possibles, quand il a un
+//                  sens (has_support : pas pour les objets combinatoires) ;
 //   - ses constantes, en membres, quand elles existent : mean(), variance(),
 //     skewness(), excess_kurtosis(), entropy(), median(), mode() ;
 //   - ses opérations, en fonctions libres trouvées par ADL (appel sans
@@ -48,9 +49,15 @@ namespace wsl
     };
 
     template <class L>
-    concept probability_law = requires(L const& law) {
+    concept probability_law = requires {
         typename L::value_type;
         { L::sampling } -> std::convertible_to<exactness>;
+    };
+
+    // Support, quand un intervalle (ou un pavé) a un sens : lois numériques et
+    // vectorielles ; les objets combinatoires (permutations, graphes…) n'en ont pas.
+    template <class L>
+    concept has_support = probability_law<L> && requires(L const& law) {
         { law.support() } -> std::same_as<interval<typename L::value_type>>;
     };
 
@@ -89,7 +96,7 @@ namespace wsl
     // (exigence RandomNumberDistribution, sans les flux << et >>).
     // -----------------------------------------------------------------------
     template <probability_law L>
-        requires std::is_arithmetic_v<typename L::value_type>
+        requires std::is_arithmetic_v<typename L::value_type> && has_support<L>
     class distribution
     {
     public:
@@ -133,6 +140,7 @@ namespace wsl
     };
 
     template <probability_law L>
+        requires std::is_arithmetic_v<typename L::value_type> && has_support<L>
     constexpr distribution<L> as_distribution(L law)
     {
         return distribution<L>(law);

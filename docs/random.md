@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) faite (§12) ; **phase 7** (objets combinatoires) : lot 1 fait (§13).
 
 ## 1. Vision ✅
 
@@ -244,7 +244,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
 | 6 | Lois multivariées ✅ (Dirichlet, multinomiale, normales et Student multivariées, Wishart, inverse-Wishart, sphère, boule, von Mises, von Mises–Fisher, Haar, GOE, GUE) |
-| 7 | Objets combinatoires (avec `wsl::permutation`) |
+| 7 | Objets combinatoires (avec `wsl::permutation`) — lot 1 fait : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers |
 | 8 | Processus |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
@@ -663,3 +663,37 @@ Mesure contre mpmath : densités, log-densités, A, variance circulaire, entropi
 120). Tirages : Kolmogorov–Smirnov contre la répartition intégrée (von Mises) et contre
 la loi exacte de μᵀX pour p = 3, azimut uniforme, E[X] = A_p μ. Pas de répartition de
 von Mises (pas de forme close ; série de Bessel possible plus tard).
+
+## 13. Phase 7 : objets combinatoires, lot 1
+
+Bibliothèque à part, **`wsl::permutation`** (`<wsl/permutation.hpp>`, C++20, dont
+`wsl::random` dépend) : permutations de {0, …, n − 1}, `(s * t)(i) = s(t(i))`, inverse,
+puissances, cycles canoniques, signature, inversions en O(n log n), rang
+lexicographique. Le concept de loi n'exige plus de support (`has_support` le teste) :
+un intervalle n'a pas de sens pour une permutation.
+
+Tous les tirages sont **exacts** : l'objet tiré a exactement la probabilité annoncée.
+Les probabilités qui ne sont pas des flottants (θ/(θ + i), 1/q) sont décidées par
+`detail::choose` et `detail::fraction` : deux flottants sont des entiers à une même
+puissance de 2 près, un entier uniforme sous leur somme décide (128 bits, ou grands
+entiers).
+
+| Loi | Paramètres | Masse | Tirage |
+|---|---|---|---|
+| `uniform_permutation` | `{.size}` | 1/n! | Fisher–Yates |
+| `ewens` | `{.size, .theta}` | θ^{cycles}/θ(θ + 1)…(θ + n − 1) ; `mean_cycles()` | restaurant chinois : nouveau cycle avec probabilité θ/(θ + i) (exacte), sinon insertion après un élément uniforme |
+| `mallows` | `{.size, .q}` (q > 0) | q^{inversions}/Π [i]_q, [i]_q = (1 − qⁱ)/(1 − q) en double-double ; `mean_inversions()` | code d'insertion, P(V_i = v) ∝ q^v par épreuves de Bernoulli exactes : géométrique tronquée si i(1 − q) >= 1, uniforme acceptée avec probabilité q^v sinon ; q > 1 par symétrie (rapport 1/q exact) |
+| `uniform_subset` | `{.size}` | 2⁻ⁿ | un bit par élément |
+| `bernoulli_subset` | `{.size, .p}` | p^k (1 − p)^{n−k} | épreuves exactes |
+| `uniform_combination` | `{.size, .count}` | 1/C(n, k) | Floyd (k entiers uniformes) |
+| `uniform_word` | `{.length, .alphabet}` | k^{−ℓ} | lettres uniformes |
+| `uniform_integer_partition` | `{.n}` | 1/p(n) ; `count()` | Nijenhuis–Wilf, p(·) en grands entiers (récurrence pentagonale) |
+
+Valeurs : `wsl::permutation` ; `std::vector<std::size_t>` (éléments croissants,
+lettres, parts décroissantes). Vérifications : χ² contre la masse exacte sur tous les
+objets d'une petite taille (S₄, 2⁴ sous-ensembles, C(6, 3), 3³ mots, 22 partitions de 8),
+masses sommant à 1 sur S₆, espérances (cycles, inversions) exactes, p(100) et p(1000).
+
+Suite (lot 2) : graphes (Erdős–Rényi G(n, p) et G(n, m), Barabási–Albert, graphes
+réguliers), arbres (Cayley par Prüfer, binaires de Catalan par Rémy), partitions
+d'ensembles, compositions.

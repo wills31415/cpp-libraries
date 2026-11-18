@@ -22,6 +22,7 @@
 
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/big.hpp>
+#include <wsl/random/detail/choice.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/uniform.hpp>
@@ -89,26 +90,6 @@ namespace wsl
             return from_ordered_key<T>(b);
         }
 
-        // Entier uniforme sur [0, n), n > 0 en grand entier : k = bit_length(n) bits
-        // tirés (mot de tête d'abord), rejetés s'ils dépassent n (moins de 2 essais en moyenne).
-        template <class G>
-        constexpr big uniform_below_big(G& g, big const& n)
-        {
-            int const k = n.bit_length();
-            int const words = (k + 63) / 64;
-            int const top = k - 64 * (words - 1);
-            std::vector<std::uint64_t> digits(static_cast<std::size_t>(words));
-            for (;;)
-            {
-                for (auto& d : digits)
-                    d = random_bits(g);
-                if (top < 64)
-                    digits[0] &= (std::uint64_t(1) << top) - 1;
-                big r = big::from_digits(digits);
-                if (r < n)
-                    return r;
-            }
-        }
 
     }
 

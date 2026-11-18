@@ -69,7 +69,8 @@ wsl_add_library(graded_io    STANDARD 20 DEPENDS graded)
 wsl_add_library(elo          STANDARD 20)
 wsl_add_library(progress     STANDARD 23)
 wsl_add_library(special      STANDARD 20)
-wsl_add_library(random       STANDARD 20 DEPENDS special)
+wsl_add_library(permutation  STANDARD 20)
+wsl_add_library(random       STANDARD 20 DEPENDS special permutation)
 
 # Tout d'un coup : wsl::libraries.
 add_library(wsl_libraries INTERFACE)
@@ -150,6 +151,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(graded_io)
     wsl_add_test(elo)
     wsl_add_test(progress)
+    wsl_add_test(permutation)
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.
@@ -202,6 +204,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(random_laws LIBRARY random)
     wsl_add_test(random_algebra LIBRARY random)
     wsl_add_test(random_multivariate LIBRARY random)
+    wsl_add_test(random_combinatorics LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     add_test(NAME special_no_contraction
              COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
