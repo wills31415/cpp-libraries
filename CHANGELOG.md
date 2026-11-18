@@ -53,6 +53,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   cumulants ; convolution exacte des lois discrètes), loi jointe `wsl::independent`,
   image `wsl::pushforward(X, f)` (bijections monotones `wsl::increasing`,
   `wsl::decreasing`) ; `gamma::has_rate`.
+- Lois multivariées, lot 1 : `dirichlet`, `multinomial`, `multivariate_normal`,
+  `uniform_sphere`, `uniform_ball`, en dimension fixe ou `wsl::dynamic` ;
+  `wsl::square_matrix`. Densités et masses en logarithme double-double, moments,
+  covariances, entropies, marginales.
 - `ccdf`, `pdf`, `log_pdf` de Cauchy justes au-delà de |z| = 2⁶⁰⁰ (rendaient 0 ou −∞) ;
   log-densités de Laplace et de la logistique de même.
 - Variance de la normale et du χ², tirage gamma par l'échelle : produits rendus protégés

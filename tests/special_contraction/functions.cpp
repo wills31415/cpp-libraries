@@ -119,6 +119,15 @@ extern "C"
     double check_independent(double a, double b) { wsl::independent const J(wsl::normal({.mean = a, .sd = 1.0}), wsl::gamma({.shape = b, .rate = 1.0})); return 1 + pdf(J, {a, b}) + log_pdf(J, {a, b}) + cdf(J, {a, b}) + J.entropy(); }
     double check_pushforward(double a, double y) { auto const L = wsl::pushforward(wsl::normal({.mean = a, .sd = 1.0}), wsl::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }, [](double t) { return 1 / t; }));
                                                    return 1 + cdf(L, y) + pdf(L, y) + quantile(L, 0.3); }
+    // Lois multivariées.
+    double check_dirichlet(double a, double x) { wsl::dirichlet<double, 3> const D({.alpha = {a, 2.0, 3.0}}); auto const m = D.mean(); auto const c = D.covariance();
+                                                 return 1 + pdf(D, {x, 0.25, 0.75 - x}) + log_pdf(D, {x, 0.25, 0.75 - x}) + D.entropy() + m[0] + c(0, 1) + D.variance()[1]; }
+    double check_multinomial(double p, long long k) { wsl::multinomial<std::int64_t, 3> const M({.trials = 20, .p = {p, 0.5 - p, 0.5}});
+                                                       return 1 + pmf(M, {k, 5, 15 - k}) + M.mean()[0] + M.covariance()(0, 1) + M.variance()[2]; }
+    double check_mvn(double a, double x) { wsl::multivariate_normal<double, 2> const X({.mean = {a, 0}, .covariance = {{2, 0.5}, {0.5, 1}}});
+                                           return 1 + pdf(X, {x, a}) + log_pdf(X, {x, a}) + X.entropy() + X.mahalanobis_squared({x, x}); }
+    double check_sphere(double x) { wsl::uniform_sphere<double, 3> const S; wsl::uniform_ball<double, 5> const B;
+                                    return 1 + pdf(S, {x, 0.0, 0.0}) + S.surface_area() + S.entropy() + B.volume() + pdf(B, {x, 0, 0, 0, 0}); }
     double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }

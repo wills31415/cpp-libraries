@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11) ; **phase 6** (lois multivariées) : lot 1 fait (§12).
 
 ## 1. Vision ✅
 
@@ -39,7 +39,7 @@ peu. Une loi déclare ce que l'on sait d'elle ; la bibliothèque en déduit le r
 | Exactitude | **Exact par défaut** quand un algorithme exact est connu ; variante rapide sur demande explicite | ✅ |
 | Types flottants | `float` et `double` ; `long double` refusé à la compilation | ✅ |
 | Moteurs | Tout moteur standard, plus xoshiro256++, PCG64, Philox | ✅ |
-| Dimension (multivarié) | Fixe ou dynamique, sur le modèle de `std::span` (`dirichlet<double, 3>`, `dirichlet<double, dynamic>`) | ◻︎ |
+| Dimension (multivarié) | Fixe ou dynamique, sur le modèle de `std::span` (`dirichlet<double, 3>`, `dirichlet<double, wsl::dynamic>`) ; vecteurs `std::array` ou `std::vector`, matrices `wsl::square_matrix` (§12) | ✅ |
 | Processus | Vues paresseuses (`std::ranges`) | ◻︎ |
 
 ## 3. Reproductibilité ✅
@@ -243,7 +243,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
 | 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
-| 6 | Lois multivariées |
+| 6 | Lois multivariées (lot 1 fait : Dirichlet, multinomiale, normale multivariée, sphère, boule) |
 | 7 | Objets combinatoires (avec `wsl::permutation`) |
 | 8 | Processus |
 
@@ -607,3 +607,29 @@ La précision et la reproductibilité au bit près sont celles de f et g : avec
 
 (Mélange : quantile jusqu'à 1,5 ulp sur le nouveau tirage des points, loin du zéro
 du quantile.)
+
+## 12. Phase 6 : lois multivariées, lot 1
+
+### Socle (`multivariate.hpp`)
+
+Dimension N fixe ou `wsl::dynamic` (= `std::dynamic_extent`) : valeurs `std::array<T, N>`
+ou `std::vector<T>`, la dimension dynamique donnée par les paramètres. Matrices :
+`wsl::square_matrix<T, N>`, ligne par ligne, construite par accolades imbriquées
+(`.covariance = {{1, 0.5}, {0.5, 2}}`, dimension vérifiée). Le support d'une loi
+multivariée est le pavé qui contient ses valeurs (le concept de loi est inchangé).
+Calcul : produits scalaires en double-double, produits par `fmul`, Cholesky et
+substitution triangulaire bit-exactes.
+
+| Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
+|---|---|---|---|
+| `dirichlet<T, N>` | `{.alpha}` | densité en logarithme double-double (log B(α) = Σ lgamma − lgamma(α₀)), x dans le simplexe à K·2⁻⁵⁰ près ; moyenne, variances, covariance, mode, entropie, marginale bêta | Gᵢ/Σ G, gammas tirées dans l'ordre |
+| `multinomial<I, N>` | `{.trials, .p}` (Σ p = 1 à 2⁻⁴⁰ près) | masse n!/Π kᵢ! Π pᵢ^kᵢ en logarithme double-double, un arrondi ; moyenne, covariance, marginale binomiale | binomiales conditionnelles, restes en double-double |
+| `multivariate_normal<T, N>` | `{.mean, .covariance}` | Cholesky à la construction (`std::domain_error` sinon) ; log-densité −½\|L⁻¹(x − μ)\|² − Σ log Lᵢᵢ − (n/2) log 2π ; entropie, Mahalanobis, marginale normale | μ + L z, z normales exactes ; `wsl::fast` : ziggourat |
+| `uniform_sphere<T, N>`, `uniform_ball<T, N>` | dimension (N, ou `{.dimension}`) | densité 1/aire (mesure de surface), 1/volume ; aire, volume, entropie | z/\|z\| ; boule : × U^{1/n} |
+
+Vérifications : valeurs contre mpmath à 2 ulp (densités, masses, entropies),
+moments empiriques, marginales par Kolmogorov–Smirnov, x₃ uniforme sur [−1, 1] pour la
+sphère S² (Archimède), \|x\|ⁿ uniforme pour la boule.
+
+Suite (lot 2) : Student multivariée, Wishart et inverse-Wishart, von Mises–Fisher,
+matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE).

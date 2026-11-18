@@ -41,3 +41,8 @@
 #include <wsl/random/truncated.hpp>
 #include <wsl/random/uniform.hpp>
 #include <wsl/random/weibull.hpp>
+#include <wsl/random/dirichlet.hpp>
+#include <wsl/random/multinomial.hpp>
+#include <wsl/random/multivariate.hpp>
+#include <wsl/random/multivariate_normal.hpp>
+#include <wsl/random/sphere.hpp>
