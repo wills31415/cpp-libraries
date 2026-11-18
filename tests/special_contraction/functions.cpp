@@ -84,6 +84,22 @@ extern "C"
     double check_gamma_pdf(double a, double r, double x) { return pdf(wsl::gamma({.shape = a, .rate = r}), x); }
     double check_gamma_cdf(double a, double r, double x) { return cdf(wsl::gamma({.shape = a, .rate = r}), x); }
     double check_student_cdf(double n, double t) { return cdf(wsl::student_t({.degrees_of_freedom = n}), t); }
+    double check_fisher_cdf(double a, double b, double x) { return cdf(wsl::fisher_f({.d1 = a, .d2 = b}), x); }
+    double check_fisher_pdf(double a, double b, double x) { return pdf(wsl::fisher_f({.d1 = a, .d2 = b}), x); }
+    double check_fisher_quantile(double a, double b, double p) { return quantile(wsl::fisher_f({.d1 = a, .d2 = b}), p); }
+    double check_fisher_entropy(double a, double b) { return wsl::fisher_f({.d1 = a, .d2 = b}).entropy(); }
+    double check_fisher_moments(double a, double b) { wsl::fisher_f const F({.d1 = a, .d2 = b}); return F.variance() + F.skewness() + F.excess_kurtosis() + F.mode(); }
+    double check_weibull_cdf(double k, double l, double x) { return cdf(wsl::weibull({.shape = k, .scale = l}), x); }
+    double check_weibull_pdf(double k, double l, double x) { return pdf(wsl::weibull({.shape = k, .scale = l}), x); }
+    double check_weibull_quantile(double k, double l, double p) { return quantile(wsl::weibull({.shape = k, .scale = l}), p); }
+    double check_weibull_moments(double k, double l) { wsl::weibull const W({.shape = k, .scale = l}); return W.mean() + W.variance() + W.median() + W.mode() + W.skewness() + W.entropy(); }
+    double check_laplace_cdf(double m, double b, double x) { return cdf(wsl::laplace({.location = m, .scale = b}), x); }
+    double check_laplace_quantile(double m, double b, double p) { return quantile(wsl::laplace({.location = m, .scale = b}), p); }
+    double check_logistic_pdf(double m, double s, double x) { return pdf(wsl::logistic({.location = m, .scale = s}), x); }
+    double check_logistic_quantile(double m, double s, double p) { return quantile(wsl::logistic({.location = m, .scale = s}), p); }
+    double check_laplace_variance(double m, double b) { return 1 + wsl::laplace({.location = m, .scale = b}).variance(); }
+    double check_pareto_cdf(double a, double b, double x) { return cdf(wsl::pareto({.scale = a, .shape = b}), x); }
+    double check_pareto_moments(double a, double b) { wsl::pareto const P({.scale = a, .shape = b}); return P.mean() + P.variance() + P.skewness() + P.excess_kurtosis() + P.entropy(); }
     double check_student_quantile(double n, double p) { return quantile(wsl::student_t({.degrees_of_freedom = n}), p); }
     double check_student_pdf(double n, double t) { return pdf(wsl::student_t({.degrees_of_freedom = n}), t); }
     double check_student_entropy(double n) { return wsl::student_t({.degrees_of_freedom = n}).entropy(); }

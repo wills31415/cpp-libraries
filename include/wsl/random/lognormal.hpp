@@ -72,7 +72,7 @@ namespace wsl
         constexpr T skewness() const noexcept
         {
             double const e = wsl::special::exp(detail::sd::fmul(double(sigma_), double(sigma_)));
-            return static_cast<T>((e + 2) * wsl::special::sqrt(e - 1));
+            return static_cast<T>(detail::sd::fmul(e + 2, wsl::special::sqrt(e - 1)));
         }
         constexpr T excess_kurtosis() const noexcept
         {

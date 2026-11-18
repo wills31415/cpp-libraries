@@ -173,6 +173,9 @@ static_assert(wsl::probability_law<wsl::chi_squared<>> && wsl::probability_law<w
 static_assert(!wsl::has_mean<wsl::cauchy<>> && !wsl::has_variance<wsl::cauchy<>> && wsl::has_median<wsl::cauchy<>> && wsl::has_quantile<wsl::student_t<>>);
 static_assert([] { wsl::student_t X({.degrees_of_freedom = 3}); wsl::cauchy C({.location = 0, .scale = 1}); return std::is_same_v<decltype(X), wsl::student_t<double>> && std::is_same_v<decltype(C), wsl::cauchy<double>>; }());
 static_assert(quantile(wsl::cauchy({.location = 2.0, .scale = 3.0}), 0.5) == 2 && cdf(wsl::student_t({.degrees_of_freedom = 4.0}), 0.0) == 0.5);
+static_assert(wsl::probability_law<wsl::fisher_f<>> && wsl::probability_law<wsl::weibull<float>> && wsl::probability_law<wsl::laplace<>> && wsl::probability_law<wsl::logistic<>> && wsl::probability_law<wsl::pareto<>>);
+static_assert(wsl::laplace<>::sampling == wsl::exactness::exact && wsl::has_entropy<wsl::fisher_f<>> && wsl::has_quantile<wsl::pareto<>>);
+static_assert(cdf(wsl::laplace({.location = 1.0, .scale = 2.0}), 1.0) == 0.5 && quantile(wsl::logistic({.location = 3.0, .scale = 1.0}), 0.5) == 3);
 static_assert(wsl::has_pdf<wsl::gamma<>> && wsl::has_cdf<wsl::gamma<>> && wsl::has_quantile<wsl::gamma<>> && wsl::has_mode<wsl::beta<>> && wsl::has_entropy<wsl::beta<>> && wsl::has_entropy<wsl::gamma<>>);
 static_assert([] { wsl::gamma X({.shape = 2, .rate = 3}); wsl::gamma Y({.shape = 2, .scale = 3}); return std::is_same_v<decltype(X), wsl::gamma<double>> && std::is_same_v<decltype(Y), wsl::gamma<double>>; }());
 static_assert([] { wsl::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wsl::beta<double>>; }());
@@ -501,6 +504,36 @@ int main()
         assert(throws_domain_error([] { wsl::chi_squared X({.degrees_of_freedom = -2}); }) && throws_domain_error([] { wsl::lognormal X({.mu = 0, .sigma = 0}); }));
     }
 
+    // ---- Lois dérivées, second lot --------------------------------------------------
+    {
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(sample(law, g))); return v; };
+        wsl::fisher_f const F({.d1 = 5, .d2 = 10});
+        assert(F.mean() == 1.25 && std::isnan(wsl::fisher_f({.d1 = 3, .d2 = 2}).mean()) && std::isinf(wsl::fisher_f({.d1 = 3, .d2 = 3}).variance()));
+        assert(pdf(wsl::fisher_f({.d1 = 2, .d2 = 5}), 0.0) == 1 && pdf(F, 0.0) == 0 && pdf(wsl::fisher_f({.d1 = 1, .d2 = 5}), 0.0) == INFINITY);
+        // F(1, ν) = t(ν)² : P(F <= t²) = P(|T| <= t).
+        wsl::student_t const T7({.degrees_of_freedom = 7});
+        wsl::fisher_f const F17({.d1 = 1, .d2 = 7});
+        for (double t : {0.5, 1.0, 2.5, 9.0})
+            assert(std::abs(cdf(F17, t * t) - (1 - 2 * ccdf(T7, t))) < 1e-15);
+        assert(kolmogorov_smirnov(F, draws(F)) < 1.95 && kolmogorov_smirnov(wsl::fisher_f({.d1 = 0.6, .d2 = 1.5}), draws(wsl::fisher_f({.d1 = 0.6, .d2 = 1.5}))) < 1.95);
+        wsl::weibull const W1({.shape = 1, .scale = 2});                    // = exponentielle de taux 1/2
+        wsl::exponential const E2({.rate = 0.5});
+        for (double x : {0.1, 1.0, 5.0, 30.0})
+            assert(std::abs(cdf(W1, x) - cdf(E2, x)) <= 2e-16 * cdf(E2, x) && std::abs(pdf(W1, x) / pdf(E2, x) - 1) < 3e-16);
+        wsl::weibull const W({.shape = 1.5, .scale = 2});
+        assert(std::abs(W.median() - quantile(W, 0.5)) == 0 && kolmogorov_smirnov(W, draws(W)) < 1.95);
+        assert(wsl::weibull({.shape = 1e4, .scale = 1}).variance() > 0);     // compensation traitée
+        wsl::laplace const L({.location = 1, .scale = 2});
+        assert(L.variance() == 8 && cdf(L, 1.0) == 0.5 && quantile(L, 0.5) == 1 && kolmogorov_smirnov(L, draws(L)) < 1.95);
+        wsl::logistic const Lg({.location = 1, .scale = 2});
+        assert(cdf(Lg, 1.0) == 0.5 && std::abs(quantile(Lg, 0.75) - (1 + 2 * std::log(3.0))) < 1e-15 && kolmogorov_smirnov(Lg, draws(Lg)) < 1.95);
+        wsl::pareto const P({.scale = 1, .shape = 2.5});
+        assert(cdf(P, 1.0) == 0 && pdf(P, 0.5) == 0 && quantile(P, 0.0) == 1 && std::isinf(wsl::pareto({.scale = 1, .shape = 1}).mean()));
+        assert(kolmogorov_smirnov(P, draws(P)) < 1.95);
+        assert(throws_domain_error([] { wsl::fisher_f X({.d1 = 0, .d2 = 1}); }) && throws_domain_error([] { wsl::weibull X({.shape = 1, .scale = 0}); }));
+        assert(throws_domain_error([] { wsl::laplace X({.location = 0, .scale = -1}); }) && throws_domain_error([] { wsl::pareto X({.scale = 0, .shape = 1}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -602,6 +635,22 @@ int main()
             return bits(cdf(St, t)) ^ (bits(quantile(St, u)) << 1) ^ (bits(pdf(Ln, fp::fmul(3.0, u))) << 2) ^ (bits(quantile(Ln, u)) << 3)
                  ^ (bits(cdf(Cy, t)) << 4) ^ (bits(quantile(Cy, u)) << 5) ^ (bits(cdf(Cq, fp::fmul(10.0, u))) << 6);
         }, 1 << 10), 0x6e71d9a455e07fde);
+        wsl::fisher_f const Ff({.d1 = 4, .d2 = 9});
+        wsl::weibull const Wb({.shape = 2.2, .scale = 3});
+        wsl::laplace const Lp({.location = -2, .scale = 0.75});
+        wsl::logistic const Lo({.location = 4, .scale = 1.5});
+        wsl::pareto const Pa({.scale = 2, .shape = 1.7});
+        ok &= check("fisher_f", fingerprint([&] { return bits(sample(Ff, x)); }), 0x2d8f53b32c9947ee);
+        ok &= check("weibull", fingerprint([&] { return bits(sample(Wb, x)); }), 0x6b695ec07d8c4fb3);
+        ok &= check("laplace", fingerprint([&] { return bits(sample(Lp, x)); }), 0x514ae68e514769b0);
+        ok &= check("logistic", fingerprint([&] { return bits(sample(Lo, x)); }), 0x0dc308ffc659ed1d);
+        ok &= check("pareto", fingerprint([&] { return bits(sample(Pa, x)); }), 0x6a50d8d1248f5578);
+        ok &= check("second functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(20.0, u) - 10, y = fp::fmul(8.0, u);
+            return bits(cdf(Ff, y)) ^ (bits(quantile(Ff, u)) << 1) ^ (bits(pdf(Wb, y)) << 2) ^ (bits(quantile(Wb, u)) << 3)
+                 ^ (bits(cdf(Lp, t)) << 4) ^ (bits(quantile(Lo, u)) << 5) ^ (bits(ccdf(Pa, y + 2)) << 6);
+        }, 1 << 10), 0x572d7f7b8ca7f626);
     }
     assert(ok);
     return 0;

@@ -8,7 +8,8 @@
 //                bernoulli_trial, shuffle
 //   lois         concept et opérations (law.hpp) ; uniform, discrete_uniform,
 //                bernoulli, exponential, normal, geometric, poisson, binomial,
-//                gamma, beta, chi_squared, student_t, lognormal, cauchy
+//                gamma, beta, chi_squared, student_t, lognormal, cauchy, fisher_f,
+//                weibull, laplace, logistic, pareto
 //
 // Tirages reproductibles au bit près sur toute plateforme : algorithmes fixés,
 // indépendants de la bibliothèque standard. Tout générateur standard (mt19937…)
@@ -21,11 +22,16 @@
 #include <wsl/random/chi_squared.hpp>
 #include <wsl/random/engines.hpp>
 #include <wsl/random/exponential.hpp>
+#include <wsl/random/fisher_f.hpp>
 #include <wsl/random/gamma.hpp>
 #include <wsl/random/geometric.hpp>
+#include <wsl/random/laplace.hpp>
 #include <wsl/random/law.hpp>
+#include <wsl/random/logistic.hpp>
 #include <wsl/random/lognormal.hpp>
 #include <wsl/random/normal.hpp>
+#include <wsl/random/pareto.hpp>
 #include <wsl/random/poisson.hpp>
 #include <wsl/random/student_t.hpp>
 #include <wsl/random/uniform.hpp>
+#include <wsl/random/weibull.hpp>

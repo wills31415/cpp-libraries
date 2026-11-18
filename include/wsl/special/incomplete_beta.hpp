@@ -62,6 +62,35 @@ namespace wsl::special
             return xd::exp_scaled(l.hi, l.lo);
         }
 
+        // log(xᵃ yᵇ / B(a, b)), x et y = 1 − x en double-double tous deux : Loader si a, b > 2
+        // (nx et ny en double-double), sinon a log x + b log y − log B(a, b).
+        constexpr double_double beta_log_prefix(double a, double b, double_double x, double_double y) noexcept
+        {
+            if (a > 2 && b > 2)
+            {
+                auto const [n_hi, n_lo] = two_sum(a, b);
+                double_double const nx = xd::mul({n_hi, n_lo}, x), ny = xd::mul({n_hi, n_lo}, y);
+                double_double e = xd::stirling_error(n_hi, n_lo);
+                auto const da = xd::stirling_error(a), db = xd::stirling_error(b);
+                auto const ba = xd::deviance(a, nx.hi, nx.lo), bb = xd::deviance(b, ny.hi, ny.lo);
+                e = xd::sum(e, {-da.hi, -da.lo});
+                e = xd::sum(e, {-db.hi, -db.lo});
+                e = xd::sum(e, {-ba.hi, -ba.lo});
+                e = xd::sum(e, {-bb.hi, -bb.lo});
+                // + ½ (log a + log b − log n) − ½ log 2π
+                auto const la = xd::log_precise(a), lb = xd::log_precise(b);
+                auto const ln = xd::log(xd::normalized(n_hi, n_lo));
+                double_double f = xd::sum(la, lb);
+                f = xd::sum(f, {-ln.hi, -ln.lo});
+                e = xd::sum(e, {fmul(f.hi, 0.5), fmul(f.lo, 0.5)});
+                return xd::sum(e, {-half_log_two_pi_hi, -half_log_two_pi_lo});
+            }
+            double_double l = xd::mul({a, 0.0}, xd::log(xd::normalized(x.hi, x.lo)));
+            l = xd::sum(l, xd::mul({b, 0.0}, xd::log(xd::normalized(y.hi, y.lo))));
+            double_double const lb = xd::log_beta(a, b);
+            return xd::sum(l, {-lb.hi, -lb.lo});
+        }
+
         // h tel que Iₓ(a, b) = préfixe · h / a : fraction continue
         //     1/(1 + d₁/(1 + d₂/(1 + …))),  d_{2m+1} = −(a + m)(a + b + m) x / ((a + 2m)(a + 2m + 1)),
         //                                   d_{2m}   = m (b − m) x / ((a + 2m − 1)(a + 2m)),

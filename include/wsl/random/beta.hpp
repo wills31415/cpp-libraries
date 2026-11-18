@@ -37,6 +37,44 @@
 
 namespace wsl
 {
+    namespace detail
+    {
+        // Entropie de la loi bêta(a, b), en double-double (voir beta::entropy).
+        constexpr sd::double_double beta_entropy(double a, double b) noexcept
+        {
+            namespace fp = sd;
+            auto const [n_hi, n_lo] = fp::two_sum(a, b);
+            fp::double_double const n{n_hi, n_lo};
+            auto const half = [](fp::double_double v) { return fp::double_double{fp::fmul(v.hi, 0.5), fp::fmul(v.lo, 0.5)}; };
+            auto const negated = [](fp::double_double v) { return fp::double_double{-v.hi, -v.lo}; };
+            auto const reciprocal = [](fp::double_double v) {
+                double const q = 1.0 / v.hi;
+                auto const [m, m_error] = fp::two_product(q, v.hi);
+                return fp::double_double{q, (((1.0 - m) - m_error) - fp::fmul(q, v.lo)) / v.hi};
+            };
+            auto const ln = detail::log(detail::normalized(n_hi, n_lo));
+            fp::double_double h = half(detail::log_precise(a));
+            h = detail::sum(h, half(detail::log_precise(b)));
+            h = detail::sum(h, detail::mul(ln, {-1.5, 0.0}));                  // −(3/2) log n : 1,5 log n n'est pas exact
+            h = detail::sum(h, {fp::half_log_two_pi_hi, fp::half_log_two_pi_lo});
+            fp::double_double c{1.0, 0.0};                                  // 1 − 1/a − 1/b + 2/n
+            c = detail::sum(c, negated(reciprocal({a, 0.0})));
+            c = detail::sum(c, negated(reciprocal({b, 0.0})));
+            fp::double_double const two_over_n = reciprocal(n);
+            c = detail::sum(c, {fp::fmul(two_over_n.hi, 2.0), fp::fmul(two_over_n.lo, 2.0)});
+            h = detail::sum(h, half(c));
+            h = detail::sum(h, detail::stirling_error(a));
+            h = detail::sum(h, detail::stirling_error(b));
+            h = detail::sum(h, negated(detail::stirling_error(n_hi, n_lo)));
+            auto const [am_hi, am_lo] = fp::two_sum(a, -1.0);
+            auto const [bm_hi, bm_lo] = fp::two_sum(b, -1.0);
+            h = detail::sum(h, negated(detail::mul({am_hi, am_lo}, detail::stirling_error_derivative(a))));
+            h = detail::sum(h, negated(detail::mul({bm_hi, bm_lo}, detail::stirling_error_derivative(b))));
+            h = detail::sum(h, detail::mul(detail::sum(n, {-2.0, 0.0}), detail::stirling_error_derivative(n_hi)));
+            return h;
+        }
+    }
+
     template <law_real T = double>
     class beta
     {
@@ -108,37 +146,8 @@ namespace wsl
 
         constexpr T entropy() const noexcept
         {
-            namespace fp = detail::sd;
-            double const a = a_, b = b_;
-            auto const [n_hi, n_lo] = fp::two_sum(a, b);
-            fp::double_double const n{n_hi, n_lo};
-            auto const half = [](fp::double_double v) { return fp::double_double{fp::fmul(v.hi, 0.5), fp::fmul(v.lo, 0.5)}; };
-            auto const negated = [](fp::double_double v) { return fp::double_double{-v.hi, -v.lo}; };
-            auto const reciprocal = [](fp::double_double v) {
-                double const q = 1.0 / v.hi;
-                auto const [m, m_error] = fp::two_product(q, v.hi);
-                return fp::double_double{q, (((1.0 - m) - m_error) - fp::fmul(q, v.lo)) / v.hi};
-            };
-            auto const ln = detail::log(detail::normalized(n_hi, n_lo));
-            fp::double_double h = half(detail::log_precise(a));
-            h = detail::sum(h, half(detail::log_precise(b)));
-            h = detail::sum(h, detail::mul(ln, {-1.5, 0.0}));                  // −(3/2) log n : 1,5 log n n'est pas exact
-            h = detail::sum(h, {fp::half_log_two_pi_hi, fp::half_log_two_pi_lo});
-            fp::double_double c{1.0, 0.0};                                  // 1 − 1/a − 1/b + 2/n
-            c = detail::sum(c, negated(reciprocal({a, 0.0})));
-            c = detail::sum(c, negated(reciprocal({b, 0.0})));
-            fp::double_double const two_over_n = reciprocal(n);
-            c = detail::sum(c, {fp::fmul(two_over_n.hi, 2.0), fp::fmul(two_over_n.lo, 2.0)});
-            h = detail::sum(h, half(c));
-            h = detail::sum(h, detail::stirling_error(a));
-            h = detail::sum(h, detail::stirling_error(b));
-            h = detail::sum(h, negated(detail::stirling_error(n_hi, n_lo)));
-            auto const [am_hi, am_lo] = fp::two_sum(a, -1.0);
-            auto const [bm_hi, bm_lo] = fp::two_sum(b, -1.0);
-            h = detail::sum(h, negated(detail::mul({am_hi, am_lo}, detail::stirling_error_derivative(a))));
-            h = detail::sum(h, negated(detail::mul({bm_hi, bm_lo}, detail::stirling_error_derivative(b))));
-            h = detail::sum(h, detail::mul(detail::sum(n, {-2.0, 0.0}), detail::stirling_error_derivative(n_hi)));
-            return static_cast<T>(h.hi + h.lo);
+            auto const [hi, lo] = detail::beta_entropy(double(a_), double(b_));
+            return static_cast<T>(hi + lo);
         }
 
         friend constexpr T cdf(beta const& X, T x) noexcept

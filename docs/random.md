@@ -464,3 +464,22 @@ Défauts trouvés en route, tous dans les queues extrêmes :
 - cot(πp) pour p < 2⁻⁹⁷⁰ (produit exact hors domaine) : (1/(πp))(1 − (πp)²/3) à
   l'échelle, sans débordement intermédiaire ;
 - atan(v) ≈ v pour v < 2⁻²⁷ oubliait −v³/3 (0,55 ulp).
+
+### Lois dérivées, second lot : Fisher, Weibull, Laplace, logistique, Pareto
+
+| Loi | Paramètres | Méthode | Tirage |
+|---|---|---|---|
+| `fisher_f<T>` | `{.d1, .d2}` | u = d₁x/(d₁x + d₂) et 1 − u en double-double ; répartition I_u(d₁/2, d₂/2) (bêta incomplète à argument double-double) ; densité par le préfixe bêta logarithmique (`beta_log_prefix`, Loader si a, b > 2), exacte près de 0 pour d₁ = 2 (−(b + 1) log1p(2x/d₂)) ; quantile x = d₂u/(d₁(1 − u)), en logarithme quand u ou 1 − u tombe sous 2⁻⁹⁶⁰ ; entropie par celle de la bêta et ψ réécrite avec δ′ | (G₁/a)/(G₂/b), approché |
+| `weibull<T>` | `{.shape, .scale}` | t = (x/λ)ᵏ = e^{k log(x/λ)}, log du rapport par log1p près de 1 ; répartition −expm1(−t), survie e^{−t} ; variance λ²Γ(1 + ε)²(e^D − 1), D = lgamma(1 + 2ε) − 2 lgamma(1 + ε) en série pour ε = 1/k <= 1/8 (sans compensation pour k grand) | λE^{1/k}, approché |
+| `laplace<T>` | `{.location, .scale}` | z en double-double, queue e^{−|z|}/2 ; quantile μ ∓ b log(2 min(p, 1 − p)), un arrondi | **exact** : μ ± bE, E exponentielle exacte |
+| `logistic<T>` | `{.location, .scale}` | queue e^{−|z|}/(1 + e^{−|z|}) ; quantile μ + s logit(p), logit par log1p((2p − 1)/(1 − p)) près de ½ | μ + s logit(U), approché |
+| `pareto<T>` | `{.scale, .shape}` | L = α log(x/x_m) en double-double ; survie e^{−L}, répartition −expm1(−L) ; quantile x_m e^{−log1p(−p)/α} ; moyenne et variance +∞ quand elles divergent | x_m e^{E/α}, approché |
+
+Précision mesurée : tout sous 0,5 ulp (double et float), arrondi correct sur
+99,7 à 100 % des points. Défauts trouvés en route :
+- `exp_scaled` (wsl::special, détail) rendait une paire non normalisée (bas ~ 2⁻²²
+  relativement au haut) : réinjectée dans une autre exponentielle (survie de Weibull),
+  elle perdait 20 bits. Elle est désormais renormalisée (aucune empreinte ne change) ;
+- log-densité de Fisher pour d₁ = 2 : f(0) = 1, log f ≈ 0 près de 0 se compensait
+  (120 ulp) ;
+- quantile de Fisher sous-normal : u sous-normal n'a plus tous ses bits (2 ulp).

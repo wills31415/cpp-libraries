@@ -38,7 +38,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   points mesurés.
 - Lois `chi_squared`, `student_t`, `lognormal`, `cauchy` : densité, log-densité, répartition,
   survie, quantile, moments (là où ils existent), entropie, tirage ; tout sous 0,5 ulp.
+- Lois `fisher_f`, `weibull`, `laplace` (tirage exact), `logistic`, `pareto` : densité,
+  log-densité, répartition, survie, quantile, moments, entropie, tirage ; tout sous 0,5 ulp.
 - `scale_by_power_of_two` (wsl::special, détail) accepte tout exposant.
+- `exp_scaled` (wsl::special, détail) rend une paire normalisée (précision des
+  exponentielles enchaînées).
 
 ### exact_random (retirée)
 - Remplacée par `wsl::random` : `uniform_below(g, n)` (exact, tout générateur, plus

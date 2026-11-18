@@ -128,6 +128,40 @@ int main()
     DERIVED_CHECKS(double, tight)
     DERIVED_CHECKS(float, loose)
 #undef DERIVED_CHECKS
+#define SECOND_CHECKS(T, bound)                                                                                               \
+    check<T>("fisher_f pdf " #T, d::fisher_f_pdf_##T, [](double a, double b, double x) { return pdf(wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), T(x)); }, bound); \
+    check<T>("fisher_f log_pdf " #T, d::fisher_f_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), T(x)); }, 1.0); \
+    check<T>("fisher_f cdf " #T, d::fisher_f_cdf_##T, [](double a, double b, double x) { return cdf(wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), T(x)); }, bound); \
+    check<T>("fisher_f ccdf " #T, d::fisher_f_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), T(x)); }, bound); \
+    check<T>("fisher_f quantile " #T, d::fisher_f_quantile_##T, [](double a, double b, double p) { return quantile(wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), p); }, bound); \
+    check<T>("fisher_f entropy " #T, d::fisher_f_entropy_##T, [](double a, double b, double) { return wsl::fisher_f<T>({.d1 = T(a), .d2 = T(b)}).entropy(); }, 1.0); \
+    check<T>("weibull pdf " #T, d::weibull_pdf_##T, [](double a, double b, double x) { return pdf(wsl::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("weibull log_pdf " #T, d::weibull_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("weibull cdf " #T, d::weibull_cdf_##T, [](double a, double b, double x) { return cdf(wsl::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("weibull ccdf " #T, d::weibull_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("weibull quantile " #T, d::weibull_quantile_##T, [](double a, double b, double p) { return quantile(wsl::weibull<T>({.shape = T(a), .scale = T(b)}), p); }, bound); \
+    check<T>("weibull mean " #T, d::weibull_mean_##T, [](double a, double b, double) { return wsl::weibull<T>({.shape = T(a), .scale = T(b)}).mean(); }, bound); \
+    check<T>("weibull variance " #T, d::weibull_variance_##T, [](double a, double b, double) { return wsl::weibull<T>({.shape = T(a), .scale = T(b)}).variance(); }, bound); \
+    check<T>("weibull entropy " #T, d::weibull_entropy_##T, [](double a, double b, double) { return wsl::weibull<T>({.shape = T(a), .scale = T(b)}).entropy(); }, 1.0); \
+    check<T>("laplace pdf " #T, d::laplace_pdf_##T, [](double a, double b, double x) { return pdf(wsl::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("laplace log_pdf " #T, d::laplace_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("laplace cdf " #T, d::laplace_cdf_##T, [](double a, double b, double x) { return cdf(wsl::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("laplace ccdf " #T, d::laplace_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("laplace quantile " #T, d::laplace_quantile_##T, [](double a, double b, double p) { return quantile(wsl::laplace<T>({.location = T(a), .scale = T(b)}), p); }, bound); \
+    check<T>("logistic pdf " #T, d::logistic_pdf_##T, [](double a, double b, double x) { return pdf(wsl::logistic<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("logistic log_pdf " #T, d::logistic_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::logistic<T>({.location = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("logistic cdf " #T, d::logistic_cdf_##T, [](double a, double b, double x) { return cdf(wsl::logistic<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("logistic ccdf " #T, d::logistic_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::logistic<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
+    check<T>("logistic quantile " #T, d::logistic_quantile_##T, [](double a, double b, double p) { return quantile(wsl::logistic<T>({.location = T(a), .scale = T(b)}), p); }, bound); \
+    check<T>("pareto pdf " #T, d::pareto_pdf_##T, [](double a, double b, double x) { return pdf(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), T(x)); }, bound); \
+    check<T>("pareto log_pdf " #T, d::pareto_log_pdf_##T, [](double a, double b, double x) { return log_pdf(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), T(x)); }, 1.0); \
+    check<T>("pareto cdf " #T, d::pareto_cdf_##T, [](double a, double b, double x) { return cdf(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), T(x)); }, bound); \
+    check<T>("pareto ccdf " #T, d::pareto_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), T(x)); }, bound); \
+    check<T>("pareto quantile " #T, d::pareto_quantile_##T, [](double a, double b, double p) { return quantile(wsl::pareto<T>({.scale = T(a), .shape = T(b)}), p); }, bound); \
+    check<T>("pareto entropy " #T, d::pareto_entropy_##T, [](double a, double b, double) { return wsl::pareto<T>({.scale = T(a), .shape = T(b)}).entropy(); }, 1.0);
+    SECOND_CHECKS(double, tight)
+    SECOND_CHECKS(float, loose)
+#undef SECOND_CHECKS
     LAW_CHECKS(double, tight)
     LAW_CHECKS(float, loose)
 #undef LAW_CHECKS

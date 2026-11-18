@@ -122,6 +122,7 @@ namespace wsl::special::detail::extended
     inline constexpr double normal_entropy_hi = 0x1.6b3f8e4325f5ap+0, normal_entropy_lo = 0x1.4d252f2400510p-54;  // (1 + log 2π)/2
     inline constexpr double half_sqrt_pi = 0x1.c5bf891b4ef6bp-1;
     inline constexpr double inv_sqrt_pi = 0x1.20dd750429b6dp-1;
+    inline constexpr double pi_squared_over_3_hi = 0x1.a51a6625307d3p+1, pi_squared_over_3_lo = 0x1.1873d8912200cp-54;
     inline constexpr double inv_pi_hi = 0x1.45f306dc9c883p-2, inv_pi_lo = -0x1.6b01ec5417056p-56;
     inline constexpr double log_4pi_hi = 0x1.43f89a3f0edd6p+1, log_4pi_lo = 0x1.053cd734e6a31p-54;
     inline constexpr double one_twelfth_hi = 0x1.5555555555555p-4, one_twelfth_lo = 0x1.5555555555555p-58;
@@ -336,7 +337,8 @@ namespace wsl::special::detail::extended
         auto const [m, m_error] = sd::two_product(t_hi, r);
         auto const [s, s_error] = sd::fast_two_sum(t_hi, m);               // |T| > |T r|
         double const tail = s_error + (m_error + ((t_lo + sd::fmul(t_hi, q)) + sd::fmul(t_lo, r)));
-        return normalized(s, tail, sd::exp_exponent(k) + extra);
+        auto const [hi, lo] = sd::fast_two_sum(s, tail);                    // tail ~ T r²/2 : à renormaliser
+        return normalized(hi, lo, sd::exp_exponent(k) + extra);
     }
 
     // e^x − 1, x = x_hi + x_lo dans [−40, 1], en double-double : la méthode de

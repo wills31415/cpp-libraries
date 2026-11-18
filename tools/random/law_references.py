@@ -32,7 +32,7 @@ def check_constants():
     exact = {
         "inv_sqrt2": 1 / mp.sqrt(2), "sqrt2": mp.sqrt(2), "inv_sqrt_2pi": 1 / mp.sqrt(2 * mp.pi),
         "half_log_2pi": mp.log(2 * mp.pi) / 2, "normal_entropy": (1 + mp.log(2 * mp.pi)) / 2,
-        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi), "one_twelfth": mpf(1) / 12, "inv_pi": 1 / mp.pi, "log_4pi": mp.log(4 * mp.pi),
+        "half_sqrt_pi": mp.sqrt(mp.pi) / 2, "inv_sqrt_pi": 1 / mp.sqrt(mp.pi), "one_twelfth": mpf(1) / 12, "inv_pi": 1 / mp.pi, "log_4pi": mp.log(4 * mp.pi), "pi_squared_over_3": mp.pi ** 2 / 3,
     }
     for name, v in exact.items():
         hi = float(v)
@@ -346,6 +346,80 @@ def derived_laws(kind):
     return out
 
 
+FISHER = [(5.0, 10.0), (1.0, 1.0), (2.0, 7.0), (30.0, 3.0), (0.5, 40.0), (100.0, 200.0)]
+WEIBULL = [(1.5, 2.0), (0.5, 1.0), (1.0, 3.0), (5.0, 0.1), (50.0, 1.0), (0.1, 1e3), (300.0, 2.0)]
+LAPLACE = [(0.0, 1.0), (1.0, 2.0), (-1e5, 3.0), (0.0, 1e-10)]
+LOGISTIC = [(0.0, 1.0), (1.0, 2.0), (-1e5, 3.0), (0.0, 1e-10)]
+PARETO = [(1.0, 2.5), (3.0, 0.5), (1e-5, 10.0), (2.0, 1.0), (1.0, 300.0)]
+
+
+def second_batch(kind):
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    count = 100 if kind == "double" else 40
+    out = []
+    for d1, d2 in FISHER:
+        a1, a2 = mpf(to_type(d1)), mpf(to_type(d2))
+        xs = [to_type(float(log_uniform(2.0 ** -30, 2.0 ** 30))) for _ in range(count)]
+        u = lambda x, a1=a1, a2=a2: (a1 * mpf(x), a2)
+        logpdf = lambda x, a1=a1, a2=a2: ((a1 / 2) * mp.log(a1 * mpf(x) / (a1 * mpf(x) + a2)) + (a2 / 2) * mp.log(a2 / (a1 * mpf(x) + a2))
+                                          - (mp.loggamma(a1 / 2) + mp.loggamma(a2 / 2) - mp.loggamma((a1 + a2) / 2)) - mp.log(mpf(x)))
+        out.append(("fisher_f_pdf", d1, d2, xs, lambda x, f=logpdf: mp.exp(f(x))))
+        out.append(("fisher_f_log_pdf", d1, d2, xs, logpdf))
+        def ratio(x, a1=a1, a2=a2):
+            with mp.workprec(450):
+                return a1 * mpf(x) / (a1 * mpf(x) + a2)
+        out.append(("fisher_f_cdf", d1, d2, xs, lambda x, a1=a1, a2=a2, ratio=ratio: g.ibeta_reference(a1 / 2, a2 / 2, ratio(x))[0]))
+        out.append(("fisher_f_ccdf", d1, d2, xs, lambda x, a1=a1, a2=a2, ratio=ratio: g.ibeta_reference(a1 / 2, a2 / 2, ratio(x))[1]))
+        def quantile(p, a1=a1, a2=a2):
+            with mp.workprec(450):
+                u_ = g.ibeta_inverse_exact(a1 / 2, a2 / 2, p, False)
+                return a2 * u_ / (a1 * (1 - u_))
+        out.append(("fisher_f_quantile", d1, d2, probabilities(count // 4), quantile))
+        a, b = a1 / 2, a2 / 2
+        out.append(("fisher_f_entropy", d1, d2, [0.0], lambda _, a=a, b=b: mp.log(b / a) + (mp.loggamma(a) + mp.loggamma(b) - mp.loggamma(a + b))
+                    + (1 - a) * mp.digamma(a) - (1 + b) * mp.digamma(b) + (a + b) * mp.digamma(a + b)))
+    for k, lam in WEIBULL:
+        kk, ll = mpf(to_type(k)), mpf(to_type(lam))
+        xs = [to_type(float(ll * log_uniform(2.0 ** -30, 2.0 ** 3) ** (1 / kk))) for _ in range(count)]
+        xs = [x for x in xs if 0 < x < math.inf]
+        t = lambda x, kk=kk, ll=ll: (mpf(x) / ll) ** kk
+        out.append(("weibull_pdf", k, lam, xs, lambda x, t=t, kk=kk: kk * t(x) * mp.exp(-t(x)) / mpf(x)))
+        out.append(("weibull_log_pdf", k, lam, xs, lambda x, t=t, kk=kk: mp.log(kk) + mp.log(t(x)) - t(x) - mp.log(mpf(x))))
+        out.append(("weibull_cdf", k, lam, xs, lambda x, t=t: -mp.expm1(-t(x))))
+        out.append(("weibull_ccdf", k, lam, xs, lambda x, t=t: mp.exp(-t(x))))
+        out.append(("weibull_quantile", k, lam, probabilities(count // 3), lambda p, kk=kk, ll=ll: ll * (-mp.log1p(-mpf(p))) ** (1 / kk)))
+        out.append(("weibull_mean", k, lam, [0.0], lambda _, kk=kk, ll=ll: ll * mp.gamma(1 + 1 / kk)))
+        out.append(("weibull_variance", k, lam, [0.0], lambda _, kk=kk, ll=ll: ll ** 2 * (mp.gamma(1 + 2 / kk) - mp.gamma(1 + 1 / kk) ** 2)))
+        out.append(("weibull_entropy", k, lam, [0.0], lambda _, kk=kk, ll=ll: mp.euler * (1 - 1 / kk) + mp.log(ll / kk) + 1))
+    for name, params, tail in (("laplace", LAPLACE, lambda z: mp.exp(-abs(z)) / 2), ("logistic", LOGISTIC, lambda z: mp.exp(-abs(z)) / (1 + mp.exp(-abs(z))))):
+        for mu, sc in params:
+            m, s_ = mpf(to_type(mu)), mpf(to_type(sc))
+            xs = [to_type(float(m + s_ * rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 700.0))) for _ in range(count)]
+            z = lambda x, m=m, s_=s_: (mpf(x) - m) / s_
+            if name == "laplace":
+                pdf = lambda x, z=z, s_=s_: mp.exp(-abs(z(x))) / (2 * s_)
+                q = lambda p, m=m, s_=s_: m + s_ * mp.log(2 * mpf(p)) if p < 0.5 else m - s_ * mp.log(2 * (1 - mpf(p)))
+            else:
+                pdf = lambda x, z=z, s_=s_: mp.exp(-abs(z(x))) / (s_ * (1 + mp.exp(-abs(z(x)))) ** 2)
+                q = lambda p, m=m, s_=s_: m + s_ * (mp.log(mpf(p)) - mp.log1p(-mpf(p)))
+            out.append((f"{name}_pdf", mu, sc, xs, pdf))
+            out.append((f"{name}_log_pdf", mu, sc, xs, lambda x, pdf=pdf: mp.log(pdf(x))))
+            out.append((f"{name}_cdf", mu, sc, xs, lambda x, z=z, tail=tail: tail(z(x)) if z(x) < 0 else 1 - tail(z(x))))
+            out.append((f"{name}_ccdf", mu, sc, xs, lambda x, z=z, tail=tail: tail(z(x)) if z(x) > 0 else 1 - tail(z(x))))
+            out.append((f"{name}_quantile", mu, sc, [p for p in probabilities(count // 3) if p != 0.5], q))
+    for xm, al in PARETO:
+        x0, a = mpf(to_type(xm)), mpf(to_type(al))
+        xs = [to_type(float(x0 * log_uniform(1.0 + 2.0 ** -40, 2.0 ** 40))) for _ in range(count)]
+        xs = [x for x in xs if x > float(x0) and x < math.inf]
+        out.append(("pareto_pdf", xm, al, xs, lambda x, x0=x0, a=a: a / mpf(x) * (x0 / mpf(x)) ** a))
+        out.append(("pareto_log_pdf", xm, al, xs, lambda x, x0=x0, a=a: mp.log(a / mpf(x)) + a * mp.log(x0 / mpf(x))))
+        out.append(("pareto_cdf", xm, al, xs, lambda x, x0=x0, a=a: -mp.expm1(a * mp.log(x0 / mpf(x)))))
+        out.append(("pareto_ccdf", xm, al, xs, lambda x, x0=x0, a=a: (x0 / mpf(x)) ** a))
+        out.append(("pareto_quantile", xm, al, probabilities(count // 3), lambda p, x0=x0, a=a: x0 * mp.exp(-mp.log1p(-mpf(p)) / a)))
+        out.append(("pareto_entropy", xm, al, [0.0], lambda _, x0=x0, a=a: mp.log(x0 / a) + 1 + 1 / a))
+    return out
+
+
 def discrete_quantiles(name, cases, cdf, start):
     """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
     tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
@@ -372,7 +446,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind):
             rows = groups.setdefault(name, [])
             for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)

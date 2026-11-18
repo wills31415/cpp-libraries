@@ -37,6 +37,8 @@ namespace wsl::detail
     using xd::log_dd;
     using xd::log_precise;
     using xd::magnitude;
+    using xd::pi_squared_over_3_hi;
+    using xd::pi_squared_over_3_lo;
     using xd::max_double;
     using xd::mul;
     using xd::next_below;
