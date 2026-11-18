@@ -5,7 +5,7 @@
 >
 > **État** : phase 1 (`wsl::special`) terminée ; phase 2 (socle) faite le 2026-11-17 :
 > moteurs et primitives uniformes exactes (§8) ; **phase 3 en cours** : architecture et
-> premières lois (§9) ; **phase 5** (algèbre des lois) : lot 1 fait (§10).
+> premières lois (§9) ; **phase 5** (algèbre des lois) faite (§10, §11).
 
 ## 1. Vision ✅
 
@@ -187,16 +187,16 @@ Quand un algorithme exact existe, il est utilisé par défaut ; la variante rapi
 demande explicitement (`sample(X, gen, wsl::fast)`) et porte sa borne d'erreur.
 Quand aucun n'est connu, le meilleur algorithme est utilisé et marqué `approximate`.
 
-### 4.6 Algèbre des lois ✅ (lot 1, phase 5)
+### 4.6 Algèbre des lois ✅ (phase 5)
 
 | Construction | Écriture | Ce qui est hérité |
 |---|---|---|
 | Image affine | `2 * X + 1`, `-X`, `X / 4`, `wsl::affine(X, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
 | Troncature, conditionnement | `wsl::truncate(X, a, b)` | densité, répartition, quantiles renormalisés |
 | Mélange | `wsl::mixture(wsl::weighted(w1, X1), wsl::weighted(w2, X2), …)` | densité ou masse, répartition, quantiles, moments |
-| Image par une fonction | `pushforward(X, f)` | lot 2 |
-| Produit (indépendance) | `product(X, Y)` | lot 2 |
-| Somme indépendante | `X + Y` | lot 2 (identités : normale + normale, gamma + gamma de même intensité, Poisson + Poisson…) |
+| Somme indépendante | `X + Y`, `X - Y` | identités (normale, Cauchy, Poisson, χ² ; gamma de même intensité, binomiales de même p) ; sinon moments par les cumulants, et pour les lois discrètes masse, répartition, quantile par convolution exacte |
+| Loi jointe (produit) | `wsl::independent(X, Y, …)` | densité ou masse, répartition et survie jointes, entropie, moyennes |
+| Image par une fonction | `wsl::pushforward(X, f)` | tirage ; avec `wsl::increasing(f, f⁻¹ [, (f⁻¹)'])` ou `decreasing` : répartition, quantiles, médiane, densité |
 
 Les identités connues sont résolues **à la compilation** : `2 * normal + 1` a pour type
 `normal`, avec ses paramètres calculés (voir §10). Sans identité, le résultat est une loi
@@ -242,7 +242,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 2 | `wsl::random`, socle : moteurs, uniformes exacts, Bernoulli exacte ; `exact_random` est absorbé |
 | 3 | Concept de loi, tirage générique, adaptateur ; premières lois : uniformes, Bernoulli, binomiale, géométrique, Poisson, exponentielle, normale, gamma, bêta |
 | 4 | `wsl::special`, suite : gamma et bêta incomplètes et inverses (répartition et quantiles de gamma, χ², bêta, Student, Fisher) |
-| 5 | Algèbre des lois (lot 1 fait : image affine, troncature, mélanges, quantile de survie) |
+| 5 | Algèbre des lois ✅ : image affine, troncature, mélanges, quantile de survie ; sommes indépendantes, loi jointe, image par une fonction |
 | 6 | Lois multivariées |
 | 7 | Objets combinatoires (avec `wsl::permutation`) |
 | 8 | Processus |
@@ -537,7 +537,7 @@ de 2^-1000 à 2^1000).
 |---|---|---|---|---|
 | −2T + 5, T de Student (ν = 1,5 ; 4 ; 30) | 0,50 | 0,50 | 0,50 | 3,7 (quand 5 + 2Q se compense) |
 | N(0, 1) tronquée (cinq intervalles, queues comprises) | — | 2,2 | 5,2 | 61 (près du zéro du quantile) |
-| 0,3 N(−2, 1) + 0,7 gamma(3, 1) | 1,2 | 1,0 | — | 1,0 |
+| 0,3 N(−2, 1) + 0,7 gamma(3, 1) | 1,1 | 0,8 | — | 1,5 |
 
 (ulp, double ; points loin des bornes de troncature.) Limites inhérentes à la
 composition, documentées : près d'une borne de troncature, l'erreur suit le
@@ -553,3 +553,57 @@ sous-normaux (N tronquée au-delà de |x| = 38) perd ses bits.
   logistique de même (−|z|, et non −∞). Références étendues à |z| = 2¹⁰⁰⁰.
 - Produits rendus sans `fmul` (variance de la normale et du χ², **tirage gamma** par
   l'échelle) : GCC les fusionnait avec l'addition de l'appelant.
+
+## 11. Phase 5 : algèbre des lois, lot 2
+
+### Sommes indépendantes
+
+`X + Y` est la loi de X + Y, X et Y **indépendantes** (`X + X` : deux copies
+indépendantes). `X - Y` = `X + (-Y)` pour des lois réelles. Identités par
+`sum_closure(X, Y)` (ADL) :
+
+| Somme | Résultat |
+|---|---|
+| normale + normale | `normal`, μ₁ + μ₂, √(σ₁² + σ₂²) par `hypot` (un arrondi chacun) |
+| Cauchy + Cauchy | `cauchy`, x₁ + x₂, γ₁ + γ₂ |
+| Poisson + Poisson, χ² + χ² | `poisson`, `chi_squared` |
+| gamma + gamma (même intensité, paramétrisations mêlées comprises), exponentielle + exponentielle ou gamma | `independent_sum`, fonctions de la gamma de forme a + b |
+| binomiale + binomiale (même p) | `independent_sum`, fonctions de la binomiale n₁ + n₂ |
+
+L'identité conditionnelle est testée à la construction (`S.family()`) : intensités
+**exactement** égales (θλ = 1 exactement entre échelle et intensité). Sans identité :
+moyenne, variance, asymétrie et kurtosis par les cumulants, qui s'ajoutent ; lois
+discrètes : masse Σⱼ P(X = j) P(Y = k − j), répartition et survie par des sommes finies
+de termes positifs (la survie lointaine n'est jamais 1 − cdf), en double-double, en
+O(longueur du support utile) ; quantile exact de cette répartition. Une somme continue
+sans identité n'a pas de densité calculée (pas de convolution numérique) : quand
+l'identité conditionnelle échoue, ses fonctions rendent NaN et ses quantiles lèvent
+`std::domain_error` ; tirage et moments restent disponibles.
+
+Tirage : x puis y, x + y (exact pour deux lois discrètes exactes ; un arrondi pour des
+réels), quelle que soit l'identité (le nombre de valeurs consommées ne dépend pas des
+paramètres).
+
+### Loi jointe
+
+`wsl::independent(X₁, …, Xₙ)`, `value_type` = `std::tuple` : densité (toutes continues)
+ou masse (toutes discrètes) produit en un arrondi, log-densité somme, répartition et
+survie jointes produits, entropie somme ; tirage des composantes dans l'ordre, exact si
+chacune l'est.
+
+### Image par une fonction
+
+`wsl::pushforward(X, f)` : tirage f(x) seul pour une fonction quelconque (à valeurs
+arithmétiques). Une bijection monotone se déclare avec sa réciproque (et la dérivée de
+celle-ci pour la densité) : `wsl::increasing(f, g[, g'])`, `wsl::decreasing(f, g[, g'])`.
+La précision et la reproductibilité au bit près sont celles de f et g : avec
+`wsl::special::exp` et `log`, exp(N) redonne les bits de la log-normale.
+
+### Erreur mesurée
+
+| Loi construite | pmf | cdf | ccdf |
+|---|---|---|---|
+| Poisson(μ) + binomiale(20, p), quatre cas, queues comprises | 1,4 | 0,84 | 0,95 |
+
+(Mélange : quantile jusqu'à 1,5 ulp sur le nouveau tirage des points, loin du zéro
+du quantile.)

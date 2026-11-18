@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -281,6 +282,109 @@ int main()
         assert(throws_domain_error([&] { (void)wsl::mixture(wsl::weighted(-1.0, A)); }));
     }
 
+    // ---- Sommes indépendantes ------------------------------------------------------
+    {
+        static_assert(std::is_same_v<decltype(wsl::normal({.mean = 1.0, .sd = 3.0}) + wsl::normal({.mean = 2.0, .sd = 4.0})), wsl::normal<>>);
+        static_assert(std::is_same_v<decltype(wsl::poisson({.mean = 1.0}) + wsl::poisson({.mean = 2.0})), wsl::poisson<>>);
+        static_assert(std::is_same_v<decltype(wsl::gamma({.shape = 1.0, .rate = 1.0}) + wsl::gamma({.shape = 1.0, .rate = 1.0})), wsl::independent_sum<wsl::gamma<>, wsl::gamma<>>>);
+        static_assert(wsl::has_cdf<wsl::independent_sum<wsl::gamma<>, wsl::exponential<>>> && !wsl::has_cdf<wsl::independent_sum<wsl::student_t<>, wsl::uniform<>>>);
+        static_assert(wsl::independent_sum<wsl::poisson<>, wsl::geometric<>>::sampling == wsl::exactness::approximate);
+        static_assert(wsl::independent_sum<wsl::discrete_uniform<>, wsl::discrete_uniform<>>::sampling == wsl::exactness::exact);
+        auto const S = wsl::normal({.mean = 1.0, .sd = 3.0}) + wsl::normal({.mean = 2.0, .sd = 4.0});
+        assert(S.mean() == 3 && S.sd() == 5);
+        auto const D = wsl::normal({.mean = 1.0, .sd = 3.0}) - wsl::normal({.mean = 2.0, .sd = 4.0});
+        assert(D.mean() == -1 && D.sd() == 5);
+        auto const C = wsl::cauchy({.location = 1.0, .scale = 2.0}) + wsl::cauchy({.location = -3.0, .scale = 0.5});
+        assert(C.location() == -2 && C.scale() == 2.5);
+        assert((wsl::chi_squared({.degrees_of_freedom = 3.0}) + wsl::chi_squared({.degrees_of_freedom = 4.5})).degrees_of_freedom() == 7.5);
+        // Identités conditionnelles : mêmes bits que la loi de la famille.
+        auto const G = wsl::gamma({.shape = 2.0, .rate = 2.0}) + wsl::gamma({.shape = 1.5, .scale = 0.5});   // paramétrisations mêlées
+        wsl::gamma const G35({.shape = 3.5, .rate = 2.0});
+        auto const E = wsl::exponential({.rate = 2.0}) + wsl::gamma({.shape = 2.5, .rate = 2.0});
+        auto const B = wsl::binomial({.trials = 10, .p = 0.3}) + wsl::binomial({.trials = 5, .p = 0.3});
+        wsl::binomial const B15({.trials = 15, .p = 0.3});
+        assert(G.family() && E.family() && B.family());
+        for (double x : {0.1, 1.0, 4.0})
+            assert(cdf(G, x) == cdf(G35, x) && pdf(G, x) == pdf(G35, x) && ccdf(E, x) == ccdf(G35, x));
+        assert(quantile(G, 0.3) == quantile(G35, 0.3) && G.variance() == G35.variance());
+        for (int k = 0; k <= 15; ++k)
+            assert(pmf(B, k) == pmf(B15, k) && cdf(B, k) == cdf(B15, k));
+        // Sans identité : moments par les cumulants ; NaN pour une somme continue.
+        auto const H = wsl::gamma({.shape = 2.0, .rate = 2.0}) + wsl::gamma({.shape = 1.5, .rate = 3.0});
+        assert(!H.family() && std::isnan(cdf(H, 1.0)) && throws_domain_error([&] { (void)quantile(H, 0.5); }));
+        assert(H.mean() == 1.5 && close(H.variance(), 0.5 + 1.5 / 9, 1e-15));
+        double const k3 = 2.0 * 2 / 8 + 2.0 * 1.5 / 27, v = 0.5 + 1.5 / 9;                     // κ₃ = 2a/λ³
+        assert(close(H.skewness(), k3 / (v * std::sqrt(v)), 1e-14));
+        double m = 0;
+        for (int i = 0; i < 40000; ++i)
+            m += sample(H, g);
+        assert(std::abs(m / 40000 - 1.5) < 0.02);
+        // Convolution discrète : masse, répartition, survie, quantile exact.
+        wsl::poisson const P({.mean = 3.5});
+        wsl::binomial const Bi({.trials = 20, .p = 0.3});
+        auto const PB = P + Bi;
+        double total = 0;
+        for (long long k = 0; k <= 60; ++k)
+        {
+            double direct = 0;
+            for (long long j = 0; j <= std::min<long long>(k, 20); ++j)
+                direct += pmf(Bi, j) * pmf(P, k - j);
+            assert(close(pmf(PB, k), direct, 1e-13));
+            assert(close(cdf(PB, k) + ccdf(PB, k), 1, 1e-15));
+            total += pmf(PB, k);
+        }
+        assert(close(total, 1, 1e-14) && PB.mean() == 9.5 && close(PB.variance(), 3.5 + 4.2, 1e-15));
+        for (double p : {1e-12, 0.05, 0.5, 0.99, 1 - 1e-10})
+        {
+            auto const k = quantile(PB, p);
+            assert(cdf(PB, k) >= p && (k == 0 || cdf(PB, k - 1) < p));
+        }
+        assert(close(ccdf(PB, 80), ccdf(P, 60) * 0 + ccdf(PB, 80), 0) && ccdf(PB, 80) > 0 && ccdf(PB, 80) < 1e-30);   // queue lointaine, sans 1 − cdf
+        auto const GU = wsl::geometric({.p = 0.2}) + wsl::discrete_uniform({.low = -3, .high = 3});        // supports négatifs
+        assert(GU.support().lower == -3 && close(cdf(GU, 0), [&] { double s = 0; for (int j = -3; j <= 3; ++j) s += cdf(wsl::geometric({.p = 0.2}), -j) / 7; return s; }(), 1e-14));
+    }
+
+    // ---- Loi jointe et image par une fonction ----------------------------------------
+    {
+        namespace sp = wsl::special;
+        wsl::normal const N({.mean = 0.0, .sd = 1.0});
+        wsl::exponential const E({.rate = 2.0});
+        wsl::independent const J(N, E, wsl::poisson({.mean = 3.0}));
+        static_assert(std::is_same_v<decltype(J)::value_type, std::tuple<double, double, std::int64_t>>);
+        static_assert(decltype(J)::sampling == wsl::exactness::approximate && !wsl::has_pdf<decltype(J)>);
+        wsl::independent const K(N, E);
+        static_assert(decltype(K)::sampling == wsl::exactness::exact);
+        assert(close(pdf(K, {0.5, 1.0}), pdf(N, 0.5) * pdf(E, 1.0), 1e-15) && close(cdf(K, {0.0, 1.0}), 0.5 * cdf(E, 1.0), 1e-15));
+        assert(close(log_pdf(K, {0.5, 1.0}), log_pdf(N, 0.5) + log_pdf(E, 1.0), 1e-15) && close(K.entropy(), N.entropy() + E.entropy(), 1e-15));
+        assert(pdf(K, {0.5, -1.0}) == 0 && log_pdf(K, {0.5, -1.0}) == -INFINITY && std::get<1>(K.mean()) == 0.5);
+        wsl::xoshiro256pp a(9), b(9);                                       // tirage : composantes dans l'ordre
+        auto const [x, y, k] = sample(J, a);
+        assert(x == sample(N, b) && y == sample(E, b) && k == sample(wsl::poisson({.mean = 3.0}), b));
+        // Image monotone : exp(N) est la log-normale ; 1/X, X gamma, la gamma inverse.
+        auto const L = wsl::pushforward(N, wsl::increasing([](double t) { return sp::exp(t); }, [](double t) { return sp::log(t); }, [](double t) { return 1 / t; }));
+        wsl::lognormal const LN({.mu = 0.0, .sigma = 1.0});
+        for (double t : {0.1, 1.0, 2.0, 30.0})
+            assert(close(cdf(L, t), cdf(LN, t), 1e-15) && close(pdf(L, t), pdf(LN, t), 1e-15) && close(log_pdf(L, t), log_pdf(LN, t), 1e-14));
+        assert(close(quantile(L, 0.9), quantile(LN, 0.9), 1e-15) && L.median() == 1 && L.support().lower == 0 && kolmogorov_smirnov(L, g) < 1.95);
+        auto const I = wsl::pushforward(wsl::gamma({.shape = 3.0, .rate = 2.0}), wsl::decreasing([](double t) { return 1 / t; }, [](double t) { return 1 / t; }, [](double t) { return -1 / (t * t); }));
+        assert(close(cdf(I, 1.0), ccdf(wsl::gamma({.shape = 3.0, .rate = 2.0}), 1.0), 1e-15) && close(quantile(I, 0.25), 1 / cquantile(wsl::gamma({.shape = 3.0, .rate = 2.0}), 0.25), 1e-15));
+        assert(kolmogorov_smirnov(I, g) < 1.95 && pdf(I, -1.0) == 0);
+        // Fonction quelconque : tirage seul. N² est la loi du χ² à 1 degré.
+        auto const Q = wsl::pushforward(N, [](double t) { return t * t; });
+        static_assert(!wsl::has_cdf<decltype(Q)> && wsl::probability_law<decltype(Q)>);
+        std::vector<double> v;
+        for (int i = 0; i < 20000; ++i)
+            v.push_back(sample(Q, g));
+        std::ranges::sort(v);
+        double worst = 0;
+        for (std::size_t i = 0; i < v.size(); ++i)
+        {
+            double const f = cdf(wsl::chi_squared({.degrees_of_freedom = 1.0}), v[i]);
+            worst = std::max({worst, std::abs(f - double(i) / 20000), std::abs(f - double(i + 1) / 20000)});
+        }
+        assert(worst * std::sqrt(20000.0) < 1.95);
+    }
+
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
@@ -298,12 +402,26 @@ int main()
         ok &= check("mixture", fingerprint([&] { return bits(sample(M, x)); }), 0x1cd22859dc5c692f);
         ok &= check("mixture (grands)", fingerprint([&] { return bits(sample(H, x)); }), 0xa71e5cac21b536d6);
         ok &= check("mixture discrète", fingerprint([&] { return static_cast<std::uint64_t>(sample(D, x)); }), 0x2c54e55c5ac36aab);
+        auto const PB = wsl::poisson({.mean = 3.5}) + wsl::binomial({.trials = 20, .p = 0.3});
+        auto const ST = wsl::student_t({.degrees_of_freedom = 3.0}) + wsl::uniform({.low = 0.0, .high = 1.0});
+        wsl::independent const J(wsl::normal({.mean = 0.0, .sd = 1.0}), wsl::gamma({.shape = 2.0, .rate = 1.0}));
+        auto const LP = wsl::pushforward(wsl::normal({.mean = 0.0, .sd = 1.0}), wsl::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }));
+        ok &= check("sum (discrète)", fingerprint([&] { return static_cast<std::uint64_t>(sample(PB, x)); }), 0xb95ba5ee227f675e);
+        ok &= check("sum (continue)", fingerprint([&] { return bits(sample(ST, x)); }), 0xa5686f02baa4b6f2);
+        ok &= check("independent", fingerprint([&] { auto const [u, w] = sample(J, x); return bits(u) ^ (bits(w) << 1); }), 0xf8b02c1c396edb9f);
+        ok &= check("pushforward", fingerprint([&] { return bits(sample(LP, x)); }), 0x4bf00f5f9cc7fcfc);
+        ok &= check("sum functions", fingerprint([&] {
+            double const u = wsl::uniform_real(x);
+            auto const k = static_cast<std::int64_t>(wsl::uniform_below(x, 40));
+            return bits(pmf(PB, k)) ^ (bits(cdf(PB, k)) << 1) ^ (bits(ccdf(PB, k)) << 2) ^ (static_cast<std::uint64_t>(quantile(PB, u)) << 3)
+                 ^ (bits(cdf(LP, u + 0.5)) << 4) ^ (bits(quantile(LP, u)) << 5);
+        }, 1 << 9), 0xfb59f13d32d4c878);
         ok &= check("algebra functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
             double const u = wsl::uniform_real(x), t = fp::fmul(20.0, u) - 10;
             return bits(cdf(Z, t)) ^ (bits(quantile(Z, u)) << 1) ^ (bits(cdf(T, t + 13)) << 2) ^ (bits(quantile(T, u)) << 3)
                  ^ (bits(cdf(M, t)) << 4) ^ (bits(quantile(M, u)) << 5) ^ (bits(cquantile(wsl::gamma({.shape = 0.5, .rate = 1.0}), u)) << 6);
-        }, 1 << 9), 0xb06389a42d4e1276);
+        }, 1 << 9), 0x22bda422ad262729);
     }
     assert(ok);
     std::printf("test_random_algebra : ok\n");

@@ -110,9 +110,6 @@ namespace wsl
             }
         }
 
-        // d >= p (d en double-double).
-        constexpr bool at_least(sd::double_double d, double p) noexcept { return d.hi > p || (d.hi == p && d.lo >= 0); }
-        constexpr bool at_most(sd::double_double d, double p) noexcept { return d.hi < p || (d.hi == p && d.lo <= 0); }
     }
 
     template <probability_law... L>

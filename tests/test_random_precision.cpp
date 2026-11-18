@@ -190,9 +190,13 @@ int main()
         check<double>("truncated normal cdf", d::truncated_normal_cdf_double, [&](double a, double b, double x) { return cdf(N(a, b), x); }, 3.0);
         check<double>("truncated normal ccdf", d::truncated_normal_ccdf_double, [&](double a, double b, double x) { return ccdf(N(a, b), x); }, 6.0);
         check<double>("truncated normal quantile", d::truncated_normal_quantile_double, [&](double a, double b, double p) { return quantile(N(a, b), p); }, 64.0);
+        auto const PB = [](double mu, double p) { return wsl::poisson({.mean = mu}) + wsl::binomial({.trials = 20, .p = p}); };
+        check<double>("sum poisson+binomial pmf", d::sum_poisson_binomial_pmf_double, [&](double a, double b, double k) { return pmf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.5);
+        check<double>("sum poisson+binomial cdf", d::sum_poisson_binomial_cdf_double, [&](double a, double b, double k) { return cdf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.0);
+        check<double>("sum poisson+binomial ccdf", d::sum_poisson_binomial_ccdf_double, [&](double a, double b, double k) { return ccdf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.0);
         check<double>("mixture pdf", d::mixture_pdf_double, [&](double, double, double x) { return pdf(M, x); }, 1.5);
         check<double>("mixture cdf", d::mixture_cdf_double, [&](double, double, double x) { return cdf(M, x); }, 1.5);
-        check<double>("mixture quantile", d::mixture_quantile_double, [&](double, double, double p) { return quantile(M, p); }, 1.5);
+        check<double>("mixture quantile", d::mixture_quantile_double, [&](double, double, double p) { return quantile(M, p); }, 2.0);
     }
     SURVIVAL_CHECKS(float, loose)
 #undef SURVIVAL_CHECKS

@@ -36,6 +36,10 @@ namespace wsl::detail
         return compare(value, {q_hi, q_lo}) <= 0;                           // 1 − F <= 1 − p
     }
 
+    // d >= p, d <= p (d en double-double, normalisé).
+    constexpr bool at_least(sd::double_double d, double p) noexcept { return d.hi > p || (d.hi == p && d.lo >= 0); }
+    constexpr bool at_most(sd::double_double d, double p) noexcept { return d.hi < p || (d.hi == p && d.lo <= 0); }
+
     // Plus petit k de [low, high] tel que ge(k), ge croissante et ge(high) vrai :
     // recherche exponentielle depuis guess, puis dichotomie.
     template <class I, class Ge>

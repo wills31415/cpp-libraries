@@ -565,10 +565,24 @@ def algebra_laws(kind):
                 else:
                     hi_ = m
             return (lo_ + hi_) / 2
+    # Poisson(μ) + binomiale(20, p) : convolution exacte (k entier, porté par x).
+    for mu, pp in [(3.5, 0.3), (50.0, 0.9), (0.01, 0.5), (400.0, 0.05)]:
+        m_, q_ = mpf(mu), mpf(pp)
+        b_pmf = [mp.binomial(20, j) * q_ ** j * (1 - q_) ** (20 - j) for j in range(21)]
+        top = int(mu + 20 + 12 * math.sqrt(mu + 5)) + 30
+        ks = sorted({rng.randrange(0, top) for _ in range(count)})
+        p_pmf = lambda i, m_=m_: mpf(0) if i < 0 else mp.exp(i * mp.log(m_) - m_ - mp.loggamma(i + 1)) if i > 0 else mp.exp(-m_)
+        out.append(("sum_poisson_binomial_pmf", mu, pp, [float(k) for k in ks],
+                    lambda k, b_pmf=b_pmf, p_pmf=p_pmf: mp.fsum(b_pmf[j] * p_pmf(int(k) - j) for j in range(21))))
+        out.append(("sum_poisson_binomial_cdf", mu, pp, [float(k) for k in ks],
+                    lambda k, b_pmf=b_pmf, mu=mu: mp.fsum(b_pmf[j] * g.igamma_reference(float(int(k) - j) + 1, mu)[1] for j in range(21) if int(k) - j >= 0)))
+        out.append(("sum_poisson_binomial_ccdf", mu, pp, [float(k) for k in ks],
+                    lambda k, b_pmf=b_pmf, mu=mu: mp.fsum(b_pmf[j] * (g.igamma_reference(float(int(k) - j) + 1, mu)[0] if int(k) - j >= 0 else mpf(1)) for j in range(21))))
     xs = [float(rng.uniform(-8, 20)) for _ in range(count)]
     out.append(("mixture_pdf", 0.0, 0.0, xs, mix_pdf))
     out.append(("mixture_cdf", 0.0, 0.0, xs, mix_cdf))
-    out.append(("mixture_quantile", 0.0, 0.0, [p for p in probabilities(count // 4) if p > 1e-300], mix_quantile))
+    # (loin de p = F(0) = 0,3 Φ(2), où le quantile s'annule : erreur relative sans borne)
+    out.append(("mixture_quantile", 0.0, 0.0, [p for p in probabilities(count // 4) if p > 1e-300 and abs(p - 0.29317) > 0.05], mix_quantile))
     return out
 
 

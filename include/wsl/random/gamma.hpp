@@ -111,6 +111,14 @@ namespace wsl
         constexpr T rate() const noexcept { return by_rate_ ? parameter_ : static_cast<T>(1.0 / double(parameter_)); }
         constexpr T scale() const noexcept { return by_rate_ ? static_cast<T>(1.0 / double(parameter_)) : parameter_; }
         constexpr interval<T> support() const noexcept { return {T(0), std::numeric_limits<T>::infinity()}; }
+        // Intensité exactement λ (θλ = 1 exactement si la loi est donnée par son échelle).
+        constexpr bool has_rate(double lambda) const noexcept
+        {
+            if (by_rate_)
+                return double(parameter_) == lambda;
+            auto const [m, m_error] = detail::product(double(parameter_), lambda);
+            return m == 1 && m_error == 0;
+        }
 
         constexpr T mean() const noexcept { return static_cast<T>(detail::rounded(per_rate(detail::normalized(shape_, 0.0)))); }
         constexpr T variance() const noexcept
@@ -309,6 +317,18 @@ namespace wsl
                 y = fmul_exp(h, wsl::special::log(u) / double(X.shape_));
             }
             return static_cast<T>(X.by_rate_ ? y / double(X.parameter_) : detail::sd::fmul(y, double(X.parameter_)));
+        }
+
+        // Identité de l'algèbre (voir sum.hpp) : gamma(a, λ) + gamma(b, λ) = gamma(a + b, λ), dans
+        // la paramétrisation de X ; vide si les intensités diffèrent.
+        friend constexpr std::optional<gamma> sum_closure(gamma const& X, gamma const& Y) noexcept
+        {
+            bool const same = X.by_rate_ == Y.by_rate_ ? X.parameter_ == Y.parameter_
+                                                       : X.by_rate_ ? Y.has_rate(double(X.parameter_)) : X.has_rate(double(Y.parameter_));
+            auto const a = static_cast<T>(double(X.shape_) + double(Y.shape_));
+            if (!same || !detail::is_finite(a))
+                return std::nullopt;
+            return X.by_rate_ ? gamma(shape_rate{a, X.parameter_}) : gamma(shape_scale{a, X.parameter_});
         }
 
         // Identité de l'algèbre (voir affine.hpp) : c X, c > 0, est gamma(a, θc) (ou λ/c), dans la

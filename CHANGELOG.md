@@ -48,6 +48,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   leurs fonctions (exponentielle, gamma, Weibull, Pareto, log-normale) ;
   `wsl::truncate(X, a, b)` ; `wsl::mixture(wsl::weighted(w, X)…)`, tirage exact si les
   composantes le sont. Erreurs de composition mesurées (docs/random.md §10).
+- Algèbre des lois, lot 2 : sommes indépendantes `X + Y`, `X - Y` (identités normale,
+  Cauchy, Poisson, χ² ; gamma de même intensité, exponentielles, binomiales de même p ;
+  cumulants ; convolution exacte des lois discrètes), loi jointe `wsl::independent`,
+  image `wsl::pushforward(X, f)` (bijections monotones `wsl::increasing`,
+  `wsl::decreasing`) ; `gamma::has_rate`.
 - `ccdf`, `pdf`, `log_pdf` de Cauchy justes au-delà de |z| = 2⁶⁰⁰ (rendaient 0 ou −∞) ;
   log-densités de Laplace et de la logistique de même.
 - Variance de la normale et du χ², tirage gamma par l'échelle : produits rendus protégés
