@@ -916,9 +916,14 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind) + inverse_gaussian_laws(kind) + von_mises_distribution(kind):
+        entries = laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind) + inverse_gaussian_laws(kind) + von_mises_distribution(kind)
+        # tous les points de toutes les listes dans un seul calcul parallèle (les listes courtes
+        # mais coûteuses, quantiles et constantes, tournaient sinon en série)
+        tasks = [(i, x) for i, (_, _, _, xs, _) in enumerate(entries) for x in xs]
+        values = iter(g.parallel_map(lambda i, v: entries[i][4](mpf(v)), tasks))
+        for name, a, b, xs, f in entries:
             rows = groups.setdefault(name, [])
-            for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
+            for x, exact in zip(xs, [next(values) for _ in xs]):
                 cr = rounder(exact)
                 if math.isinf(cr) or cr == 0:
                     continue
