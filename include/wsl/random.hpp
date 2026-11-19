@@ -63,6 +63,7 @@
 #include <wsl/random/discrete_gaussian.hpp>
 #include <wsl/random/hypergeometric.hpp>
 #include <wsl/random/logarithmic.hpp>
+#include <wsl/random/skew_normal.hpp>
 #include <wsl/random/inverse_gaussian.hpp>
 #include <wsl/random/negative_binomial.hpp>
 #include <wsl/random/process.hpp>

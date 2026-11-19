@@ -1003,3 +1003,20 @@ vu par le test du χ². Références : sommes cumulées gardées par processus (
 bêta-binomiale, gaussienne discrète), sans quoi la recherche des quantiles les recalculait à
 chaque essai ; la gaussienne discrète tabulée sur μ ± (40σ + 40) (les quantiles de
 probabilités sous-normales tombent jusque vers 39σ).
+
+## 20. Normale asymétrique
+
+`skew_normal<T>({.location = ξ, .scale = ω, .shape = α})`, densité (2/ω) φ(z) Φ(αz). La forme
+Φ(z) − 2T(z, α) (T d'Owen) se compense dans la queue courte (α = 1 : F = Φ² calculée
+Φ − Φ(1 − Φ)) : la plus petite queue, du côté de z par rapport à la moyenne, est intégrée
+directement, par morceaux et Gauss–Legendre à 12 nœuds, de largeur <= 1, 4/|(log f)′|,
+1/√|(log f)″| et max(1/|α|, |t|/2) — Φ(αt) bascule sur une échelle 1/|α| autour de 0, qu'un
+morceau réglé sur les seules dérivées locales enjambait (erreurs de 10¹⁴ ulp pour α = 50).
+Densité log-concave : la queue restante est bornée par f/|(log f)′| au-delà du mode. Quantiles
+par Newton sur le logarithme de la part visée. Coût : répartition ~ 50 µs, quantile ~ 300 µs.
+Précision : densité, répartition, survie, quantiles et moments sous 0,5 ulp (arrondi correct
+sur 100 % des points). Défaut trouvé en route : w/√2 arrondi sans son erreur (Φ(αz) à 10⁻¹³).
+
+Références mpmath : mp.quad juge sa convergence en erreur absolue (~ 2^-prec) ; sur un
+intégrande de 10⁻⁵² elle se trompait de 10⁻⁹ relativement. L'intégrande est désormais
+normalisé par sa valeur en z ; contrôles par Φ (α = 0), Φ² (α = 1) et T d'Owen.

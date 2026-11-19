@@ -111,6 +111,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `beta_binomial<I>` (`{.trials, .alpha, .beta}`), `logarithmic<I>` (`{.p}`),
   `discrete_gaussian<I>` (`{.mu, .sigma}`) : masses, répartitions et moments sous 0,5 ulp,
   quantiles exacts ; tirages bit-exacts.
+- `skew_normal<T>` (`{.location, .scale, .shape}`) : densité, répartition, survie, quantiles
+  et moments sous 0,5 ulp (queue courte intégrée directement) ; tirage bit-exact.
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 

@@ -59,6 +59,17 @@ namespace
     wsl::normal<T> normal(double mean, double sd) { return wsl::normal<T>({.mean = T(mean), .sd = T(sd)}); }
 }
 
+// Normale asymétrique : (α, ξ) portés par (a, b), ω retrouvé dans la table des références.
+template <class T>
+wsl::skew_normal<T> skew_of(double a, double xi)
+{
+    struct { double a, xi, omega; } const table[] = {{4.0, 0.5, 2.0}, {1.0, 0.0, 1.0}, {-3.0, -1.0, 0.5}, {50.0, 0.0, 1.0}, {0.3, 2.0, 3.0}};
+    for (auto const& t : table)
+        if (float(t.a) == float(a) && float(t.xi) == float(xi))
+            return wsl::skew_normal<T>({.location = T(t.xi), .scale = T(t.omega), .shape = T(t.a)});
+    return wsl::skew_normal<T>({.location = T(xi), .scale = T(1), .shape = T(a)});
+}
+
 // Bêta-binomiale : (n, α) portés par (a, b), β retrouvé dans la table des références.
 template <class Int>
 wsl::beta_binomial<Int> beta_binomial_of(double n, double alpha)
@@ -248,6 +259,10 @@ int main()
     check<T>("von_mises ccdf " #T, d::von_mises_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), T(x)); }, bound);    \
     check<T>("von_mises quantile " #T, d::von_mises_quantile_##T, [](double a, double b, double p) { return quantile(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), p); }, bound); \
     check<T>("von_mises cquantile " #T, d::von_mises_cquantile_##T, [](double a, double b, double q) { return cquantile(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), q); }, bound);
+#define SKEW_NORMAL_CHECKS(T, bound)                                                                                              check<T>("skew_normal pdf " #T, d::skew_normal_pdf_##T, [](double a, double b, double x) { return pdf(skew_of<T>(a, b), T(x)); }, bound);             check<T>("skew_normal cdf " #T, d::skew_normal_cdf_##T, [](double a, double b, double x) { return cdf(skew_of<T>(a, b), T(x)); }, bound);             check<T>("skew_normal ccdf " #T, d::skew_normal_ccdf_##T, [](double a, double b, double x) { return ccdf(skew_of<T>(a, b), T(x)); }, bound);           check<T>("skew_normal quantile " #T, d::skew_normal_quantile_##T, [](double a, double b, double p) { return quantile(skew_of<T>(a, b), p); }, bound);     check<T>("skew_normal cquantile " #T, d::skew_normal_cquantile_##T, [](double a, double b, double q) { return cquantile(skew_of<T>(a, b), q); }, bound);     check<T>("skew_normal mean " #T, d::skew_normal_mean_##T, [](double a, double b, double) { return skew_of<T>(a, b).mean(); }, bound);                  check<T>("skew_normal variance " #T, d::skew_normal_variance_##T, [](double a, double b, double) { return skew_of<T>(a, b).variance(); }, bound);      check<T>("skew_normal skewness " #T, d::skew_normal_skewness_##T, [](double a, double b, double) { return skew_of<T>(a, b).skewness(); }, bound);
+    SKEW_NORMAL_CHECKS(double, tight)
+    SKEW_NORMAL_CHECKS(float, loose)
+#undef SKEW_NORMAL_CHECKS
     VON_MISES_CHECKS(double, tight)
     VON_MISES_CHECKS(float, loose)
 #undef VON_MISES_CHECKS

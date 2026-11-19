@@ -684,6 +684,31 @@ int main()
         assert(throws_domain_error([] { wsl::logarithmic X({.p = 1.0}); }) && throws_domain_error([] { wsl::discrete_gaussian X({.mu = 0, .sigma = 0}); }));
     }
 
+    // ---- Normale asymétrique ----
+    {
+        for (double a : {0.0, 1.0, -3.0, 20.0})
+        {
+            wsl::skew_normal const X({.location = 0.5, .scale = 2.0, .shape = a});
+            std::vector<double> v;
+            for (int i = 0; i < 3000; ++i)
+                v.push_back(sample(X, g));
+            assert(kolmogorov_smirnov(X, v) < 1.95);
+            for (double p : {1e-200, 1e-6, 0.3, 0.5, 0.9})
+            {
+                double const x = quantile(X, p);
+                assert(cdf(X, std::nextafter(x, -INFINITY)) <= p * (1 + 1e-15) && cdf(X, std::nextafter(x, INFINITY)) >= p * (1 - 1e-15));
+            }
+        }
+        wsl::skew_normal const Z({.shape = 0.0}), One({.shape = 1.0});    // α = 0 : normale ; α = 1 : F = Φ²
+        wsl::normal const N({.mean = 0.0, .sd = 1.0});
+        for (double x : {-20.0, -3.0, 0.4, 5.0})
+        {
+            assert(std::abs(cdf(Z, x) / cdf(N, x) - 1) < 3e-16 && std::abs(pdf(Z, x) / pdf(N, x) - 1) < 3e-16);
+            assert(std::abs(cdf(One, x) / (cdf(N, x) * cdf(N, x)) - 1) < 1e-15);
+        }
+        assert(throws_domain_error([] { wsl::skew_normal X({.scale = 0.0}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -846,6 +871,13 @@ int main()
             return bits(pmf(Bb, k)) ^ (bits(cdf(Bb, k)) << 1) ^ (bits(double(quantile(Bb, u))) << 2) ^ (bits(pmf(Lg, k)) << 3) ^ (bits(ccdf(Lg, k)) << 4)
                  ^ (bits(double(quantile(Lg, u))) << 5) ^ (bits(cdf(Dg, k - 20)) << 6) ^ (bits(double(quantile(Dg, u))) << 7);
         }, 1 << 9), 0x26b8cef1aa562a21);
+        wsl::skew_normal const Sn({.location = -0.5, .scale = 1.5, .shape = 3.0});
+        ok &= check("skew_normal", fingerprint([&] { return bits(sample(Sn, x)); }, 1 << 12), 0x646d26c92778b5d5);
+        ok &= check("skew_normal functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(10.0, u) - 4;
+            return bits(pdf(Sn, t)) ^ (bits(cdf(Sn, t)) << 1) ^ (bits(ccdf(Sn, t)) << 2) ^ (bits(quantile(Sn, u)) << 3);
+        }, 1 << 7), 0x564a5825a3a680fd);
     }
     assert(ok);
     return 0;
