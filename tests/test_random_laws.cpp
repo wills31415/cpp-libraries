@@ -709,6 +709,32 @@ int main()
         assert(throws_domain_error([] { wsl::skew_normal X({.scale = 0.0}); }));
     }
 
+    // ---- Lois stables ----
+    {
+        auto draws = [&](auto const& law, int n) { std::vector<double> v; for (int i = 0; i < n; ++i) v.push_back(sample(law, g)); return v; };
+        wsl::stable const Gs({.alpha = 2.0, .beta = 0.4, .scale = 1.5});   // normale de variance 2γ²
+        wsl::stable const Ca({.alpha = 1.0, .beta = 0.0, .scale = 0.5, .location = 1.0});
+        wsl::stable const Lv({.alpha = 0.5, .beta = 1.0});                  // Lévy : densité √(1/2π) y^{−3/2} e^{−1/(2y)}
+        assert(kolmogorov_smirnov(Gs, draws(Gs, 5000)) < 1.95 && kolmogorov_smirnov(Ca, draws(Ca, 5000)) < 1.95 && kolmogorov_smirnov(Lv, draws(Lv, 3000)) < 1.95);
+        for (auto [a, b] : {std::pair{1.5, 0.5}, std::pair{0.7, -0.4}, std::pair{1.0, 0.8}})
+        {
+            wsl::stable const X({.alpha = a, .beta = b, .scale = 2.0, .location = -1.0});
+            assert(kolmogorov_smirnov(X, draws(X, 200)) < 1.95);                // répartition coûteuse (~1 ms)
+            for (double p : {1e-6, 0.8})
+            {
+                double const x = quantile(X, p);
+                assert(cdf(X, std::nextafter(x, -INFINITY)) <= p * (1 + 1e-14) && cdf(X, std::nextafter(x, INFINITY)) >= p * (1 - 1e-14));
+            }
+        }
+        wsl::normal const N({.mean = 0.0, .sd = 1.4142135623730951 * 1.5});
+        for (double x : {-3.0, 0.5, 4.0})
+            assert(std::abs(cdf(Gs, x) / cdf(N, x) - 1) < 1e-15);
+        for (double y : {0.1, 1.0, 30.0})
+            assert(std::abs(pdf(Lv, y) / (0.3989422804014327 * std::pow(y, -1.5) * std::exp(-0.5 / y)) - 1) < 1e-14);
+        assert(cdf(Lv, -1.0) == 0 && pdf(Lv, 0.0) == 0 && Lv.support().lower == 0);
+        assert(throws_domain_error([] { wsl::stable X({.alpha = 2.5}); }) && throws_domain_error([] { wsl::stable X({.alpha = 1.0, .beta = 1.5}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -878,6 +904,14 @@ int main()
             double const u = wsl::uniform_real(x), t = fp::fmul(10.0, u) - 4;
             return bits(pdf(Sn, t)) ^ (bits(cdf(Sn, t)) << 1) ^ (bits(ccdf(Sn, t)) << 2) ^ (bits(quantile(Sn, u)) << 3);
         }, 1 << 7), 0x564a5825a3a680fd);
+        wsl::stable const S1({.alpha = 1.3, .beta = -0.6, .scale = 0.8, .location = 0.2});
+        wsl::stable const S2({.alpha = 1.0, .beta = 0.5, .scale = 3.0});
+        ok &= check("stable", fingerprint([&] { return bits(sample(S1, x)) ^ (bits(sample(S2, x)) << 1); }, 1 << 12), 0x3e15bab78fbb0172);
+        ok &= check("stable functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(10.0, u) - 5;
+            return bits(pdf(S1, t)) ^ (bits(cdf(S1, t)) << 1) ^ (bits(ccdf(S2, t)) << 2);
+        }, 1 << 5), 0xba852547a6b18b91);
     }
     assert(ok);
     return 0;

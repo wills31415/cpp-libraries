@@ -263,6 +263,12 @@ int main()
     SKEW_NORMAL_CHECKS(double, tight)
     SKEW_NORMAL_CHECKS(float, loose)
 #undef SKEW_NORMAL_CHECKS
+    {
+        auto const St = [](double a, double b) { return wsl::stable({.alpha = a, .beta = b}); };
+        check<double>("stable pdf", d::stable_pdf_double, [&](double a, double b, double x) { return pdf(St(a, b), x); }, tight);
+        check<double>("stable cdf", d::stable_cdf_double, [&](double a, double b, double x) { return cdf(St(a, b), x); }, tight);
+        check<double>("stable ccdf", d::stable_ccdf_double, [&](double a, double b, double x) { return ccdf(St(a, b), x); }, tight);
+    }
     VON_MISES_CHECKS(double, tight)
     VON_MISES_CHECKS(float, loose)
 #undef VON_MISES_CHECKS

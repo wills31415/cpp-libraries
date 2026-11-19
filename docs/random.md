@@ -1020,3 +1020,35 @@ sur 100 % des points). Défaut trouvé en route : w/√2 arrondi sans son erreur
 Références mpmath : mp.quad juge sa convergence en erreur absolue (~ 2^-prec) ; sur un
 intégrande de 10⁻⁵² elle se trompait de 10⁻⁹ relativement. L'intégrande est désormais
 normalisé par sa valeur en z ; contrôles par Φ (α = 0), Φ² (α = 1) et T d'Owen.
+
+## 21. Lois stables
+
+`stable<T>({.alpha, .beta, .scale = γ, .location = δ})`, paramétrisation S1 (celle de
+Chambers–Mallows–Stuck et la plus courante) ; forme réduite Z, X = γZ + δ (α ≠ 1),
+γZ + (2/π)βγ log γ + δ (α = 1).
+
+Densité et répartition : intégrales de Nolan (1997) dans la variable φ = θ + θ₀ (sans
+compensation près de −θ₀), noyau log g en double-double. Avec A = (1/π) ∫ e^{−g} et
+B = (1/π) ∫ (1 − e^{−g}) (expm1), A + B = (π/2 + θ₀)/π et c = (π/2 − θ₀)/π, la répartition et
+la survie sont toujours c + A, c + B, A ou B : sommes de termes positifs, y compris dans les
+queues (où la forme usuelle 1 − (1/π) ∫ e^{−g} se compense). Une seule intégrale par appel.
+Intégration : coupure au pic (g = 1, g monotone en φ), morceaux géométriques de part et
+d'autre (premier : 1/8 de la largeur du pic, 1/|∂ log g/∂φ|, puis ×4), Gauss–Legendre
+adaptatif sur chacun (tolérance 2⁻⁸² de la masse déjà intégrée), arrêt quand l'intégrande
+décroît et devient négligeable. Formes closes : α = 2 (normale de variance 2γ²), α = 1 et β = 0
+(Cauchy), y = 0 (Γ(1 + 1/α) cos θ₀ cos(αθ₀)^{1/α}/π ; 0 au bord du support pour α < 1,
+|β| = 1). Coût : densité ou répartition ~ 0,5 ms, quantile ~ 6 ms.
+
+Précision mesurée (9 paramétrages, α de 0,3 à 2, β de −1 à 1, y jusqu'à 4096) : densité,
+répartition et survie sous 0,5 ulp, arrondi correct sur 100 % des points. Quantiles sans
+référence mpmath (Newton dans les queues lourdes y coûtait 5 à 20 s par point) : vérifiés
+par encadrement F(x⁻) <= p <= F(x⁺) à un ulp. Défauts trouvés en route :
+- des nœuds grossiers manquaient la masse concentrée près du pic dans les queues (y = 100 :
+  facteur 3 sur la densité) : morceaux géométriques depuis le pic ;
+- π/2 + βθ formé avec (1 − β)π/2 arrondi, α − 1 inexact pour α < ½, 1 + 1/α arrondi dans
+  Γ(1 + 1/α) : jusqu'à 5,6 ulp ; en double-double désormais.
+
+Références : mêmes intégrales en mpmath (coupure au pic, morceaux géométriques, intégrande
+normalisé), contrôlées par l'inversion de Fourier de la fonction caractéristique et les cas
+Lévy, Cauchy et normal. Tirage : Chambers, Mallows et Stuck (forme de Weron), approché,
+bit-exact.

@@ -113,6 +113,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   quantiles exacts ; tirages bit-exacts.
 - `skew_normal<T>` (`{.location, .scale, .shape}`) : densité, répartition, survie, quantiles
   et moments sous 0,5 ulp (queue courte intégrée directement) ; tirage bit-exact.
+- `stable<T>` (`{.alpha, .beta, .scale, .location}`, paramétrisation S1) : densité,
+  répartition et survie sous 0,5 ulp (intégrales de Nolan en double-double, toujours en
+  sommes positives), quantiles par Newton ; tirage de Chambers–Mallows–Stuck, bit-exact.
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 
