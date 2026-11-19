@@ -863,7 +863,8 @@ ne diminuent pas en raffinant : désormais séparées des largeurs), et poids qu
 
 ## 15. Incohérences notées pour la revue des interfaces
 
-Le chantier futur (§7) partira de cette liste :
+Le chantier futur (§7) partira de cette liste (relevé complet du dépôt :
+[interfaces.md](interfaces.md)) :
 
 - types des valeurs : `wsl::permutation`, `wsl::edge_list`, `wsl::binary_tree` (types
   propres) mais `std::vector<std::size_t>` pour sous-ensembles, mots, partitions et
