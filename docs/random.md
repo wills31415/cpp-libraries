@@ -988,3 +988,18 @@ Précision mesurée : masses, répartitions et moments sous 0,5 ulp (arrondi cor
 des points) ; quantiles exacts sur 1096 points. Générateur : la recherche des quantiles
 discrets de référence avançait pas à pas depuis une estimation normale (des milliers de bêtas
 incomplètes à 400 bits pour σ ~ 10⁴) ; recherche exponentielle puis dichotomique.
+
+## 19. Lois discrètes, lot 4 : bêta-binomiale, logarithmique, gaussienne discrète
+
+| Loi | Paramètres | Méthode | Tirage |
+|---|---|---|---|
+| `beta_binomial<I>` | `{.trials, .alpha, .beta}` | masse par huit log Γ en double-double (les −y de Stirling s'annulent ; erreur ~ 2⁻¹⁰⁶ n log n, 0,5 ulp mesuré jusqu'à n = 10⁶) ; répartition : queue du côté de k sommée par le rapport de masses (arrêt anticipé si α, β >= 1, sinon O(n)) ; quantile exact | bêta puis binomiale, approché |
+| `logarithmic<I>` | `{.p}`, 0 < p < 1 | masse e^{k log p}/(k L), L = −log1p(−p) ; répartition : tête (k <= 64) ou queue p^{k+1} Σ p^m/(k + 1 + m), O(1/(1 − p)) ; variance par L − p en série pour p petit ; quantile exact par sommes partielles | Kemp (LK), approché |
+| `discrete_gaussian<I>` | `{.mu, .sigma}`, μ réel | Z, moyenne et variance par sommation de Poisson (σ >= 1, deux termes) ou somme directe ; répartition : queue sommée depuis k, O(σ) ; quantile exact | rejet depuis Laplace discrète (Canonne, Kamath, Steinke), approché |
+
+Précision mesurée : tout sous 0,5 ulp (arrondi correct sur 100 % des points), quantiles
+exacts sur 1299 points. Le tirage de Kemp avait sa dernière branche inversée (V >= q rend 1),
+vu par le test du χ². Références : sommes cumulées gardées par processus (logarithmique,
+bêta-binomiale, gaussienne discrète), sans quoi la recherche des quantiles les recalculait à
+chaque essai ; la gaussienne discrète tabulée sur μ ± (40σ + 40) (les quantiles de
+probabilités sous-normales tombent jusque vers 39σ).

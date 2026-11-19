@@ -204,6 +204,9 @@ extern "C"
     double check_von_mises_distribution(double a, double b, double x, double p) { wsl::von_mises const V({.mu = a, .kappa = b}); return 1 + cdf(V, x) + ccdf(V, x) + quantile(V, p) + cquantile(V, p); }
     double check_negative_binomial(double r, double p, long long k, double u) { wsl::negative_binomial const X({.successes = r, .p = p}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + X.skewness() + X.excess_kurtosis(); }
     double check_hypergeometric(long long n, long long k, double u, wsl::xoshiro256pp& g) { wsl::hypergeometric const X({.population = 1000, .successes = 300, .draws = n}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + double(sample(X, g)); }
+    double check_beta_binomial(double a, double b, long long k, double u, wsl::xoshiro256pp& g) { wsl::beta_binomial const X({.trials = 30, .alpha = a, .beta = b}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + double(sample(X, g)); }
+    double check_logarithmic(double p, long long k, double u, wsl::xoshiro256pp& g) { wsl::logarithmic const X({.p = p}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + double(sample(X, g)); }
+    double check_discrete_gaussian(double m, double s, long long k, double u, wsl::xoshiro256pp& g) { wsl::discrete_gaussian const X({.mu = m, .sigma = s}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + double(sample(X, g)); }
     double check_complement_samples(double a, wsl::xoshiro256pp& g)
     {
         return 1 + sample(wsl::gumbel({.location = a, .scale = 2.0}), g) + sample(wsl::frechet({.shape = a, .scale = 2.0}), g) + sample(wsl::rayleigh({.scale = a}), g)

@@ -59,6 +59,17 @@ namespace
     wsl::normal<T> normal(double mean, double sd) { return wsl::normal<T>({.mean = T(mean), .sd = T(sd)}); }
 }
 
+// Bêta-binomiale : (n, α) portés par (a, b), β retrouvé dans la table des références.
+template <class Int>
+wsl::beta_binomial<Int> beta_binomial_of(double n, double alpha)
+{
+    struct { long long n; double alpha, beta; } const table[] = {{20, 2.0, 3.0}, {1000, 0.5, 0.5}, {1000000, 3.0, 40.0}, {50, 0.05, 2.0}};
+    for (auto const& t : table)
+        if (double(t.n) == n && t.alpha == alpha)
+            return wsl::beta_binomial<Int>({.trials = Int(t.n), .alpha = t.alpha, .beta = t.beta});
+    return wsl::beta_binomial<Int>({.trials = Int(n), .alpha = alpha, .beta = 1.0});
+}
+
 // Hypergéométrique : (N, K) portés par (a, b), n retrouvé dans la table des références.
 template <class Int>
 wsl::hypergeometric<Int> hypergeometric_of(double N, double Ks)
@@ -341,6 +352,22 @@ int main()
     check<double>("negative_binomial log_pmf", d::negative_binomial_log_pmf_double, [&](double a, double b, double x) { return log_pmf(NB(a, b), K(x)); }, 1.0);
     check<double>("negative_binomial cdf", d::negative_binomial_cdf_double, [&](double a, double b, double x) { return cdf(NB(a, b), K(x)); }, tight);
     check<double>("negative_binomial ccdf", d::negative_binomial_ccdf_double, [&](double a, double b, double x) { return ccdf(NB(a, b), K(x)); }, tight);
+    check<double>("beta_binomial pmf", d::beta_binomial_pmf_double, [](double a, double b, double x) { return pmf(beta_binomial_of<K>(a, b), K(x)); }, tight);
+    check<double>("beta_binomial log_pmf", d::beta_binomial_log_pmf_double, [](double a, double b, double x) { return log_pmf(beta_binomial_of<K>(a, b), K(x)); }, 1.0);
+    check<double>("beta_binomial cdf", d::beta_binomial_cdf_double, [](double a, double b, double x) { return cdf(beta_binomial_of<K>(a, b), K(x)); }, tight);
+    check<double>("beta_binomial ccdf", d::beta_binomial_ccdf_double, [](double a, double b, double x) { return ccdf(beta_binomial_of<K>(a, b), K(x)); }, tight);
+    check<double>("beta_binomial variance", d::beta_binomial_variance_double, [](double a, double b, double) { return beta_binomial_of<K>(a, b).variance(); }, tight);
+    check<double>("logarithmic pmf", d::logarithmic_pmf_double, [](double a, double, double x) { return pmf(wsl::logarithmic<K>({.p = a}), K(x)); }, tight);
+    check<double>("logarithmic cdf", d::logarithmic_cdf_double, [](double a, double, double x) { return cdf(wsl::logarithmic<K>({.p = a}), K(x)); }, tight);
+    check<double>("logarithmic ccdf", d::logarithmic_ccdf_double, [](double a, double, double x) { return ccdf(wsl::logarithmic<K>({.p = a}), K(x)); }, tight);
+    check<double>("logarithmic mean", d::logarithmic_mean_double, [](double a, double, double) { return wsl::logarithmic<K>({.p = a}).mean(); }, tight);
+    check<double>("logarithmic variance", d::logarithmic_variance_double, [](double a, double, double) { return wsl::logarithmic<K>({.p = a}).variance(); }, tight);
+    auto const DG = [](double a, double b) { return wsl::discrete_gaussian<K>({.mu = a, .sigma = b}); };
+    check<double>("discrete_gaussian pmf", d::discrete_gaussian_pmf_double, [&](double a, double b, double x) { return pmf(DG(a, b), K(x)); }, tight);
+    check<double>("discrete_gaussian cdf", d::discrete_gaussian_cdf_double, [&](double a, double b, double x) { return cdf(DG(a, b), K(x)); }, tight);
+    check<double>("discrete_gaussian ccdf", d::discrete_gaussian_ccdf_double, [&](double a, double b, double x) { return ccdf(DG(a, b), K(x)); }, tight);
+    check<double>("discrete_gaussian mean", d::discrete_gaussian_mean_double, [&](double a, double b, double) { return DG(a, b).mean(); }, tight);
+    check<double>("discrete_gaussian variance", d::discrete_gaussian_variance_double, [&](double a, double b, double) { return DG(a, b).variance(); }, tight);
     check<double>("hypergeometric pmf", d::hypergeometric_pmf_double, [](double a, double b, double x) { return pmf(hypergeometric_of<K>(a, b), K(x)); }, tight);
     check<double>("hypergeometric log_pmf", d::hypergeometric_log_pmf_double, [](double a, double b, double x) { return log_pmf(hypergeometric_of<K>(a, b), K(x)); }, 1.0);
     check<double>("hypergeometric cdf", d::hypergeometric_cdf_double, [](double a, double b, double x) { return cdf(hypergeometric_of<K>(a, b), K(x)); }, tight);
@@ -370,6 +397,16 @@ int main()
             wrong += quantile(hypergeometric_of<K>(q.a, q.b), q.u) != q.k;
         std::printf("%-28s %5zu points : %zu faux\n", "hypergeometric quantile", std::size(d::hypergeometric_quantile), wrong);
         failed |= wrong != 0;
+        auto const quantiles = [&](char const* name, auto const& table, auto make) {
+            std::size_t w = 0;
+            for (auto const& q : table)
+                w += quantile(make(q.a, q.b), q.u) != q.k;
+            std::printf("%-28s %5zu points : %zu faux\n", name, std::size(table), w);
+            failed |= w != 0;
+        };
+        quantiles("beta_binomial quantile", d::beta_binomial_quantile, [](double a, double b) { return beta_binomial_of<K>(a, b); });
+        quantiles("logarithmic quantile", d::logarithmic_quantile, [](double a, double) { return wsl::logarithmic<K>({.p = a}); });
+        quantiles("discrete_gaussian quantile", d::discrete_gaussian_quantile, [](double a, double b) { return wsl::discrete_gaussian<K>({.mu = a, .sigma = b}); });
     }
 
     // Quantile de la géométrique : exact.

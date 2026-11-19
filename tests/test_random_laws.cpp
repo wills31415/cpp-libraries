@@ -655,6 +655,35 @@ int main()
         assert(throws_domain_error([] { wsl::hypergeometric X({.population = 10, .successes = 11, .draws = 2}); }) && throws_domain_error([] { wsl::negative_binomial X({.successes = 2, .p = 0}); }));
     }
 
+    // ---- Bêta-binomiale, logarithmique, gaussienne discrète ----
+    {
+        wsl::beta_binomial const B({.trials = 20, .alpha = 2, .beta = 3});
+        assert(std::abs(chi_square(B, g, 50000, 0, 20)) < 4);
+        assert(std::abs(chi_square(wsl::beta_binomial({.trials = 30, .alpha = 0.3, .beta = 0.4}), g, 50000, 0, 30)) < 4);
+        wsl::beta_binomial const U({.trials = 9, .alpha = 1, .beta = 1});   // α = β = 1 : uniforme sur {0 … n}
+        for (long long k = 0; k <= 9; ++k)
+            assert(std::abs(pmf(U, k) - 0.1) < 2e-17);
+        wsl::logarithmic const L({.p = 0.9});
+        assert(std::abs(chi_square(L, g, 50000, 1, 40)) < 4 && std::abs(chi_square(wsl::logarithmic({.p = 0.05}), g, 50000, 1, 4)) < 4);
+        for (double u : {1e-6, 0.5, 0.9, 0.999999})
+        {
+            long long const k = quantile(L, u);
+            assert(cdf(L, k) >= u && (k == 1 || cdf(L, k - 1) < u));
+        }
+        wsl::discrete_gaussian const D({.mu = 0.3, .sigma = 2.5});
+        assert(std::abs(chi_square(D, g, 50000, -9, 10)) < 4);
+        assert(std::abs(chi_square(wsl::discrete_gaussian({.mu = -0.5, .sigma = 0.3}), g, 50000, -2, 1)) < 4);
+        assert(std::abs(chi_square(wsl::discrete_gaussian({.mu = 7.25, .sigma = 40.0}), g, 50000, -110, 125)) < 4);
+        wsl::discrete_gaussian const E({.mu = 2.0, .sigma = 3.0});        // μ entier : symétrie, moyenne μ
+        assert(E.mean() == 2.0 && cdf(E, 1) == ccdf(E, 2) && pmf(E, 0) == pmf(E, 4));
+        for (double u : {1e-12, 0.3, 0.5, 0.97})
+        {
+            long long const k = quantile(D, u);
+            assert(cdf(D, k) >= u && cdf(D, k - 1) < u);
+        }
+        assert(throws_domain_error([] { wsl::logarithmic X({.p = 1.0}); }) && throws_domain_error([] { wsl::discrete_gaussian X({.mu = 0, .sigma = 0}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -807,6 +836,16 @@ int main()
             long long const k = static_cast<long long>(wsl::uniform_below(x, 30));
             return bits(pmf(Nb, k)) ^ (bits(cdf(Nb, k)) << 1) ^ (bits(double(quantile(Nb, u))) << 2) ^ (bits(pmf(Hg, k)) << 3) ^ (bits(ccdf(Hg, k)) << 4) ^ (bits(double(quantile(Hg, u))) << 5);
         }, 1 << 9), 0x2fa168fb952bbce9);
+        wsl::beta_binomial const Bb({.trials = 40, .alpha = 0.7, .beta = 2.5});
+        wsl::logarithmic const Lg({.p = 0.95});
+        wsl::discrete_gaussian const Dg({.mu = -1.3, .sigma = 4.2});
+        ok &= check("discrete lot 4", fingerprint([&] { return bits(double(sample(Bb, x))) ^ (bits(double(sample(Lg, x))) << 1) ^ (bits(double(sample(Dg, x))) << 2); }, 1 << 12), 0x5715c99366cd16cf);
+        ok &= check("discrete lot 4 functions", fingerprint([&] {
+            double const u = wsl::uniform_real(x);
+            long long const k = static_cast<long long>(wsl::uniform_below(x, 40));
+            return bits(pmf(Bb, k)) ^ (bits(cdf(Bb, k)) << 1) ^ (bits(double(quantile(Bb, u))) << 2) ^ (bits(pmf(Lg, k)) << 3) ^ (bits(ccdf(Lg, k)) << 4)
+                 ^ (bits(double(quantile(Lg, u))) << 5) ^ (bits(cdf(Dg, k - 20)) << 6) ^ (bits(double(quantile(Dg, u))) << 7);
+        }, 1 << 9), 0x26b8cef1aa562a21);
     }
     assert(ok);
     return 0;
