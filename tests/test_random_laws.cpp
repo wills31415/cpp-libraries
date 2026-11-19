@@ -534,6 +534,35 @@ int main()
         assert(throws_domain_error([] { wsl::laplace X({.location = 0, .scale = -1}); }) && throws_domain_error([] { wsl::pareto X({.scale = 0, .shape = 1}); }));
     }
 
+    // ---- Compléments : Gumbel, Fréchet, Rayleigh, triangulaire, arcsinus, Erlang ----
+    {
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(sample(law, g))); return v; };
+        wsl::gumbel const Gu({.location = 1, .scale = 2});
+        wsl::frechet const Fr({.shape = 3, .scale = 2, .location = 0.5});
+        wsl::rayleigh const Ra({.scale = 2});
+        wsl::triangular const Tr({.low = 0, .mode = 1, .high = 3});
+        wsl::arcsine const Ar({.low = -1, .high = 2});
+        wsl::erlang const Er({.shape = 4, .rate = 1.5});
+        assert(kolmogorov_smirnov(Gu, draws(Gu)) < 1.95 && kolmogorov_smirnov(Fr, draws(Fr)) < 1.95 && kolmogorov_smirnov(Ra, draws(Ra)) < 1.95);
+        assert(kolmogorov_smirnov(Tr, draws(Tr)) < 1.95 && kolmogorov_smirnov(Ar, draws(Ar)) < 1.95 && kolmogorov_smirnov(Er, draws(Er)) < 1.95);
+        static_assert(wsl::erlang<>::sampling == wsl::exactness::exact && wsl::has_cquantile<wsl::frechet<>> && wsl::has_entropy<wsl::arcsine<float>>);
+        wsl::arcsine const A01({.low = 0, .high = 1});                     // = bêta(½, ½)
+        wsl::beta const B({.alpha = 0.5, .beta = 0.5});
+        for (double x : {1e-9, 0.1, 0.5, 0.73, 0.999})
+            assert(std::abs(cdf(A01, x) - cdf(B, x)) <= 2e-16 * cdf(B, x) && std::abs(pdf(A01, x) / pdf(B, x) - 1) < 1e-15);
+        wsl::erlang const E1({.shape = 1, .rate = 2});                      // = exponentielle
+        for (double x : {0.01, 1.0, 7.0})
+            assert(cdf(E1, x) == cdf(wsl::gamma({.shape = 1.0, .rate = 2.0}), x) && std::abs(cdf(E1, x) / cdf(wsl::exponential({.rate = 2.0}), x) - 1) < 3e-16);
+        std::vector<double> y;                                              // α log((X − m)/s) : Gumbel(0, 1)
+        for (double v : draws(Fr))
+            y.push_back(3 * std::log((v - 0.5) / 2));
+        assert(kolmogorov_smirnov(wsl::gumbel({.location = 0.0, .scale = 1.0}), y) < 1.95);
+        assert(Tr.median() == quantile(Tr, 0.5) && Ar.median() == 0.5 && quantile(Ra, 0.5) == Ra.median() && cquantile(Gu, 0.5) == quantile(Gu, 0.5));
+        assert(pdf(Fr, 0.5) == 0 && cdf(Fr, 0.4) == 0 && pdf(Tr, 3.5) == 0 && pdf(Ar, -1.0) == INFINITY && quantile(Tr, 1.0) == 3);
+        assert(throws_domain_error([] { wsl::triangular X({.low = 0, .mode = 4, .high = 3}); }) && throws_domain_error([] { wsl::erlang X({.shape = 0, .rate = 1.0}); }));
+        assert(throws_domain_error([] { wsl::frechet X({.shape = 0, .scale = 1}); }) && throws_domain_error([] { wsl::arcsine X({.low = 1, .high = 1}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -651,6 +680,20 @@ int main()
             return bits(cdf(Ff, y)) ^ (bits(quantile(Ff, u)) << 1) ^ (bits(pdf(Wb, y)) << 2) ^ (bits(quantile(Wb, u)) << 3)
                  ^ (bits(cdf(Lp, t)) << 4) ^ (bits(quantile(Lo, u)) << 5) ^ (bits(ccdf(Pa, y + 2)) << 6);
         }, 1 << 10), 0x572d7f7b8ca7f626);
+        wsl::gumbel const Gu({.location = -1, .scale = 0.5});
+        wsl::frechet const Fr({.shape = 2.5, .scale = 1.5});
+        wsl::rayleigh const Ra({.scale = 0.7});
+        wsl::triangular const Tr({.low = -1, .mode = 0, .high = 4});
+        wsl::arcsine const Ar({.low = 0, .high = 1});
+        wsl::erlang const Er({.shape = 3, .rate = 0.5});
+        ok &= check("complements", fingerprint([&] {
+            return bits(sample(Gu, x)) ^ (bits(sample(Fr, x)) << 1) ^ (bits(sample(Ra, x)) << 2) ^ (bits(sample(Tr, x)) << 3) ^ (bits(sample(Ar, x)) << 4) ^ (bits(sample(Er, x)) << 5);
+        }, 1 << 12), 0x8048e3cc57673536);
+        ok &= check("complement functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(8.0, u);
+            return bits(cdf(Gu, t)) ^ (bits(quantile(Fr, u)) << 1) ^ (bits(pdf(Ra, t)) << 2) ^ (bits(cquantile(Tr, u)) << 3) ^ (bits(cdf(Ar, u)) << 4) ^ (bits(pdf(Fr, t + 0.1)) << 5);
+        }, 1 << 10), 0x31ef6ddc23202445);
     }
     assert(ok);
     return 0;

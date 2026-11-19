@@ -59,6 +59,25 @@ namespace
     wsl::normal<T> normal(double mean, double sd) { return wsl::normal<T>({.mean = T(mean), .sd = T(sd)}); }
 }
 
+// Paramètres des références des lois de compléments (a, b ne portent que deux paramètres).
+double frechet_location(double shape, double scale)
+{
+    struct { double shape, scale, location; } const table[] = {{3.0, 2.0, 0.5}, {0.5, 1.0, 0.0}, {1.5, 3.0, -2.0}, {50.0, 1.0, 0.0}, {2.5, 1e-5, 1.0}};
+    for (auto const& t : table)
+        if (float(t.shape) == float(shape) && float(t.scale) == float(scale))
+            return t.location;
+    return 0;
+}
+template <class T>
+wsl::triangular<T> triangle(double low, double high)
+{
+    struct { double low, mode, high; } const table[] = {{0.0, 1.0, 3.0}, {-1.0, -1.0, 2.0}, {0.0, 5.0, 5.0}, {1e3, 1e3 + 0.25, 1e3 + 1.0}};
+    for (auto const& t : table)
+        if (float(t.low) == float(low) && float(t.high) == float(high))
+            return wsl::triangular<T>({.low = T(t.low), .mode = T(t.mode), .high = T(t.high)});
+    return wsl::triangular<T>({.low = T(low), .mode = T(low), .high = T(high)});
+}
+
 int main()
 {
     namespace d = law_reference_data;
@@ -177,6 +196,44 @@ int main()
     CQ(T, bound, laplace, "laplace", (wsl::laplace<T>({.location = T(a), .scale = T(b)})))                                            \
     CQ(T, bound, logistic, "logistic", (wsl::logistic<T>({.location = T(a), .scale = T(b)})))                                         \
     CQ(T, bound, pareto, "pareto", (wsl::pareto<T>({.scale = T(a), .shape = T(b)})))
+#define STANDARD_CHECKS(T, bound, name, make)                                                                                \
+    check<T>(#name " pdf " #T, d::name##_pdf_##T, [](double a, double b, double x) { (void)b; return pdf(make, T(x)); }, bound);              \
+    check<T>(#name " log_pdf " #T, d::name##_log_pdf_##T, [](double a, double b, double x) { (void)b; return log_pdf(make, T(x)); }, 1.0);    \
+    check<T>(#name " cdf " #T, d::name##_cdf_##T, [](double a, double b, double x) { (void)b; return cdf(make, T(x)); }, bound);              \
+    check<T>(#name " ccdf " #T, d::name##_ccdf_##T, [](double a, double b, double x) { (void)b; return ccdf(make, T(x)); }, bound);            \
+    check<T>(#name " quantile " #T, d::name##_quantile_##T, [](double a, double b, double p) { (void)b; return quantile(make, p); }, bound);   \
+    check<T>(#name " cquantile " #T, d::name##_cquantile_##T, [](double a, double b, double q) { (void)b; return cquantile(make, q); }, bound);
+#define COMPLEMENT_CHECKS(T, bound)                                                                                          \
+    STANDARD_CHECKS(T, bound, gumbel, (wsl::gumbel<T>({.location = T(a), .scale = T(b)})))                                   \
+    STANDARD_CHECKS(T, bound, frechet, (wsl::frechet<T>({.shape = T(a), .scale = T(b), .location = T(frechet_location(a, b))})))   \
+    STANDARD_CHECKS(T, bound, rayleigh, (wsl::rayleigh<T>({.scale = T(a)})))                                                 \
+    STANDARD_CHECKS(T, bound, arcsine, (wsl::arcsine<T>({.low = T(a), .high = T(b)})))                                        \
+    check<T>("triangular pdf " #T, d::triangular_pdf_##T, [](double a, double b, double x) { return pdf(triangle<T>(a, b), T(x)); }, bound);   \
+    check<T>("triangular cdf " #T, d::triangular_cdf_##T, [](double a, double b, double x) { return cdf(triangle<T>(a, b), T(x)); }, bound);   \
+    check<T>("triangular ccdf " #T, d::triangular_ccdf_##T, [](double a, double b, double x) { return ccdf(triangle<T>(a, b), T(x)); }, bound); \
+    check<T>("triangular quantile " #T, d::triangular_quantile_##T, [](double a, double b, double p) { return quantile(triangle<T>(a, b), p); }, bound); \
+    check<T>("triangular cquantile " #T, d::triangular_cquantile_##T, [](double a, double b, double q) { return cquantile(triangle<T>(a, b), q); }, bound); \
+    check<T>("triangular variance " #T, d::triangular_variance_##T, [](double a, double b, double) { return triangle<T>(a, b).variance(); }, bound);       \
+    check<T>("triangular mean " #T, d::triangular_mean_##T, [](double a, double b, double) { return triangle<T>(a, b).mean(); }, bound);
+    COMPLEMENT_CHECKS(double, tight)
+    COMPLEMENT_CHECKS(float, loose)
+    check<double>("gumbel mean", d::gumbel_mean_double, [](double a, double b, double) { return wsl::gumbel({.location = a, .scale = b}).mean(); }, tight);
+    check<double>("gumbel variance", d::gumbel_variance_double, [](double a, double b, double) { return wsl::gumbel({.location = a, .scale = b}).variance(); }, tight);
+    check<double>("gumbel median", d::gumbel_median_double, [](double a, double b, double) { return wsl::gumbel({.location = a, .scale = b}).median(); }, tight);
+    check<double>("gumbel entropy", d::gumbel_entropy_double, [](double a, double b, double) { return wsl::gumbel({.location = a, .scale = b}).entropy(); }, 1.0);
+    check<double>("frechet mean", d::frechet_mean_double, [](double a, double b, double) { return wsl::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).mean(); }, tight);
+    check<double>("frechet variance", d::frechet_variance_double, [](double a, double b, double) { return wsl::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).variance(); }, tight);
+    check<double>("frechet median", d::frechet_median_double, [](double a, double b, double) { return wsl::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).median(); }, tight);
+    check<double>("frechet mode", d::frechet_mode_double, [](double a, double b, double) { return wsl::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).mode(); }, tight);
+    check<double>("frechet entropy", d::frechet_entropy_double, [](double a, double b, double) { return wsl::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).entropy(); }, 1.0);
+    check<double>("rayleigh mean", d::rayleigh_mean_double, [](double a, double, double) { return wsl::rayleigh({.scale = a}).mean(); }, tight);
+    check<double>("rayleigh variance", d::rayleigh_variance_double, [](double a, double, double) { return wsl::rayleigh({.scale = a}).variance(); }, tight);
+    check<double>("rayleigh median", d::rayleigh_median_double, [](double a, double, double) { return wsl::rayleigh({.scale = a}).median(); }, tight);
+    check<double>("rayleigh entropy", d::rayleigh_entropy_double, [](double a, double, double) { return wsl::rayleigh({.scale = a}).entropy(); }, 1.0);
+    check<double>("arcsine variance", d::arcsine_variance_double, [](double a, double b, double) { return wsl::arcsine({.low = a, .high = b}).variance(); }, tight);
+    check<double>("arcsine entropy", d::arcsine_entropy_double, [](double a, double b, double) { return wsl::arcsine({.low = a, .high = b}).entropy(); }, 1.0);
+#undef COMPLEMENT_CHECKS
+#undef STANDARD_CHECKS
     SURVIVAL_CHECKS(double, tight)
     {
         // von Mises et von Mises–Fisher (μ = e_p, x = (√(1 − t²), 0, …, 0, t)).

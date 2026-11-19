@@ -191,6 +191,19 @@ extern "C"
     double check_beta_sample(wsl::beta<> const& B, wsl::xoshiro256pp& g) { return sample(B, g); }
     void check_beta_make(double a, double b, wsl::beta<>* out) { *out = wsl::beta({.alpha = a, .beta = b}); }
     double check_beta_moments(double a, double b) { wsl::beta const B({.alpha = a, .beta = b}); return B.variance() + B.excess_kurtosis() + B.skewness() + B.mode(); }
+    // Compléments : 1 + f, pour voir aussi les produits rendus.
+    double check_gumbel(double a, double b, double x, double p) { wsl::gumbel const G({.location = a, .scale = b}); return 1 + pdf(G, x) + log_pdf(G, x) + cdf(G, x) + ccdf(G, x) + quantile(G, p) + cquantile(G, p); }
+    double check_gumbel_moments(double a, double b) { wsl::gumbel const G({.location = a, .scale = b}); return 1 + G.mean() + G.variance() + G.median() + G.entropy(); }
+    double check_frechet(double a, double b, double c, double x, double p) { wsl::frechet const F({.shape = a, .scale = b, .location = c}); return 1 + pdf(F, x) + log_pdf(F, x) + cdf(F, x) + ccdf(F, x) + quantile(F, p) + cquantile(F, p); }
+    double check_frechet_moments(double a, double b, double c) { wsl::frechet const F({.shape = a, .scale = b, .location = c}); return 1 + F.mean() + F.variance() + F.median() + F.mode() + F.entropy(); }
+    double check_rayleigh(double a, double x, double p) { wsl::rayleigh const R({.scale = a}); return 1 + pdf(R, x) + log_pdf(R, x) + cdf(R, x) + ccdf(R, x) + quantile(R, p) + cquantile(R, p) + R.mean() + R.variance() + R.median() + R.entropy(); }
+    double check_triangular(double a, double c, double b, double x, double p) { wsl::triangular const T({.low = a, .mode = c, .high = b}); return 1 + pdf(T, x) + log_pdf(T, x) + cdf(T, x) + ccdf(T, x) + quantile(T, p) + cquantile(T, p) + T.mean() + T.variance() + T.median() + T.skewness() + T.entropy(); }
+    double check_arcsine(double a, double b, double x, double p) { wsl::arcsine const A({.low = a, .high = b}); return 1 + pdf(A, x) + log_pdf(A, x) + cdf(A, x) + ccdf(A, x) + quantile(A, p) + cquantile(A, p) + A.mean() + A.variance() + A.entropy(); }
+    double check_complement_samples(double a, wsl::xoshiro256pp& g)
+    {
+        return 1 + sample(wsl::gumbel({.location = a, .scale = 2.0}), g) + sample(wsl::frechet({.shape = a, .scale = 2.0}), g) + sample(wsl::rayleigh({.scale = a}), g)
+             + sample(wsl::triangular({.low = 0.0, .mode = a, .high = 5.0}), g) + sample(wsl::arcsine({.low = 0.0, .high = a}), g) + sample(wsl::erlang({.shape = 3, .rate = a}), g);
+    }
     // Produits rendus puis additionnés par l'appelant (GCC les fusionne après intégration).
     double check_sum_exp(double x) { return 1.0 + wsl::special::exp(x); }
     double check_sum_log(double x) { return 1.0 + wsl::special::log(x); }

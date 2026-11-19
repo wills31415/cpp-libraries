@@ -16,6 +16,7 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/gamma_moments.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/exponential.hpp>
 #include <wsl/random/law.hpp>
@@ -58,38 +59,7 @@ namespace wsl
         // λ² [Γ(1 + 2/k) − Γ(1 + 1/k)²]
         constexpr T variance() const noexcept
         {
-            namespace fp = detail::sd;
-            double const e = 1.0 / double(k_), e_lo = inv_k_lo();
-            auto const g1 = lgamma_1p(e, e_lo);
-            auto const ll = detail::log_precise(double(lambda_));
-            auto const base = detail::sum({fp::fmul(g1.hi, 2.0), fp::fmul(g1.lo, 2.0)}, {fp::fmul(ll.hi, 2.0), fp::fmul(ll.lo, 2.0)});   // log(λ² Γ(1+ε)²)
-            fp::double_double d{};                                          // D = lgamma(1 + 2ε) − 2 lgamma(1 + ε)
-            if (e <= 0.125)
-            {
-                // Σ_{j>=2} l_j (2^j − 2) ε^j, l_j les coefficients de lgamma(1 + a) (Horner en double-double)
-                constexpr int terms = sizeof(fp::lgamma1p_series) / sizeof(fp::lgamma1p_series[0]);
-                fp::double_double s{0.0, 0.0};
-                for (int j = terms; j >= 2; --j)
-                {
-                    double const w = fp::scale_by_power_of_two(1.0, j) - 2.0;    // 2^j − 2, exact
-                    fp::double_double const c = detail::mul({fp::lgamma1p_series[j - 1][0], fp::lgamma1p_series[j - 1][1]}, {w, 0.0});
-                    s = detail::sum(c, detail::mul(s, {e, e_lo}));
-                }
-                d = detail::mul(detail::mul(s, {e, e_lo}), {e, e_lo});      // s ε² (s porte déjà ε^{j−2})
-            }
-            else
-            {
-                auto const g2 = lgamma_1p(fp::fmul(e, 2.0), fp::fmul(e_lo, 2.0));
-                d = detail::sum(g2, {fp::fmul(g1.hi, -2.0), fp::fmul(g1.lo, -2.0)});
-            }
-            fp::double_double m{};
-            if (d.hi <= 1)
-                m = detail::expm1_double_double(d.hi, d.lo);
-            else
-                m = detail::sum(detail::unscaled(detail::exp_scaled(d.hi > 1400 ? 1400 : d.hi, d.lo)), {-1.0, 0.0});
-            if (base.hi > 1400)
-                return std::numeric_limits<T>::infinity();
-            return static_cast<T>(detail::rounded(detail::normalized(m.hi, m.lo) * detail::exp_scaled(base.hi, base.lo)));
+            return static_cast<T>(detail::gamma_variance(1.0 / double(k_), inv_k_lo(), detail::log_precise(double(lambda_))));
         }
         // λ (log 2)^{1/k}
         constexpr T median() const noexcept
@@ -213,17 +183,7 @@ namespace wsl
         }
 
         // lgamma(1 + ε), ε = e + e_lo, en double-double.
-        static constexpr detail::sd::double_double lgamma_1p(double e, double e_lo) noexcept
-        {
-            namespace fp = detail::sd;
-            if (e <= 0.25)
-            {
-                auto const [g_hi, g_lo] = fp::lgamma1p_small(e);           // + ψ(1 + e) e_lo
-                return detail::sum({g_hi, g_lo}, {fp::fmul(detail::digamma_approximate(1.0 + e), e_lo), 0.0});
-            }
-            auto const [s_hi, s_lo0] = fp::two_sum(1.0, e);
-            return detail::log_gamma(s_hi, s_lo0 + e_lo);
-        }
+        static constexpr detail::sd::double_double lgamma_1p(double e, double e_lo) noexcept { return detail::lgamma_one_plus(e, e_lo); }
 
         static constexpr double exp_of(detail::sd::double_double l) noexcept
         {

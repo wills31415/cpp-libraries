@@ -94,6 +94,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   contraction).
 - `exp_scaled` (wsl::special, détail) rend une paire normalisée (précision des
   exponentielles enchaînées).
+- Compléments au catalogue : `gumbel<T>` (`{.location, .scale}`), `frechet<T>`
+  (`{.shape, .scale, .location}`), `rayleigh<T>` (`{.scale}`), `triangular<T>`
+  (`{.low, .mode, .high}`), `arcsine<T>` (`{.low, .high}`) : densité, log-densité,
+  répartition, survie, quantile et quantile de survie sous 0,5 ulp contre mpmath,
+  moments et entropie ; tirages bit-exacts. `erlang<T>` (`{.shape}` entier, `{.rate}`) :
+  fonctions de la gamma, tirage **exact** (somme paresseuse de k exponentielles exactes).
+- Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
+  négatif accepté pour Fréchet) : mêmes bits.
 
 ### exact_random (retirée)
 - Remplacée par `wsl::random` : `uniform_below(g, n)` (exact, tout générateur, plus
@@ -151,6 +159,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `x + x` des chemins NaN ne peuvent plus être fusionnés avec une addition de l'appelant
   après intégration (`1 + exp(x)`…). Aucun résultat ne change ; le contrôle anti-fma
   essaie désormais `1 + f(x)` pour chaque fonction.
+- Constantes double-double internes (`detail/extended.hpp`) pour les lois de Gumbel et de
+  Rayleigh (√(π/2), (4 − π)/2, √(2 log 2), asymétries), vérifiées contre mpmath.
 
 ## [0.1.0] — 2026-11-16
 

@@ -38,6 +38,18 @@ namespace wsl::detail
     using xd::log_precise;
     using xd::magnitude;
     using xd::pi_squared_over_3_hi;
+    using xd::sqrt_half_pi_hi;
+    using xd::sqrt_half_pi_lo;
+    using xd::four_minus_pi_half_hi;
+    using xd::four_minus_pi_half_lo;
+    using xd::sqrt_two_ln2_hi;
+    using xd::sqrt_two_ln2_lo;
+    using xd::gumbel_skewness_hi;
+    using xd::gumbel_skewness_lo;
+    using xd::rayleigh_skewness_hi;
+    using xd::rayleigh_skewness_lo;
+    using xd::rayleigh_kurtosis_hi;
+    using xd::rayleigh_kurtosis_lo;
     using xd::pi_squared_over_3_lo;
     using xd::max_double;
     using xd::mul;

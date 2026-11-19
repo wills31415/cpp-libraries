@@ -122,6 +122,12 @@ namespace wsl::special::detail::extended
     inline constexpr double normal_entropy_hi = 0x1.6b3f8e4325f5ap+0, normal_entropy_lo = 0x1.4d252f2400510p-54;  // (1 + log 2π)/2
     inline constexpr double half_sqrt_pi = 0x1.c5bf891b4ef6bp-1;
     inline constexpr double inv_sqrt_pi = 0x1.20dd750429b6dp-1;
+    inline constexpr double sqrt_half_pi_hi = 0x1.40d931ff62706p+0, sqrt_half_pi_lo = -0x1.a6a0d6f814637p-54;
+    inline constexpr double four_minus_pi_half_hi = 0x1.b7812aeef4b9fp-2, four_minus_pi_half_lo = -0x1.a62633145c06ep-58;
+    inline constexpr double sqrt_two_ln2_hi = 0x1.2d6abe44afc43p+0, sqrt_two_ln2_lo = 0x1.fb5e9fb2b55bbp-56;
+    inline constexpr double gumbel_skewness_hi = 0x1.23b95bd431d31p+0, gumbel_skewness_lo = 0x1.08492b4c8dae6p-54;
+    inline constexpr double rayleigh_skewness_hi = 0x1.4320efa6fa904p-1, rayleigh_skewness_lo = -0x1.8bc4ccb8fa389p-56;
+    inline constexpr double rayleigh_kurtosis_hi = 0x1.f5f161186c5f2p-3, rayleigh_kurtosis_lo = -0x1.59a3e3c6197d7p-58;
     inline constexpr double pi_squared_over_3_hi = 0x1.a51a6625307d3p+1, pi_squared_over_3_lo = 0x1.1873d8912200cp-54;
     inline constexpr double inv_pi_hi = 0x1.45f306dc9c883p-2, inv_pi_lo = -0x1.6b01ec5417056p-56;
     inline constexpr double log_4pi_hi = 0x1.43f89a3f0edd6p+1, log_4pi_lo = 0x1.053cd734e6a31p-54;

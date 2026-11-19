@@ -54,6 +54,11 @@
 #include <wsl/random/graphs.hpp>
 #include <wsl/random/discrete_processes.hpp>
 #include <wsl/random/continuous_processes.hpp>
+#include <wsl/random/erlang.hpp>
+#include <wsl/random/arcsine.hpp>
+#include <wsl/random/triangular.hpp>
+#include <wsl/random/rayleigh.hpp>
+#include <wsl/random/gumbel.hpp>
 #include <wsl/random/process.hpp>
 #include <wsl/random/categorical.hpp>
 #include <wsl/random/permutations.hpp>

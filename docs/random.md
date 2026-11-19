@@ -893,3 +893,26 @@ Le chantier futur (§7) partira de cette liste :
   trajectoire, sauf pour le restaurant (`steps(n)` = `at(n + 1)`, partition) ;
   `random_walk` se construit par position (`random_walk(pas, {.start})`), les autres par
   paramètres nommés.
+- lois des compléments : `erlang` prend une forme entière (`std::int64_t`) quand la gamma
+  prend `T` ; `arcsine` a des paramètres par défaut ([0, 1]), pas `gumbel` ; la position
+  s'appelle `.location` (Gumbel, Fréchet, Laplace) mais `.low`/`.high` pour les lois à
+  support borné ; `as_gamma()` n'a pas d'équivalent pour les autres lois spéciales d'une
+  famille (χ², exponentielle).
+
+## 16. Compléments au catalogue, lot 1
+
+| Loi | Paramètres | Méthode | Tirage |
+|---|---|---|---|
+| `gumbel<T>` | `{.location, .scale}` | y = (x − μ)/β en double-double, t = e^{−y} ; répartition e^{−t}, survie −expm1(−t) (t à l'échelle quand il est minuscule) ; quantile μ − β log(−log p), cquantile μ − β log(−log1p(−q)) | μ − β log E, approché |
+| `frechet<T>` | `{.shape, .scale, .location = 0}` | même noyau, y = α log((x − m)/s) (log1p près de 1) ; quantile m + s e^{y/α} ; moyenne et variance par Γ(1 − 1/α) et Γ(1 − 2/α), sans compensation (ε = −1/α) | m + sE^{−1/α}, approché |
+| `rayleigh<T>` | `{.scale}` | h = z²/2 à l'échelle ; répartition −expm1(−h), survie e^{−h} ; quantile σ√(−2 log1p(−p)) | σ√(2E), approché |
+| `triangular<T>` | `{.low, .mode, .high}` | différences exactes (two_sum), (x − a)²/((b − a)(c − a)) d'un côté du mode, complément de l'autre ; quantile a + √(p(b − a)(c − a)) ou b − √((1 − p)(b − a)(b − c)), 1 − p en double-double | inversion, approché |
+| `arcsine<T>` | `{.low = 0, .high = 1}` | u et 1 − u en double-double ; (2/π) atan √(u/(1 − u)) du côté le plus proche, complément sinon ; quantile a + (b − a) sin²(πp/2) depuis la borne la plus proche | inversion, approché |
+| `erlang<T>` | `{.shape}` entier, `{.rate}` | fonctions de la gamma (`as_gamma()`) | **exact** : somme paresseuse de k exponentielles exactes, O(k) |
+
+Moments partagés avec Weibull (`detail/gamma_moments.hpp`) : lgamma(1 + ε) en série pour
+|ε| <= ¼ et variance c²[Γ(1 + 2ε) − Γ(1 + ε)²] en série pour |ε| <= ⅛, ε positif
+(Weibull, 1/k) ou négatif (Fréchet, −1/α) ; Weibull garde ses bits. Précision mesurée :
+tout sous 0,5 ulp en double et float, arrondi correct sur 100 % des points
+(≈ 9 000 points, références mpmath ; constantes double-double nouvelles vérifiées par
+`law_references.py`).
