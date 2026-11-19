@@ -215,6 +215,23 @@ int main()
     check<T>("triangular cquantile " #T, d::triangular_cquantile_##T, [](double a, double b, double q) { return cquantile(triangle<T>(a, b), q); }, bound); \
     check<T>("triangular variance " #T, d::triangular_variance_##T, [](double a, double b, double) { return triangle<T>(a, b).variance(); }, bound);       \
     check<T>("triangular mean " #T, d::triangular_mean_##T, [](double a, double b, double) { return triangle<T>(a, b).mean(); }, bound);
+#define INVERSE_GAUSSIAN_CHECKS(T, bound)                                                                                    \
+    STANDARD_CHECKS(T, bound, inverse_gaussian, (wsl::inverse_gaussian<T>({.mean = T(a), .shape = T(b)})))                   \
+    check<T>("inverse_gaussian variance " #T, d::inverse_gaussian_variance_##T, [](double a, double b, double) { return wsl::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).variance(); }, bound); \
+    check<T>("inverse_gaussian mode " #T, d::inverse_gaussian_mode_##T, [](double a, double b, double) { return wsl::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).mode(); }, bound);           \
+    check<T>("inverse_gaussian skewness " #T, d::inverse_gaussian_skewness_##T, [](double a, double b, double) { return wsl::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).skewness(); }, bound); \
+    check<T>("inverse_gaussian excess_kurtosis " #T, d::inverse_gaussian_excess_kurtosis_##T, [](double a, double b, double) { return wsl::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).excess_kurtosis(); }, bound);
+#define VON_MISES_CHECKS(T, bound)                                                                                            \
+    check<T>("von_mises cdf " #T, d::von_mises_cdf_##T, [](double a, double b, double x) { return cdf(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), T(x)); }, bound);      \
+    check<T>("von_mises ccdf " #T, d::von_mises_ccdf_##T, [](double a, double b, double x) { return ccdf(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), T(x)); }, bound);    \
+    check<T>("von_mises quantile " #T, d::von_mises_quantile_##T, [](double a, double b, double p) { return quantile(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), p); }, bound); \
+    check<T>("von_mises cquantile " #T, d::von_mises_cquantile_##T, [](double a, double b, double q) { return cquantile(wsl::von_mises<T>({.mu = T(a), .kappa = T(b)}), q); }, bound);
+    VON_MISES_CHECKS(double, tight)
+    VON_MISES_CHECKS(float, loose)
+#undef VON_MISES_CHECKS
+    INVERSE_GAUSSIAN_CHECKS(double, tight)
+    INVERSE_GAUSSIAN_CHECKS(float, loose)
+#undef INVERSE_GAUSSIAN_CHECKS
     COMPLEMENT_CHECKS(double, tight)
     COMPLEMENT_CHECKS(float, loose)
     check<double>("gumbel mean", d::gumbel_mean_double, [](double a, double b, double) { return wsl::gumbel({.location = a, .scale = b}).mean(); }, tight);

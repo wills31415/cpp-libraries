@@ -916,3 +916,63 @@ Moments partagés avec Weibull (`detail/gamma_moments.hpp`) : lgamma(1 + ε) en 
 tout sous 0,5 ulp en double et float, arrondi correct sur 100 % des points
 (≈ 9 000 points, références mpmath ; constantes double-double nouvelles vérifiées par
 `law_references.py`).
+
+## 17. Compléments au catalogue, lot 2 : inverse-gaussienne
+
+`inverse_gaussian<T>({.mean = μ, .shape = λ})`. Avec c = √(λ/x), a = c(x − μ)/μ, δ = 2c
+et le rapport de Mills R(s) = e^{s²/2} Φ(−s), les deux termes de la répartition usuelle
+(Φ(a) + e^{2λ/μ} Φ(−b)) partagent le facteur e^{−a²/2} :
+
+    P(X > x) = e^{−a²/2} (R(a) − R(a + δ)),   P(X <= x) = e^{−a²/2} (R(|a|) + R(a + δ))  (a < 0),
+
+sans e^{2λ/μ} (qui déborderait) ni compensation, sauf dans R(a) − R(a + δ) quand δ est
+petit devant 1 + a⁺ : queue droite (la perte vaut environ (x − μ)/(2μ)) ou λ/x petit.
+On y somme alors −Σ r_k(a) δᵏ, coefficients de Taylor de R en a, termes décroissants d'un
+facteur 4 au moins ; au-dessus du seuil δ = (1 + a⁺)/4, la différence directe perd au plus
+un facteur 6.
+
+R et ses coefficients, à 2⁻⁸⁵ près (le noyau `erfc_factor` de wsl::special, à 2⁻⁶¹,
+ne suffisait pas sous une compensation de 6) :
+
+| s | Méthode |
+|---|---|
+| < 4,5 | ½ Σ (s²/2)ⁿ/n! − (1/√(2π)) Σ s^{2n+1}/(2n+1)!!, termes positifs (perte de 2²² au plus) ; coefficients par la récurrence (k + 1) r_{k+1} = a r_k + r_{k−1}, r_1 = a r_0 − 1/√(2π), avancée |
+| [4,5, 2048) | récurrence rétrograde de Miller depuis k = 90 (solution minimale), renormalisée par 2⁻³⁰⁰ pour rester dans le domaine de Dekker, normalisée par a r_0 − r_1 = 1/√(2π) |
+| >= 2048 | (1/(√(2π) s)) (1 − v + 3v² − … − 945v⁵), v = 1/s² |
+
+Quantiles : Newton en log x sur log F (ou log S), encadré (bissection si le pas sort de
+l'encadrement), 3 à 13 évaluations ; puis deux pas de Newton à résidu précis depuis le
+flottant trouvé. Moments : variance μ³/λ, mode μ/(√(1 + t²) + t) (t = 3μ/(2λ), sans
+compensation), asymétrie 3√(μ/λ), aplatissement 15μ/λ ; médiane par le quantile. Pas
+d'entropie (elle demande E₁(2λ/μ)). Tirage approché, bit-exact : Michael, Schucany et
+Haas (normale exacte, Bernoulli exacte ; la petite racine écrite μ²/x₂, sans compensation).
+
+Coût : répartition et survie 2 à 5 µs, quantile 15 à 60 µs.
+
+### Répartition et quantiles de von Mises
+
+F(x) sur [μ − π, μ + π], θ = x − μ en double-double : la part la plus petite,
+G(|θ|) = ∫_{|θ|}^π e^{κ(cos t − 1)} dt/(2π e^{−κ} I₀(κ)), l'autre par complément. La série
+de Fourier ½ + θ/2π + Σ I_n(κ) sin(nθ)/(nπ I₀) se compense dans les queues d'un facteur
+e^{2κ} (2⁵⁸ dès κ = 20) : l'intégrale est calculée directement, par morceaux [t₀, t₀ + H] et
+Gauss–Legendre à 12 nœuds (nœuds et poids en double-double, calculés à la compilation par
+Newton sur P₁₂) appliqué à e^{κ(cos t − cos t₀)}, le facteur e^{κ(cos t₀ − 1)} à l'échelle.
+H <= ½, 2/(κ sin t₀), √(½/(κ |cos t₀|)) : l'erreur de la règle reste sous 2⁻¹⁰⁰ ; la
+précision est celle de exp_scaled (2⁻⁷⁰). L'intégrande décroît sur [0, π] : on s'arrête
+dès que e^{κ(cos t₀ − 1)}(π − t₀) devient négligeable. Un premier essai par séries de Taylor
+de l'exponentielle (récurrence d_n = (1/n) Σ k c_k d_{n−k}) donnait les mêmes bits, 14 fois
+plus lentement.
+
+Quantiles : Newton sur log G pour t <= ¼ ; au-delà, sur log D, D(φ) = ∫_0^φ = ½ − t (exact),
+sans quoi φ petit (t près de ½) n'était connu qu'à 2⁻⁷¹/(φ g) près ; départ au quantile
+normal d'écart type 1/√κ, encadrement dans [0, π], deux pas à résidu précis. Quand la
+solution tombe entre fl(π) et π (t < G(fl(π)), κ petit et t minuscule), φ = π − t/g(π).
+Près de π (κ petit, t minuscule), π − φ ~ 10⁻¹⁴ : le pas de Newton tombe sous l'espacement
+des doubles et n'était pas appliqué (jusqu'à 1,3 ulp) ; il l'est désormais en double-double.
+Précision mesurée : répartition, survie et quantiles sous 0,5 ulp (double et float), arrondi
+correct sur 100 % des points. Coût : répartition 1 à 15 µs, quantile 20 à 250 µs.
+
+Références (mpmath) : mp.quad en t ne convergeait pas pour κ grand (erreur relative 2·10⁻¹¹
+pour κ = 1000) ; en w = 2κ(sin²(t/2) − sin²(φ/2)), avec u = √(w(π) − w) sur la seconde
+moitié (singularité en t = π levée) et des coupures géométriques depuis 2κ sin²(φ/2), elles
+concordent avec la série de Fourier à haute précision.

@@ -100,6 +100,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   répartition, survie, quantile et quantile de survie sous 0,5 ulp contre mpmath,
   moments et entropie ; tirages bit-exacts. `erlang<T>` (`{.shape}` entier, `{.rate}`) :
   fonctions de la gamma, tirage **exact** (somme paresseuse de k exponentielles exactes).
+- `inverse_gaussian<T>` (`{.mean, .shape}`) : densité, log-densité, répartition, survie
+  (rapport de Mills à 2⁻⁸⁵, série de Taylor quand la survie se compense), quantiles par
+  Newton à résidu précis, moments ; tirage bit-exact (Michael, Schucany et Haas).
+- `von_mises` : répartition, survie, quantile et quantile de survie (intégrale de la queue
+  par Gauss–Legendre par morceaux, quantiles par Newton sur la plus petite part).
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 

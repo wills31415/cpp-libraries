@@ -14,6 +14,7 @@
 #include <limits>
 #include <random>
 #include <stdexcept>
+#include <numeric>
 #include <vector>
 
 namespace
@@ -563,6 +564,66 @@ int main()
         assert(throws_domain_error([] { wsl::frechet X({.shape = 0, .scale = 1}); }) && throws_domain_error([] { wsl::arcsine X({.low = 1, .high = 1}); }));
     }
 
+    // ---- Inverse-gaussienne ----
+    {
+        for (auto [mu, lambda] : {std::pair{1.0, 3.0}, std::pair{2.0, 0.05}, std::pair{1e-2, 1e3}})
+        {
+            wsl::inverse_gaussian const W({.mean = mu, .shape = lambda});
+            std::vector<double> v;
+            for (int i = 0; i < 5000; ++i)
+                v.push_back(sample(W, g));
+            assert(kolmogorov_smirnov(W, v) < 1.95);
+            double const m = std::accumulate(v.begin(), v.end(), 0.0) / double(v.size());
+            assert(std::abs(m - mu) < 8 * std::sqrt(W.variance() / double(v.size())));
+            for (double p : {1e-200, 1e-8, 0.25, 0.5, 0.75, 1 - 1e-9})   // quantiles et répartition se répondent
+            {
+                double const x = quantile(W, p), y = cquantile(W, p);
+                assert(std::abs(cdf(W, x) / p - 1) < 1e-14 || std::abs(ccdf(W, x) / (1 - p) - 1) < 1e-14);
+                assert(std::abs(ccdf(W, y) / p - 1) < 1e-14 || std::abs(cdf(W, y) / (1 - p) - 1) < 1e-14);
+            }
+            assert(W.median() == quantile(W, 0.5) && cdf(W, 0.0) == 0 && ccdf(W, INFINITY) == 0 && pdf(W, -1.0) == 0);
+            double area = 0;                                                // Simpson sur [μ, 1,5 μ]
+            for (int i = 0; i < 2000; ++i)
+            {
+                double const x0 = mu * (1 + i / 4000.0), x1 = mu * (1 + (i + 1) / 4000.0);
+                area += (x1 - x0) / 6 * (pdf(W, x0) + 4 * pdf(W, (x0 + x1) / 2) + pdf(W, x1));
+            }
+            assert(std::abs((cdf(W, 1.5 * mu) - cdf(W, mu)) / area - 1) < 1e-9);
+        }
+        wsl::inverse_gaussian const W({.mean = 1.0, .shape = 0.5});        // queue droite : ccdf(x) ~ e^{−λx/(2μ²)}
+        assert(ccdf(W, 1e3) > 0 && ccdf(W, 1e3) < 1e-100 && ccdf(W, 3e3) == 0);
+        assert(throws_domain_error([] { wsl::inverse_gaussian X({.mean = 0.0, .shape = 1.0}); }) && throws_domain_error([] { wsl::inverse_gaussian X({.mean = 1.0, .shape = INFINITY}); }));
+    }
+
+    // ---- Répartition de von Mises ----
+    {
+        for (double kappa : {0.0, 0.3, 4.0, 200.0, 1e6})
+        {
+            wsl::von_mises const V({.mu = 1.0, .kappa = kappa});
+            std::vector<double> v;
+            for (int i = 0; i < 2000; ++i)
+                v.push_back(sample(V, g));
+            assert(kolmogorov_smirnov(V, v) < 1.95);
+            assert(cdf(V, 1.0) == 0.5 && ccdf(V, 1.0) == 0.5 && quantile(V, 0.5) == 1.0);
+            assert(cdf(V, 1.0 - 3.2) == 0 && cdf(V, 1.0 + 3.2) == 1 && quantile(V, 0.0) == 1.0 - 3.141592653589793);
+            for (double p : {1e-300, 1e-9, 0.1, 0.4, 0.75, 1 - 1e-12})
+            {
+                double const x = quantile(V, p);                            // F(x⁻) <= p <= F(x⁺), à un ulp près
+                double const below = std::nextafter(std::nextafter(x, -INFINITY), -INFINITY), above = std::nextafter(std::nextafter(x, INFINITY), INFINITY);
+                if (p <= 0.5)
+                    assert(cdf(V, below) <= p && cdf(V, above) >= p);
+                else
+                    assert(ccdf(V, below) >= 1 - p && ccdf(V, above) <= 1 - p);
+                assert(p < 0.5 || cquantile(V, 1 - p) == x);
+            }
+            for (double x : {-1.5, 0.2, 0.99, 1.7, 3.9})                    // F(x) + S(x) = 1, et symétrie autour de μ
+                assert(std::abs(cdf(V, x) + ccdf(V, x) - 1) < 1e-15 && cdf(V, 1.0 - (x - 1.0)) == ccdf(V, x));
+        }
+        wsl::von_mises const U({.mu = 0.0, .kappa = 0.0});                 // κ = 0 : uniforme sur [−π, π]
+        for (double x : {-3.0, -1.0, 0.5, 2.0})
+            assert(std::abs(cdf(U, x) - (x + 3.141592653589793) / (2 * 3.141592653589793)) < 1e-16);
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -694,6 +755,19 @@ int main()
             double const u = wsl::uniform_real(x), t = fp::fmul(8.0, u);
             return bits(cdf(Gu, t)) ^ (bits(quantile(Fr, u)) << 1) ^ (bits(pdf(Ra, t)) << 2) ^ (bits(cquantile(Tr, u)) << 3) ^ (bits(cdf(Ar, u)) << 4) ^ (bits(pdf(Fr, t + 0.1)) << 5);
         }, 1 << 10), 0x31ef6ddc23202445);
+        wsl::inverse_gaussian const Ig({.mean = 1.5, .shape = 0.8});
+        ok &= check("inverse_gaussian", fingerprint([&] { return bits(sample(Ig, x)); }), 0xb65cd37eac96c4a3);
+        ok &= check("inverse_gaussian functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(40.0, u);
+            return bits(cdf(Ig, t)) ^ (bits(ccdf(Ig, t)) << 1) ^ (bits(pdf(Ig, t)) << 2) ^ (bits(quantile(Ig, u)) << 3) ^ (bits(cquantile(Ig, u)) << 4);
+        }, 1 << 8), 0x2c052dfac3fa0be4);
+        wsl::von_mises const Vm({.mu = 0.25, .kappa = 7.5});
+        ok &= check("von_mises functions", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::uniform_real(x), t = fp::fmul(6.0, u) - 2.75;
+            return bits(cdf(Vm, t)) ^ (bits(ccdf(Vm, t)) << 1) ^ (bits(quantile(Vm, u)) << 2) ^ (bits(cquantile(Vm, u)) << 3);
+        }, 1 << 8), 0xedcd34abd3d9dd7f);
     }
     assert(ok);
     return 0;

@@ -724,6 +724,172 @@ def complement_laws(kind):
     return out
 
 
+INVERSE_GAUSSIAN = [(1.0, 1.0), (1.0, 0.01), (2.0, 50.0), (1e-3, 1e3), (1e5, 3.0), (1.0, 1e-6)]
+
+
+def inverse_gaussian_parts(mu, lam, x, prec=320):
+    """(densité, répartition, survie) de l'inverse-gaussienne (survie compensée d'au plus 2^35 ici)."""
+    with mp.workprec(prec):
+        x = mpf(x)
+        c = mp.sqrt(lam / x)
+        a, b = c * (x / mu - 1), c * (x / mu + 1)
+        tail = mp.exp(2 * lam / mu) * mp.erfc(b / mp.sqrt(2)) / 2
+        lower = mp.erfc(-a / mp.sqrt(2)) / 2 + tail
+        upper = mp.erfc(a / mp.sqrt(2)) / 2 - tail
+        density = mp.sqrt(lam / (2 * mp.pi * x ** 3)) * mp.exp(-lam * (x - mu) ** 2 / (2 * mu ** 2 * x))
+        return +density, +lower, +upper
+
+
+def inverse_gaussian_quantile(mu, lam, t, upper):
+    """x tel que F(x) = t (ou S(x) = t) : bissection en log x à 160 bits, puis Newton à 320 bits."""
+    t = mpf(t)
+    value = lambda x: inverse_gaussian_parts(mu, lam, x, 160)[2 if upper else 1]
+    lo, hi = mpf(2) ** -1100, mpf(2) ** 1100
+    for _ in range(50):
+        mid = mp.sqrt(lo * hi)
+        if (value(mid) > t) != upper:
+            hi = mid
+        else:
+            lo = mid
+    x = mp.sqrt(lo * hi)
+    with mp.workprec(320):
+        for _ in range(10):
+            f, F, S = inverse_gaussian_parts(mu, lam, x, 320)
+            step = ((S if upper else F) - t) / f
+            x = x + step if upper else x - step
+            if abs(step) < x * mpf(2) ** -200:
+                break
+        return +x
+
+
+def inverse_gaussian_laws(kind):
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    count = 80 if kind == "double" else 30
+    out = []
+    for mu_, lam_ in INVERSE_GAUSSIAN:
+        mu, lam = mpf(to_type(mu_)), mpf(to_type(lam_))
+        xs = [to_type(float(mu * log_uniform(2.0 ** -12, 2.0 ** 30))) for _ in range(count)]
+        xs += [to_type(float(mu * (1 + rng.choice([-1, 1]) * log_uniform(2.0 ** -30, 0.5)))) for _ in range(count // 2)]
+        xs = sorted({x for x in xs if 0 < x < math.inf})
+        out.append(("inverse_gaussian_pdf", mu_, lam_, xs, lambda x, mu=mu, lam=lam: inverse_gaussian_parts(mu, lam, x)[0]))
+        out.append(("inverse_gaussian_log_pdf", mu_, lam_, xs, lambda x, mu=mu, lam=lam: mp.log(inverse_gaussian_parts(mu, lam, x)[0])))
+        out.append(("inverse_gaussian_cdf", mu_, lam_, xs, lambda x, mu=mu, lam=lam: inverse_gaussian_parts(mu, lam, x)[1]))
+        out.append(("inverse_gaussian_ccdf", mu_, lam_, xs, lambda x, mu=mu, lam=lam: inverse_gaussian_parts(mu, lam, x)[2]))
+        qs = [q for q in probabilities(count // 5) if q > 1e-300 or kind == "double"]
+        def quantile(p, mu=mu, lam=lam):
+            p = mpf(p)
+            return inverse_gaussian_quantile(mu, lam, p, False) if p <= 0.5 else inverse_gaussian_quantile(mu, lam, 1 - p, True)
+        def cquantile(q, mu=mu, lam=lam):
+            q = mpf(q)
+            return inverse_gaussian_quantile(mu, lam, q, True) if q <= 0.5 else inverse_gaussian_quantile(mu, lam, 1 - q, False)
+        out.append(("inverse_gaussian_quantile", mu_, lam_, qs, quantile))
+        out.append(("inverse_gaussian_cquantile", mu_, lam_, qs, cquantile))
+        t = 3 * mu / (2 * lam)
+        for c, v in [("variance", mu ** 3 / lam), ("mode", mu * (mp.sqrt(1 + t * t) - t)), ("skewness", 3 * mp.sqrt(mu / lam)), ("excess_kurtosis", 15 * mu / lam)]:
+            out.append((f"inverse_gaussian_{c}", mu_, lam_, [0.0], lambda _, v=v: v))
+    return out
+
+
+def von_mises_norm(k):
+    return 2 * mp.pi * mp.besseli(0, k, maxterms=10 ** 7) * mp.exp(-k) if k > 0 else 2 * mp.pi
+
+
+def von_mises_tail(k, phi, prec):
+    """(G(φ), g(φ)), G(φ) = ∫_φ^π e^{κ(cos t − 1)} dt / (2π e^{−κ} I₀(κ)). En w = 2κ (sin²(t/2) − sin²(φ/2)),
+    dt = dw/(κ sin t), sin t = 2√(x(1 − x)), x = sin²(t/2) : sur [0, w(π)/2], coupures géométriques
+    depuis l'échelle 2κ sin²(φ/2) de la quasi-singularité en w = −2κ sin²(φ/2) ; sur [w(π)/2, w(π)],
+    en u = √(w(π) − w), qui lève la singularité en t = π (intégrande e^{−w} √2/√(κ x))."""
+    with mp.workprec(prec):
+        k, phi = mpf(k), mpf(phi)
+        norm = von_mises_norm(k)
+        s0, c0 = mp.sin(phi / 2) ** 2, mp.cos(phi / 2) ** 2
+        density = mp.exp(-2 * k * s0) / norm
+        if k == 0:
+            return (mp.pi - phi) / norm, density
+        top = 2 * k * c0                                        # w(π)
+        cap = mpf(3 * prec)                                     # e^{−w} négligeable au-delà
+        half = top / 2
+        lower_end = min(half, cap)
+        f = lambda w: mp.exp(-w) / (2 * k * mp.sqrt((s0 + w / (2 * k)) * (c0 - w / (2 * k))))
+        pts = [mpf(0)]
+        b = max(2 * k * s0, mpf(2) ** -prec)
+        while b < lower_end:
+            if b > pts[-1]:
+                pts.append(b)
+            b *= 2
+        pts.append(lower_end)
+        total = mp.quad(f, pts)
+        if half < cap:
+            g = lambda u: mp.exp(-(top - u * u)) * mp.sqrt(2) / mp.sqrt(k * (1 - u * u / (2 * k)))
+            total += mp.quad(g, [0, mp.sqrt(half)])
+        return mp.exp(-2 * k * s0) * total / norm, density
+
+
+def von_mises_head(k, phi, prec):
+    """D(φ) = ∫_0^φ e^{κ(cos t − 1)} dt / (2π e^{−κ} I₀(κ)) (φ petit : D = ½ − G sans compensation)."""
+    with mp.workprec(prec):
+        k, phi = mpf(k), mpf(phi)
+        n = int(min(64, 2 + phi * mp.sqrt(k + 1)))
+        pts = [phi * j / n for j in range(n + 1)]
+        return mp.quad(lambda t: mp.exp(-2 * k * mp.sin(t / 2) ** 2), pts) / von_mises_norm(k)
+
+
+def von_mises_solve(k, t, low_prec=53, prec=120):
+    """φ tel que G(φ) = t (t <= 1/2) : par G pour t <= 1/4, par D(φ) = 1/2 − t au-delà."""
+    t = mpf(t)
+    head = t > mpf(1) / 4
+    r = mpf(1) / 2 - t if head else t
+    if r == 0:
+        return mpf(0)
+    value = (lambda phi, pr: von_mises_head(k, phi, pr)) if head else (lambda phi, pr: von_mises_tail(k, phi, pr)[0])
+    lo, hi = mpf(0), +mp.pi
+    for _ in range(25):
+        mid = (lo + hi) / 2
+        if (value(mid, low_prec) > r) != head:
+            lo = mid
+        else:
+            hi = mid
+    phi = (lo + hi) / 2
+    with mp.workprec(prec):
+        for _ in range(10):
+            g = von_mises_tail(k, phi, prec)[1]
+            step = (value(phi, prec) - r) / g
+            phi = phi - step if head else phi + step
+            if abs(step) < mpf(2) ** -100 * (phi + mpf(2) ** -1000):
+                break
+        return +phi
+
+
+def von_mises_distribution(kind):
+    to_type = (lambda x: x) if kind == "double" else (lambda x: g.to_f32(x))
+    count = 50 if kind == "double" else 20
+    out = []
+    for mu_, kappa_ in VON_MISES:
+        m, k = mpf(to_type(mu_)), mpf(to_type(kappa_))
+        thetas = [rng.uniform(-math.pi, math.pi) for _ in range(count)]
+        thetas += [rng.choice([-1, 1]) * math.pi * (1 - 2.0 ** -rng.uniform(1, 45)) for _ in range(count // 4)]
+        thetas += [rng.choice([-1, 1]) * 2.0 ** -rng.uniform(1, 40) for _ in range(count // 4)]
+        xs = sorted({to_type(float(m) + th) for th in thetas})
+        xs = [x for x in xs if abs(mpf(x) - m) < mp.pi]
+        def cdf(x, m=m, k=k, upper=False):
+            th = mpf(x) - m
+            G = von_mises_tail(k, abs(th), 120)[0]
+            return G if (th < 0) != upper else 1 - G
+        out.append(("von_mises_cdf", mu_, kappa_, xs, cdf))
+        out.append(("von_mises_ccdf", mu_, kappa_, xs, lambda x, cdf=cdf: cdf(x, upper=True)))
+        qs = probabilities(count // 8)
+        def quantile(p, m=m, k=k, upper=False):
+            p = mpf(p)
+            low = not upper
+            if p > 0.5:
+                p, low = 1 - p, not low
+            phi = von_mises_solve(k, p)
+            return m - phi if low else m + phi
+        out.append(("von_mises_quantile", mu_, kappa_, qs, quantile))
+        out.append(("von_mises_cquantile", mu_, kappa_, qs, lambda q, quantile=quantile: quantile(q, upper=True)))
+    return out
+
+
 def discrete_quantiles(name, cases, cdf, start):
     """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
     tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
@@ -750,7 +916,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind):
+        for name, a, b, xs, f in laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind) + inverse_gaussian_laws(kind) + von_mises_distribution(kind):
             rows = groups.setdefault(name, [])
             for x, exact in zip(xs, g.parallel_map(lambda v, f=f: f(mpf(v)), [(x,) for x in xs])):
                 cr = rounder(exact)

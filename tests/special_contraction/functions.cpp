@@ -199,6 +199,9 @@ extern "C"
     double check_rayleigh(double a, double x, double p) { wsl::rayleigh const R({.scale = a}); return 1 + pdf(R, x) + log_pdf(R, x) + cdf(R, x) + ccdf(R, x) + quantile(R, p) + cquantile(R, p) + R.mean() + R.variance() + R.median() + R.entropy(); }
     double check_triangular(double a, double c, double b, double x, double p) { wsl::triangular const T({.low = a, .mode = c, .high = b}); return 1 + pdf(T, x) + log_pdf(T, x) + cdf(T, x) + ccdf(T, x) + quantile(T, p) + cquantile(T, p) + T.mean() + T.variance() + T.median() + T.skewness() + T.entropy(); }
     double check_arcsine(double a, double b, double x, double p) { wsl::arcsine const A({.low = a, .high = b}); return 1 + pdf(A, x) + log_pdf(A, x) + cdf(A, x) + ccdf(A, x) + quantile(A, p) + cquantile(A, p) + A.mean() + A.variance() + A.entropy(); }
+    double check_inverse_gaussian(double a, double b, double x, double p) { wsl::inverse_gaussian const W({.mean = a, .shape = b}); return 1 + pdf(W, x) + log_pdf(W, x) + cdf(W, x) + ccdf(W, x) + quantile(W, p) + cquantile(W, p) + W.variance() + W.mode() + W.skewness() + W.excess_kurtosis(); }
+    double check_inverse_gaussian_sample(double a, double b, wsl::xoshiro256pp& g) { return 1 + sample(wsl::inverse_gaussian({.mean = a, .shape = b}), g); }
+    double check_von_mises_distribution(double a, double b, double x, double p) { wsl::von_mises const V({.mu = a, .kappa = b}); return 1 + cdf(V, x) + ccdf(V, x) + quantile(V, p) + cquantile(V, p); }
     double check_complement_samples(double a, wsl::xoshiro256pp& g)
     {
         return 1 + sample(wsl::gumbel({.location = a, .scale = 2.0}), g) + sample(wsl::frechet({.shape = a, .scale = 2.0}), g) + sample(wsl::rayleigh({.scale = a}), g)
