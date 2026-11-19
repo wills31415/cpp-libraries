@@ -156,11 +156,77 @@ Piste : compléter ce qui a une forme close ou un calcul sûr ; sinon l'absence 
 
 Un seul exemple (`examples/dlist_demo.cpp`) pour neuf bibliothèques.
 
-## 5. Décisions à prendre d'abord
+## 5. Lecture approfondie (sources lues en entier)
+
+### 5.1 Défauts
+
+- **dlist** : `erase(const_iterator)` et `erase(first, last)` ne compilent pas
+  (`basic_iterator<true>` rendu là où `iterator` est attendu) ; aucun test ne les appelle.
+- **dlist** : aucune position n'est accessible publiquement (les décalages cumulés sont
+  privés) ; les tests ne vérifient les positions qu'à travers le texte de `dump`. Chaque
+  opération parcourt la liste depuis le début (`node_offset`), d'où `extract` et
+  `erase(first, last)` en O(n²).
+- **progress** : `done * 20` déborde pour `done` > 2⁵⁹ (tranches de 5 %).
+- **gamma** : construite par l'échelle, `rate()` est 1/scale arrondi (et inversement) ; deux
+  paramétrisations d'une même loi ne sont pas égales (`==` compare la forme stockée).
+
+### 5.2 Écarts de nommage
+
+- **beta** : paramètres `.alpha`, `.beta`, accesseurs `a()`, `b()`.
+- Accesseurs : chaque loi expose ses paramètres sous leurs noms (`sd()`, `kappa()`,
+  `trials()`…), parfois pas du tout (`categorical`) ; aucun accès commun (`param()` de
+  `<random>`).
+- Constructeurs : `explicit` pour les objets combinatoires et les processus, implicites pour
+  les lois (une fonction qui prend une `normal<>` accepte `{.mean = …, .sd = …}`).
+- Constructions positionnelles au milieu de paramètres nommés : `truncate(X, a, b)`,
+  `weighted(w, X)`, `random_walk(pas, {.start})`, `compound_poisson(taux, loi)`,
+  `inhomogeneous_poisson_process(f, borne)`.
+- Noms génériques dans `wsl` : `interval`, `distribution`, `dynamic`, `fast`, `exactness`,
+  `image`, `weighted`, `tally`, `rate`, `streamable`, `to_string`, `sign`.
+
+### 5.3 Recouvrements entre bibliothèques
+
+- Matrices : `array2d<T, R, C>` (taille fixe, deux dispositions, C++23) et
+  `square_matrix<T, N>` (wsl::random, taille fixe ou dynamique) ; elo passe ses tableaux
+  en `std::vector<std::vector<tally>>`. Piste : un type matriciel commun.
+- Vecteurs : `vector_of<T, N>` (std::array ou std::vector) dans wsl::random seulement.
+- Arithmétique double-double : `wsl::special::detail::extended` importée par
+  `wsl::detail` (random), plus des compléments éparpillés dans les lois.
+- Quatre `struct {elo, low, high}` en deux noms dans elo (`elo_estimate`, `rating`).
+
+### 5.4 Code et documentation divergents
+
+| Document | Dit | Code |
+|---|---|---|
+| random.md §4.3 | `wsl::normal Z({.mean = 0, .variance = 4})` | `.sd` |
+| random.md §4.3 | `X.kurtosis()` | `excess_kurtosis()` |
+| random.md §4.3 | `characteristic(X, t)`, `mgf(X, t)` | absents |
+| random.md §4.4 | tirage générique (inversion, rejet, ARS, alias) | absent (alias seulement dans `categorical`) |
+| random.md §4.3 | attribut inexistant = erreur de compilation | moyenne de Fréchet (α <= 1) : +∞ ; d'une stable (α <= 1) : NaN |
+| random.md §4.7 | adaptateur avec `<<` et `>>` | sans les flux (law.hpp le dit) |
+| random.md §4.2–4.4 | marqués ◻︎ | faits |
+| special.md §3 | `beta_inc` | `ibeta`, `ibetac` |
+
+### 5.5 Style
+
+- Gardes : `#pragma once` partout, sauf dlist, graded, graded_io (`#ifndef`).
+- Commentaires : accentués partout, en ASCII dans graded et graded_io ; dlist et array2d
+  sans commentaire d'en-tête ; messages d'exception en anglais dans dlist, en français
+  ailleurs.
+- Accolades et espaces : trois styles (`if(` dans array2d/elo/progress, `if (` ailleurs ;
+  accolades sur une ligne ou non).
+- graded surcharge la virgule (alias de `concat`) ; `elems` public dans graded, `elems_`
+  public dans array2d (agrégats).
+- Hachage de graded : constantes FNV de 64 bits dans un `std::size_t` (32 bits ailleurs).
+
+## 6. Décisions à prendre d'abord
 
 1. Espaces de noms : `wsl::random::…` ou `wsl::…` ; un `detail` par bibliothèque.
 2. Vocabulaire des paramètres et leurs défauts.
 3. Types des moments et règle de l'indéfini et des erreurs.
 4. Niveau d'ambition envers le standard (moteurs complets, noms de `<cmath>` ou de Boost).
+
+5. Défauts à corriger sans attendre la refonte (dlist, progress) ou avec elle.
+6. Recouvrements : type matriciel commun, arithmétique étendue partagée et son nom.
 
 Ensuite : bibliothèque par bibliothèque, une entrée de rupture au CHANGELOG chacune.
