@@ -105,6 +105,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   Newton à résidu précis, moments ; tirage bit-exact (Michael, Schucany et Haas).
 - `von_mises` : répartition, survie, quantile et quantile de survie (intégrale de la queue
   par Gauss–Legendre par morceaux, quantiles par Newton sur la plus petite part).
+- `negative_binomial<I>` (`{.successes, .p}`, r réel) et `hypergeometric<I>`
+  (`{.population, .successes, .draws}`) : masses, répartitions sous 0,5 ulp, quantiles
+  exacts, moments ; tirages bit-exacts.
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 

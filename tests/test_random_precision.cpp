@@ -59,6 +59,17 @@ namespace
     wsl::normal<T> normal(double mean, double sd) { return wsl::normal<T>({.mean = T(mean), .sd = T(sd)}); }
 }
 
+// Hypergéométrique : (N, K) portés par (a, b), n retrouvé dans la table des références.
+template <class Int>
+wsl::hypergeometric<Int> hypergeometric_of(double N, double Ks)
+{
+    struct { long long N, K, n; } const table[] = {{50, 20, 10}, {1000, 300, 400}, {1000000, 1000, 50000}, {1000000000, 500000000, 1000000}, {30, 29, 15}};
+    for (auto const& t : table)
+        if (double(t.N) == N && double(t.K) == Ks)
+            return wsl::hypergeometric<Int>({.population = Int(t.N), .successes = Int(t.K), .draws = Int(t.n)});
+    return wsl::hypergeometric<Int>({.population = Int(N), .successes = Int(Ks), .draws = 0});
+}
+
 // Paramètres des références des lois de compléments (a, b ne portent que deux paramètres).
 double frechet_location(double shape, double scale)
 {
@@ -325,6 +336,17 @@ int main()
 
     check<double>("poisson cdf", d::poisson_cdf_double, [](double a, double, double x) { return cdf(wsl::poisson<K>({.mean = a}), K(x)); }, tight);
     check<double>("poisson ccdf", d::poisson_ccdf_double, [](double a, double, double x) { return ccdf(wsl::poisson<K>({.mean = a}), K(x)); }, tight);
+    auto const NB = [](double a, double b) { return wsl::negative_binomial<K>({.successes = a, .p = b}); };
+    check<double>("negative_binomial pmf", d::negative_binomial_pmf_double, [&](double a, double b, double x) { return pmf(NB(a, b), K(x)); }, tight);
+    check<double>("negative_binomial log_pmf", d::negative_binomial_log_pmf_double, [&](double a, double b, double x) { return log_pmf(NB(a, b), K(x)); }, 1.0);
+    check<double>("negative_binomial cdf", d::negative_binomial_cdf_double, [&](double a, double b, double x) { return cdf(NB(a, b), K(x)); }, tight);
+    check<double>("negative_binomial ccdf", d::negative_binomial_ccdf_double, [&](double a, double b, double x) { return ccdf(NB(a, b), K(x)); }, tight);
+    check<double>("hypergeometric pmf", d::hypergeometric_pmf_double, [](double a, double b, double x) { return pmf(hypergeometric_of<K>(a, b), K(x)); }, tight);
+    check<double>("hypergeometric log_pmf", d::hypergeometric_log_pmf_double, [](double a, double b, double x) { return log_pmf(hypergeometric_of<K>(a, b), K(x)); }, 1.0);
+    check<double>("hypergeometric cdf", d::hypergeometric_cdf_double, [](double a, double b, double x) { return cdf(hypergeometric_of<K>(a, b), K(x)); }, tight);
+    check<double>("hypergeometric ccdf", d::hypergeometric_ccdf_double, [](double a, double b, double x) { return ccdf(hypergeometric_of<K>(a, b), K(x)); }, tight);
+    check<double>("hypergeometric mean", d::hypergeometric_mean_double, [](double a, double b, double) { return hypergeometric_of<K>(a, b).mean(); }, tight);
+    check<double>("hypergeometric variance", d::hypergeometric_variance_double, [](double a, double b, double) { return hypergeometric_of<K>(a, b).variance(); }, tight);
     check<double>("binomial cdf", d::binomial_cdf_double, [](double a, double b, double x) { return cdf(wsl::binomial<K>({.trials = K(a), .p = b}), K(x)); }, tight);
     check<double>("binomial ccdf", d::binomial_ccdf_double, [](double a, double b, double x) { return ccdf(wsl::binomial<K>({.trials = K(a), .p = b}), K(x)); }, tight);
     {
@@ -337,6 +359,16 @@ int main()
         for (auto const& q : d::binomial_quantile)
             wrong += quantile(wsl::binomial<K>({.trials = K(q.a), .p = q.b}), q.u) != q.k;
         std::printf("%-28s %5zu points : %zu faux\n", "binomial quantile", std::size(d::binomial_quantile), wrong);
+        failed |= wrong != 0;
+        wrong = 0;
+        for (auto const& q : d::negative_binomial_quantile)
+            wrong += quantile(wsl::negative_binomial<K>({.successes = q.a, .p = q.b}), q.u) != q.k;
+        std::printf("%-28s %5zu points : %zu faux\n", "negative_binomial quantile", std::size(d::negative_binomial_quantile), wrong);
+        failed |= wrong != 0;
+        wrong = 0;
+        for (auto const& q : d::hypergeometric_quantile)
+            wrong += quantile(hypergeometric_of<K>(q.a, q.b), q.u) != q.k;
+        std::printf("%-28s %5zu points : %zu faux\n", "hypergeometric quantile", std::size(d::hypergeometric_quantile), wrong);
         failed |= wrong != 0;
     }
 

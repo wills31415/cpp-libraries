@@ -976,3 +976,15 @@ Références (mpmath) : mp.quad en t ne convergeait pas pour κ grand (erreur re
 pour κ = 1000) ; en w = 2κ(sin²(t/2) − sin²(φ/2)), avec u = √(w(π) − w) sur la seconde
 moitié (singularité en t = π levée) et des coupures géométriques depuis 2κ sin²(φ/2), elles
 concordent avec la série de Fourier à haute précision.
+
+## 18. Lois discrètes, lot 3 : binomiale négative, hypergéométrique
+
+| Loi | Paramètres | Méthode | Tirage |
+|---|---|---|---|
+| `negative_binomial<I>` | `{.successes = r (réel > 0), .p}` | masse r/(k + r) b(r; k + r, p) par Loader (n = k + r réel en double-double) ; répartition I_p(r, k + 1), survie par complément de la bêta incomplète ; quantile exact | gamma–Poisson, approché |
+| `hypergeometric<I>` | `{.population = N, .successes = K, .draws = n}` (N <= 2⁵³) | masse b(k; K, π) b(n − k; N − K, π)/b(n; N, π), π = n/N en double-double (dhyper de R) ; répartition : la queue la plus petite, sommée par le rapport de masses consécutives (O(σ) termes) ; quantile exact | inversion depuis le mode, approché |
+
+Précision mesurée : masses, répartitions et moments sous 0,5 ulp (arrondi correct sur 100 %
+des points) ; quantiles exacts sur 1096 points. Générateur : la recherche des quantiles
+discrets de référence avançait pas à pas depuis une estimation normale (des milliers de bêtas
+incomplètes à 400 bits pour σ ~ 10⁴) ; recherche exponentielle puis dichotomique.

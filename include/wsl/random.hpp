@@ -59,7 +59,9 @@
 #include <wsl/random/triangular.hpp>
 #include <wsl/random/rayleigh.hpp>
 #include <wsl/random/gumbel.hpp>
+#include <wsl/random/hypergeometric.hpp>
 #include <wsl/random/inverse_gaussian.hpp>
+#include <wsl/random/negative_binomial.hpp>
 #include <wsl/random/process.hpp>
 #include <wsl/random/categorical.hpp>
 #include <wsl/random/permutations.hpp>

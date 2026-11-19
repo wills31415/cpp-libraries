@@ -202,6 +202,8 @@ extern "C"
     double check_inverse_gaussian(double a, double b, double x, double p) { wsl::inverse_gaussian const W({.mean = a, .shape = b}); return 1 + pdf(W, x) + log_pdf(W, x) + cdf(W, x) + ccdf(W, x) + quantile(W, p) + cquantile(W, p) + W.variance() + W.mode() + W.skewness() + W.excess_kurtosis(); }
     double check_inverse_gaussian_sample(double a, double b, wsl::xoshiro256pp& g) { return 1 + sample(wsl::inverse_gaussian({.mean = a, .shape = b}), g); }
     double check_von_mises_distribution(double a, double b, double x, double p) { wsl::von_mises const V({.mu = a, .kappa = b}); return 1 + cdf(V, x) + ccdf(V, x) + quantile(V, p) + cquantile(V, p); }
+    double check_negative_binomial(double r, double p, long long k, double u) { wsl::negative_binomial const X({.successes = r, .p = p}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + X.skewness() + X.excess_kurtosis(); }
+    double check_hypergeometric(long long n, long long k, double u, wsl::xoshiro256pp& g) { wsl::hypergeometric const X({.population = 1000, .successes = 300, .draws = n}); return 1 + pmf(X, k) + log_pmf(X, k) + cdf(X, k) + ccdf(X, k) + double(quantile(X, u)) + X.mean() + X.variance() + double(sample(X, g)); }
     double check_complement_samples(double a, wsl::xoshiro256pp& g)
     {
         return 1 + sample(wsl::gumbel({.location = a, .scale = 2.0}), g) + sample(wsl::frechet({.shape = a, .scale = 2.0}), g) + sample(wsl::rayleigh({.scale = a}), g)

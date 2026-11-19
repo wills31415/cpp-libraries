@@ -890,15 +890,110 @@ def von_mises_distribution(kind):
     return out
 
 
+NEGATIVE_BINOMIAL = [(3.5, 0.4), (0.3, 0.05), (1e3, 0.999), (50.0, 0.5), (1e-3, 0.9), (2.0, 1e-4)]
+HYPERGEOMETRIC = [(50, 20, 10), (1000, 300, 400), (10 ** 6, 10 ** 3, 5 * 10 ** 4), (10 ** 9, 5 * 10 ** 8, 10 ** 6), (30, 29, 15)]
+
+
+def negative_binomial_log_pmf(r, pp, k):
+    with mp.workprec(300):
+        r, pp, k = mpf(r), mpf(pp), mpf(k)
+        return mp.loggamma(k + r) - mp.loggamma(k + 1) - mp.loggamma(r) + r * mp.log(pp) + k * mp.log1p(-pp)
+
+
+def hypergeometric_log_pmf(N, K, n, k):
+    lc = lambda a, b: mp.loggamma(a + 1) - mp.loggamma(b + 1) - mp.loggamma(a - b + 1)
+    with mp.workprec(200):
+        return lc(mpf(K), mpf(k)) + lc(mpf(N - K), mpf(n - k)) - lc(mpf(N), mpf(n))
+
+
+def hypergeometric_tail(N, K, n, k, upper):
+    """Σ_{j<=k} P(j) (ou Σ_{j>k}) par le rapport de masses consécutives, à 320 bits."""
+    lo, hi = max(0, n - (N - K)), min(n, K)
+    with mp.workprec(200):
+        j = k + 1 if upper else k
+        if j < lo or j > hi:
+            return mpf(0)
+        base = mp.exp(hypergeometric_log_pmf(N, K, n, j))
+        total, term = mpf(1), mpf(1)
+        while (j < hi) if upper else (j > lo):
+            if upper:
+                term *= mpf(K - j) * (n - j) / (mpf(j + 1) * (N - K - n + j + 1))
+                j += 1
+            else:
+                term *= mpf(j) * (N - K - n + j) / (mpf(K - j + 1) * (n - j + 1))
+                j -= 1
+            total += term
+            if term < total * mpf(2) ** -130:
+                break
+        return base * total
+
+
+HYPERGEOMETRIC_DRAWS = {(N, K): n for N, K, n in HYPERGEOMETRIC}
+
+
+def hypergeometric_cdf_reference(N, K, k):
+    n = HYPERGEOMETRIC_DRAWS[(N, K)]
+    if k >= min(n, K):
+        return mpf(1)
+    return hypergeometric_tail(N, K, n, k, False)
+
+
+def hypergeometric_start(N, K, u):
+    n = HYPERGEOMETRIC_DRAWS[(N, K)]
+    mean, sd = n * K / N, math.sqrt(max(n * K * (N - K) * (N - n) / (N * N * (N - 1)), 0.25))
+    return min(min(n, K), max(max(0, n - (N - K)), mean + sd * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u)))))
+
+
+def new_discrete_laws():
+    out = []
+    for r, pp in NEGATIVE_BINOMIAL:
+        q = 1 - pp
+        mean, sd = r * q / pp, math.sqrt(r * q) / pp
+        ks = sorted({max(0, int(mean + sd * rng.uniform(-6, 12))) for _ in range(60)} | {0, 1, int(mean)} | {int(mean + sd * 2.0 ** rng.uniform(3, 6)) for _ in range(8)})
+        out.append(("negative_binomial_pmf", r, pp, [float(k) for k in ks], lambda k, r=r, pp=pp: mp.exp(negative_binomial_log_pmf(r, pp, k))))
+        out.append(("negative_binomial_log_pmf", r, pp, [float(k) for k in ks if k != 0 or r != 1], lambda k, r=r, pp=pp: negative_binomial_log_pmf(r, pp, k)))
+        out.append(("negative_binomial_cdf", r, pp, [float(k) for k in ks], lambda k, r=r, pp=pp: g.ibeta_reference(r, float(k) + 1, pp)[0]))
+        out.append(("negative_binomial_ccdf", r, pp, [float(k) for k in ks], lambda k, r=r, pp=pp: g.ibeta_reference(r, float(k) + 1, pp)[1]))
+    for N, K, n in HYPERGEOMETRIC:
+        lo, hi = max(0, n - (N - K)), min(n, K)
+        mean = n * K / N
+        sd = math.sqrt(max(n * K * (N - K) * (N - n) / (N * N * (N - 1)), 0.25))
+        ks = sorted({min(hi, max(lo, int(mean + sd * rng.uniform(-9, 9)))) for _ in range(50)} | {lo, hi})
+        out.append(("hypergeometric_pmf", float(N), float(K), [float(k) for k in ks], lambda k, N=N, K=K, n=n: mp.exp(hypergeometric_log_pmf(N, K, n, int(k)))))
+        out.append(("hypergeometric_log_pmf", float(N), float(K), [float(k) for k in ks], lambda k, N=N, K=K, n=n: hypergeometric_log_pmf(N, K, n, int(k))))
+        inner = [float(k) for k in ks if lo <= k < hi]
+        out.append(("hypergeometric_cdf", float(N), float(K), inner, lambda k, N=N, K=K, n=n: hypergeometric_tail(N, K, n, int(k), False)))
+        out.append(("hypergeometric_ccdf", float(N), float(K), inner, lambda k, N=N, K=K, n=n: hypergeometric_tail(N, K, n, int(k), True)))
+        out.append(("hypergeometric_mean", float(N), float(K), [0.0], lambda _, N=N, K=K, n=n: mpf(n) * K / N))
+        out.append(("hypergeometric_variance", float(N), float(K), [0.0], lambda _, N=N, K=K, n=n: mpf(n) * K * (N - K) * (N - n) / (mpf(N) ** 2 * (N - 1))))
+    return out
+
+
 def discrete_quantiles(name, cases, cdf, start):
     """Lignes {a, b, u, k} : k = plus petit entier tel que F(k) >= u (F exacte), sauf ambiguïté."""
     tasks = [(a, b, u) for a, b in cases for u in probabilities(40)]       # tirages dans l'ordre, avant le calcul
     def solve(a, b, u):
-        k = max(0, int(start(a, b, u)))
-        while k > 0 and cdf(a, b, k - 1) >= u:
-            k -= 1
-        while cdf(a, b, k) < u:
-            k += 1
+        k = max(0, int(start(a, b, u)))                                    # recherche exponentielle, puis dichotomie
+        if cdf(a, b, k) >= u:
+            hi, step = k, 1
+            lo = hi - step
+            while lo >= 0 and cdf(a, b, lo) >= u:
+                hi, step = lo, 2 * step
+                lo = hi - step
+            lo = max(lo, -1)                                                # F(lo) < u (F(−1) = 0)
+        else:
+            lo, step = k, 1
+            hi = lo + step
+            while cdf(a, b, hi) < u:
+                lo, step = hi, 2 * step
+                hi = lo + step
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if cdf(a, b, mid) >= u:
+                hi = mid
+            else:
+                lo = mid
+        k = hi
         near = lambda j: j >= 0 and abs(cdf(a, b, j) - u) < mpf(2) ** -90 * u
         return mpf(-1) if near(k) or near(k - 1) or k >= 2 ** 62 else mpf(k)
     rows = []
@@ -916,7 +1011,7 @@ def reference_file():
     for kind, rounder, ulp, fmt in (("double", g.round_double, g.ulp_double, g.hexd),
                                     ("float", g.round_float, g.ulp_float, g.hexf)):
         groups = {}
-        entries = laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind) + inverse_gaussian_laws(kind) + von_mises_distribution(kind)
+        entries = laws(kind) + (discrete_laws() if kind == "double" else []) + phase4_laws(kind) + derived_laws(kind) + second_batch(kind) + survival_quantiles(kind) + algebra_laws(kind) + circular_laws(kind) + complement_laws(kind) + inverse_gaussian_laws(kind) + von_mises_distribution(kind) + (new_discrete_laws() if kind == "double" else [])
         # tous les points de toutes les listes dans un seul calcul parallèle (les listes courtes
         # mais coûteuses, quantiles et constantes, tournaient sinon en série)
         tasks = [(i, x) for i, (_, _, _, xs, _) in enumerate(entries) for x in xs]
@@ -947,7 +1042,12 @@ def reference_file():
     binomial_cdf = lambda n, pp, k: mpf(1) if k >= n else g.ibeta_reference(float(k) + 1, float(n - k), pp)[1]
     binomial_start = lambda n, pp, u: min(n, max(0.0, n * pp + _m.sqrt(n * pp * (1 - pp)) * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u)))))
     for name, cases, cdf, start in (("poisson_quantile", [(mu, 0.0) for mu in P4_POISSON], poisson_cdf, poisson_start),
-                                    ("binomial_quantile", [(float(n), pp) for n, pp in P4_BINOMIAL], binomial_cdf, binomial_start)):
+                                    ("binomial_quantile", [(float(n), pp) for n, pp in P4_BINOMIAL], binomial_cdf, binomial_start),
+                                    ("negative_binomial_quantile", NEGATIVE_BINOMIAL, lambda r, pp, k: g.ibeta_reference(r, float(k) + 1, pp)[0],
+                                     lambda r, pp, u: max(0.0, r * (1 - pp) / pp + _m.sqrt(r * (1 - pp)) / pp * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u))))),
+                                    ("hypergeometric_quantile", [(float(N), float(K)) for N, K, _ in HYPERGEOMETRIC],
+                                     lambda N, K, k: hypergeometric_cdf_reference(int(N), int(K), int(k)),
+                                     lambda N, K, u: hypergeometric_start(int(N), int(K), u))):
         rows = discrete_quantiles(name, cases, cdf, start)
         out.append(f"    // Quantiles exacts.\n    inline constexpr quantile_point2 {name}[] = {{\n")
         out += rows

@@ -624,6 +624,37 @@ int main()
             assert(std::abs(cdf(U, x) - (x + 3.141592653589793) / (2 * 3.141592653589793)) < 1e-16);
     }
 
+    // ---- Binomiale négative, hypergéométrique ----
+    {
+        wsl::negative_binomial const B({.successes = 3.5, .p = 0.4});
+        assert(std::abs(chi_square(B, g, 50000, 0, 30)) < 4);
+        assert(std::abs(chi_square(wsl::negative_binomial({.successes = 0.3, .p = 0.05}), g, 50000, 0, 60)) < 4);
+        wsl::negative_binomial const G1({.successes = 1.0, .p = 0.3});     // r = 1 : géométrique
+        for (long long k : {0LL, 3LL, 40LL})
+            assert(std::abs(pmf(G1, k) / pmf(wsl::geometric({.p = 0.3}), k) - 1) < 4e-16 && std::abs(cdf(G1, k) / cdf(wsl::geometric({.p = 0.3}), k) - 1) < 4e-16);
+        for (double u : {1e-12, 0.3, 0.999999})
+        {
+            long long const k = quantile(B, u);
+            assert(cdf(B, k) >= u && (k == 0 || cdf(B, k - 1) < u));
+        }
+        wsl::hypergeometric const H({.population = 50, .successes = 20, .draws = 10});
+        assert(std::abs(chi_square(H, g, 50000, 0, 10)) < 4);
+        wsl::hypergeometric const H2({.population = 100000, .successes = 30000, .draws = 2000});
+        assert(std::abs(chi_square(H2, g, 30000, 520, 680)) < 4);
+        double total = 0;
+        for (long long k = 0; k <= 10; ++k)
+            total += pmf(H, k);
+        assert(std::abs(total - 1) < 1e-15 && H.mode() == 4 && H.mean() == 4 && cdf(H, 10) == 1 && ccdf(H, -1) == 1);
+        for (double u : {1e-9, 0.5, 0.97})
+        {
+            long long const k = quantile(H2, u);
+            assert(cdf(H2, k) >= u && cdf(H2, k - 1) < u);
+        }
+        wsl::hypergeometric const H3({.population = 30, .successes = 29, .draws = 15});   // support {14, 15}
+        assert(H3.low() == 14 && pmf(H3, 13) == 0 && std::abs(pmf(H3, 14) - 0.5) < 1e-16);
+        assert(throws_domain_error([] { wsl::hypergeometric X({.population = 10, .successes = 11, .draws = 2}); }) && throws_domain_error([] { wsl::negative_binomial X({.successes = 2, .p = 0}); }));
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::xoshiro256pp a(5), b(5);
@@ -768,6 +799,14 @@ int main()
             double const u = wsl::uniform_real(x), t = fp::fmul(6.0, u) - 2.75;
             return bits(cdf(Vm, t)) ^ (bits(ccdf(Vm, t)) << 1) ^ (bits(quantile(Vm, u)) << 2) ^ (bits(cquantile(Vm, u)) << 3);
         }, 1 << 8), 0xedcd34abd3d9dd7f);
+        wsl::negative_binomial const Nb({.successes = 2.5, .p = 0.3});
+        wsl::hypergeometric const Hg({.population = 500, .successes = 120, .draws = 60});
+        ok &= check("discrete lot 3", fingerprint([&] { return bits(double(sample(Nb, x))) ^ (bits(double(sample(Hg, x))) << 1); }, 1 << 12), 0x1abf82d977d052a7);
+        ok &= check("discrete lot 3 functions", fingerprint([&] {
+            double const u = wsl::uniform_real(x);
+            long long const k = static_cast<long long>(wsl::uniform_below(x, 30));
+            return bits(pmf(Nb, k)) ^ (bits(cdf(Nb, k)) << 1) ^ (bits(double(quantile(Nb, u))) << 2) ^ (bits(pmf(Hg, k)) << 3) ^ (bits(ccdf(Hg, k)) << 4) ^ (bits(double(quantile(Hg, u))) << 5);
+        }, 1 << 9), 0x2fa168fb952bbce9);
     }
     assert(ok);
     return 0;
