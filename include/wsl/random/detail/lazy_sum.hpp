@@ -139,7 +139,10 @@ namespace wsl::random::detail
     template <class T, class G>
     constexpr lazy_draw lazy_sample(exponential<T> const& X, G& g)
     {
-        return {{}, to_dyadic(1.0), double(X.rate()), exact_exponential(g)};
+        if (double const r = X.exact_rate().as_double(); r != 0)
+            return {{}, to_dyadic(1.0), r, exact_exponential(g)};
+        auto const f = X.exact_rate().sampling_factors();                    // V/λ = V σ / d, exact
+        return {{}, to_dyadic(f.sigma), f.divisor, exact_exponential(g)};
     }
     template <class T, class G>
     constexpr lazy_draw lazy_sample(laplace<T> const& X, G& g)

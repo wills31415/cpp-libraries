@@ -423,6 +423,37 @@ int main()
                  ^ (bits(wsl::random::cdf(M, t)) << 4) ^ (bits(wsl::random::quantile(M, u)) << 5) ^ (bits(wsl::random::cquantile(wsl::random::gamma({.rate = 1.0, .shape = 0.5}), u)) << 6);
         }, 1 << 9), 0x22bda422ad262729);
     }
+    // ---- Intensités rationnelles exactes (décision 5) ----------------------------------
+    {
+        namespace wr = wsl::random;
+        // forme canonique : == est l'égalité en loi
+        assert(wr::gamma({.rate = 2.0, .shape = 3.0}) == wr::gamma({.scale = 0.5, .shape = 3.0}));
+        assert(wr::gamma({.rate = wr::ratio(1, 3), .shape = 3.0}) == wr::gamma({.scale = 3.0, .shape = 3.0}));
+        assert(!(wr::gamma({.rate = 1.0 / 3, .shape = 3.0}) == wr::gamma({.scale = 3.0, .shape = 3.0})));   // 1/3 arrondi : autre loi
+        assert(wr::exponential({.scale = 3.0}) == wr::exponential({.rate = wr::ratio(2, 6)}) && wr::exponential() == wr::exponential({.rate = 1.0}));
+        assert(throws_domain_error([] { (void)wr::gamma({.rate = 1.0, .scale = 1.0, .shape = 2.0}); }));
+        assert(throws_domain_error([] { (void)wr::exponential({.rate = wr::ratio(1, 0)}); }));
+        // param() : forme lisible, aller-retour exact
+        auto const G3 = wr::gamma({.scale = 3.0, .shape = 2.5});
+        assert(!G3.param().rate && G3.param().scale->numerator() == 3 && wr::gamma(G3.param()) == G3);
+        auto const H = wr::exponential({.rate = wr::ratio(2, 3)});                                 // échelle 1,5 : un double
+        assert(!H.param().rate && H.param().scale->numerator() == 1.5 && wr::exponential(H.param()) == H);
+        auto const R = wr::exponential({.rate = wr::ratio(3, 5)});                                 // ni λ ni 1/λ ne sont des doubles
+        assert(R.param().rate && R.param().rate->numerator() == 3 && R.param().rate->denominator() == 5 && wr::exponential(R.param()) == R);
+        // valeurs : celles de l'échelle exacte
+        wr::exponential const E3({.scale = 3.0});
+        assert(E3.mean() == 3 && E3.variance() == 9 && E3.scale() == 3 && E3.cdf(3.0) == wr::exponential({.rate = 1.0}).cdf(1.0));
+        assert(kolmogorov_smirnov(E3, g) < 1.95 && kolmogorov_smirnov(wr::gamma({.rate = wr::ratio(3, 7), .shape = 0.6}), g) < 1.95);
+        auto const K = wr::erlang({.scale = 3.0, .shape = 4});
+        assert(K.mean() == 12 && K.scale() == 3 && kolmogorov_smirnov(K, g) < 1.95);
+        // algèbre : c X et sommes, intensités exactes
+        auto const S = wr::affine(wr::gamma({.rate = 2.0, .shape = 3.0}), {.scale = 3});            // gamma(3, 2/3) exactement
+        assert(S.cdf(1.0) == wr::gamma({.rate = wr::ratio(2, 3), .shape = 3.0}).cdf(1.0));
+        auto const C = wr::convolution(wr::exponential({.scale = 3.0}), wr::gamma({.rate = wr::ratio(1, 3), .shape = 2.0}));
+        assert(C.family() && *C.family() == wr::gamma({.scale = 3.0, .shape = 3.0}));
+        auto const C2 = wr::convolution(wr::exponential({.scale = 3.0}), wr::exponential({.rate = wr::ratio(1, 3)}));
+        assert(C2.family() && *C2.family() == wr::gamma({.scale = 3.0, .shape = 2.0}));
+    }
     assert(ok);
     std::printf("test_random_algebra : ok\n");
 }

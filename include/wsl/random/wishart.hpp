@@ -76,7 +76,7 @@ namespace wsl::random
                 if (!cholesky(v, l))
                     throw std::domain_error("wsl::random::wishart : échelle non symétrique définie positive");
                 for (std::size_t i = 0; i < p; ++i)
-                    chi.push_back(gamma<double>(typename gamma<double>::shape_scale{.scale = 2.0, .shape = sd::fmul(double(n) - double(i), 0.5)}));
+                    chi.push_back(gamma<double>(typename gamma<double>::parameters{.scale = 2.0, .shape = sd::fmul(double(n) - double(i), 0.5)}));
                 log_det_half = half_log_determinant(l);
                 log_gamma_p = log_multivariate_gamma(p, sd::fmul(double(n), 0.5));
             }
@@ -167,7 +167,7 @@ namespace wsl::random
         // Wᵢᵢ ~ Vᵢᵢ χ²(n) = gamma(n/2, échelle 2Vᵢᵢ)
         constexpr gamma<T> marginal(std::size_t i) const
         {
-            return gamma<T>(typename gamma<T>::shape_scale{.scale = static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i)))), .shape = static_cast<T>(detail::sd::fmul(double(b_.n), 0.5))});
+            return gamma<T>(typename gamma<T>::parameters{.scale = static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i)))), .shape = static_cast<T>(detail::sd::fmul(double(b_.n), 0.5))});
         }
 
         constexpr double log_pdf(value_type const& x) const

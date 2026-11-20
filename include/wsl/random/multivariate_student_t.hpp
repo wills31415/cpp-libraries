@@ -50,7 +50,7 @@ namespace wsl::random
 
         constexpr multivariate_student_t(parameters p)
             : nu_(p.degrees_of_freedom), mu_(p.location), sigma_(p.scale), l_(detail::make_matrix<double, N>(p.location.size())),
-              chi_(typename gamma<double>::shape_scale{.scale = 2.0, .shape = detail::sd::fmul(double(p.degrees_of_freedom), 0.5)})
+              chi_(typename gamma<double>::parameters{.scale = 2.0, .shape = detail::sd::fmul(double(p.degrees_of_freedom), 0.5)})
         {
             if (!(nu_ > 0) || !detail::is_finite(nu_))
                 throw std::domain_error("wsl::random::multivariate_student_t : il faut degrees_of_freedom > 0, fini");

@@ -77,19 +77,22 @@ namespace wsl::random
     template <law_real T>
     constexpr std::optional<gamma<T>> sum_closure(exponential<T> const& X, exponential<T> const& Y) noexcept
     {
-        if (!(X.rate() == Y.rate()))
+        if (!(X.exact_rate() == Y.exact_rate()))
             return std::nullopt;
-        return gamma<T>({.rate = X.rate(), .shape = T(2)});
+        auto const [r, s] = detail::parameters_of(X.exact_rate());
+        return gamma<T>({.rate = r, .scale = s, .shape = T(2)});
     }
     template <law_real T>
     constexpr std::optional<gamma<T>> sum_closure(gamma<T> const& X, exponential<T> const& Y) noexcept
     {
-        return sum_closure(X, gamma<T>({.rate = Y.rate(), .shape = T(1)}));
+        auto const [r, s] = detail::parameters_of(Y.exact_rate());
+        return sum_closure(X, gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
     }
     template <law_real T>
     constexpr std::optional<gamma<T>> sum_closure(exponential<T> const& X, gamma<T> const& Y) noexcept
     {
-        return sum_closure(Y, gamma<T>({.rate = X.rate(), .shape = T(1)}));
+        auto const [r, s] = detail::parameters_of(X.exact_rate());
+        return sum_closure(Y, gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
     }
     template <law_integer I>
     constexpr std::optional<binomial<I>> sum_closure(binomial<I> const& X, binomial<I> const& Y) noexcept

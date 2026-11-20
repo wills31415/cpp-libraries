@@ -91,6 +91,15 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   d'abord, comme `mt19937_64` ; xoshiro : état nul remplacé par celui de `seed(0)`),
   `seed()`, `os << e` et `is >> e` (décimal ; lecture invalide : moteur intact, `failbit`).
   `philox4x64::discard` en O(1) (compteur + n/4 ; il avançait bloc par bloc).
+- Intensités rationnelles exactes (décision 5 révisée) : gamma, exponentielle et Erlang
+  stockent λ = P/Q·2ᵉ réduite ; `.rate` ou `.scale` (double, ou `wr::ratio(a, b)`), exactes
+  toutes deux, aucune des deux : λ = 1. `==` est l'égalité en loi
+  (`gamma({.rate = 2})` == `gamma({.scale = 0.5})`), `param()` rend la forme lisible
+  (`.rate` ou `.scale` en double si possible, sinon `ratio`). Tirage exact pour toute
+  intensité rationnelle (V·Q·2⁻ᵉ/P). Rupture : `gamma::shape_rate` et `shape_scale`
+  remplacés par `gamma::parameters` ; `exponential({.scale})` ajouté ; `c·X` d'une gamma
+  ou d'une exponentielle garde λ/c exact (arrondi avant). Voies rapides inchangées quand
+  λ ou 1/λ est un double : mêmes valeurs et mêmes tirages.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

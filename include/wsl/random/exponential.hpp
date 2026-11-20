@@ -16,6 +16,7 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/rational.hpp>
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/uniform.hpp>
@@ -34,32 +35,43 @@ namespace wsl::random
         using value_type = T;
         static constexpr exactness sampling = exactness::exact;
 
+        // Intensité .rate ou échelle .scale (l'une des deux au plus ; aucune : λ = 1), double ou
+        // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
-            T rate;
+            std::optional<ratio> rate, scale;
         };
         using param_type = parameters;
-        constexpr param_type param() const { return {.rate = rate()}; }
-
-        constexpr exponential() : exponential(parameters{.rate = 1}) {}
-
-        constexpr exponential(parameters p) : rate_(p.rate)
+        constexpr param_type param() const
         {
-            if (!(rate_ > 0) || !detail::is_finite(rate_))
-                throw std::domain_error("wsl::random::exponential : il faut rate > 0, fini");
+            auto const [r, s] = detail::parameters_of(lambda_);
+            return {.rate = r, .scale = s};
         }
 
-        constexpr T rate() const noexcept { return rate_; }
+        constexpr exponential() : exponential(parameters{}) {}
+        constexpr exponential(parameters p)
+            : lambda_(detail::rate_of(p.rate, p.scale, "wsl::random::exponential : il faut .rate ou .scale (pas les deux), > 0 et finis")),
+              rate_(lambda_.as_double())
+        {
+        }
+
+        // λ et 1/λ arrondis (exacts quand ils sont des doubles).
+        constexpr T rate() const noexcept { return static_cast<T>(rate_ != 0 ? rate_ : detail::rounded(lambda_.value())); }
+        constexpr T scale() const noexcept { return static_cast<T>(detail::rounded(per_lambda(detail::normalized(1.0, 0.0)))); }
+        constexpr detail::exact_rate const& exact_rate() const noexcept { return lambda_; }
         constexpr interval<T> support() const noexcept { return {T(0), std::numeric_limits<T>::infinity()}; }
 
-        constexpr T mean() const noexcept { return static_cast<T>(1.0 / double(rate_)); }
+        constexpr T mean() const noexcept
+        {
+            return static_cast<T>(rate_ != 0 ? 1.0 / rate_ : detail::rounded(per_lambda(detail::normalized(1.0, 0.0))));
+        }
         constexpr T variance() const noexcept
         {
-            return static_cast<T>(detail::rounded(detail::normalized(1.0, 0.0) / double(rate_) / double(rate_)));
+            return static_cast<T>(detail::rounded(per_lambda(per_lambda(detail::normalized(1.0, 0.0)))));
         }
         constexpr T median() const noexcept
         {
-            return static_cast<T>(detail::rounded(detail::normalized(detail::sd::ln2_hi, detail::sd::ln2_lo) / double(rate_)));
+            return static_cast<T>(detail::rounded(per_lambda(detail::normalized(detail::sd::ln2_hi, detail::sd::ln2_lo))));
         }
         constexpr T mode() const noexcept { return 0; }
         constexpr T skewness() const noexcept { return 2; }
@@ -67,7 +79,7 @@ namespace wsl::random
         // 1 − log λ.
         constexpr T entropy() const noexcept
         {
-            auto const [hi, lo] = detail::log_precise(double(rate_));
+            auto const [hi, lo] = log_lambda();
             auto const [s, s_error] = detail::sd::two_sum(1.0, -hi);
             return static_cast<T>(s + (s_error - lo));
         }
@@ -75,32 +87,32 @@ namespace wsl::random
         constexpr T pdf(T x) const noexcept
         {
             auto const& X = *this;
-            double const l = X.rate_, v = x;
+            double const v = x;
             if (!(v >= 0))
                 return v == v ? T(0) : x;
-            double const y = l * v;                                         // λx arrondi : pour choisir le régime
+            double const y = X.approximate_product(v);                      // λx arrondi : pour choisir le régime
             if (y > 1460)                                                   // λ e^{−λx} < 2^-1075, +∞ compris
                 return 0;
             if (y < 0x1p-900)                                               // λ (1 − λx) s'arrondit à λ
-                return X.rate_;
-            auto const [p, p_error] = detail::balanced_product(l, v);
-            return static_cast<T>(detail::rounded(detail::exp_scaled(-p, -p_error) * detail::normalized(l, 0.0)));
+                return X.rate();
+            auto const [p, p_error] = X.product(v);
+            return static_cast<T>(detail::rounded(detail::exp_scaled(-p, -p_error) * X.lambda_scaled()));
         }
 
         // log λ − λx.
         constexpr T log_pdf(T x) const noexcept
         {
             auto const& X = *this;
-            double const l = X.rate_, v = x;
+            double const v = x;
             if (!(v >= 0))
                 return v == v ? -std::numeric_limits<T>::infinity() : x;
-            double const y = l * v;
+            double const y = X.approximate_product(v);
             if (y > 0x1p100)                                                // log λ sous le demi-ulp
                 return static_cast<T>(-y);
-            auto const [hi, lo] = detail::log_precise(l);
+            auto const [hi, lo] = X.log_lambda();
             if (y < 0x1p-900)
                 return static_cast<T>(hi + lo);
-            auto const [p, p_error] = detail::balanced_product(l, v);
+            auto const [p, p_error] = X.product(v);
             auto const [s, s_error] = detail::sd::two_sum(hi, -p);
             return static_cast<T>(s + ((s_error + lo) - p_error));
         }
@@ -109,15 +121,15 @@ namespace wsl::random
         constexpr T cdf(T x) const noexcept
         {
             auto const& X = *this;
-            double const l = X.rate_, v = x;
+            double const v = x;
             if (!(v > 0))
                 return v == v ? T(0) : x;
-            double const y = l * v;
+            double const y = X.approximate_product(v);
             if (y > 40)                                                     // e^{−40} < 2^-57
                 return 1;
             if (y < 0x1p-900)                                               // λx − (λx)²/2 s'arrondit à λx
                 return static_cast<T>(y);
-            auto const [p, p_error] = detail::balanced_product(l, v);
+            auto const [p, p_error] = X.product(v);
             return static_cast<T>(-detail::expm1_dd(-p, -p_error));
         }
 
@@ -125,15 +137,15 @@ namespace wsl::random
         constexpr T ccdf(T x) const noexcept
         {
             auto const& X = *this;
-            double const l = X.rate_, v = x;
+            double const v = x;
             if (!(v > 0))
                 return v == v ? T(1) : x;
-            double const y = l * v;
+            double const y = X.approximate_product(v);
             if (y > 746)                                                    // < 2^-1076
                 return 0;
             if (y < 0x1p-900)
                 return 1;
-            auto const [p, p_error] = detail::balanced_product(l, v);
+            auto const [p, p_error] = X.product(v);
             return static_cast<T>(detail::rounded(detail::exp_scaled(-p, -p_error)));
         }
 
@@ -148,7 +160,7 @@ namespace wsl::random
             if (p == 1)
                 return std::numeric_limits<T>::infinity();
             auto const [hi, lo] = detail::log1p_dd(-p);
-            return static_cast<T>(detail::rounded(detail::normalized(-hi, -lo) / double(X.rate_)));
+            return static_cast<T>(detail::rounded(X.per_lambda(detail::normalized(-hi, -lo))));
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
@@ -162,7 +174,7 @@ namespace wsl::random
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [hi, lo] = detail::log_precise(q);                   // x = −log q / λ
-            return static_cast<T>(detail::rounded(detail::normalized(-hi, -lo) / double(X.rate_)));
+            return static_cast<T>(detail::rounded(X.per_lambda(detail::normalized(-hi, -lo))));
         }
 
         template <std::uniform_random_bit_generator G>
@@ -170,7 +182,10 @@ namespace wsl::random
         {
             auto const& X = *this;
             detail::lazy_real v = detail::exact_exponential(g);
-            return detail::round_lazy<T>(0.0, 1.0, double(X.rate_), false, v, g);
+            if (X.rate_ != 0)
+                return detail::round_lazy<T>(0.0, 1.0, X.rate_, false, v, g);
+            auto const f = X.lambda_.sampling_factors();                     // V/λ = V σ / d, exact
+            return detail::round_lazy<T>(0.0, f.sigma, f.divisor, false, v, g);
         }
 
         // Inversion : −log(U)/λ, U uniforme dans (0, 1) (approché, bit-exact).
@@ -178,12 +193,34 @@ namespace wsl::random
         constexpr T sample(G& g, fast_t) const
         {
             auto const& X = *this;
-            return static_cast<T>(-wsl::special::log(detail::uniform_positive(g)) / double(X.rate_));
+            double const e = -wsl::special::log(detail::uniform_positive(g));
+            return static_cast<T>(X.rate_ != 0 ? e / X.rate_ : detail::rounded(X.per_lambda(detail::normalized(e, 0.0))));
         }
 
-        friend constexpr bool operator==(exponential const&, exponential const&) = default;
+        friend constexpr bool operator==(exponential const& a, exponential const& b) noexcept { return a.lambda_ == b.lambda_; }
 
     private:
-        T rate_;
+        // λx en double-double (x > 0 fini), et arrondi (x > 0, +∞ compris) ; voie rapide si λ est un double.
+        constexpr detail::sd::double_double product(double x) const noexcept
+        {
+            if (rate_ != 0)
+            {
+                auto const [p, p_error] = detail::balanced_product(rate_, x);
+                return {p, p_error};
+            }
+            return detail::unscaled(lambda_.times(detail::normalized(x, 0.0)));
+        }
+        constexpr double approximate_product(double x) const noexcept
+        {
+            if (rate_ != 0)
+                return rate_ * x;
+            return detail::is_finite(x) ? detail::rounded(lambda_.times(detail::normalized(x, 0.0))) : x;
+        }
+        constexpr detail::scaled lambda_scaled() const noexcept { return rate_ != 0 ? detail::normalized(rate_, 0.0) : lambda_.value(); }
+        constexpr detail::scaled per_lambda(detail::scaled const& v) const noexcept { return rate_ != 0 ? v / rate_ : lambda_.per(v); }
+        constexpr detail::sd::double_double log_lambda() const noexcept { return rate_ != 0 ? detail::log_precise(rate_) : lambda_.log(); }
+
+        detail::exact_rate lambda_;
+        double rate_ = 0;                                                   // λ s'il est un double (sinon 0)
     };
 }

@@ -957,6 +957,7 @@ int main()
         assert(round_trip(wr::hypergeometric({.population = 50, .successes = 20, .draws = 10})) && round_trip(wr::beta_binomial({.trials = 8, .alpha = 2.0, .beta = 3.0})));
         assert(round_trip(wr::categorical({.p = {0.2, 0.5, 0.3}})) && round_trip(wr::discrete_gaussian({.location = 1.5, .scale = 2.0})) && round_trip(wr::rademacher({.p = 0.4})));
         assert(round_trip(wr::normal({.mean = 1.0, .stddev = 2.0})) && round_trip(wr::lognormal({.log_mean = 0.5, .log_stddev = 0.3})) && round_trip(wr::exponential({.rate = 2.0})));
+        assert(round_trip(wr::gamma({.scale = 3.0, .shape = 2.0})) && round_trip(wr::gamma({.rate = wr::ratio(3, 5), .shape = 2.0})) && round_trip(wr::exponential({.scale = 3.0})));
         assert(round_trip(wr::erlang({.rate = 1.5, .shape = 3})) && round_trip(wr::beta({.alpha = 2.0, .beta = 3.0})) && round_trip(wr::chi_squared({.degrees_of_freedom = 3.0})));
         assert(round_trip(wr::student_t({.degrees_of_freedom = 4.0})) && round_trip(wr::fisher_f({.d1 = 3.0, .d2 = 7.0})) && round_trip(wr::cauchy({.location = 1.0, .scale = 2.0})));
         assert(round_trip(wr::laplace({.location = 1.0, .scale = 2.0})) && round_trip(wr::logistic({.location = 1.0, .scale = 2.0})) && round_trip(wr::gumbel({.location = 1.0, .scale = 2.0})));

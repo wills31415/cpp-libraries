@@ -57,7 +57,7 @@ namespace wsl::random
             {
                 s = detail::sum(s, {double(a), 0.0});
                 lb = detail::sum(lb, detail::log_gamma(double(a)));
-                gammas_.push_back(gamma<double>(typename gamma<double>::shape_rate{.rate = 1.0, .shape = double(a)}));
+                gammas_.push_back(gamma<double>(typename gamma<double>::parameters{.rate = 1.0, .shape = double(a)}));
             }
             total_ = s.hi + s.lo;
             auto const l0 = detail::log_gamma(total_);

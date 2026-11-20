@@ -26,13 +26,18 @@ namespace wsl::random
         using value_type = T;
         static constexpr exactness sampling = exactness::exact;
 
+        // Intensité .rate ou échelle .scale, comme gamma (exactes toutes deux).
         struct parameters
         {
-            T rate;
+            std::optional<ratio> rate, scale;
             std::int64_t shape;
         };
         using param_type = parameters;
-        constexpr param_type param() const { return {.rate = rate(), .shape = shape()}; }
+        constexpr param_type param() const
+        {
+            auto const [r, s] = detail::parameters_of(g_.exact_rate());
+            return {.rate = r, .scale = s, .shape = k_};
+        }
 
         constexpr erlang(parameters p) : k_(p.shape), g_(check(p))
         {
@@ -40,6 +45,7 @@ namespace wsl::random
 
         constexpr std::int64_t shape() const noexcept { return k_; }
         constexpr T rate() const noexcept { return g_.rate(); }
+        constexpr T scale() const noexcept { return g_.scale(); }
         constexpr gamma<T> const& as_gamma() const noexcept { return g_; }
         constexpr interval<T> support() const noexcept { return g_.support(); }
         constexpr T mean() const noexcept { return g_.mean(); }
@@ -60,9 +66,12 @@ namespace wsl::random
         constexpr T sample(G& g) const
         {
             auto const& E = *this;
-            detail::lazy_sum s(std::vector<double>{double(E.g_.rate())});
+            auto const [r, sc] = detail::parameters_of(E.g_.exact_rate());
+            exponential<double> const e({.rate = r, .scale = sc});
+            double const r0 = e.exact_rate().as_double();
+            detail::lazy_sum s(std::vector<double>{r0 != 0 ? r0 : e.exact_rate().sampling_factors().divisor});
             for (std::int64_t i = 0; i < E.k_; ++i)
-                s.add(detail::lazy_sample(exponential<double>({.rate = double(E.g_.rate())}), g), g);
+                s.add(detail::lazy_sample(e, g), g);
             return s.template rounded<T>(g, {}, {}, 0, detail::to_dyadic(1.0));
         }
         template <std::uniform_random_bit_generator G>
@@ -79,7 +88,7 @@ namespace wsl::random
         {
             if (p.shape <= 0 || p.shape > (std::int64_t{1} << 53))
                 throw std::domain_error("wsl::random::erlang : il faut 1 <= shape <= 2^53");
-            return gamma<T>(typename gamma<T>::shape_rate{.rate = p.rate, .shape = static_cast<T>(p.shape)});
+            return gamma<T>({.rate = p.rate, .scale = p.scale, .shape = static_cast<T>(p.shape)});
         }
 
         std::int64_t k_;

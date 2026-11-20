@@ -132,10 +132,11 @@ namespace wsl::random
     template <law_real T>
     constexpr std::optional<exponential<T>> scale_closure(exponential<T> const& X, double c) noexcept
     {
-        auto const r = static_cast<T>(double(X.rate()) / c);
-        if (!(r > 0) || !detail::is_finite(r))
+        auto const l = X.exact_rate().divided(c);                           // λ/c exact
+        if (!l)
             return std::nullopt;
-        return exponential<T>({.rate = r});
+        auto const [r, s] = detail::parameters_of(*l);
+        return exponential<T>({.rate = r, .scale = s});
     }
     template <law_real T>
     constexpr std::optional<weibull<T>> scale_closure(weibull<T> const& X, double c) noexcept

@@ -26,6 +26,7 @@
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/lazy.hpp>
+#include <wsl/random/detail/rational.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>
@@ -95,31 +96,34 @@ namespace wsl::random
         using value_type = T;
         static constexpr exactness sampling = exactness::approximate;
 
-        struct shape_rate
+        // Intensité .rate ou échelle .scale (l'une des deux au plus ; aucune : λ = 1), double ou
+        // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
+        struct parameters
         {
-            T rate, shape;
+            std::optional<ratio> rate, scale;
+            T shape;
         };
-        struct shape_scale
+        using param_type = parameters;
+        constexpr param_type param() const
         {
-            T scale, shape;
-        };
-
-        constexpr gamma(shape_rate p) : shape_(p.shape), parameter_(p.rate), by_rate_(true) { validate(); }
-        constexpr gamma(shape_scale p) : shape_(p.shape), parameter_(p.scale), by_rate_(false) { validate(); }
-
-        constexpr T shape() const noexcept { return shape_; }
-        constexpr T rate() const noexcept { return by_rate_ ? parameter_ : static_cast<T>(1.0 / double(parameter_)); }
-        constexpr T scale() const noexcept { return by_rate_ ? static_cast<T>(1.0 / double(parameter_)) : parameter_; }
-        constexpr interval<T> support() const noexcept { return {T(0), std::numeric_limits<T>::infinity()}; }
-        // Intensité exactement λ (θλ = 1 exactement si la loi est donnée par son échelle).
-        constexpr bool has_rate(double lambda) const noexcept
-        {
-            if (by_rate_)
-                return double(parameter_) == lambda;
-            auto const [m, m_error] = detail::product(double(parameter_), lambda);
-            return m == 1 && m_error == 0;
+            auto const [r, s] = detail::parameters_of(lambda_);
+            return {.rate = r, .scale = s, .shape = shape_};
         }
 
+        constexpr gamma(parameters p)
+            : gamma(p.shape, detail::rate_of(p.rate, p.scale, "wsl::random::gamma : il faut .rate ou .scale (pas les deux), > 0 et finis"))
+        {
+        }
+
+        constexpr T shape() const noexcept { return shape_; }
+        // λ et 1/λ arrondis (exacts quand ils sont des doubles).
+        constexpr T rate() const noexcept { return static_cast<T>(rate_ != 0 ? rate_ : detail::rounded(lambda_.value())); }
+        constexpr T scale() const noexcept
+        {
+            return static_cast<T>(scale_ != 0 ? scale_ : detail::rounded(lambda_.per(detail::normalized(1.0, 0.0))));
+        }
+        constexpr detail::exact_rate const& exact_rate() const noexcept { return lambda_; }
+        constexpr interval<T> support() const noexcept { return {T(0), std::numeric_limits<T>::infinity()}; }
         constexpr T mean() const noexcept { return static_cast<T>(detail::rounded(per_rate(detail::normalized(shape_, 0.0)))); }
         constexpr T variance() const noexcept
         {
@@ -321,43 +325,50 @@ namespace wsl::random
                 double const u = detail::uniform_positive(g);
                 y = fmul_exp(h, wsl::special::log(u) / double(X.shape_));
             }
-            return static_cast<T>(X.by_rate_ ? y / double(X.parameter_) : detail::sd::fmul(y, double(X.parameter_)));
+            if (X.rate_ != 0)
+                return static_cast<T>(y / X.rate_);
+            if (X.scale_ != 0)
+                return static_cast<T>(detail::sd::fmul(y, X.scale_));
+            return static_cast<T>(y > 0 ? detail::rounded(X.lambda_.per(detail::normalized(y, 0.0))) : 0.0);
         }
 
         // Identité de l'algèbre (voir sum.hpp) : gamma(a, λ) + gamma(b, λ) = gamma(a + b, λ), dans
         // la paramétrisation de X ; vide si les intensités diffèrent.
         friend constexpr std::optional<gamma> sum_closure(gamma const& X, gamma const& Y) noexcept
         {
-            bool const same = X.by_rate_ == Y.by_rate_ ? X.parameter_ == Y.parameter_
-                                                       : X.by_rate_ ? Y.has_rate(double(X.parameter_)) : X.has_rate(double(Y.parameter_));
             auto const a = static_cast<T>(double(X.shape_) + double(Y.shape_));
-            if (!same || !detail::is_finite(a))
+            if (!(X.lambda_ == Y.lambda_) || !detail::is_finite(a))
                 return std::nullopt;
-            return X.by_rate_ ? gamma(shape_rate{.rate = X.parameter_, .shape = a}) : gamma(shape_scale{.scale = X.parameter_, .shape = a});
+            return gamma(a, X.lambda_);
         }
 
-        // Identité de l'algèbre (voir affine.hpp) : c X, c > 0, est gamma(a, θc) (ou λ/c), dans la
-        // même paramétrisation ; vide si le paramètre n'est plus représentable.
+        // Identité de l'algèbre (voir affine.hpp) : c X, c > 0, est gamma(a, λ/c), λ/c exact ;
+        // vide si son dénominateur dépasse 2^53.
         friend constexpr std::optional<gamma> scale_closure(gamma const& X, double c) noexcept
         {
-            double const v = X.by_rate_ ? double(X.parameter_) / c : detail::sd::fmul(double(X.parameter_), c);
-            auto const t = static_cast<T>(v);
-            if (!(t > 0) || !detail::is_finite(t))
+            auto const l = X.lambda_.divided(c);
+            if (!l)
                 return std::nullopt;
-            return X.by_rate_ ? gamma(shape_rate{.rate = t, .shape = X.shape_}) : gamma(shape_scale{.scale = t, .shape = X.shape_});
+            return gamma(X.shape_, *l);
         }
 
         friend constexpr bool operator==(gamma const& a, gamma const& b) noexcept
         {
-            return a.shape_ == b.shape_ && a.parameter_ == b.parameter_ && a.by_rate_ == b.by_rate_;
+            return a.shape_ == b.shape_ && a.lambda_ == b.lambda_;
         }
 
     private:
+        // Forme canonique : λ réduit ; voies rapides (calculs inchangés) quand λ ou 1/λ est un double.
+        constexpr gamma(T shape, detail::exact_rate l) : shape_(shape), lambda_(l), rate_(l.as_double()), scale_(rate_ != 0 ? 0.0 : l.inverse().as_double())
+        {
+            validate();
+        }
+
         constexpr void validate()
         {
             namespace fp = detail::sd;
-            if (!(shape_ > 0) || !detail::is_finite(shape_) || !(parameter_ > 0) || !detail::is_finite(parameter_))
-                throw std::domain_error("wsl::random::gamma : il faut shape > 0 et rate (ou scale) > 0, finis");
+            if (!(shape_ > 0) || !detail::is_finite(shape_))
+                throw std::domain_error("wsl::random::gamma : il faut shape > 0, fini");
             double const a = shape_ >= 1 ? double(shape_) : double(shape_) + 1;
             d_ = a - 1.0 / 3;
             c_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_));
@@ -376,15 +387,15 @@ namespace wsl::random
             if (v == std::numeric_limits<double>::infinity())
                 return upper ? T(0) : T(1);
             double t_hi = 0, t_lo = 0;
-            if (by_rate_)
+            if (rate_ != 0)
             {
-                auto const [h, l] = detail::product(v, double(parameter_));
+                auto const [h, l] = detail::product(v, rate_);
                 t_hi = h;
                 t_lo = l;
             }
             else
             {
-                auto const [h, l] = detail::unscaled(detail::normalized(v, 0.0) / double(parameter_));
+                auto const [h, l] = detail::unscaled(scale_ != 0 ? detail::normalized(v, 0.0) / scale_ : lambda_.times(detail::normalized(v, 0.0)));
                 t_hi = h;
                 t_lo = l;
             }
@@ -411,26 +422,28 @@ namespace wsl::random
         // λx (ou x/θ), à l'échelle.
         constexpr detail::scaled argument(double x) const noexcept
         {
-            return by_rate_ ? detail::normalized(x, 0.0) * detail::normalized(double(parameter_), 0.0)
-                            : detail::normalized(x, 0.0) / double(parameter_);
+            return per_scale(detail::normalized(x, 0.0));
         }
         // v · λ (ou v / θ), et v / λ (ou v · θ).
         constexpr detail::scaled per_scale(detail::scaled const& v) const noexcept
         {
-            return by_rate_ ? v * detail::normalized(double(parameter_), 0.0) : v / double(parameter_);
+            return rate_ != 0 ? v * detail::normalized(rate_, 0.0) : scale_ != 0 ? v / scale_ : lambda_.times(v);
         }
         constexpr detail::scaled per_rate(detail::scaled const& v) const noexcept
         {
-            return by_rate_ ? v / double(parameter_) : v * detail::normalized(double(parameter_), 0.0);
+            return rate_ != 0 ? v / rate_ : scale_ != 0 ? v * detail::normalized(scale_, 0.0) : lambda_.per(v);
         }
         constexpr detail::sd::double_double log_rate() const noexcept
         {
-            auto const [hi, lo] = detail::log_precise(double(parameter_));
-            return by_rate_ ? detail::sd::double_double{hi, lo} : detail::sd::double_double{-hi, -lo};
+            if (rate_ == 0 && scale_ == 0)
+                return lambda_.log();
+            auto const [hi, lo] = detail::log_precise(rate_ != 0 ? rate_ : scale_);
+            return rate_ != 0 ? detail::sd::double_double{hi, lo} : detail::sd::double_double{-hi, -lo};
         }
 
-        T shape_, parameter_;
-        bool by_rate_;
+        T shape_;
+        detail::exact_rate lambda_;
+        double rate_ = 0, scale_ = 0;                                       // λ, 1/λ s'ils sont des doubles (sinon 0)
         double d_ = 0, c_ = 0;                                              // Marsaglia–Tsang
     };
 }
