@@ -2,7 +2,7 @@
 
 // Loi de l'arcsinus sur [a, b] : densité 1/(π √((x − a)(b − x))).
 //
-//   wsl::random::arcsine A({.low = 0, .high = 1});   A.cdf(0.1); A.quantile(0.9); A(g);
+//   wsl::random::arcsine A({.lower = 0, .upper = 1});   A.cdf(0.1); A.quantile(0.9); A(g);
 //
 // u = (x − a)/(b − a) et 1 − u = (b − x)/(b − a) en double-double ; répartition
 // (2/π) atan √(u/(1 − u)) (u <= ½), 1 − (2/π) atan √((1 − u)/u) sinon, noyau atan à argument
@@ -35,17 +35,19 @@ namespace wsl::random
 
         struct parameters
         {
-            T low = 0, high = 1;
+            T lower = 0, upper = 1;
         };
 
-        constexpr arcsine(parameters p) : a_(p.low), b_(p.high)
+        constexpr arcsine() : arcsine(parameters{}) {}
+
+        constexpr arcsine(parameters p) : a_(p.lower), b_(p.upper)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_))
-                throw std::domain_error("wsl::random::arcsine : il faut low < high, finis");
+                throw std::domain_error("wsl::random::arcsine : il faut lower < upper, finis");
         }
 
-        constexpr T low() const noexcept { return a_; }
-        constexpr T high() const noexcept { return b_; }
+        constexpr T lower() const noexcept { return a_; }
+        constexpr T upper() const noexcept { return b_; }
         constexpr interval<T> support() const noexcept { return {a_, b_}; }
         constexpr T mean() const noexcept { return static_cast<T>(detail::sd::fmul(double(a_), 0.5) + detail::sd::fmul(double(b_), 0.5)); }
         constexpr T median() const noexcept { return mean(); }

@@ -75,7 +75,7 @@ namespace wsl::random
         template <class G>
         constexpr lazy_draw standard_normal(G& g)
         {
-            return lazy_sample(normal<double>({.mean = 0.0, .sd = 1.0}), g);
+            return lazy_sample(normal<double>({.mean = 0.0, .stddev = 1.0}), g);
         }
 
         // Brownien standard W aux instants croissants donnés (W(0) = 0) : accroissements
@@ -138,7 +138,7 @@ namespace wsl::random
             if (!(t > 0))
                 throw std::domain_error("wsl::random::brownian_motion::at : il faut t > 0");
             double const m = detail::linear(mu_, t, x0_);
-            return normal<>({.mean = m, .sd = detail::sd::fmul(sigma_, wsl::special::sqrt(t))});
+            return normal<>({.mean = m, .stddev = detail::sd::fmul(sigma_, wsl::special::sqrt(t))});
         }
 
         // Valeurs aux instants donnés (>= 0, croissants).
@@ -273,7 +273,7 @@ namespace wsl::random
                 throw std::domain_error("wsl::random::brownian_bridge::at : il faut t₀ < t < T");
             double const r = (t - from_.time) / (to_.time - from_.time);
             double const v = detail::sd::fmul(detail::sd::fmul(t - from_.time, to_.time - t) / (to_.time - from_.time), detail::sd::fmul(sigma_, sigma_));
-            return normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .sd = wsl::special::sqrt(v)});
+            return normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .stddev = wsl::special::sqrt(v)});
         }
 
         class grid_law : public law_interface
@@ -353,9 +353,9 @@ namespace wsl::random
                 throw std::domain_error("wsl::random::ornstein_uhlenbeck::at : il faut t > 0");
             double const a = sp::exp(-detail::sd::fmul(theta_, t));
             double const v = -sp::expm1(-detail::sd::fmul(detail::sd::fmul(2.0, theta_), t)) / detail::sd::fmul(2.0, theta_);
-            return normal<>({.mean = detail::linear(a, x0_ - mu_, mu_), .sd = detail::sd::fmul(sigma_, sp::sqrt(v))});
+            return normal<>({.mean = detail::linear(a, x0_ - mu_, mu_), .stddev = detail::sd::fmul(sigma_, sp::sqrt(v))});
         }
-        constexpr normal<> stationary() const { return normal<>({.mean = mu_, .sd = sigma_ / wsl::special::sqrt(detail::sd::fmul(2.0, theta_))}); }
+        constexpr normal<> stationary() const { return normal<>({.mean = mu_, .stddev = sigma_ / wsl::special::sqrt(detail::sd::fmul(2.0, theta_))}); }
 
         class grid_law : public law_interface
         {
@@ -464,7 +464,7 @@ namespace wsl::random
         constexpr lognormal<> at(double t) const
         {
             auto const n = log_.at(t);
-            return lognormal<>({.mu = wsl::special::log(s0_) + n.mean(), .sigma = n.sd()});
+            return lognormal<>({.log_mean = wsl::special::log(s0_) + n.mean(), .log_stddev = n.stddev()});
         }
 
         class grid_law : public law_interface

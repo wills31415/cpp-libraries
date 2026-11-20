@@ -3,8 +3,8 @@
 // Loi de Student multivariée t_ν(μ, Σ) : μ + L z √(ν/V), Σ = L Lᵀ, z normale centrée
 // réduite de dimension n, V de loi χ²(ν) indépendante.
 //
-//   wsl::random::multivariate_student_t<double, 2> X({.degrees_of_freedom = 4, .location = {0, 1},
-//                                             .scale = {{1, 0.3}, {0.3, 2}}});
+//   wsl::random::multivariate_student_t<double, 2> X({.location = {0, 1}, .scale = {{1, 0.3}, {0.3, 2}},
+//                                                     .degrees_of_freedom = 4});
 //   X.pdf({0.5, 0.5}); X.covariance(); X.marginal(0); X(g);
 //
 // Log-densité lgamma((ν + n)/2) − lgamma(ν/2) − (n/2) log(νπ) − ½ log det Σ
@@ -41,14 +41,14 @@ namespace wsl::random
 
         struct parameters
         {
-            T degrees_of_freedom;
             vector_of<T, N> location;
             square_matrix<T, N> scale;
+            T degrees_of_freedom;
         };
 
         constexpr multivariate_student_t(parameters p)
             : nu_(p.degrees_of_freedom), mu_(p.location), sigma_(p.scale), l_(detail::make_matrix<double, N>(p.location.size())),
-              chi_(typename gamma<double>::shape_scale{detail::sd::fmul(double(p.degrees_of_freedom), 0.5), 2.0})
+              chi_(typename gamma<double>::shape_scale{.scale = 2.0, .shape = detail::sd::fmul(double(p.degrees_of_freedom), 0.5)})
         {
             if (!(nu_ > 0) || !detail::is_finite(nu_))
                 throw std::domain_error("wsl::random::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
@@ -141,7 +141,7 @@ namespace wsl::random
         {
             auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());
-            normal<double> const standard({.mean = 0.0, .sd = 1.0});
+            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (auto& v : z)
                 v = wsl::random::sample(standard, g);
             double const w = wsl::random::sample(X.chi_, g);

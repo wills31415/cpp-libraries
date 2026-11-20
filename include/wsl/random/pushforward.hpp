@@ -3,8 +3,8 @@
 // Algèbre des lois : image d'une loi par une fonction, Y = f(X) (voir docs/random.md §4.6).
 //
 //   namespace sp = wsl::special;
-//   auto Q = wsl::random::pushforward(wsl::random::normal({.mean = 0, .sd = 1}), [](double x) { return x * x; });   // tirage seul
-//   auto L = wsl::random::pushforward(wsl::random::normal({.mean = 0, .sd = 1}),
+//   auto Q = wsl::random::pushforward(wsl::random::normal({.mean = 0, .stddev = 1}), [](double x) { return x * x; });   // tirage seul
+//   auto L = wsl::random::pushforward(wsl::random::normal({.mean = 0, .stddev = 1}),
 //                             wsl::random::increasing([](double x) { return sp::exp(x); },          // f
 //                                             [](double y) { return sp::log(y); },          // f⁻¹
 //                                             [](double y) { return 1 / y; }));             // (f⁻¹)'

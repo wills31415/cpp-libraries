@@ -3,7 +3,7 @@
 // Algèbre des lois : loi jointe de variables indépendantes (loi produit, voir
 // docs/random.md §4.6).
 //
-//   wsl::random::product_measure J(wsl::random::normal({.mean = 0, .sd = 1}), wsl::random::exponential({.rate = 2}));
+//   wsl::random::product_measure J(wsl::random::normal({.mean = 0, .stddev = 1}), wsl::random::exponential({.rate = 2}));
 //   auto [x, y] = J(g);                       // tirés dans cet ordre
 //   J.pdf({0.5, 1.0}); J.cdf({0.0, 1.0}); J.mean(); J.entropy();
 //

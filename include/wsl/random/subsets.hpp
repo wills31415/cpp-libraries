@@ -8,9 +8,9 @@
 //   wsl::random::bernoulli_subset B({.size = 20, .p = 0.1});        // chaque élément avec probabilité p
 //   wsl::random::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
 //   wsl::random::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
-//   wsl::random::uniform_integer_partition P({.n = 100});           // 1/p(n)
+//   wsl::random::uniform_integer_partition P({.total = 100});           // 1/p(n)
 //   wsl::random::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
-//   wsl::random::uniform_composition K({.n = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
+//   wsl::random::uniform_composition K({.total = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
 //
 // Tirages exacts : bits uniformes ; épreuves de Bernoulli exactes ; algorithme de Floyd
 // (k entiers uniformes) ; lettres uniformes ; partitions par l'algorithme de Nijenhuis et
@@ -421,18 +421,18 @@ namespace wsl::random
 
         struct parameters
         {
-            std::size_t n;
+            std::size_t total;
             std::size_t parts = 0;                                          // 0 : nombre de parts libre
         };
 
-        constexpr explicit uniform_composition(parameters q) : n_(q.n), k_(q.parts)
+        constexpr explicit uniform_composition(parameters q) : n_(q.total), k_(q.parts)
         {
             if (n_ < 1 || k_ > n_)
-                throw std::domain_error("wsl::random::uniform_composition : il faut n >= 1 et parts <= n");
+                throw std::domain_error("wsl::random::uniform_composition : il faut total >= 1 et parts <= total");
             log_count_ = k_ == 0 ? detail::mul({double(n_ - 1), 0.0}, {detail::sd::ln2_hi, detail::sd::ln2_lo}) : detail::log_binomial(n_ - 1, k_ - 1);
         }
 
-        constexpr std::size_t n() const noexcept { return n_; }
+        constexpr std::size_t total() const noexcept { return n_; }
         constexpr std::size_t parts() const noexcept { return k_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
@@ -493,10 +493,10 @@ namespace wsl::random
 
         struct parameters
         {
-            std::size_t n;
+            std::size_t total;
         };
 
-        constexpr explicit uniform_integer_partition(parameters q) : n_(q.n)
+        constexpr explicit uniform_integer_partition(parameters q) : n_(q.total)
         {
             // p(m) = Σ_{k>=1} (−1)^{k+1} [p(m − k(3k − 1)/2) + p(m − k(3k + 1)/2)]
             p_.assign(n_ + 1, detail::big());
@@ -519,7 +519,7 @@ namespace wsl::random
             log_count_ = detail::log_big(p_[n_]);
         }
 
-        constexpr std::size_t n() const noexcept { return n_; }
+        constexpr std::size_t total() const noexcept { return n_; }
         // p(n) (arrondi en double ; +∞ au-delà de 1,8·10³⁰⁸).
         constexpr double count() const noexcept { return detail::exp_of_dd(log_count_); }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }

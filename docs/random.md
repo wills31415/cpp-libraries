@@ -35,7 +35,7 @@ peu. Une loi déclare ce que l'on sait d'elle ; la bibliothèque en déduit le r
 | Reproductibilité | **Bit-exacte sur toutes les plateformes**, lois continues comprises (voir §3) | ✅ |
 | Fonctions spéciales | Bibliothèque à part, [`wsl::special`](special.md) | ✅ |
 | Interface | Objets mathématiques **et** adaptateur vers le modèle de `<random>` | ✅ |
-| Paramètres | Nommés et vérifiés : `gamma({.shape = 2.5, .rate = 2.0})` ; `std::domain_error` hors domaine | ✅ |
+| Paramètres | Nommés et vérifiés : `gamma({.rate = 2.0, .shape = 2.5})` ; `std::domain_error` hors domaine | ✅ |
 | Exactitude | **Exact par défaut** quand un algorithme exact est connu ; variante rapide sur demande explicite | ✅ |
 | Types flottants | `float` et `double` ; `long double` refusé à la compilation | ✅ |
 | Moteurs | Tout moteur standard, plus xoshiro256++, PCG64, Philox | ✅ |
@@ -139,8 +139,8 @@ implémenté** est absent de la même façon, et la documentation de la loi le d
 Exemple d'utilisation :
 
 ```cpp
-wsl::random::gamma X({.shape = 2.5, .rate = 2.0});
-wsl::random::gamma Y({.shape = 2.5, .scale = 0.5});   // la même loi, autre paramétrisation
+wsl::random::gamma X({.rate = 2.0, .shape = 2.5});
+wsl::random::gamma Y({.scale = 0.5, .shape = 2.5});   // la même loi, autre paramétrisation
 wsl::random::normal Z({.mean = 0, .variance = 4});    // N(μ, σ²) des manuels
 
 X.mean();                // 1.25
@@ -149,7 +149,7 @@ quantile(Z, 0.975);      // 3.919…
 auto x = sample(X, gen); // tirage exact si la loi le permet
 
 wsl::random::gamma({.shape = 2.5});              // erreur de compilation : paramétrisation ambiguë
-wsl::random::gamma({.shape = -1, .rate = 1});    // std::domain_error : shape doit être > 0
+wsl::random::gamma({.rate = 1, .shape = -1});    // std::domain_error : shape doit être > 0
 ```
 
 Pourquoi des paramètres nommés : `gamma(2.5, 2.0)` a pour espérance 5 en C++ et en
@@ -744,7 +744,7 @@ de Pólya, restaurant chinois), puis temps continu.
 ### Temps discret
 
 ```cpp
-wsl::random::random_walk W({.start = 0, .step = wsl::random::normal({.mean = 0, .sd = 1})});
+wsl::random::random_walk W({.start = 0, .step = wsl::random::normal({.mean = 0, .stddev = 1})});
 W.at(10);                                   // normal(0, √10) : identités de sommes
 for (double x : wsl::random::trajectory(W, g) | std::views::take(100)) …
 
@@ -786,7 +786,7 @@ wsl::random::chinese_restaurant R({.theta = 1.5});
 for (std::size_t table : wsl::random::trajectory(R, g) | std::views::take(100)) …   // table de chaque client
 R.at(100);                                  // loi de la partition (formule d'Ewens)
 wsl::random::polya_urn U({.balls = {1, 2}, .added = 1});              // couleurs tirées ; U.at(n) : bêta-binomiale…
-wsl::dirichlet_process P({.concentration = 2, .base = wsl::random::normal({.mean = 0, .sd = 1})});
+wsl::dirichlet_process P({.concentration = 2, .base = wsl::random::normal({.mean = 0, .stddev = 1})});
 for (auto [weight, atom] : wsl::random::trajectory(P, g)) …          // bâton brisé (stick-breaking)
 ```
 
@@ -1026,7 +1026,7 @@ normalisé par sa valeur en z ; contrôles par Φ (α = 0), Φ² (α = 1) et T d
 
 ## 21. Lois stables
 
-`stable<T>({.alpha, .beta, .scale = γ, .location = δ})`, paramétrisation S1 (celle de
+`stable<T>({.location = δ, .scale = γ, .alpha, .beta})`, paramétrisation S1 (celle de
 Chambers–Mallows–Stuck et la plus courante) ; forme réduite Z, X = γZ + δ (α ≠ 1),
 γZ + (2/π)βγ log γ + δ (α = 1).
 

@@ -288,10 +288,10 @@ int main()
         std::vector<std::size_t> current;
         partitions(8, 8, current, p8);
         assert(p8.size() == 22);
-        assert(chi_square(wsl::random::uniform_integer_partition({.n = 8}), g, p8, draws) < 4);
-        assert(wsl::random::uniform_integer_partition({.n = 100}).count() == 190569292);
-        assert(close(wsl::random::uniform_integer_partition({.n = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
-        wsl::random::uniform_integer_partition const P({.n = 500});
+        assert(chi_square(wsl::random::uniform_integer_partition({.total = 8}), g, p8, draws) < 4);
+        assert(wsl::random::uniform_integer_partition({.total = 100}).count() == 190569292);
+        assert(close(wsl::random::uniform_integer_partition({.total = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
+        wsl::random::uniform_integer_partition const P({.total = 500});
         auto const q = wsl::random::sample(P, g);
         std::size_t total = 0;
         for (std::size_t v : q)
@@ -341,11 +341,11 @@ int main()
         assert(chi_square(wsl::random::uniform_tree({.vertices = 4}), g, trees, draws) < 4);
         auto const binary = all_binary_trees(4);
         assert(binary.size() == 14);                                         // Catalan C₄
-        assert(chi_square(wsl::random::uniform_binary_tree({.nodes = 4}), g, binary, draws) < 4);
+        assert(chi_square(wsl::random::uniform_binary_tree({.vertices = 4}), g, binary, draws) < 4);
         wsl::random::uniform_tree const T({.vertices = 1000});
         auto const t = wsl::random::sample(T, g);
         assert(wsl::random::detail::is_tree(t, 1000) && wsl::random::pmf(T, t) == 0 && wsl::random::log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
-        wsl::random::uniform_binary_tree const A({.nodes = 1000});
+        wsl::random::uniform_binary_tree const A({.vertices = 1000});
         auto const a = wsl::random::sample(A, g);
         assert(a.size() == 1000 && wsl::random::log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
         assert(wsl::random::pmf(wsl::random::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && wsl::random::pmf(wsl::random::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
@@ -375,8 +375,8 @@ int main()
             if (c.size() == 3)
                 comps3.push_back(c);
         }
-        assert(chi_square(wsl::random::uniform_composition({.n = 6}), g, comps, draws) < 4);
-        assert(comps3.size() == 10 && chi_square(wsl::random::uniform_composition({.n = 6, .parts = 3}), g, comps3, draws) < 4);
+        assert(chi_square(wsl::random::uniform_composition({.total = 6}), g, comps, draws) < 4);
+        assert(comps3.size() == 10 && chi_square(wsl::random::uniform_composition({.total = 6, .parts = 3}), g, comps3, draws) < 4);
         auto const sp = wsl::random::sample(wsl::random::uniform_set_partition({.size = 150}), g);
         assert(wsl::random::pmf(wsl::random::uniform_set_partition({.size = 150}), sp) > 0 && wsl::random::pmf(wsl::random::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
     }
@@ -406,12 +406,12 @@ int main()
         }, 1 << 10), 0x553dd3266e70997e);
         ok &= check("trees", fingerprint([&](fnv1a& h) {
             add_edges(h, wsl::random::sample(wsl::random::uniform_tree({.vertices = 30}), x));
-            for (auto c : wsl::random::sample(wsl::random::uniform_binary_tree({.nodes = 20}), x).children)
+            for (auto c : wsl::random::sample(wsl::random::uniform_binary_tree({.vertices = 20}), x).children)
                 h.add((std::uint64_t(c[0]) << 32) ^ c[1]);
         }, 1 << 10), 0xd9ba05da9d874029);
         wsl::random::uniform_set_partition const SP({.size = 25});
-        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, wsl::random::sample(SP, x)); add_vec(h, wsl::random::sample(wsl::random::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
-        wsl::random::uniform_integer_partition const P({.n = 60});
+        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, wsl::random::sample(SP, x)); add_vec(h, wsl::random::sample(wsl::random::uniform_composition({.total = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
+        wsl::random::uniform_integer_partition const P({.total = 60});
         ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, wsl::random::sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
     }
     assert(ok);

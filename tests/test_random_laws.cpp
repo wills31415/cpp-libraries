@@ -147,21 +147,21 @@ static_assert(!wsl::random::has_quantile<wsl::random::bernoulli> && !wsl::random
 static_assert(wsl::random::samplable<wsl::random::uniform<>, wsl::random::xoshiro256pp> && wsl::random::samplable<wsl::random::bernoulli, std::mt19937>);
 static_assert(wsl::random::uniform<>::sampling == wsl::random::exactness::approximate && wsl::random::discrete_uniform<>::sampling == wsl::random::exactness::exact);
 
-static_assert([] { wsl::random::uniform X({.low = 2, .high = 6}); return std::is_same_v<decltype(X), wsl::random::uniform<double>>; }());
-static_assert(wsl::random::uniform({.low = 2.0, .high = 6.0}).mean() == 4.0);
-static_assert(wsl::random::cdf(wsl::random::uniform({.low = 2.0, .high = 6.0}), 3.0) == 0.25);
-static_assert(wsl::random::quantile(wsl::random::discrete_uniform({.low = 1, .high = 6}), 0.5) == 3);
-static_assert([] { wsl::random::pcg64 g(1); auto const x = wsl::random::sample(wsl::random::discrete_uniform({.low = 1, .high = 6}), g); return x >= 1 && x <= 6; }());
+static_assert([] { wsl::random::uniform X({.lower = 2, .upper = 6}); return std::is_same_v<decltype(X), wsl::random::uniform<double>>; }());
+static_assert(wsl::random::uniform({.lower = 2.0, .upper = 6.0}).mean() == 4.0);
+static_assert(wsl::random::cdf(wsl::random::uniform({.lower = 2.0, .upper = 6.0}), 3.0) == 0.25);
+static_assert(wsl::random::quantile(wsl::random::discrete_uniform({.lower = 1, .upper = 6}), 0.5) == 3);
+static_assert([] { wsl::random::pcg64 g(1); auto const x = wsl::random::sample(wsl::random::discrete_uniform({.lower = 1, .upper = 6}), g); return x >= 1 && x <= 6; }());
 
 static_assert(wsl::random::probability_law<wsl::random::exponential<>> && wsl::random::probability_law<wsl::random::normal<float>>);
 static_assert(wsl::random::has_pdf<wsl::random::exponential<>> && wsl::random::has_mode<wsl::random::exponential<>> && wsl::random::has_quantile<wsl::random::normal<>>);
 static_assert(wsl::random::exponential<>::sampling == wsl::random::exactness::exact && wsl::random::normal<>::sampling == wsl::random::exactness::exact);
-static_assert([] { wsl::random::normal X({.mean = 0, .sd = 1}); return std::is_same_v<decltype(X), wsl::random::normal<double>>; }());
-static_assert(wsl::random::cdf(wsl::random::exponential({.rate = 1.0}), 0.0) == 0 && wsl::random::cdf(wsl::random::normal({.mean = 2.0, .sd = 3.0}), 2.0) == 0.5);
-static_assert(wsl::random::quantile(wsl::random::normal({.mean = 2.0, .sd = 3.0}), 0.5) == 2.0);
+static_assert([] { wsl::random::normal X({.mean = 0, .stddev = 1}); return std::is_same_v<decltype(X), wsl::random::normal<double>>; }());
+static_assert(wsl::random::cdf(wsl::random::exponential({.rate = 1.0}), 0.0) == 0 && wsl::random::cdf(wsl::random::normal({.mean = 2.0, .stddev = 3.0}), 2.0) == 0.5);
+static_assert(wsl::random::quantile(wsl::random::normal({.mean = 2.0, .stddev = 3.0}), 0.5) == 2.0);
 // Tirages exacts en évaluation constante (réels paresseux, grands entiers, voie lente comprise).
 static_assert([] { wsl::random::pcg64 g(3); return wsl::random::sample(wsl::random::exponential({.rate = 2.0}), g) > 0; }());
-static_assert([] { wsl::random::pcg64 g(4); double const x = wsl::random::sample(wsl::random::normal({.mean = 0.0, .sd = 0x1p-900}), g); return x == x; }());
+static_assert([] { wsl::random::pcg64 g(4); double const x = wsl::random::sample(wsl::random::normal({.mean = 0.0, .stddev = 0x1p-900}), g); return x == x; }());
 
 static_assert(wsl::random::probability_law<wsl::random::geometric<>> && wsl::random::probability_law<wsl::random::poisson<int>> && wsl::random::probability_law<wsl::random::binomial<>>);
 static_assert(wsl::random::has_pmf<wsl::random::geometric<>> && wsl::random::has_cdf<wsl::random::geometric<>> && wsl::random::has_quantile<wsl::random::geometric<>>);
@@ -180,10 +180,10 @@ static_assert(wsl::random::probability_law<wsl::random::fisher_f<>> && wsl::rand
 static_assert(wsl::random::laplace<>::sampling == wsl::random::exactness::exact && wsl::random::has_entropy<wsl::random::fisher_f<>> && wsl::random::has_quantile<wsl::random::pareto<>>);
 static_assert(wsl::random::cdf(wsl::random::laplace({.location = 1.0, .scale = 2.0}), 1.0) == 0.5 && wsl::random::quantile(wsl::random::logistic({.location = 3.0, .scale = 1.0}), 0.5) == 3);
 static_assert(wsl::random::has_pdf<wsl::random::gamma<>> && wsl::random::has_cdf<wsl::random::gamma<>> && wsl::random::has_quantile<wsl::random::gamma<>> && wsl::random::has_mode<wsl::random::beta<>> && wsl::random::has_entropy<wsl::random::beta<>> && wsl::random::has_entropy<wsl::random::gamma<>>);
-static_assert([] { wsl::random::gamma X({.shape = 2, .rate = 3}); wsl::random::gamma Y({.shape = 2, .scale = 3}); return std::is_same_v<decltype(X), wsl::random::gamma<double>> && std::is_same_v<decltype(Y), wsl::random::gamma<double>>; }());
+static_assert([] { wsl::random::gamma X({.rate = 3, .shape = 2}); wsl::random::gamma Y({.scale = 3, .shape = 2}); return std::is_same_v<decltype(X), wsl::random::gamma<double>> && std::is_same_v<decltype(Y), wsl::random::gamma<double>>; }());
 static_assert([] { wsl::random::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wsl::random::beta<double>>; }());
-static_assert(wsl::random::gamma({.shape = 3.0, .rate = 2.0}).mean() == 1.5 && wsl::random::gamma({.shape = 3.0, .scale = 2.0}).mean() == 6);
-static_assert([] { wsl::random::pcg64 g(6); return wsl::random::sample(wsl::random::gamma({.shape = 0.5, .rate = 1.0}), g) > 0 && wsl::random::sample(wsl::random::beta({.alpha = 2.0, .beta = 0.5}), g) < 1; }());
+static_assert(wsl::random::gamma({.rate = 2.0, .shape = 3.0}).mean() == 1.5 && wsl::random::gamma({.scale = 2.0, .shape = 3.0}).mean() == 6);
+static_assert([] { wsl::random::pcg64 g(6); return wsl::random::sample(wsl::random::gamma({.rate = 1.0, .shape = 0.5}), g) > 0 && wsl::random::sample(wsl::random::beta({.alpha = 2.0, .beta = 0.5}), g) < 1; }());
 
 int main()
 {
@@ -191,7 +191,7 @@ int main()
 
     // ---- uniform --------------------------------------------------------------
     {
-        wsl::random::uniform const X({.low = 2, .high = 6});
+        wsl::random::uniform const X({.lower = 2, .upper = 6});
         assert(X.mean() == 4 && X.median() == 4 && X.variance() == 16.0 / 12 && X.skewness() == 0);
         assert(X.entropy() == wsl::special::log(4.0));
         assert(wsl::random::pdf(X, 3.0) == 0.25 && wsl::random::pdf(X, 6.0) == 0 && wsl::random::pdf(X, 1.0) == 0 && wsl::random::log_pdf(X, 7.0) == -INFINITY);
@@ -199,12 +199,12 @@ int main()
         assert(wsl::random::quantile(X, 0.25) == 3 && wsl::random::quantile(X, 0.0) == 2 && wsl::random::quantile(X, 1.0) == 6);
         assert(wsl::random::cdf(X, 0.1 + 2) + wsl::random::ccdf(X, 0.1 + 2) == 1);
         assert(throws_domain_error([&] { (void)wsl::random::quantile(X, 1.5); }));
-        assert(throws_domain_error([] { wsl::random::uniform Y({.low = 1, .high = 1}); }));
-        assert(throws_domain_error([] { wsl::random::uniform Y({.low = 0, .high = INFINITY}); }));
+        assert(throws_domain_error([] { wsl::random::uniform Y({.lower = 1, .upper = 1}); }));
+        assert(throws_domain_error([] { wsl::random::uniform Y({.lower = 0, .upper = INFINITY}); }));
 
         // Intervalle immense : b − a déborde, rien d'infini ni de NaN là où le résultat est fini.
         double const big = std::numeric_limits<double>::max();
-        wsl::random::uniform const H({.low = -big, .high = big});
+        wsl::random::uniform const H({.lower = -big, .upper = big});
         assert(H.mean() == 0 && std::isinf(H.variance()) && std::abs(H.entropy() - 710.4758600739439) < 1e-12);
         assert(wsl::random::pdf(H, 0.0) > 0 && std::isfinite(wsl::random::pdf(H, 0.0)) && wsl::random::cdf(H, 0.0) == 0.5 && wsl::random::quantile(H, 0.5) == 0);
         assert(wsl::random::quantile(H, 0.75) == big / 2 && wsl::random::ccdf(H, big / 2) == 0.25);
@@ -218,10 +218,10 @@ int main()
             values.push_back(x);
         }
         assert(kolmogorov_smirnov(X, values) < 1.95);
-        wsl::random::uniform const tiny({.low = 1.0, .high = std::nextafter(1.0, 2.0)});   // un seul flottant possible
+        wsl::random::uniform const tiny({.lower = 1.0, .upper = std::nextafter(1.0, 2.0)});   // un seul flottant possible
         for (int i = 0; i < 100; ++i)
             assert(wsl::random::sample(tiny, g) == 1.0);
-        wsl::random::uniform<float> const F({.low = -1, .high = 1});
+        wsl::random::uniform<float> const F({.lower = -1, .upper = 1});
         for (int i = 0; i < 10000; ++i)
         {
             float const x = wsl::random::sample(F, g);
@@ -232,7 +232,7 @@ int main()
 
     // ---- discrete_uniform -----------------------------------------------------
     {
-        wsl::random::discrete_uniform const D({.low = 1, .high = 6});
+        wsl::random::discrete_uniform const D({.lower = 1, .upper = 6});
         assert(D.mean() == 3.5 && D.median() == 3 && D.variance() == 35.0 / 12);
         assert(wsl::random::pmf(D, 3) == 1.0 / 6 && wsl::random::pmf(D, 7) == 0 && wsl::random::cdf(D, 3) == 0.5 && wsl::random::ccdf(D, 3) == 0.5 && wsl::random::cdf(D, 6) == 1);
         for (int k = 1; k <= 6; ++k)
@@ -250,12 +250,12 @@ int main()
             assert(std::abs(counts[static_cast<std::size_t>(k)] - 10000) < 450);
 
         // Pleine plage de 64 bits : n = 2^64.
-        wsl::random::discrete_uniform const W({.low = std::numeric_limits<std::int64_t>::min(), .high = std::numeric_limits<std::int64_t>::max()});
+        wsl::random::discrete_uniform const W({.lower = std::numeric_limits<std::int64_t>::min(), .upper = std::numeric_limits<std::int64_t>::max()});
         assert(wsl::random::pmf(W, 0) == 0x1p-64 && wsl::random::cdf(W, -1) == 0.5 && W.variance() == 0x1p128 / 12 && W.entropy() == 64 * std::log(2.0));
         assert(wsl::random::quantile(W, 0.5) == -1 && wsl::random::quantile(W, 0x1p-64) == std::numeric_limits<std::int64_t>::min());
-        wsl::random::discrete_uniform<std::uint8_t> const B({.low = 0, .high = 255});
+        wsl::random::discrete_uniform<std::uint8_t> const B({.lower = 0, .upper = 255});
         assert(wsl::random::quantile(B, 0.5) == 127 && wsl::random::pmf(B, 255) == 1.0 / 256);
-        assert(throws_domain_error([] { wsl::random::discrete_uniform E({.low = 2, .high = 1}); }));
+        assert(throws_domain_error([] { wsl::random::discrete_uniform E({.lower = 2, .upper = 1}); }));
     }
 
     // ---- bernoulli ------------------------------------------------------------
@@ -306,7 +306,7 @@ int main()
 
     // ---- normal ---------------------------------------------------------------
     {
-        wsl::random::normal const N({.mean = 1, .sd = 2});
+        wsl::random::normal const N({.mean = 1, .stddev = 2});
         assert(N.mean() == 1 && N.median() == 1 && N.mode() == 1 && N.variance() == 4 && N.skewness() == 0 && N.excess_kurtosis() == 0);
         assert(std::abs(N.entropy() - (std::log(2.0) + 0.5 * (1 + std::log(2 * 3.141592653589793)))) < 1e-15);
         assert(std::abs(wsl::random::pdf(N, 1.0) - 0.19947114020071635) < 1e-17 && wsl::random::cdf(N, 1.0) == 0.5 && wsl::random::quantile(N, 0.5) == 1);
@@ -316,14 +316,14 @@ int main()
         assert(wsl::random::quantile(N, 0.0) == -INFINITY && wsl::random::quantile(N, 1.0) == INFINITY && wsl::random::cdf(N, -INFINITY) == 0 && wsl::random::pdf(N, INFINITY) == 0);
         assert(std::isnan(wsl::random::pdf(N, NAN)) && std::isnan(wsl::random::cdf(N, NAN)) && wsl::random::log_pdf(N, INFINITY) == -INFINITY);
         assert(wsl::random::cdf(N, -74.0) > 0 && wsl::random::cdf(N, -74.0) < 1e-307 && wsl::random::ccdf(N, 1e6) == 0);
-        assert(throws_domain_error([] { wsl::random::normal X({.mean = 0, .sd = 0}); }));
-        assert(throws_domain_error([] { wsl::random::normal X({.mean = INFINITY, .sd = 1}); }));
+        assert(throws_domain_error([] { wsl::random::normal X({.mean = 0, .stddev = 0}); }));
+        assert(throws_domain_error([] { wsl::random::normal X({.mean = INFINITY, .stddev = 1}); }));
         // Paramètres extrêmes.
         double const big = std::numeric_limits<double>::max();
-        wsl::random::normal const H({.mean = 0, .sd = big}), T({.mean = 0, .sd = 1e-300});
+        wsl::random::normal const H({.mean = 0, .stddev = big}), T({.mean = 0, .stddev = 1e-300});
         assert(std::abs(wsl::random::cdf(H, big) - 0.8413447460685429) < 1e-16 && wsl::random::quantile(H, 0.975) == INFINITY && std::isfinite(wsl::random::quantile(H, 0.75)));
         assert(std::isfinite(wsl::random::pdf(T, 0.0)) && wsl::random::pdf(T, 0.0) > 1e299 && wsl::random::cdf(T, 1e-300) == wsl::random::cdf(N, 3.0));
-        assert(wsl::random::quantile(wsl::random::normal({.mean = big, .sd = big}), 0.01) < big);   // μ + σ z sur les moitiés
+        assert(wsl::random::quantile(wsl::random::normal({.mean = big, .stddev = big}), 0.01) < big);   // μ + σ z sur les moitiés
 
         std::vector<double> exact, fast;
         int tail = 0;
@@ -335,11 +335,11 @@ int main()
         }
         assert(kolmogorov_smirnov(N, exact) < 1.95 && kolmogorov_smirnov(N, fast) < 1.95);
         assert(tail > 0 && tail < 40);                                      // P(|Z| > R) = 2,6·10⁻⁴
-        wsl::random::normal<float> const F({.mean = -3, .sd = 0.25f});
+        wsl::random::normal<float> const F({.mean = -3, .stddev = 0.25f});
         std::vector<double> floats;
         for (int i = 0; i < 20000; ++i)
             floats.push_back(wsl::random::sample(F, g));
-        assert(kolmogorov_smirnov(wsl::random::normal({.mean = -3.0, .sd = 0.25}), floats) < 1.95);
+        assert(kolmogorov_smirnov(wsl::random::normal({.mean = -3.0, .stddev = 0.25}), floats) < 1.95);
         // Tirage exact par la voie lente (σ hors de la voie rapide) : même loi.
         std::vector<double> slow;
         for (int i = 0; i < 300; ++i)
@@ -404,22 +404,22 @@ int main()
 
     // ---- gamma ----------------------------------------------------------------
     {
-        wsl::random::gamma const X({.shape = 2.5, .rate = 2}), Y({.shape = 2.5, .scale = 0.5});
+        wsl::random::gamma const X({.rate = 2, .shape = 2.5}), Y({.scale = 0.5, .shape = 2.5});
         assert(X.mean() == 1.25 && X.variance() == 0.625 && X.mode() == 0.75 && X.shape() == 2.5 && X.rate() == 2 && Y.scale() == 0.5);
         assert(Y.mean() == 1.25 && Y.variance() == 0.625 && wsl::random::pdf(X, 1.0) == wsl::random::pdf(Y, 1.0) && wsl::random::log_pdf(X, 0.3) == wsl::random::log_pdf(Y, 0.3));
         assert(wsl::random::pdf(X, -1.0) == 0 && wsl::random::pdf(X, 0.0) == 0 && wsl::random::pdf(X, INFINITY) == 0 && std::isnan(wsl::random::pdf(X, NAN)) && wsl::random::log_pdf(X, -1.0) == -INFINITY);
-        assert(wsl::random::pdf(wsl::random::gamma({.shape = 1.0, .rate = 3.0}), 0.0) == 3 && wsl::random::pdf(wsl::random::gamma({.shape = 0.5, .rate = 3.0}), 0.0) == INFINITY);
-        assert(wsl::random::pdf(wsl::random::gamma({.shape = 1.0, .rate = 3.0}), 0.5) == wsl::random::pdf(wsl::random::exponential({.rate = 3.0}), 0.5));
-        assert(throws_domain_error([] { wsl::random::gamma Z({.shape = 0, .rate = 1}); }) && throws_domain_error([] { wsl::random::gamma Z({.shape = 1, .scale = -1}); }));
-        assert(std::isfinite(wsl::random::pdf(wsl::random::gamma({.shape = 1e-300, .rate = 1.0}), 1e-300)) && wsl::random::pdf(wsl::random::gamma({.shape = 1e300, .rate = 1.0}), 1e300) > 0);
+        assert(wsl::random::pdf(wsl::random::gamma({.rate = 3.0, .shape = 1.0}), 0.0) == 3 && wsl::random::pdf(wsl::random::gamma({.rate = 3.0, .shape = 0.5}), 0.0) == INFINITY);
+        assert(wsl::random::pdf(wsl::random::gamma({.rate = 3.0, .shape = 1.0}), 0.5) == wsl::random::pdf(wsl::random::exponential({.rate = 3.0}), 0.5));
+        assert(throws_domain_error([] { wsl::random::gamma Z({.rate = 1, .shape = 0}); }) && throws_domain_error([] { wsl::random::gamma Z({.scale = -1, .shape = 1}); }));
+        assert(std::isfinite(wsl::random::pdf(wsl::random::gamma({.rate = 1.0, .shape = 1e-300}), 1e-300)) && wsl::random::pdf(wsl::random::gamma({.rate = 1.0, .shape = 1e300}), 1e300) > 0);
         // Répartitions en forme close : forme entière (Erlang), χ²₁ = gamma(1/2, taux 1/2).
         auto const erlang3 = [](double x) { double const t = 2 * x; return 1 - std::exp(-t) * (1 + t + t * t / 2); };
-        assert(kolmogorov_smirnov_against(wsl::random::gamma({.shape = 3.0, .rate = 2.0}), g, erlang3) < 1.95);
-        assert(kolmogorov_smirnov_against(wsl::random::gamma({.shape = 3.0, .scale = 0.5}), g, erlang3) < 1.95);
-        assert(kolmogorov_smirnov_against(wsl::random::gamma({.shape = 0.5, .rate = 0.5}), g, [](double x) { return std::erf(std::sqrt(x / 2)); }) < 1.95);
-        assert(kolmogorov_smirnov_against(wsl::random::gamma<float>({.shape = 1, .rate = 4}), g, [](double x) { return 1 - std::exp(-4 * x); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::random::gamma({.rate = 2.0, .shape = 3.0}), g, erlang3) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::random::gamma({.scale = 0.5, .shape = 3.0}), g, erlang3) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::random::gamma({.rate = 0.5, .shape = 0.5}), g, [](double x) { return std::erf(std::sqrt(x / 2)); }) < 1.95);
+        assert(kolmogorov_smirnov_against(wsl::random::gamma<float>({.rate = 4, .shape = 1}), g, [](double x) { return 1 - std::exp(-4 * x); }) < 1.95);
         double s = 0;
-        wsl::random::gamma const big({.shape = 400.0, .rate = 0.5});
+        wsl::random::gamma const big({.rate = 0.5, .shape = 400.0});
         for (int i = 0; i < 20000; ++i)
             s += wsl::random::sample(big, g);
         assert(std::abs(s / 20000 - 800) < 4 * std::sqrt(1600.0 / 20000));
@@ -460,7 +460,7 @@ int main()
             assert(wsl::random::cdf(P, k) >= u && (k == 0 || wsl::random::cdf(P, k - 1) < u) && wsl::random::cdf(B, j) >= u && (j == 0 || wsl::random::cdf(B, j - 1) < u));
         }
         assert(wsl::random::quantile(P, 0.0) == 0 && wsl::random::quantile(B, 1.0) == 20 && wsl::random::quantile(wsl::random::binomial({.trials = 5, .p = 1.0}), 0.3) == 5);
-        wsl::random::gamma const G({.shape = 2.5, .rate = 3});
+        wsl::random::gamma const G({.rate = 3, .shape = 2.5});
         wsl::random::beta const Be({.alpha = 2, .beta = 5});
         for (double u : {1e-200, 1e-6, 0.3, 0.5, 0.9, 1 - 1e-10})
         {
@@ -468,9 +468,9 @@ int main()
             assert(std::abs(wsl::random::cdf(G, x) / u - 1) < 1e-14 && std::abs(wsl::random::cdf(Be, y) / u - 1) < 1e-14);
         }
         assert(wsl::random::cdf(G, 0.0) == 0 && wsl::random::ccdf(G, INFINITY) == 0 && wsl::random::quantile(G, 1.0) == INFINITY && wsl::random::cdf(Be, 1.0) == 1 && wsl::random::quantile(Be, 0.0) == 0);
-        assert(std::abs(wsl::random::gamma({.shape = 1.0, .rate = 2.0}).entropy() - wsl::random::exponential({.rate = 2.0}).entropy()) < 1e-16);
+        assert(std::abs(wsl::random::gamma({.rate = 2.0, .shape = 1.0}).entropy() - wsl::random::exponential({.rate = 2.0}).entropy()) < 1e-16);
         assert(std::abs(wsl::random::beta({.alpha = 1.0, .beta = 1.0}).entropy()) < 1e-20);
-        assert(std::abs(wsl::random::cdf(wsl::random::gamma({.shape = 1.0, .rate = 2.0}), 0.7) - wsl::random::cdf(wsl::random::exponential({.rate = 2.0}), 0.7)) < 1e-16);
+        assert(std::abs(wsl::random::cdf(wsl::random::gamma({.rate = 2.0, .shape = 1.0}), 0.7) - wsl::random::cdf(wsl::random::exponential({.rate = 2.0}), 0.7)) < 1e-16);
     }
 
     // ---- Lois dérivées -----------------------------------------------------------
@@ -495,7 +495,7 @@ int main()
         }
         assert(kolmogorov_smirnov(T5, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wsl::random::sample(T5, g)); return v; }()) < 1.95);
         assert(kolmogorov_smirnov(wsl::random::student_t({.degrees_of_freedom = 0.7}), [&] { std::vector<double> v; wsl::random::student_t const T({.degrees_of_freedom = 0.7}); for (int i = 0; i < 20000; ++i) v.push_back(wsl::random::sample(T, g)); return v; }()) < 1.95);
-        wsl::random::lognormal const L({.mu = 0.3, .sigma = 0.5});
+        wsl::random::lognormal const L({.log_mean = 0.3, .log_stddev = 0.5});
         assert(std::abs(L.median() - std::exp(0.3)) < 3e-16 && std::abs(L.mean() - std::exp(0.3 + 0.125)) < 1e-15 && std::abs(wsl::random::cdf(L, L.median()) - 0.5) < 2e-16);
         assert(wsl::random::cdf(L, 0.0) == 0 && wsl::random::pdf(L, -1.0) == 0 && wsl::random::quantile(L, 0.0) == 0 && wsl::random::quantile(L, 1.0) == INFINITY);
         assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wsl::random::sample(L, g)); return v; }()) < 1.95);
@@ -504,7 +504,7 @@ int main()
         assert(wsl::random::cdf(C2, 3.0) == 0.75 && wsl::random::quantile(C2, 0.75) == 3 && C2.median() == 1 && std::abs(C2.entropy() - std::log(8 * 3.141592653589793)) < 1e-15);
         assert(kolmogorov_smirnov(C2, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wsl::random::sample(C2, g)); return v; }()) < 1.95);
         assert(throws_domain_error([] { wsl::random::student_t X({.degrees_of_freedom = 0}); }) && throws_domain_error([] { wsl::random::cauchy X({.location = 0, .scale = -1}); }));
-        assert(throws_domain_error([] { wsl::random::chi_squared X({.degrees_of_freedom = -2}); }) && throws_domain_error([] { wsl::random::lognormal X({.mu = 0, .sigma = 0}); }));
+        assert(throws_domain_error([] { wsl::random::chi_squared X({.degrees_of_freedom = -2}); }) && throws_domain_error([] { wsl::random::lognormal X({.log_mean = 0, .log_stddev = 0}); }));
     }
 
     // ---- Lois dérivées, second lot --------------------------------------------------
@@ -519,13 +519,13 @@ int main()
         for (double t : {0.5, 1.0, 2.5, 9.0})
             assert(std::abs(wsl::random::cdf(F17, t * t) - (1 - 2 * wsl::random::ccdf(T7, t))) < 1e-15);
         assert(kolmogorov_smirnov(F, draws(F)) < 1.95 && kolmogorov_smirnov(wsl::random::fisher_f({.d1 = 0.6, .d2 = 1.5}), draws(wsl::random::fisher_f({.d1 = 0.6, .d2 = 1.5}))) < 1.95);
-        wsl::random::weibull const W1({.shape = 1, .scale = 2});                    // = exponentielle de taux 1/2
+        wsl::random::weibull const W1({.scale = 2, .shape = 1});                    // = exponentielle de taux 1/2
         wsl::random::exponential const E2({.rate = 0.5});
         for (double x : {0.1, 1.0, 5.0, 30.0})
             assert(std::abs(wsl::random::cdf(W1, x) - wsl::random::cdf(E2, x)) <= 2e-16 * wsl::random::cdf(E2, x) && std::abs(wsl::random::pdf(W1, x) / wsl::random::pdf(E2, x) - 1) < 3e-16);
-        wsl::random::weibull const W({.shape = 1.5, .scale = 2});
+        wsl::random::weibull const W({.scale = 2, .shape = 1.5});
         assert(std::abs(W.median() - wsl::random::quantile(W, 0.5)) == 0 && kolmogorov_smirnov(W, draws(W)) < 1.95);
-        assert(wsl::random::weibull({.shape = 1e4, .scale = 1}).variance() > 0);     // compensation traitée
+        assert(wsl::random::weibull({.scale = 1, .shape = 1e4}).variance() > 0);     // compensation traitée
         wsl::random::laplace const L({.location = 1, .scale = 2});
         assert(L.variance() == 8 && wsl::random::cdf(L, 1.0) == 0.5 && wsl::random::quantile(L, 0.5) == 1 && kolmogorov_smirnov(L, draws(L)) < 1.95);
         wsl::random::logistic const Lg({.location = 1, .scale = 2});
@@ -533,7 +533,7 @@ int main()
         wsl::random::pareto const P({.scale = 1, .shape = 2.5});
         assert(wsl::random::cdf(P, 1.0) == 0 && wsl::random::pdf(P, 0.5) == 0 && wsl::random::quantile(P, 0.0) == 1 && std::isinf(wsl::random::pareto({.scale = 1, .shape = 1}).mean()));
         assert(kolmogorov_smirnov(P, draws(P)) < 1.95);
-        assert(throws_domain_error([] { wsl::random::fisher_f X({.d1 = 0, .d2 = 1}); }) && throws_domain_error([] { wsl::random::weibull X({.shape = 1, .scale = 0}); }));
+        assert(throws_domain_error([] { wsl::random::fisher_f X({.d1 = 0, .d2 = 1}); }) && throws_domain_error([] { wsl::random::weibull X({.scale = 0, .shape = 1}); }));
         assert(throws_domain_error([] { wsl::random::laplace X({.location = 0, .scale = -1}); }) && throws_domain_error([] { wsl::random::pareto X({.scale = 0, .shape = 1}); }));
     }
 
@@ -541,29 +541,29 @@ int main()
     {
         auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wsl::random::sample(law, g))); return v; };
         wsl::random::gumbel const Gu({.location = 1, .scale = 2});
-        wsl::random::frechet const Fr({.shape = 3, .scale = 2, .location = 0.5});
+        wsl::random::frechet const Fr({.location = 0.5, .scale = 2, .shape = 3});
         wsl::random::rayleigh const Ra({.scale = 2});
-        wsl::random::triangular const Tr({.low = 0, .mode = 1, .high = 3});
-        wsl::random::arcsine const Ar({.low = -1, .high = 2});
-        wsl::random::erlang const Er({.shape = 4, .rate = 1.5});
+        wsl::random::triangular const Tr({.lower = 0, .mode = 1, .upper = 3});
+        wsl::random::arcsine const Ar({.lower = -1, .upper = 2});
+        wsl::random::erlang const Er({.rate = 1.5, .shape = 4});
         assert(kolmogorov_smirnov(Gu, draws(Gu)) < 1.95 && kolmogorov_smirnov(Fr, draws(Fr)) < 1.95 && kolmogorov_smirnov(Ra, draws(Ra)) < 1.95);
         assert(kolmogorov_smirnov(Tr, draws(Tr)) < 1.95 && kolmogorov_smirnov(Ar, draws(Ar)) < 1.95 && kolmogorov_smirnov(Er, draws(Er)) < 1.95);
         static_assert(wsl::random::erlang<>::sampling == wsl::random::exactness::exact && wsl::random::has_cquantile<wsl::random::frechet<>> && wsl::random::has_entropy<wsl::random::arcsine<float>>);
-        wsl::random::arcsine const A01({.low = 0, .high = 1});                     // = bêta(½, ½)
+        wsl::random::arcsine const A01({.lower = 0, .upper = 1});                     // = bêta(½, ½)
         wsl::random::beta const B({.alpha = 0.5, .beta = 0.5});
         for (double x : {1e-9, 0.1, 0.5, 0.73, 0.999})
             assert(std::abs(wsl::random::cdf(A01, x) - wsl::random::cdf(B, x)) <= 2e-16 * wsl::random::cdf(B, x) && std::abs(wsl::random::pdf(A01, x) / wsl::random::pdf(B, x) - 1) < 1e-15);
-        wsl::random::erlang const E1({.shape = 1, .rate = 2});                      // = exponentielle
+        wsl::random::erlang const E1({.rate = 2, .shape = 1});                      // = exponentielle
         for (double x : {0.01, 1.0, 7.0})
-            assert(wsl::random::cdf(E1, x) == wsl::random::cdf(wsl::random::gamma({.shape = 1.0, .rate = 2.0}), x) && std::abs(wsl::random::cdf(E1, x) / wsl::random::cdf(wsl::random::exponential({.rate = 2.0}), x) - 1) < 3e-16);
+            assert(wsl::random::cdf(E1, x) == wsl::random::cdf(wsl::random::gamma({.rate = 2.0, .shape = 1.0}), x) && std::abs(wsl::random::cdf(E1, x) / wsl::random::cdf(wsl::random::exponential({.rate = 2.0}), x) - 1) < 3e-16);
         std::vector<double> y;                                              // α log((X − m)/s) : Gumbel(0, 1)
         for (double v : draws(Fr))
             y.push_back(3 * std::log((v - 0.5) / 2));
         assert(kolmogorov_smirnov(wsl::random::gumbel({.location = 0.0, .scale = 1.0}), y) < 1.95);
         assert(Tr.median() == wsl::random::quantile(Tr, 0.5) && Ar.median() == 0.5 && wsl::random::quantile(Ra, 0.5) == Ra.median() && wsl::random::cquantile(Gu, 0.5) == wsl::random::quantile(Gu, 0.5));
         assert(wsl::random::pdf(Fr, 0.5) == 0 && wsl::random::cdf(Fr, 0.4) == 0 && wsl::random::pdf(Tr, 3.5) == 0 && wsl::random::pdf(Ar, -1.0) == INFINITY && wsl::random::quantile(Tr, 1.0) == 3);
-        assert(throws_domain_error([] { wsl::random::triangular X({.low = 0, .mode = 4, .high = 3}); }) && throws_domain_error([] { wsl::random::erlang X({.shape = 0, .rate = 1.0}); }));
-        assert(throws_domain_error([] { wsl::random::frechet X({.shape = 0, .scale = 1}); }) && throws_domain_error([] { wsl::random::arcsine X({.low = 1, .high = 1}); }));
+        assert(throws_domain_error([] { wsl::random::triangular X({.lower = 0, .mode = 4, .upper = 3}); }) && throws_domain_error([] { wsl::random::erlang X({.rate = 1.0, .shape = 0}); }));
+        assert(throws_domain_error([] { wsl::random::frechet X({.scale = 1, .shape = 0}); }) && throws_domain_error([] { wsl::random::arcsine X({.lower = 1, .upper = 1}); }));
     }
 
     // ---- Inverse-gaussienne ----
@@ -601,7 +601,7 @@ int main()
     {
         for (double kappa : {0.0, 0.3, 4.0, 200.0, 1e6})
         {
-            wsl::random::von_mises const V({.mu = 1.0, .kappa = kappa});
+            wsl::random::von_mises const V({.location = 1.0, .concentration = kappa});
             std::vector<double> v;
             for (int i = 0; i < 2000; ++i)
                 v.push_back(wsl::random::sample(V, g));
@@ -621,7 +621,7 @@ int main()
             for (double x : {-1.5, 0.2, 0.99, 1.7, 3.9})                    // F(x) + S(x) = 1, et symétrie autour de μ
                 assert(std::abs(wsl::random::cdf(V, x) + wsl::random::ccdf(V, x) - 1) < 1e-15 && wsl::random::cdf(V, 1.0 - (x - 1.0)) == wsl::random::ccdf(V, x));
         }
-        wsl::random::von_mises const U({.mu = 0.0, .kappa = 0.0});                 // κ = 0 : uniforme sur [−π, π]
+        wsl::random::von_mises const U({.location = 0.0, .concentration = 0.0});                 // κ = 0 : uniforme sur [−π, π]
         for (double x : {-3.0, -1.0, 0.5, 2.0})
             assert(std::abs(wsl::random::cdf(U, x) - (x + 3.141592653589793) / (2 * 3.141592653589793)) < 1e-16);
     }
@@ -653,7 +653,7 @@ int main()
             assert(wsl::random::cdf(H2, k) >= u && wsl::random::cdf(H2, k - 1) < u);
         }
         wsl::random::hypergeometric const H3({.population = 30, .successes = 29, .draws = 15});   // support {14, 15}
-        assert(H3.low() == 14 && wsl::random::pmf(H3, 13) == 0 && std::abs(wsl::random::pmf(H3, 14) - 0.5) < 1e-16);
+        assert(H3.lower() == 14 && wsl::random::pmf(H3, 13) == 0 && std::abs(wsl::random::pmf(H3, 14) - 0.5) < 1e-16);
         assert(throws_domain_error([] { wsl::random::hypergeometric X({.population = 10, .successes = 11, .draws = 2}); }) && throws_domain_error([] { wsl::random::negative_binomial X({.successes = 2, .p = 0}); }));
     }
 
@@ -672,18 +672,18 @@ int main()
             long long const k = wsl::random::quantile(L, u);
             assert(wsl::random::cdf(L, k) >= u && (k == 1 || wsl::random::cdf(L, k - 1) < u));
         }
-        wsl::random::discrete_gaussian const D({.mu = 0.3, .sigma = 2.5});
+        wsl::random::discrete_gaussian const D({.location = 0.3, .scale = 2.5});
         assert(std::abs(chi_square(D, g, 50000, -9, 10)) < 4);
-        assert(std::abs(chi_square(wsl::random::discrete_gaussian({.mu = -0.5, .sigma = 0.3}), g, 50000, -2, 1)) < 4);
-        assert(std::abs(chi_square(wsl::random::discrete_gaussian({.mu = 7.25, .sigma = 40.0}), g, 50000, -110, 125)) < 4);
-        wsl::random::discrete_gaussian const E({.mu = 2.0, .sigma = 3.0});        // μ entier : symétrie, moyenne μ
+        assert(std::abs(chi_square(wsl::random::discrete_gaussian({.location = -0.5, .scale = 0.3}), g, 50000, -2, 1)) < 4);
+        assert(std::abs(chi_square(wsl::random::discrete_gaussian({.location = 7.25, .scale = 40.0}), g, 50000, -110, 125)) < 4);
+        wsl::random::discrete_gaussian const E({.location = 2.0, .scale = 3.0});        // μ entier : symétrie, moyenne μ
         assert(E.mean() == 2.0 && wsl::random::cdf(E, 1) == wsl::random::ccdf(E, 2) && wsl::random::pmf(E, 0) == wsl::random::pmf(E, 4));
         for (double u : {1e-12, 0.3, 0.5, 0.97})
         {
             long long const k = wsl::random::quantile(D, u);
             assert(wsl::random::cdf(D, k) >= u && wsl::random::cdf(D, k - 1) < u);
         }
-        assert(throws_domain_error([] { wsl::random::logarithmic X({.p = 1.0}); }) && throws_domain_error([] { wsl::random::discrete_gaussian X({.mu = 0, .sigma = 0}); }));
+        assert(throws_domain_error([] { wsl::random::logarithmic X({.p = 1.0}); }) && throws_domain_error([] { wsl::random::discrete_gaussian X({.location = 0, .scale = 0}); }));
     }
 
     // ---- Normale asymétrique ----
@@ -702,7 +702,7 @@ int main()
             }
         }
         wsl::random::skew_normal const Z({.shape = 0.0}), One({.shape = 1.0});    // α = 0 : normale ; α = 1 : F = Φ²
-        wsl::random::normal const N({.mean = 0.0, .sd = 1.0});
+        wsl::random::normal const N({.mean = 0.0, .stddev = 1.0});
         for (double x : {-20.0, -3.0, 0.4, 5.0})
         {
             assert(std::abs(wsl::random::cdf(Z, x) / wsl::random::cdf(N, x) - 1) < 3e-16 && std::abs(wsl::random::pdf(Z, x) / wsl::random::pdf(N, x) - 1) < 3e-16);
@@ -714,13 +714,13 @@ int main()
     // ---- Lois stables ----
     {
         auto draws = [&](auto const& law, int n) { std::vector<double> v; for (int i = 0; i < n; ++i) v.push_back(wsl::random::sample(law, g)); return v; };
-        wsl::random::stable const Gs({.alpha = 2.0, .beta = 0.4, .scale = 1.5});   // normale de variance 2γ²
-        wsl::random::stable const Ca({.alpha = 1.0, .beta = 0.0, .scale = 0.5, .location = 1.0});
+        wsl::random::stable const Gs({.scale = 1.5, .alpha = 2.0, .beta = 0.4});   // normale de variance 2γ²
+        wsl::random::stable const Ca({.location = 1.0, .scale = 0.5, .alpha = 1.0, .beta = 0.0});
         wsl::random::stable const Lv({.alpha = 0.5, .beta = 1.0});                  // Lévy : densité √(1/2π) y^{−3/2} e^{−1/(2y)}
         assert(kolmogorov_smirnov(Gs, draws(Gs, 5000)) < 1.95 && kolmogorov_smirnov(Ca, draws(Ca, 5000)) < 1.95 && kolmogorov_smirnov(Lv, draws(Lv, 3000)) < 1.95);
         for (auto [a, b] : {std::pair{1.5, 0.5}, std::pair{0.7, -0.4}, std::pair{1.0, 0.8}})
         {
-            wsl::random::stable const X({.alpha = a, .beta = b, .scale = 2.0, .location = -1.0});
+            wsl::random::stable const X({.location = -1.0, .scale = 2.0, .alpha = a, .beta = b});
             assert(kolmogorov_smirnov(X, draws(X, 200)) < 1.95);                // répartition coûteuse (~1 ms)
             for (double p : {1e-6, 0.8})
             {
@@ -728,7 +728,7 @@ int main()
                 assert(wsl::random::cdf(X, std::nextafter(x, -INFINITY)) <= p * (1 + 1e-14) && wsl::random::cdf(X, std::nextafter(x, INFINITY)) >= p * (1 - 1e-14));
             }
         }
-        wsl::random::normal const N({.mean = 0.0, .sd = 1.4142135623730951 * 1.5});
+        wsl::random::normal const N({.mean = 0.0, .stddev = 1.4142135623730951 * 1.5});
         for (double x : {-3.0, 0.5, 4.0})
             assert(std::abs(wsl::random::cdf(Gs, x) / wsl::random::cdf(N, x) - 1) < 1e-15);
         for (double y : {0.1, 1.0, 30.0})
@@ -740,7 +740,7 @@ int main()
     // ---- Objets-fonctions, densité, vue des tirages ----
     {
         namespace wr = wsl::random;
-        wr::normal const N({.mean = 1.0, .sd = 2.0});
+        wr::normal const N({.mean = 1.0, .stddev = 2.0});
         wr::poisson const P({.mean = 3.5});
         static_assert(std::is_same_v<wr::reference_measure_t<wr::normal<>>, wr::lebesgue> && std::is_same_v<wr::reference_measure_t<wr::poisson<>>, wr::counting>);
         static_assert(wr::has_density<wr::normal<>> && wr::has_density<wr::poisson<>> && !wr::has_mean<wr::cauchy<>>);
@@ -770,21 +770,21 @@ int main()
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::random::xoshiro256pp a(5), b(5);
-        wsl::random::uniform const X({.low = 0, .high = 1});
+        wsl::random::uniform const X({.lower = 0, .upper = 1});
         for (int i = 0; i < 100; ++i)
             assert(wsl::random::sample(X, a, wsl::random::fast) == wsl::random::sample(X, b));
     }
 
     // ---- Adaptateur vers <random> -------------------------------------------------
     {
-        auto d = wsl::random::as_distribution(wsl::random::discrete_uniform({.low = 1, .high = 6}));
+        auto d = wsl::random::as_distribution(wsl::random::discrete_uniform({.lower = 1, .upper = 6}));
         std::vector<long long> rolls(1000);
         std::ranges::generate(rolls, [&] { return d(g); });
         assert(std::ranges::all_of(rolls, [](long long x) { return x >= 1 && x <= 6; }));
         assert(d.min() == 1 && d.max() == 6 && d == d);
-        decltype(d)::param_type const other{wsl::random::discrete_uniform({.low = 10, .high = 12})};
+        decltype(d)::param_type const other{wsl::random::discrete_uniform({.lower = 10, .upper = 12})};
         assert(d(g, other) >= 10);
-        auto u = wsl::random::as_distribution(wsl::random::uniform({.low = 0.0, .high = 1.0}));
+        auto u = wsl::random::as_distribution(wsl::random::uniform({.lower = 0.0, .upper = 1.0}));
         assert(u.min() == 0.0 && u.max() == 1.0 && u(g) < 1.0);
     }
 
@@ -792,9 +792,9 @@ int main()
     bool ok = true;
     {
         wsl::random::xoshiro256pp x(11);
-        wsl::random::uniform const U({.low = -3.5, .high = 1e10});
-        wsl::random::uniform<float> const F({.low = 0, .high = 7});
-        wsl::random::discrete_uniform const D({.low = -1000, .high = 1000000});
+        wsl::random::uniform const U({.lower = -3.5, .upper = 1e10});
+        wsl::random::uniform<float> const F({.lower = 0, .upper = 7});
+        wsl::random::discrete_uniform const D({.lower = -1000, .upper = 1000000});
         wsl::random::bernoulli const B({.p = 0.125});
         ok &= check("uniform", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::random::sample(U, x)); }), 0xe9028c88f6ddde7f);
         ok &= check("uniform float", fingerprint([&] { return std::uint64_t{std::bit_cast<std::uint32_t>(wsl::random::sample(F, x))}; }), 0x53a47c22e845da0b);
@@ -806,8 +806,8 @@ int main()
         }), 0x40887993489ea177);
         wsl::random::exponential const E({.rate = 0.75});
         wsl::random::exponential<float> const EF({.rate = 3});
-        wsl::random::normal const N({.mean = 10, .sd = 0.5});
-        wsl::random::normal<float> const NF({.mean = 0, .sd = 1});
+        wsl::random::normal const N({.mean = 10, .stddev = 0.5});
+        wsl::random::normal<float> const NF({.mean = 0, .stddev = 1});
         auto bits = [](auto v) { if constexpr (sizeof(v) == 8) return std::bit_cast<std::uint64_t>(v); else return std::uint64_t{std::bit_cast<std::uint32_t>(v)}; };
         ok &= check("exponential", fingerprint([&] { return bits(wsl::random::sample(E, x)); }), 0x93410ac575f17399);
         ok &= check("exponential float", fingerprint([&] { return bits(wsl::random::sample(EF, x)); }), 0x707f86aa03e3abe5);
@@ -836,8 +836,8 @@ int main()
             return bits(wsl::random::pmf(Gf, k)) ^ (bits(wsl::random::cdf(Gf, k)) << 1) ^ (bits(wsl::random::pmf(Pl, k)) << 2) ^ (bits(wsl::random::log_pmf(Pl, k)) << 3)
                  ^ (bits(wsl::random::pmf(Bl, k + 69000)) << 4) ^ (bits(wsl::random::log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(wsl::random::quantile(Gf, wsl::random::uniform_real(x)));
         }, 1 << 13), 0x994f5c2864bf1649);
-        wsl::random::gamma const Ga({.shape = 3.75, .rate = 1.5}), Ga_s({.shape = 0.4, .scale = 2.0});
-        wsl::random::gamma<float> const Ga_f({.shape = 9, .rate = 1});
+        wsl::random::gamma const Ga({.rate = 1.5, .shape = 3.75}), Ga_s({.scale = 2.0, .shape = 0.4});
+        wsl::random::gamma<float> const Ga_f({.rate = 1, .shape = 9});
         wsl::random::beta const Be_a({.alpha = 2.5, .beta = 7.0}), Be_s({.alpha = 0.3, .beta = 0.8});
         ok &= check("gamma", fingerprint([&] { return bits(wsl::random::sample(Ga, x)); }), 0xf1ec39e9eacde03c);
         ok &= check("gamma small shape", fingerprint([&] { return bits(wsl::random::sample(Ga_s, x)); }), 0x965ae0d5f9d27c99);
@@ -856,7 +856,7 @@ int main()
         }, 1 << 10), 0x1a38363ea9e3931d);
         wsl::random::chi_squared const Cq({.degrees_of_freedom = 7});
         wsl::random::student_t const St({.degrees_of_freedom = 3.5});
-        wsl::random::lognormal const Ln({.mu = -1, .sigma = 0.8});
+        wsl::random::lognormal const Ln({.log_mean = -1, .log_stddev = 0.8});
         wsl::random::cauchy const Cy({.location = 5, .scale = 0.5});
         ok &= check("chi_squared", fingerprint([&] { return bits(wsl::random::sample(Cq, x)); }), 0x8b01e521b2059e12);
         ok &= check("student_t", fingerprint([&] { return bits(wsl::random::sample(St, x)); }), 0xb833b44187ecf66a);
@@ -869,7 +869,7 @@ int main()
                  ^ (bits(wsl::random::cdf(Cy, t)) << 4) ^ (bits(wsl::random::quantile(Cy, u)) << 5) ^ (bits(wsl::random::cdf(Cq, fp::fmul(10.0, u))) << 6);
         }, 1 << 10), 0x6e71d9a455e07fde);
         wsl::random::fisher_f const Ff({.d1 = 4, .d2 = 9});
-        wsl::random::weibull const Wb({.shape = 2.2, .scale = 3});
+        wsl::random::weibull const Wb({.scale = 3, .shape = 2.2});
         wsl::random::laplace const Lp({.location = -2, .scale = 0.75});
         wsl::random::logistic const Lo({.location = 4, .scale = 1.5});
         wsl::random::pareto const Pa({.scale = 2, .shape = 1.7});
@@ -885,11 +885,11 @@ int main()
                  ^ (bits(wsl::random::cdf(Lp, t)) << 4) ^ (bits(wsl::random::quantile(Lo, u)) << 5) ^ (bits(wsl::random::ccdf(Pa, y + 2)) << 6);
         }, 1 << 10), 0x572d7f7b8ca7f626);
         wsl::random::gumbel const Gu({.location = -1, .scale = 0.5});
-        wsl::random::frechet const Fr({.shape = 2.5, .scale = 1.5});
+        wsl::random::frechet const Fr({.scale = 1.5, .shape = 2.5});
         wsl::random::rayleigh const Ra({.scale = 0.7});
-        wsl::random::triangular const Tr({.low = -1, .mode = 0, .high = 4});
-        wsl::random::arcsine const Ar({.low = 0, .high = 1});
-        wsl::random::erlang const Er({.shape = 3, .rate = 0.5});
+        wsl::random::triangular const Tr({.lower = -1, .mode = 0, .upper = 4});
+        wsl::random::arcsine const Ar({.lower = 0, .upper = 1});
+        wsl::random::erlang const Er({.rate = 0.5, .shape = 3});
         ok &= check("complements", fingerprint([&] {
             return bits(wsl::random::sample(Gu, x)) ^ (bits(wsl::random::sample(Fr, x)) << 1) ^ (bits(wsl::random::sample(Ra, x)) << 2) ^ (bits(wsl::random::sample(Tr, x)) << 3) ^ (bits(wsl::random::sample(Ar, x)) << 4) ^ (bits(wsl::random::sample(Er, x)) << 5);
         }, 1 << 12), 0x8048e3cc57673536);
@@ -905,7 +905,7 @@ int main()
             double const u = wsl::random::uniform_real(x), t = fp::fmul(40.0, u);
             return bits(wsl::random::cdf(Ig, t)) ^ (bits(wsl::random::ccdf(Ig, t)) << 1) ^ (bits(wsl::random::pdf(Ig, t)) << 2) ^ (bits(wsl::random::quantile(Ig, u)) << 3) ^ (bits(wsl::random::cquantile(Ig, u)) << 4);
         }, 1 << 8), 0x2c052dfac3fa0be4);
-        wsl::random::von_mises const Vm({.mu = 0.25, .kappa = 7.5});
+        wsl::random::von_mises const Vm({.location = 0.25, .concentration = 7.5});
         ok &= check("von_mises functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
             double const u = wsl::random::uniform_real(x), t = fp::fmul(6.0, u) - 2.75;
@@ -921,7 +921,7 @@ int main()
         }, 1 << 9), 0x2fa168fb952bbce9);
         wsl::random::beta_binomial const Bb({.trials = 40, .alpha = 0.7, .beta = 2.5});
         wsl::random::logarithmic const Lg({.p = 0.95});
-        wsl::random::discrete_gaussian const Dg({.mu = -1.3, .sigma = 4.2});
+        wsl::random::discrete_gaussian const Dg({.location = -1.3, .scale = 4.2});
         ok &= check("discrete lot 4", fingerprint([&] { return bits(double(wsl::random::sample(Bb, x))) ^ (bits(double(wsl::random::sample(Lg, x))) << 1) ^ (bits(double(wsl::random::sample(Dg, x))) << 2); }, 1 << 12), 0x5715c99366cd16cf);
         ok &= check("discrete lot 4 functions", fingerprint([&] {
             double const u = wsl::random::uniform_real(x);
@@ -936,8 +936,8 @@ int main()
             double const u = wsl::random::uniform_real(x), t = fp::fmul(10.0, u) - 4;
             return bits(wsl::random::pdf(Sn, t)) ^ (bits(wsl::random::cdf(Sn, t)) << 1) ^ (bits(wsl::random::ccdf(Sn, t)) << 2) ^ (bits(wsl::random::quantile(Sn, u)) << 3);
         }, 1 << 7), 0x564a5825a3a680fd);
-        wsl::random::stable const S1({.alpha = 1.3, .beta = -0.6, .scale = 0.8, .location = 0.2});
-        wsl::random::stable const S2({.alpha = 1.0, .beta = 0.5, .scale = 3.0});
+        wsl::random::stable const S1({.location = 0.2, .scale = 0.8, .alpha = 1.3, .beta = -0.6});
+        wsl::random::stable const S2({.scale = 3.0, .alpha = 1.0, .beta = 0.5});
         ok &= check("stable", fingerprint([&] { return bits(wsl::random::sample(S1, x)) ^ (bits(wsl::random::sample(S2, x)) << 1); }, 1 << 12), 0x3e15bab78fbb0172);
         ok &= check("stable functions", fingerprint([&] {
             namespace fp = wsl::special::detail;

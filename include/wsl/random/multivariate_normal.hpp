@@ -78,7 +78,7 @@ namespace wsl::random
         }
         constexpr normal<T> marginal(std::size_t i) const
         {
-            return normal<T>({.mean = mu_[i], .sd = static_cast<T>(wsl::special::sqrt(double(sigma_(i, i))))});
+            return normal<T>({.mean = mu_[i], .stddev = static_cast<T>(wsl::special::sqrt(double(sigma_(i, i))))});
         }
         // (x − μ)ᵀ Σ⁻¹ (x − μ)
         constexpr double mahalanobis_squared(value_type const& x) const noexcept
@@ -109,7 +109,7 @@ namespace wsl::random
         {
             auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());
-            normal<double> const standard({.mean = 0.0, .sd = 1.0});
+            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (auto& v : z)
                 v = wsl::random::sample(standard, g);
             return X.transform(z);

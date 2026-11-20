@@ -56,7 +56,7 @@ namespace
     template <class T>
     wsl::random::exponential<T> exponential(double rate, double) { return wsl::random::exponential<T>({.rate = T(rate)}); }
     template <class T>
-    wsl::random::normal<T> normal(double mean, double sd) { return wsl::random::normal<T>({.mean = T(mean), .sd = T(sd)}); }
+    wsl::random::normal<T> normal(double mean, double sd) { return wsl::random::normal<T>({.mean = T(mean), .stddev = T(sd)}); }
 }
 
 // Normale asymétrique : (α, ξ) portés par (a, b), ω retrouvé dans la table des références.
@@ -107,8 +107,8 @@ wsl::random::triangular<T> triangle(double low, double high)
     struct { double low, mode, high; } const table[] = {{0.0, 1.0, 3.0}, {-1.0, -1.0, 2.0}, {0.0, 5.0, 5.0}, {1e3, 1e3 + 0.25, 1e3 + 1.0}};
     for (auto const& t : table)
         if (float(t.low) == float(low) && float(t.high) == float(high))
-            return wsl::random::triangular<T>({.low = T(t.low), .mode = T(t.mode), .high = T(t.high)});
-    return wsl::random::triangular<T>({.low = T(low), .mode = T(low), .high = T(high)});
+            return wsl::random::triangular<T>({.lower = T(t.low), .mode = T(t.mode), .upper = T(t.high)});
+    return wsl::random::triangular<T>({.lower = T(low), .mode = T(low), .upper = T(high)});
 }
 
 int main()
@@ -130,24 +130,24 @@ int main()
     check<T>("normal ccdf " #T, d::normal_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(normal<T>(a, b), T(x)); }, bound); \
     check<T>("normal quantile " #T, d::normal_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(normal<T>(a, b), p); }, bound);
 #define GAMMA_BETA_CHECKS(T, bound)                                                                                           \
-    check<T>("gamma pdf " #T, d::gamma_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
-    check<T>("gamma log_pdf " #T, d::gamma_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, 1.0); \
-    check<T>("gamma (échelle) pdf " #T, d::gamma_scale_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("gamma (échelle) log_pdf " #T, d::gamma_scale_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, 1.0); \
+    check<T>("gamma pdf " #T, d::gamma_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma log_pdf " #T, d::gamma_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}), T(x)); }, 1.0); \
+    check<T>("gamma (échelle) pdf " #T, d::gamma_scale_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma (échelle) log_pdf " #T, d::gamma_scale_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}), T(x)); }, 1.0); \
     check<T>("beta pdf " #T, d::beta_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
     check<T>("beta log_pdf " #T, d::beta_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, 1.0);
     GAMMA_BETA_CHECKS(double, tight)
     GAMMA_BETA_CHECKS(float, loose)
 #undef GAMMA_BETA_CHECKS
 #define PHASE4_CHECKS(T, bound)                                                                                              \
-    check<T>("gamma cdf " #T, d::gamma_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
-    check<T>("gamma ccdf " #T, d::gamma_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}), T(x)); }, bound); \
-    check<T>("gamma quantile " #T, d::gamma_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}), p); }, bound); \
-    check<T>("gamma (éch.) cdf " #T, d::gamma_scale_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("gamma (éch.) ccdf " #T, d::gamma_scale_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("gamma (éch.) quantile " #T, d::gamma_scale_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}), p); }, bound); \
-    check<T>("gamma entropy " #T, d::gamma_entropy_##T, [](double a, double b, double) { return wsl::random::gamma<T>({.shape = T(a), .rate = T(b)}).entropy(); }, 1.0); \
-    check<T>("gamma (éch.) entropy " #T, d::gamma_scale_entropy_##T, [](double a, double b, double) { return wsl::random::gamma<T>({.shape = T(a), .scale = T(b)}).entropy(); }, 1.0); \
+    check<T>("gamma cdf " #T, d::gamma_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma ccdf " #T, d::gamma_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma quantile " #T, d::gamma_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}), p); }, bound); \
+    check<T>("gamma (éch.) cdf " #T, d::gamma_scale_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma (éch.) ccdf " #T, d::gamma_scale_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("gamma (éch.) quantile " #T, d::gamma_scale_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}), p); }, bound); \
+    check<T>("gamma entropy " #T, d::gamma_entropy_##T, [](double a, double b, double) { return wsl::random::gamma<T>({.rate = T(b), .shape = T(a)}).entropy(); }, 1.0); \
+    check<T>("gamma (éch.) entropy " #T, d::gamma_scale_entropy_##T, [](double a, double b, double) { return wsl::random::gamma<T>({.scale = T(b), .shape = T(a)}).entropy(); }, 1.0); \
     check<T>("beta cdf " #T, d::beta_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
     check<T>("beta ccdf " #T, d::beta_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::beta<T>({.alpha = T(a), .beta = T(b)}), T(x)); }, bound); \
     check<T>("beta quantile " #T, d::beta_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::beta<T>({.alpha = T(a), .beta = T(b)}), p); }, bound); \
@@ -164,14 +164,14 @@ int main()
     check<T>("student_t ccdf " #T, d::student_t_ccdf_##T, [](double a, double, double x) { return wsl::random::ccdf(wsl::random::student_t<T>({.degrees_of_freedom = T(a)}), T(x)); }, bound); \
     check<T>("student_t quantile " #T, d::student_t_quantile_##T, [](double a, double, double p) { return wsl::random::quantile(wsl::random::student_t<T>({.degrees_of_freedom = T(a)}), p); }, bound); \
     check<T>("student_t entropy " #T, d::student_t_entropy_##T, [](double a, double, double) { return wsl::random::student_t<T>({.degrees_of_freedom = T(a)}).entropy(); }, 1.0); \
-    check<T>("lognormal pdf " #T, d::lognormal_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
-    check<T>("lognormal log_pdf " #T, d::lognormal_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, 1.0); \
-    check<T>("lognormal cdf " #T, d::lognormal_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
-    check<T>("lognormal ccdf " #T, d::lognormal_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}), T(x)); }, bound); \
-    check<T>("lognormal quantile " #T, d::lognormal_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}), p); }, bound); \
-    check<T>("lognormal mean " #T, d::lognormal_mean_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}).mean(); }, bound); \
-    check<T>("lognormal variance " #T, d::lognormal_variance_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}).variance(); }, bound); \
-    check<T>("lognormal entropy " #T, d::lognormal_entropy_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)}).entropy(); }, 1.0); \
+    check<T>("lognormal pdf " #T, d::lognormal_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal log_pdf " #T, d::lognormal_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}), T(x)); }, 1.0); \
+    check<T>("lognormal cdf " #T, d::lognormal_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal ccdf " #T, d::lognormal_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}), T(x)); }, bound); \
+    check<T>("lognormal quantile " #T, d::lognormal_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}), p); }, bound); \
+    check<T>("lognormal mean " #T, d::lognormal_mean_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}).mean(); }, bound); \
+    check<T>("lognormal variance " #T, d::lognormal_variance_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}).variance(); }, bound); \
+    check<T>("lognormal entropy " #T, d::lognormal_entropy_##T, [](double a, double b, double) { return wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)}).entropy(); }, 1.0); \
     check<T>("cauchy pdf " #T, d::cauchy_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
     check<T>("cauchy log_pdf " #T, d::cauchy_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, 1.0); \
     check<T>("cauchy cdf " #T, d::cauchy_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::cauchy<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
@@ -188,14 +188,14 @@ int main()
     check<T>("fisher_f ccdf " #T, d::fisher_f_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), T(x)); }, bound); \
     check<T>("fisher_f quantile " #T, d::fisher_f_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::fisher_f<T>({.d1 = T(a), .d2 = T(b)}), p); }, bound); \
     check<T>("fisher_f entropy " #T, d::fisher_f_entropy_##T, [](double a, double b, double) { return wsl::random::fisher_f<T>({.d1 = T(a), .d2 = T(b)}).entropy(); }, 1.0); \
-    check<T>("weibull pdf " #T, d::weibull_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("weibull log_pdf " #T, d::weibull_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, 1.0); \
-    check<T>("weibull cdf " #T, d::weibull_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("weibull ccdf " #T, d::weibull_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}), T(x)); }, bound); \
-    check<T>("weibull quantile " #T, d::weibull_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}), p); }, bound); \
-    check<T>("weibull mean " #T, d::weibull_mean_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}).mean(); }, bound); \
-    check<T>("weibull variance " #T, d::weibull_variance_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}).variance(); }, bound); \
-    check<T>("weibull entropy " #T, d::weibull_entropy_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.shape = T(a), .scale = T(b)}).entropy(); }, 1.0); \
+    check<T>("weibull pdf " #T, d::weibull_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("weibull log_pdf " #T, d::weibull_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}), T(x)); }, 1.0); \
+    check<T>("weibull cdf " #T, d::weibull_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("weibull ccdf " #T, d::weibull_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}), T(x)); }, bound); \
+    check<T>("weibull quantile " #T, d::weibull_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}), p); }, bound); \
+    check<T>("weibull mean " #T, d::weibull_mean_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}).mean(); }, bound); \
+    check<T>("weibull variance " #T, d::weibull_variance_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}).variance(); }, bound); \
+    check<T>("weibull entropy " #T, d::weibull_entropy_##T, [](double a, double b, double) { return wsl::random::weibull<T>({.scale = T(b), .shape = T(a)}).entropy(); }, 1.0); \
     check<T>("laplace pdf " #T, d::laplace_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(wsl::random::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
     check<T>("laplace log_pdf " #T, d::laplace_log_pdf_##T, [](double a, double b, double x) { return wsl::random::log_pdf(wsl::random::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, 1.0); \
     check<T>("laplace cdf " #T, d::laplace_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::laplace<T>({.location = T(a), .scale = T(b)}), T(x)); }, bound); \
@@ -217,15 +217,15 @@ int main()
 #define SURVIVAL_CHECKS(T, bound)                                                                                            \
     CQ(T, bound, exponential, "exponential", (exponential<T>(a, b)))                                                                  \
     CQ(T, bound, normal, "normal", (normal<T>(a, b)))                                                                                 \
-    CQ(T, bound, gamma, "gamma", (wsl::random::gamma<T>({.shape = T(a), .rate = T(b)})))                                                      \
-    CQ(T, bound, gamma_scale, "gamma (éch.)", (wsl::random::gamma<T>({.shape = T(a), .scale = T(b)})))                                         \
+    CQ(T, bound, gamma, "gamma", (wsl::random::gamma<T>({.rate = T(b), .shape = T(a)})))                                                      \
+    CQ(T, bound, gamma_scale, "gamma (éch.)", (wsl::random::gamma<T>({.scale = T(b), .shape = T(a)})))                                         \
     CQ(T, bound, beta, "beta", (wsl::random::beta<T>({.alpha = T(a), .beta = T(b)})))                                                         \
     CQ(T, bound, chi_squared, "chi_squared", (wsl::random::chi_squared<T>({.degrees_of_freedom = T(a)})))                                     \
     CQ(T, bound, student_t, "student_t", (wsl::random::student_t<T>({.degrees_of_freedom = T(a)})))                                           \
-    CQ(T, bound, lognormal, "lognormal", (wsl::random::lognormal<T>({.mu = T(a), .sigma = T(b)})))                                            \
+    CQ(T, bound, lognormal, "lognormal", (wsl::random::lognormal<T>({.log_mean = T(a), .log_stddev = T(b)})))                                            \
     CQ(T, bound, cauchy, "cauchy", (wsl::random::cauchy<T>({.location = T(a), .scale = T(b)})))                                               \
     CQ(T, bound, fisher_f, "fisher_f", (wsl::random::fisher_f<T>({.d1 = T(a), .d2 = T(b)})))                                                  \
-    CQ(T, bound, weibull, "weibull", (wsl::random::weibull<T>({.shape = T(a), .scale = T(b)})))                                               \
+    CQ(T, bound, weibull, "weibull", (wsl::random::weibull<T>({.scale = T(b), .shape = T(a)})))                                               \
     CQ(T, bound, laplace, "laplace", (wsl::random::laplace<T>({.location = T(a), .scale = T(b)})))                                            \
     CQ(T, bound, logistic, "logistic", (wsl::random::logistic<T>({.location = T(a), .scale = T(b)})))                                         \
     CQ(T, bound, pareto, "pareto", (wsl::random::pareto<T>({.scale = T(a), .shape = T(b)})))
@@ -238,9 +238,9 @@ int main()
     check<T>(#name " cquantile " #T, d::name##_cquantile_##T, [](double a, double b, double q) { (void)b; return wsl::random::cquantile(make, q); }, bound);
 #define COMPLEMENT_CHECKS(T, bound)                                                                                          \
     STANDARD_CHECKS(T, bound, gumbel, (wsl::random::gumbel<T>({.location = T(a), .scale = T(b)})))                                   \
-    STANDARD_CHECKS(T, bound, frechet, (wsl::random::frechet<T>({.shape = T(a), .scale = T(b), .location = T(frechet_location(a, b))})))   \
+    STANDARD_CHECKS(T, bound, frechet, (wsl::random::frechet<T>({.location = T(frechet_location(a, b)), .scale = T(b), .shape = T(a)})))   \
     STANDARD_CHECKS(T, bound, rayleigh, (wsl::random::rayleigh<T>({.scale = T(a)})))                                                 \
-    STANDARD_CHECKS(T, bound, arcsine, (wsl::random::arcsine<T>({.low = T(a), .high = T(b)})))                                        \
+    STANDARD_CHECKS(T, bound, arcsine, (wsl::random::arcsine<T>({.lower = T(a), .upper = T(b)})))                                        \
     check<T>("triangular pdf " #T, d::triangular_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(triangle<T>(a, b), T(x)); }, bound);   \
     check<T>("triangular cdf " #T, d::triangular_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(triangle<T>(a, b), T(x)); }, bound);   \
     check<T>("triangular ccdf " #T, d::triangular_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(triangle<T>(a, b), T(x)); }, bound); \
@@ -255,10 +255,10 @@ int main()
     check<T>("inverse_gaussian skewness " #T, d::inverse_gaussian_skewness_##T, [](double a, double b, double) { return wsl::random::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).skewness(); }, bound); \
     check<T>("inverse_gaussian excess_kurtosis " #T, d::inverse_gaussian_excess_kurtosis_##T, [](double a, double b, double) { return wsl::random::inverse_gaussian<T>({.mean = T(a), .shape = T(b)}).excess_kurtosis(); }, bound);
 #define VON_MISES_CHECKS(T, bound)                                                                                            \
-    check<T>("von_mises cdf " #T, d::von_mises_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::von_mises<T>({.mu = T(a), .kappa = T(b)}), T(x)); }, bound);      \
-    check<T>("von_mises ccdf " #T, d::von_mises_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::von_mises<T>({.mu = T(a), .kappa = T(b)}), T(x)); }, bound);    \
-    check<T>("von_mises quantile " #T, d::von_mises_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::von_mises<T>({.mu = T(a), .kappa = T(b)}), p); }, bound); \
-    check<T>("von_mises cquantile " #T, d::von_mises_cquantile_##T, [](double a, double b, double q) { return wsl::random::cquantile(wsl::random::von_mises<T>({.mu = T(a), .kappa = T(b)}), q); }, bound);
+    check<T>("von_mises cdf " #T, d::von_mises_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(wsl::random::von_mises<T>({.location = T(a), .concentration = T(b)}), T(x)); }, bound);      \
+    check<T>("von_mises ccdf " #T, d::von_mises_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(wsl::random::von_mises<T>({.location = T(a), .concentration = T(b)}), T(x)); }, bound);    \
+    check<T>("von_mises quantile " #T, d::von_mises_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(wsl::random::von_mises<T>({.location = T(a), .concentration = T(b)}), p); }, bound); \
+    check<T>("von_mises cquantile " #T, d::von_mises_cquantile_##T, [](double a, double b, double q) { return wsl::random::cquantile(wsl::random::von_mises<T>({.location = T(a), .concentration = T(b)}), q); }, bound);
 #define SKEW_NORMAL_CHECKS(T, bound)                                                                                              check<T>("skew_normal pdf " #T, d::skew_normal_pdf_##T, [](double a, double b, double x) { return wsl::random::pdf(skew_of<T>(a, b), T(x)); }, bound);             check<T>("skew_normal cdf " #T, d::skew_normal_cdf_##T, [](double a, double b, double x) { return wsl::random::cdf(skew_of<T>(a, b), T(x)); }, bound);             check<T>("skew_normal ccdf " #T, d::skew_normal_ccdf_##T, [](double a, double b, double x) { return wsl::random::ccdf(skew_of<T>(a, b), T(x)); }, bound);           check<T>("skew_normal quantile " #T, d::skew_normal_quantile_##T, [](double a, double b, double p) { return wsl::random::quantile(skew_of<T>(a, b), p); }, bound);     check<T>("skew_normal cquantile " #T, d::skew_normal_cquantile_##T, [](double a, double b, double q) { return wsl::random::cquantile(skew_of<T>(a, b), q); }, bound);     check<T>("skew_normal mean " #T, d::skew_normal_mean_##T, [](double a, double b, double) { return skew_of<T>(a, b).mean(); }, bound);                  check<T>("skew_normal variance " #T, d::skew_normal_variance_##T, [](double a, double b, double) { return skew_of<T>(a, b).variance(); }, bound);      check<T>("skew_normal skewness " #T, d::skew_normal_skewness_##T, [](double a, double b, double) { return skew_of<T>(a, b).skewness(); }, bound);
     SKEW_NORMAL_CHECKS(double, tight)
     SKEW_NORMAL_CHECKS(float, loose)
@@ -281,23 +281,23 @@ int main()
     check<double>("gumbel variance", d::gumbel_variance_double, [](double a, double b, double) { return wsl::random::gumbel({.location = a, .scale = b}).variance(); }, tight);
     check<double>("gumbel median", d::gumbel_median_double, [](double a, double b, double) { return wsl::random::gumbel({.location = a, .scale = b}).median(); }, tight);
     check<double>("gumbel entropy", d::gumbel_entropy_double, [](double a, double b, double) { return wsl::random::gumbel({.location = a, .scale = b}).entropy(); }, 1.0);
-    check<double>("frechet mean", d::frechet_mean_double, [](double a, double b, double) { return wsl::random::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).mean(); }, tight);
-    check<double>("frechet variance", d::frechet_variance_double, [](double a, double b, double) { return wsl::random::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).variance(); }, tight);
-    check<double>("frechet median", d::frechet_median_double, [](double a, double b, double) { return wsl::random::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).median(); }, tight);
-    check<double>("frechet mode", d::frechet_mode_double, [](double a, double b, double) { return wsl::random::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).mode(); }, tight);
-    check<double>("frechet entropy", d::frechet_entropy_double, [](double a, double b, double) { return wsl::random::frechet({.shape = a, .scale = b, .location = frechet_location(a, b)}).entropy(); }, 1.0);
+    check<double>("frechet mean", d::frechet_mean_double, [](double a, double b, double) { return wsl::random::frechet({.location = frechet_location(a, b), .scale = b, .shape = a}).mean(); }, tight);
+    check<double>("frechet variance", d::frechet_variance_double, [](double a, double b, double) { return wsl::random::frechet({.location = frechet_location(a, b), .scale = b, .shape = a}).variance(); }, tight);
+    check<double>("frechet median", d::frechet_median_double, [](double a, double b, double) { return wsl::random::frechet({.location = frechet_location(a, b), .scale = b, .shape = a}).median(); }, tight);
+    check<double>("frechet mode", d::frechet_mode_double, [](double a, double b, double) { return wsl::random::frechet({.location = frechet_location(a, b), .scale = b, .shape = a}).mode(); }, tight);
+    check<double>("frechet entropy", d::frechet_entropy_double, [](double a, double b, double) { return wsl::random::frechet({.location = frechet_location(a, b), .scale = b, .shape = a}).entropy(); }, 1.0);
     check<double>("rayleigh mean", d::rayleigh_mean_double, [](double a, double, double) { return wsl::random::rayleigh({.scale = a}).mean(); }, tight);
     check<double>("rayleigh variance", d::rayleigh_variance_double, [](double a, double, double) { return wsl::random::rayleigh({.scale = a}).variance(); }, tight);
     check<double>("rayleigh median", d::rayleigh_median_double, [](double a, double, double) { return wsl::random::rayleigh({.scale = a}).median(); }, tight);
     check<double>("rayleigh entropy", d::rayleigh_entropy_double, [](double a, double, double) { return wsl::random::rayleigh({.scale = a}).entropy(); }, 1.0);
-    check<double>("arcsine variance", d::arcsine_variance_double, [](double a, double b, double) { return wsl::random::arcsine({.low = a, .high = b}).variance(); }, tight);
-    check<double>("arcsine entropy", d::arcsine_entropy_double, [](double a, double b, double) { return wsl::random::arcsine({.low = a, .high = b}).entropy(); }, 1.0);
+    check<double>("arcsine variance", d::arcsine_variance_double, [](double a, double b, double) { return wsl::random::arcsine({.lower = a, .upper = b}).variance(); }, tight);
+    check<double>("arcsine entropy", d::arcsine_entropy_double, [](double a, double b, double) { return wsl::random::arcsine({.lower = a, .upper = b}).entropy(); }, 1.0);
 #undef COMPLEMENT_CHECKS
 #undef STANDARD_CHECKS
     SURVIVAL_CHECKS(double, tight)
     {
         // von Mises et von Mises–Fisher (μ = e_p, x = (√(1 − t²), 0, …, 0, t)).
-        auto const V = [](double m, double k) { return wsl::random::von_mises({.mu = m, .kappa = k}); };
+        auto const V = [](double m, double k) { return wsl::random::von_mises({.location = m, .concentration = k}); };
         check<double>("von_mises pdf", d::von_mises_pdf_double, [&](double a, double b, double x) { return wsl::random::pdf(V(a, b), x); }, tight);
         check<double>("von_mises log_pdf", d::von_mises_log_pdf_double, [&](double a, double b, double x) { return wsl::random::log_pdf(V(a, b), x); }, 1.0);
         check<double>("von_mises resultant", d::von_mises_resultant_double, [&](double a, double b, double) { return V(a, b).mean_resultant_length(); }, tight);
@@ -308,7 +308,7 @@ int main()
         auto const F = [](double k, double p) {
             std::vector<double> mu(static_cast<std::size_t>(p) - 1, 0.0);
             mu.push_back(1.0);
-            return wsl::random::von_mises_fisher<double>({.mean_direction = mu, .kappa = k});
+            return wsl::random::von_mises_fisher<double>({.mean_direction = mu, .concentration = k});
         };
         auto const point = [](double p, double t) {
             std::vector<double> x{wsl::special::sqrt(wsl::special::detail::fmul(1 - t, 1 + t))};
@@ -324,8 +324,8 @@ int main()
     {
         // Lois construites : erreur de composition (docs/random.md), bornes mesurées.
         auto const Z = [](double nu) { return wsl::random::affine(wsl::random::student_t({.degrees_of_freedom = nu}), {.scale = -2, .shift = 5}); };
-        auto const N = [](double a, double b) { return wsl::random::truncate(wsl::random::normal({.mean = 0.0, .sd = 1.0}), {.lower = a, .upper = b}); };
-        wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .sd = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3.0, .rate = 1.0})));
+        auto const N = [](double a, double b) { return wsl::random::truncate(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), {.lower = a, .upper = b}); };
+        wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .stddev = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.rate = 1.0, .shape = 3.0})));
         // Bornes : mesures arrondies au-dessus ; le quantile tronqué près d'un zéro du résultat.
         check<double>("affine student pdf", d::affine_student_pdf_double, [&](double a, double, double y) { return wsl::random::pdf(Z(a), y); }, 0.51);
         check<double>("affine student cdf", d::affine_student_cdf_double, [&](double a, double, double y) { return wsl::random::cdf(Z(a), y); }, 0.51);
@@ -383,7 +383,7 @@ int main()
     check<double>("logarithmic ccdf", d::logarithmic_ccdf_double, [](double a, double, double x) { return wsl::random::ccdf(wsl::random::logarithmic<K>({.p = a}), K(x)); }, tight);
     check<double>("logarithmic mean", d::logarithmic_mean_double, [](double a, double, double) { return wsl::random::logarithmic<K>({.p = a}).mean(); }, tight);
     check<double>("logarithmic variance", d::logarithmic_variance_double, [](double a, double, double) { return wsl::random::logarithmic<K>({.p = a}).variance(); }, tight);
-    auto const DG = [](double a, double b) { return wsl::random::discrete_gaussian<K>({.mu = a, .sigma = b}); };
+    auto const DG = [](double a, double b) { return wsl::random::discrete_gaussian<K>({.location = a, .scale = b}); };
     check<double>("discrete_gaussian pmf", d::discrete_gaussian_pmf_double, [&](double a, double b, double x) { return wsl::random::pmf(DG(a, b), K(x)); }, tight);
     check<double>("discrete_gaussian cdf", d::discrete_gaussian_cdf_double, [&](double a, double b, double x) { return wsl::random::cdf(DG(a, b), K(x)); }, tight);
     check<double>("discrete_gaussian ccdf", d::discrete_gaussian_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(DG(a, b), K(x)); }, tight);
@@ -427,7 +427,7 @@ int main()
         };
         quantiles("beta_binomial quantile", d::beta_binomial_quantile, [](double a, double b) { return beta_binomial_of<K>(a, b); });
         quantiles("logarithmic quantile", d::logarithmic_quantile, [](double a, double) { return wsl::random::logarithmic<K>({.p = a}); });
-        quantiles("discrete_gaussian quantile", d::discrete_gaussian_quantile, [](double a, double b) { return wsl::random::discrete_gaussian<K>({.mu = a, .sigma = b}); });
+        quantiles("discrete_gaussian quantile", d::discrete_gaussian_quantile, [](double a, double b) { return wsl::random::discrete_gaussian<K>({.location = a, .scale = b}); });
     }
 
     // Quantile de la géométrique : exact.

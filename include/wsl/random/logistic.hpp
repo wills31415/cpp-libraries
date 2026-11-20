@@ -54,8 +54,10 @@ namespace wsl::random
 
         struct parameters
         {
-            T location, scale;
+            T location = 0, scale = 1;
         };
+
+        constexpr logistic() : logistic(parameters{}) {}
 
         constexpr logistic(parameters p) : mu_(p.location), s_(p.scale)
         {

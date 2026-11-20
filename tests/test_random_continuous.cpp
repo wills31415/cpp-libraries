@@ -92,10 +92,10 @@ int main()
             for (int i = 0; i < m; ++i)
                 switch (wsl::random::uniform_below(4, g))
                 {
-                case 0: s.add(d::lazy_sample(wsl::random::normal({.mean = 0.3, .sd = 1e-3 * (i + 1)}), g), g); break;
+                case 0: s.add(d::lazy_sample(wsl::random::normal({.mean = 0.3, .stddev = 1e-3 * (i + 1)}), g), g); break;
                 case 1: s.add(d::lazy_sample(wsl::random::exponential({.rate = 2.5}), g), g); break;
                 case 2: s.add(d::lazy_sample(wsl::random::laplace({.location = -1.0, .scale = 0.7}), g), g); break;
-                default: s.add(d::lazy_sample(wsl::random::uniform({.low = -2.0, .high = 3.0}), g), g); break;
+                default: s.add(d::lazy_sample(wsl::random::uniform({.lower = -2.0, .upper = 3.0}), g), g); break;
                 }
             d::dyadic_value const offset = d::to_dyadic(trial % 3 == 0 ? 0.0 : -0.3 * m);   // compensations
             d::dyadic_value const alpha = d::to_dyadic(trial % 2 ? 0.5 : 0.0), beta = d::to_dyadic(trial % 5 == 0 ? -1.0 / 3 : 1.0);
@@ -110,7 +110,7 @@ int main()
         {
             d::lazy_sum s;
             for (int i = 0; i < 5; ++i)
-                s.add(d::lazy_sample(wsl::random::normal({.mean = 0.0, .sd = 1.0}), g), g);
+                s.add(d::lazy_sample(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), g), g);
             double const v = s.rounded(g);
             d::dyadic_value const half = d::to_dyadic((std::nextafter(v, INFINITY) - v) / 2);
             double const r = s.rounded<double>(g, half, {}, 0, d::to_dyadic(1.0));
@@ -143,7 +143,7 @@ int main()
             increments.push_back(x[1] - x[0]);
         }
         assert(ks_against(at1, B.at(1.0)) < 1.95);
-        assert(ks_against(increments, wsl::random::normal({.mean = 1.0, .sd = 2.0 * std::sqrt(2.0)})) < 1.95);   // accroissement indépendant
+        assert(ks_against(increments, wsl::random::normal({.mean = 1.0, .stddev = 2.0 * std::sqrt(2.0)})) < 1.95);   // accroissement indépendant
         assert(wsl::random::sample(B.on_grid({0.0}), g)[0] == 1.0);
         std::vector<double> fast;
         for (int i = 0; i < n; ++i)
@@ -235,7 +235,7 @@ int main()
             s += value;
         }
         assert(std::abs(s / 4000 - C.mean(3.0)) < 0.35 && C.mean(3.0) == 12 && C.variance(3.0) == 48);
-        wsl::random::compound_poisson const A(1.0, wsl::random::gamma({.shape = 2.0, .rate = 1.0}));   // sauts non paresseux
+        wsl::random::compound_poisson const A(1.0, wsl::random::gamma({.rate = 1.0, .shape = 2.0}));   // sauts non paresseux
         static_assert(decltype(A)::sampling == wsl::random::exactness::approximate && wsl::random::compound_poisson<wsl::random::normal<>>::sampling == wsl::random::exactness::exact);
     }
 
@@ -268,16 +268,16 @@ int main()
 
     // ---- Marches à pas réels ------------------------------------------------------------------
     {
-        wsl::random::random_walk const W(wsl::random::normal({.mean = 0.0, .sd = 1.0}));
+        wsl::random::random_walk const W(wsl::random::normal({.mean = 0.0, .stddev = 1.0}));
         std::vector<double> x10, e5;
         for (int i = 0; i < n; ++i)
             x10.push_back(wsl::random::sample(W.steps(10), g).back());
-        assert(ks_against(x10, wsl::random::normal({.mean = 0.0, .sd = std::sqrt(10.0)})) < 1.95);
+        assert(ks_against(x10, wsl::random::normal({.mean = 0.0, .stddev = std::sqrt(10.0)})) < 1.95);
         wsl::random::random_walk const E(wsl::random::exponential({.rate = 2.0}));
         for (int i = 0; i < n; ++i)
             e5.push_back(wsl::random::sample(E.steps(5), g).back());
-        assert(ks_against(e5, wsl::random::gamma({.shape = 5.0, .rate = 2.0})) < 1.95);   // somme exacte d'exponentielles
-        wsl::random::random_walk const G(wsl::random::gamma({.shape = 2.0, .rate = 1.0}), {.start = 1.0});   // pas non paresseux
+        assert(ks_against(e5, wsl::random::gamma({.rate = 2.0, .shape = 5.0})) < 1.95);   // somme exacte d'exponentielles
+        wsl::random::random_walk const G(wsl::random::gamma({.rate = 1.0, .shape = 2.0}), {.start = 1.0});   // pas non paresseux
         double s = 0;
         for (int i = 0; i < 4000; ++i)
             s += wsl::random::sample(G.steps(4), g).back();
@@ -298,7 +298,7 @@ int main()
         ok &= check("compound_poisson", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::compound_poisson(1.5, wsl::random::laplace({.location = 0.0, .scale = 1.0})), x) | std::views::take(10)); }), 0x20e17e9986f507f7);
         wsl::random::continuous_markov_chain const Q({.generator = {{-1, 1, 0}, {2, -3, 1}, {0, 0.5, -0.5}}, .start = 0});
         ok &= check("continuous_markov", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(Q, x) | std::views::take(10)); }), 0xa46709f22568617a);
-        ok &= check("real_walk", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::random_walk(wsl::random::uniform({.low = -1.0, .high = 2.0})), x) | std::views::take(20)); }), 0x96f2cfeff63723cb);
+        ok &= check("real_walk", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::random_walk(wsl::random::uniform({.lower = -1.0, .upper = 2.0})), x) | std::views::take(20)); }), 0x96f2cfeff63723cb);
     }
     assert(ok);
     std::printf("test_random_continuous : ok\n");

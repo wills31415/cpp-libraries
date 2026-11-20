@@ -3,7 +3,7 @@
 // Algèbre des lois : convolution P ∗ Q, loi de X + Y pour X ~ P et Y ~ Q indépendantes
 // (voir docs/random.md §4.6).
 //
-//   auto S = wsl::random::convolution(wsl::random::normal({.mean = 1, .sd = 3}), wsl::random::normal({.mean = 2, .sd = 4}));   // normal : N(3, 5)
+//   auto S = wsl::random::convolution(wsl::random::normal({.mean = 1, .stddev = 3}), wsl::random::normal({.mean = 2, .stddev = 4}));   // normal : N(3, 5)
 //   auto P = wsl::random::convolution(wsl::random::poisson({.mean = 2.0}), wsl::random::binomial({.trials = 10, .p = 0.3}));  // convolution_law
 //   P.pmf(4); P.cdf(6); P.quantile(0.9); P.mean(); P(g);
 //
@@ -56,7 +56,7 @@ namespace wsl::random
     template <law_real T>
     constexpr normal<T> sum_closure(normal<T> const& X, normal<T> const& Y)
     {
-        return normal<T>({.mean = static_cast<T>(double(X.mean()) + double(Y.mean())), .sd = static_cast<T>(wsl::special::hypot(double(X.sd()), double(Y.sd())))});
+        return normal<T>({.mean = static_cast<T>(double(X.mean()) + double(Y.mean())), .stddev = static_cast<T>(wsl::special::hypot(double(X.stddev()), double(Y.stddev())))});
     }
     template <law_real T>
     constexpr cauchy<T> sum_closure(cauchy<T> const& X, cauchy<T> const& Y)
@@ -79,17 +79,17 @@ namespace wsl::random
     {
         if (!(X.rate() == Y.rate()))
             return std::nullopt;
-        return gamma<T>({.shape = T(2), .rate = X.rate()});
+        return gamma<T>({.rate = X.rate(), .shape = T(2)});
     }
     template <law_real T>
     constexpr std::optional<gamma<T>> sum_closure(gamma<T> const& X, exponential<T> const& Y) noexcept
     {
-        return sum_closure(X, gamma<T>({.shape = T(1), .rate = Y.rate()}));
+        return sum_closure(X, gamma<T>({.rate = Y.rate(), .shape = T(1)}));
     }
     template <law_real T>
     constexpr std::optional<gamma<T>> sum_closure(exponential<T> const& X, gamma<T> const& Y) noexcept
     {
-        return sum_closure(Y, gamma<T>({.shape = T(1), .rate = X.rate()}));
+        return sum_closure(Y, gamma<T>({.rate = X.rate(), .shape = T(1)}));
     }
     template <law_integer I>
     constexpr std::optional<binomial<I>> sum_closure(binomial<I> const& X, binomial<I> const& Y) noexcept

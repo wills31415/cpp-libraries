@@ -2,9 +2,9 @@
 
 // Premières lois : uniforme continue, uniforme discrète, Bernoulli.
 //
-//   wsl::random::uniform X({.low = 2, .high = 6});              // [2, 6), double par défaut
-//   wsl::random::uniform<float> Y({.low = 0, .high = 1});
-//   wsl::random::discrete_uniform D({.low = 1, .high = 6});     // un dé : {1, …, 6}
+//   wsl::random::uniform X({.lower = 2, .upper = 6});              // [2, 6), double par défaut
+//   wsl::random::uniform<float> Y({.lower = 0, .upper = 1});
+//   wsl::random::discrete_uniform D({.lower = 1, .upper = 6});     // un dé : {1, …, 6}
 //   wsl::random::bernoulli B({.p = 0.3});
 //
 //   X.mean(); X.variance(); X.cdf(3.0); X.quantile(0.25); X(g);
@@ -47,17 +47,19 @@ namespace wsl::random
 
         struct bounds
         {
-            T low, high;
+            T lower = 0, upper = 1;
         };
 
-        constexpr uniform(bounds b) : low_(b.low), high_(b.high)
+        constexpr uniform() : uniform(bounds{}) {}
+
+        constexpr uniform(bounds b) : low_(b.lower), high_(b.upper)
         {
             if (!(low_ < high_) || !detail::is_finite(low_) || !detail::is_finite(high_))
-                throw std::domain_error("wsl::random::uniform : il faut low < high, finis");
+                throw std::domain_error("wsl::random::uniform : il faut lower < upper, finis");
         }
 
-        constexpr T low() const noexcept { return low_; }
-        constexpr T high() const noexcept { return high_; }
+        constexpr T lower() const noexcept { return low_; }
+        constexpr T upper() const noexcept { return high_; }
         constexpr interval<T> support() const noexcept { return {low_, high_}; }
 
         constexpr T mean() const noexcept
@@ -194,17 +196,17 @@ namespace wsl::random
 
         struct bounds
         {
-            I low, high;
+            I lower, upper;
         };
 
-        constexpr discrete_uniform(bounds b) : low_(b.low), high_(b.high)
+        constexpr discrete_uniform(bounds b) : low_(b.lower), high_(b.upper)
         {
             if (high_ < low_)
-                throw std::domain_error("wsl::random::discrete_uniform : il faut low <= high");
+                throw std::domain_error("wsl::random::discrete_uniform : il faut lower <= upper");
         }
 
-        constexpr I low() const noexcept { return low_; }
-        constexpr I high() const noexcept { return high_; }
+        constexpr I lower() const noexcept { return low_; }
+        constexpr I upper() const noexcept { return high_; }
         constexpr interval<I> support() const noexcept { return {low_, high_}; }
 
         constexpr double mean() const noexcept

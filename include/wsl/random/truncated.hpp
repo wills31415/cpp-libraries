@@ -2,7 +2,7 @@
 
 // Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir docs/random.md §4.6).
 //
-//   wsl::random::normal N({.mean = 0, .sd = 1});
+//   wsl::random::normal N({.mean = 0, .stddev = 1});
 //   auto T = wsl::random::truncate(N, {.lower = 10});   // N | N >= 10, masse ~ 7,6·10⁻²⁴
 //   T.cdf(10.5); T.quantile(0.5); T(g);
 //

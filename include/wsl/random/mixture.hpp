@@ -2,8 +2,8 @@
 
 // Algèbre des lois : mélange fini de lois (voir docs/random.md §4.6).
 //
-//   wsl::random::mixture M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2, .sd = 1})),
-//                  wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3, .rate = 1})));
+//   wsl::random::mixture M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2, .stddev = 1})),
+//                  wsl::random::weighted(0.7, wsl::random::gamma({.rate = 1, .shape = 3})));
 //   M.pdf(0.5); M.cdf(1.0); M.quantile(0.9); M.mean(); M.variance(); M(g);
 //
 // Composantes de types quelconques, de même value_type (réel ou entier) ; poids > 0

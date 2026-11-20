@@ -2,7 +2,7 @@
 
 // Loi triangulaire sur [a, b] de mode c (a <= c <= b, a < b).
 //
-//   wsl::random::triangular T({.low = 0, .mode = 1, .high = 3});
+//   wsl::random::triangular T({.lower = 0, .mode = 1, .upper = 3});
 //   T.cdf(2.0); T.quantile(0.9); T.variance(); T(g);
 //
 // Répartition (x − a)²/((b − a)(c − a)) sous c, 1 − (b − x)²/((b − a)(b − c)) au-dessus
@@ -34,18 +34,18 @@ namespace wsl::random
 
         struct parameters
         {
-            T low, mode, high;
+            T lower, mode, upper;
         };
 
-        constexpr triangular(parameters p) : a_(p.low), c_(p.mode), b_(p.high)
+        constexpr triangular(parameters p) : a_(p.lower), c_(p.mode), b_(p.upper)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_) || !(a_ <= c_ && c_ <= b_))
-                throw std::domain_error("wsl::random::triangular : il faut low <= mode <= high, low < high, finis");
+                throw std::domain_error("wsl::random::triangular : il faut lower <= mode <= upper, lower < upper, finis");
         }
 
-        constexpr T low() const noexcept { return a_; }
+        constexpr T lower() const noexcept { return a_; }
         constexpr T mode() const noexcept { return c_; }
-        constexpr T high() const noexcept { return b_; }
+        constexpr T upper() const noexcept { return b_; }
         constexpr interval<T> support() const noexcept { return {a_, b_}; }
 
         // (a + b + c)/3

@@ -131,7 +131,7 @@ namespace wsl::random::detail
     {
         lazy_real v = exact_half_normal(g);
         bool const negative = (random_bits(g) >> 63) != 0;                  // même ordre que sample(normal)
-        dyadic_value c = to_dyadic(double(X.sd()));
+        dyadic_value c = to_dyadic(double(X.stddev()));
         if (negative)
             c = -c;
         return {to_dyadic(double(X.mean())), c, 1.0, std::move(v)};
@@ -154,7 +154,7 @@ namespace wsl::random::detail
     template <class T, class G>
     constexpr lazy_draw lazy_sample(uniform<T> const& X, G&)
     {
-        return {to_dyadic(double(X.low())), to_dyadic(double(X.high())) - to_dyadic(double(X.low())), 1.0, lazy_real{}};
+        return {to_dyadic(double(X.lower())), to_dyadic(double(X.upper())) - to_dyadic(double(X.lower())), 1.0, lazy_real{}};
     }
 
     template <class L, class G>

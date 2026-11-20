@@ -3,8 +3,8 @@
 // Lois de Wishart W_p(V, n) et inverse-Wishart W⁻¹_p(Ψ, ν) sur les matrices p × p
 // symétriques définies positives (n, ν > p − 1).
 //
-//   wsl::random::wishart<double, 2> W({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
-//   wsl::random::inverse_wishart<double, 2> I({.degrees_of_freedom = 6, .scale = {{1, 0.2}, {0.2, 2}}});
+//   wsl::random::wishart<double, 2> W({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 5});
+//   wsl::random::inverse_wishart<double, 2> I({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 6});
 //   W.mean(); W.log_pdf(X); W.entropy(); W(g);
 //
 // Wishart : log-densité ((n − p − 1)/2) log det X − ½ tr(V⁻¹X) − (np/2) log 2
@@ -45,7 +45,7 @@ namespace wsl::random
         {
             std::size_t const p = chi.size();
             auto a = make_matrix<double, N>(p);
-            normal<double> const standard({.mean = 0.0, .sd = 1.0});
+            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (std::size_t i = 0; i < p; ++i)
             {
                 a(i, i) = wsl::special::sqrt(wsl::random::sample(chi[i], g));
@@ -76,7 +76,7 @@ namespace wsl::random
                 if (!cholesky(v, l))
                     throw std::domain_error("wsl::random::wishart : échelle non symétrique définie positive");
                 for (std::size_t i = 0; i < p; ++i)
-                    chi.push_back(gamma<double>(typename gamma<double>::shape_scale{sd::fmul(double(n) - double(i), 0.5), 2.0}));
+                    chi.push_back(gamma<double>(typename gamma<double>::shape_scale{.scale = 2.0, .shape = sd::fmul(double(n) - double(i), 0.5)}));
                 log_det_half = half_log_determinant(l);
                 log_gamma_p = log_multivariate_gamma(p, sd::fmul(double(n), 0.5));
             }
@@ -127,8 +127,8 @@ namespace wsl::random
 
         struct parameters
         {
-            T degrees_of_freedom;
             square_matrix<T, N> scale;
+            T degrees_of_freedom;
         };
 
         constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::wishart : dimension nulle") {}
@@ -165,7 +165,7 @@ namespace wsl::random
         // Wᵢᵢ ~ Vᵢᵢ χ²(n) = gamma(n/2, échelle 2Vᵢᵢ)
         constexpr gamma<T> marginal(std::size_t i) const
         {
-            return gamma<T>(typename gamma<T>::shape_scale{static_cast<T>(detail::sd::fmul(double(b_.n), 0.5)), static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i))))});
+            return gamma<T>(typename gamma<T>::shape_scale{.scale = static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i)))), .shape = static_cast<T>(detail::sd::fmul(double(b_.n), 0.5))});
         }
 
         constexpr double log_pdf(value_type const& x) const
@@ -229,8 +229,8 @@ namespace wsl::random
 
         struct parameters
         {
-            T degrees_of_freedom;
             square_matrix<T, N> scale;
+            T degrees_of_freedom;
         };
 
         constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::inverse_wishart : dimension nulle") {}

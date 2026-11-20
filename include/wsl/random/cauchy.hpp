@@ -59,8 +59,10 @@ namespace wsl::random
 
         struct parameters
         {
-            T location, scale;
+            T location = 0, scale = 1;
         };
+
+        constexpr cauchy() : cauchy(parameters{}) {}
 
         constexpr cauchy(parameters p) : x0_(p.location), gamma_(p.scale)
         {

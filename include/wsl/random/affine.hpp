@@ -2,7 +2,7 @@
 
 // Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir docs/random.md §4.6).
 //
-//   wsl::random::normal N({.mean = 1, .sd = 2});
+//   wsl::random::normal N({.mean = 1, .stddev = 2});
 //   auto Y = wsl::random::affine(N, {.scale = 3, .shift = -1});   // wsl::random::normal<> : N(2, 6), paramètres calculés
 //   wsl::random::student_t T({.degrees_of_freedom = 4});
 //   auto Z = wsl::random::affine(T, {.scale = -2, .shift = 5});   // wsl::random::affine_image<student_t<>>
@@ -105,7 +105,7 @@ namespace wsl::random
     template <law_real T>
     constexpr normal<T> affine_closure(normal<T> const& X, double a, double b)
     {
-        return normal<T>({.mean = static_cast<T>(detail::linear(a, double(X.mean()), b)), .sd = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.sd())))});
+        return normal<T>({.mean = static_cast<T>(detail::linear(a, double(X.mean()), b)), .stddev = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.stddev())))});
     }
     template <law_real T>
     constexpr cauchy<T> affine_closure(cauchy<T> const& X, double a, double b)
@@ -125,8 +125,8 @@ namespace wsl::random
     template <law_real T>
     constexpr uniform<T> affine_closure(uniform<T> const& X, double a, double b)
     {
-        auto const u = static_cast<T>(detail::linear(a, double(X.low()), b)), v = static_cast<T>(detail::linear(a, double(X.high()), b));
-        return a > 0 ? uniform<T>({.low = u, .high = v}) : uniform<T>({.low = v, .high = u});
+        auto const u = static_cast<T>(detail::linear(a, double(X.lower()), b)), v = static_cast<T>(detail::linear(a, double(X.upper()), b));
+        return a > 0 ? uniform<T>({.lower = u, .upper = v}) : uniform<T>({.lower = v, .upper = u});
     }
 
     template <law_real T>
@@ -143,7 +143,7 @@ namespace wsl::random
         auto const l = static_cast<T>(detail::sd::fmul(double(X.scale()), c));
         if (!(l > 0) || !detail::is_finite(l))
             return std::nullopt;
-        return weibull<T>({.shape = X.shape(), .scale = l});
+        return weibull<T>({.scale = l, .shape = X.shape()});
     }
     template <law_real T>
     constexpr std::optional<pareto<T>> scale_closure(pareto<T> const& X, double c) noexcept
@@ -157,11 +157,11 @@ namespace wsl::random
     template <law_real T>
     constexpr std::optional<lognormal<T>> scale_closure(lognormal<T> const& X, double c) noexcept
     {
-        auto const m = detail::sum({double(X.mu()), 0.0}, detail::log_precise(c));
+        auto const m = detail::sum({double(X.log_mean()), 0.0}, detail::log_precise(c));
         auto const mu = static_cast<T>(m.hi + m.lo);
         if (!detail::is_finite(mu))
             return std::nullopt;
-        return lognormal<T>({.mu = mu, .sigma = X.sigma()});
+        return lognormal<T>({.log_mean = mu, .log_stddev = X.log_stddev()});
     }
 
     // -----------------------------------------------------------------------

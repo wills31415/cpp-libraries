@@ -39,6 +39,8 @@ namespace wsl::random
             T rate;
         };
 
+        constexpr exponential() : exponential(parameters{.rate = 1}) {}
+
         constexpr exponential(parameters p) : rate_(p.rate)
         {
             if (!(rate_ > 0) || !detail::is_finite(rate_))

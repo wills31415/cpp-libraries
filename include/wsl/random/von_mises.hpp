@@ -2,8 +2,8 @@
 
 // Lois de von Mises (sur le cercle) et de von Mises–Fisher (sur la sphère Sᵖ⁻¹).
 //
-//   wsl::random::von_mises V({.mu = 0.5, .kappa = 4});                   // angles dans [μ − π, μ + π]
-//   wsl::random::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .kappa = 10});
+//   wsl::random::von_mises V({.location = 0.5, .concentration = 4});                   // angles dans [μ − π, μ + π]
+//   wsl::random::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .concentration = 10});
 //   V.pdf(1.0); V.circular_variance(); V(g); F.pdf(x); F.mean(); F(g);
 //
 // von Mises : densité e^{κ cos(x − μ)}/(2π I₀(κ)) sur [μ − π, μ + π], calculée comme
@@ -127,13 +127,13 @@ namespace wsl::random
 
         struct parameters
         {
-            T mu, kappa;
+            T location = 0, concentration;
         };
 
-        constexpr von_mises(parameters p) : mu_(p.mu), kappa_(p.kappa)
+        constexpr von_mises(parameters p) : mu_(p.location), kappa_(p.concentration)
         {
             if (!detail::is_finite(mu_) || !(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::random::von_mises : il faut mu fini et kappa >= 0, fini");
+                throw std::domain_error("wsl::random::von_mises : il faut location fini et concentration >= 0, fini");
             namespace fp = detail::sd;
             double const k = kappa_;
             log_norm_ = {fp::fmul(detail::half_log_2pi_hi, 2.0), fp::fmul(detail::half_log_2pi_lo, 2.0)};   // log 2π
@@ -148,8 +148,8 @@ namespace wsl::random
             }
         }
 
-        constexpr T mu() const noexcept { return mu_; }
-        constexpr T kappa() const noexcept { return kappa_; }
+        constexpr T location() const noexcept { return mu_; }
+        constexpr T concentration() const noexcept { return kappa_; }
         constexpr interval<T> support() const noexcept
         {
             return {static_cast<T>(double(mu_) - detail::pi_hi), static_cast<T>(double(mu_) + detail::pi_hi)};
@@ -358,17 +358,17 @@ namespace wsl::random
         struct parameters
         {
             vector_of<T, N> mean_direction;
-            T kappa;
+            T concentration;
         };
 
-        constexpr von_mises_fisher(parameters q) : mu_(q.mean_direction), kappa_(q.kappa)
+        constexpr von_mises_fisher(parameters q) : mu_(q.mean_direction), kappa_(q.concentration)
         {
             namespace fp = detail::sd;
             std::size_t const n = mu_.size();
             if (n < 2)
                 throw std::domain_error("wsl::random::von_mises_fisher : il faut une dimension >= 2");
             if (!(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::random::von_mises_fisher : il faut kappa >= 0, fini");
+                throw std::domain_error("wsl::random::von_mises_fisher : il faut concentration >= 0, fini");
             auto const r2 = detail::dot(n, [&](std::size_t k) { return std::pair{double(mu_[k]), double(mu_[k])}; });
             if (!(r2.hi > 0) || !detail::is_finite(r2.hi))
                 throw std::domain_error("wsl::random::von_mises_fisher : direction moyenne nulle ou non finie");
@@ -400,7 +400,7 @@ namespace wsl::random
 
         constexpr std::size_t dimension() const noexcept { return mu_.size(); }
         constexpr value_type const& mean_direction() const noexcept { return mu_; }
-        constexpr T kappa() const noexcept { return kappa_; }
+        constexpr T concentration() const noexcept { return kappa_; }
         constexpr interval<value_type> support() const noexcept
         {
             return {detail::make_vector<T, N>(dimension(), T(-1)), detail::make_vector<T, N>(dimension(), T(1))};

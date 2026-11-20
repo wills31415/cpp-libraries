@@ -124,6 +124,8 @@ namespace wsl::random
             T location = 0, scale = 1, shape = 0;
         };
 
+        constexpr skew_normal() : skew_normal(parameters{}) {}
+
         constexpr skew_normal(parameters p) : xi_(p.location), omega_(p.scale), alpha_(p.shape)
         {
             if (!detail::is_finite(xi_) || !(omega_ > 0) || !detail::is_finite(omega_) || !detail::is_finite(alpha_))
@@ -225,7 +227,7 @@ namespace wsl::random
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            normal<double> const N({.mean = 0.0, .sd = 1.0});
+            normal<double> const N({.mean = 0.0, .stddev = 1.0});
             double const u = wsl::random::sample(N, g), v = wsl::random::sample(N, g);
             double const z = v < detail::sd::fmul(double(X.alpha_), u) ? u : -u;
             return static_cast<T>(double(X.xi_) + detail::sd::fmul(double(X.omega_), z));

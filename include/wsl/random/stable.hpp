@@ -5,7 +5,7 @@
 //             exp(−γ |t| (1 + iβ (2/π) sign(t) log|t|) + iδt)        (α = 1),
 // 0 < α <= 2, −1 <= β <= 1.
 //
-//   wsl::random::stable X({.alpha = 1.5, .beta = 0.5, .scale = 1, .location = 0});
+//   wsl::random::stable X({.location = 0, .scale = 1, .alpha = 1.5, .beta = 0.5});
 //   X.pdf(0.3); X.cdf(-2); X.quantile(0.99); X(g);
 //
 // Forme réduite Z : X = γZ + δ (α ≠ 1), γZ + (2/π)βγ log γ + δ (α = 1). Densité et
@@ -171,7 +171,7 @@ namespace wsl::random
 
         struct parameters
         {
-            T alpha, beta = 0, scale = 1, location = 0;
+            T location = 0, scale = 1, alpha, beta = 0;
         };
 
         constexpr stable(parameters p) : alpha_(p.alpha), beta_(p.beta), gamma_(p.scale), delta_(p.location)

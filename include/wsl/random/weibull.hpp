@@ -2,7 +2,7 @@
 
 // Loi de Weibull de forme k > 0 et d'échelle λ > 0 : P(X > x) = e^{−(x/λ)^k}, x >= 0.
 //
-//   wsl::random::weibull W({.shape = 1.5, .scale = 2});
+//   wsl::random::weibull W({.scale = 2, .shape = 1.5});
 //   W.cdf(1.0); W.quantile(0.5); W.mean(); W(g);
 //
 // t = (x/λ)^k = e^{k (log x − log λ)} en double-double ; répartition −expm1(−t),
@@ -37,7 +37,7 @@ namespace wsl::random
 
         struct parameters
         {
-            T shape, scale;
+            T scale = 1, shape;
         };
 
         constexpr weibull(parameters p) : k_(p.shape), lambda_(p.scale)

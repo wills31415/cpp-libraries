@@ -34,8 +34,10 @@ namespace wsl::random
 
         struct parameters
         {
-            T location, scale;
+            T location = 0, scale = 1;
         };
+
+        constexpr laplace() : laplace(parameters{}) {}
 
         constexpr laplace(parameters p) : mu_(p.location), b_(p.scale)
         {

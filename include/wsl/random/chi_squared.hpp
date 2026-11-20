@@ -61,7 +61,7 @@ namespace wsl::random
         {
             if (!(k > 0) || !detail::is_finite(k))
                 throw std::domain_error("wsl::random::chi_squared : il faut degrees_of_freedom > 0, fini");
-            return gamma<T>({.shape = static_cast<T>(double(k) / 2), .scale = T(2)});
+            return gamma<T>({.scale = T(2), .shape = static_cast<T>(double(k) / 2)});
         }
 
         T k_;

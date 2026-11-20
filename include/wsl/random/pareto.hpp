@@ -33,7 +33,7 @@ namespace wsl::random
 
         struct parameters
         {
-            T scale, shape;
+            T scale = 1, shape;
         };
 
         constexpr pareto(parameters p) : xm_(p.scale), alpha_(p.shape)

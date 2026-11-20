@@ -3,7 +3,7 @@
 // Loi normale (gaussienne) de moyenne μ et d'écart type σ > 0 :
 // densité e^{−z²/2} / (σ √(2π)), z = (x − μ)/σ.
 //
-//   wsl::random::normal X({.mean = 0, .sd = 1});
+//   wsl::random::normal X({.mean = 0, .stddev = 1});
 //   X.variance(); X.pdf(1.0); X.cdf(-3.0); X.quantile(0.975); X(g);
 //
 // Tirage exact : |Z| tirée exactement (rejet exponentiel décidé en arithmétique
@@ -77,16 +77,18 @@ namespace wsl::random
 
         struct parameters
         {
-            T mean, sd;
+            T mean, stddev;
         };
 
-        constexpr normal(parameters p) : mean_(p.mean), sd_(p.sd)
+        constexpr normal() : normal(parameters{.mean = 0, .stddev = 1}) {}
+
+        constexpr normal(parameters p) : mean_(p.mean), sd_(p.stddev)
         {
             if (!detail::is_finite(mean_) || !(sd_ > 0) || !detail::is_finite(sd_))
-                throw std::domain_error("wsl::random::normal : il faut mean fini et sd > 0, fini");
+                throw std::domain_error("wsl::random::normal : il faut mean fini et stddev > 0, fini");
         }
 
-        constexpr T sd() const noexcept { return sd_; }
+        constexpr T stddev() const noexcept { return sd_; }
         constexpr interval<T> support() const noexcept
         {
             return {-std::numeric_limits<T>::infinity(), std::numeric_limits<T>::infinity()};

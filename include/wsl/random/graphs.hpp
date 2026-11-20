@@ -7,7 +7,7 @@
 //   wsl::random::barabasi_albert B({.vertices = 1000, .edges = 3});      // attachement préférentiel
 //   wsl::random::random_regular_graph R({.vertices = 20, .degree = 3});  // uniforme parmi les d-réguliers
 //   wsl::random::uniform_tree T({.vertices = 50});                       // arbres de Cayley : n^{n−2}
-//   wsl::random::uniform_binary_tree A({.nodes = 30});                   // arbres binaires : Catalan
+//   wsl::random::uniform_binary_tree A({.vertices = 30});                   // arbres binaires : Catalan
 //
 // Valeurs : liste d'arêtes (u, v), u < v, triée (wsl::random::edge_list) ; arbre binaire : enfants
 // {gauche, droit} de chaque nœud, numérotés en préordre (racine 0), wsl::random::binary_tree::none
@@ -458,10 +458,10 @@ namespace wsl::random
 
         struct parameters
         {
-            std::size_t nodes;
+            std::size_t vertices;
         };
 
-        constexpr explicit uniform_binary_tree(parameters q) : n_(q.nodes)
+        constexpr explicit uniform_binary_tree(parameters q) : n_(q.vertices)
         {
             // log C_n = log C(2n, n) − log(n + 1)
             auto const l = detail::log_binomial(2 * std::uint64_t(n_), n_);
@@ -469,7 +469,7 @@ namespace wsl::random
             log_count_ = detail::sum(l, {-ln.hi, -ln.lo});
         }
 
-        constexpr std::size_t nodes() const noexcept { return n_; }
+        constexpr std::size_t vertices() const noexcept { return n_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
         constexpr double log_pmf(binary_tree const& t) const { auto const& T = *this; return T.valid(t) ? -T.entropy() : -std::numeric_limits<double>::infinity(); }

@@ -3,7 +3,7 @@
 // Lois de Gumbel (valeurs extrêmes de type I, maximum) et de Fréchet (type II).
 //
 //   wsl::random::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
-//   wsl::random::frechet F({.shape = 3, .scale = 2, .location = 0});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
+//   wsl::random::frechet F({.location = 0, .scale = 2, .shape = 3});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
 //   G.cdf(1.0); F.quantile(0.99); G.mean(); F(g);
 //
 // Noyau commun : y = (x − μ)/β (Gumbel) ou α log((x − m)/s) (Fréchet, log du rapport par
@@ -80,8 +80,10 @@ namespace wsl::random
 
         struct parameters
         {
-            T location, scale;
+            T location = 0, scale = 1;
         };
+
+        constexpr gumbel() : gumbel(parameters{}) {}
 
         constexpr gumbel(parameters p) : mu_(p.location), beta_(p.scale)
         {
@@ -178,7 +180,7 @@ namespace wsl::random
 
         struct parameters
         {
-            T shape, scale, location = 0;
+            T location = 0, scale = 1, shape;
         };
 
         constexpr frechet(parameters p) : alpha_(p.shape), s_(p.scale), m_(p.location)

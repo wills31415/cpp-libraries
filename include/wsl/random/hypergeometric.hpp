@@ -54,9 +54,9 @@ namespace wsl::random
         constexpr I population() const noexcept { return N_; }
         constexpr I successes() const noexcept { return K_; }
         constexpr I draws() const noexcept { return n_; }
-        constexpr I low() const noexcept { return n_ - (N_ - K_) > 0 ? n_ - (N_ - K_) : I(0); }
-        constexpr I high() const noexcept { return n_ < K_ ? n_ : K_; }
-        constexpr interval<I> support() const noexcept { return {low(), high()}; }
+        constexpr I lower() const noexcept { return n_ - (N_ - K_) > 0 ? n_ - (N_ - K_) : I(0); }
+        constexpr I upper() const noexcept { return n_ < K_ ? n_ : K_; }
+        constexpr interval<I> support() const noexcept { return {lower(), upper()}; }
         // n K/N
         constexpr double mean() const noexcept
         {
@@ -94,9 +94,9 @@ namespace wsl::random
         constexpr double pmf(I k) const noexcept
         {
             auto const& X = *this;
-            if (k < X.low() || k > X.high())
+            if (k < X.lower() || k > X.upper())
                 return 0;
-            if (X.low() == X.high())
+            if (X.lower() == X.upper())
                 return 1;
             auto const l = X.log_mass(k);
             if (!(l.hi > -1500))
@@ -106,9 +106,9 @@ namespace wsl::random
         constexpr double log_pmf(I k) const noexcept
         {
             auto const& X = *this;
-            if (k < X.low() || k > X.high())
+            if (k < X.lower() || k > X.upper())
                 return -std::numeric_limits<double>::infinity();
-            if (X.low() == X.high())
+            if (X.lower() == X.upper())
                 return 0;
             auto const l = X.log_mass(k);
             return l.hi + l.lo;
@@ -116,9 +116,9 @@ namespace wsl::random
         constexpr double cdf(I k) const noexcept
         {
             auto const& X = *this;
-            if (k < X.low())
+            if (k < X.lower())
                 return 0;
-            if (k >= X.high())
+            if (k >= X.upper())
                 return 1;
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::rounded(v) : detail::sd::one_minus(v);
@@ -126,9 +126,9 @@ namespace wsl::random
         constexpr double ccdf(I k) const noexcept
         {
             auto const& X = *this;
-            if (k < X.low())
+            if (k < X.lower())
                 return 1;
-            if (k >= X.high())
+            if (k >= X.upper())
                 return 0;
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::sd::one_minus(v) : detail::rounded(v);
@@ -140,17 +140,17 @@ namespace wsl::random
             auto const& X = *this;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
-            if (u == 0 || X.low() == X.high())
-                return X.low();
+            if (u == 0 || X.lower() == X.upper())
+                return X.lower();
             if (u == 1)
-                return X.high();
+                return X.upper();
             auto const ge = [&](I k) {
-                if (k >= X.high())
+                if (k >= X.upper())
                     return true;
                 auto const [v, is_f] = X.distribution(k);
                 return detail::at_least(v, is_f, u);
             };
-            return detail::smallest_true(X.mode(), X.low(), X.high(), ge);
+            return detail::smallest_true(X.mode(), X.lower(), X.upper(), ge);
         }
 
         // Inversion depuis le mode : u comparé exactement aux sommes partielles de masses
@@ -159,14 +159,14 @@ namespace wsl::random
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            if (X.low() == X.high())
-                return X.low();
+            if (X.lower() == X.upper())
+                return X.lower();
             double const u = uniform_real<double>(g);
-            I const m = X.mode() < X.low() ? X.low() : X.mode() > X.high() ? X.high() : X.mode();
+            I const m = X.mode() < X.lower() ? X.lower() : X.mode() > X.upper() ? X.upper() : X.mode();
             // F(m − 1) et masses vers le bas, puis vers le haut
-            auto const [v, is_f] = X.distribution(m > X.low() ? m - 1 : m);
+            auto const [v, is_f] = X.distribution(m > X.lower() ? m - 1 : m);
             detail::sd::double_double f_below{0.0, 0.0};                   // F(m − 1)
-            if (m > X.low())
+            if (m > X.lower())
             {
                 auto const w = detail::unscaled(v);
                 f_below = is_f ? w : detail::sum({1.0, 0.0}, {-w.hi, -w.lo});
@@ -177,24 +177,24 @@ namespace wsl::random
             if (below(f_below))                                             // u < F(m − 1) : vers le bas
             {
                 detail::sd::double_double f = f_below, mass = pm;
-                for (I k = m - 1; k > X.low(); --k)
+                for (I k = m - 1; k > X.lower(); --k)
                 {
                     mass = detail::mul(mass, X.ratio_down(k + 1));          // P(k)
                     f = detail::sum(f, {-mass.hi, -mass.lo});               // F(k − 1)
                     if (!below(f))
                         return k;
                 }
-                return X.low();
+                return X.lower();
             }
             detail::sd::double_double f = detail::sum(f_below, pm), mass = pm;   // F(m)
-            for (I k = m; k < X.high(); ++k)
+            for (I k = m; k < X.upper(); ++k)
             {
                 if (below(f))
                     return k;
                 mass = detail::mul(mass, X.ratio_up(k));                    // P(k + 1)
                 f = detail::sum(f, mass);
             }
-            return X.high();
+            return X.upper();
         }
 
         friend constexpr bool operator==(hypergeometric const&, hypergeometric const&) = default;
@@ -262,23 +262,23 @@ namespace wsl::random
         };
         constexpr part distribution(I k) const noexcept
         {
-            bool const lower = k < mode();
-            I j = lower ? k : k + 1;
+            bool const below = k < mode();
+            I j = below ? k : k + 1;
             auto const l = log_mass(j);
             if (!(l.hi > -1500))
-                return {{0.0, 0.0, 0}, lower};
+                return {{0.0, 0.0, 0}, below};
             detail::sd::double_double total{1.0, 0.0}, term{1.0, 0.0};      // Σ P(·)/P(j)
             for (;;)
             {
-                if (lower ? j <= low() : j >= high())
+                if (below ? j <= this->lower() : j >= upper())
                     break;
-                term = detail::mul(term, lower ? ratio_down(j) : ratio_up(j));
-                j = lower ? j - 1 : j + 1;
+                term = detail::mul(term, below ? ratio_down(j) : ratio_up(j));
+                j = below ? j - 1 : j + 1;
                 total = detail::sum(total, term);
                 if (detail::magnitude(term.hi) < detail::sd::fmul(total.hi, 0x1p-112))
                     break;
             }
-            return {detail::exp_scaled(l.hi, l.lo) * detail::normalized(total.hi, total.lo), lower};
+            return {detail::exp_scaled(l.hi, l.lo) * detail::normalized(total.hi, total.lo), below};
         }
 
         I N_, K_, n_;

@@ -55,6 +55,21 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `truncate(P, {.lower, .upper})`, bornes nommées et facultatives, remplace
   `truncate(X, a, b)`. En-têtes `convolution.hpp` et `product_measure.hpp` (ex-`sum.hpp`,
   `independent.hpp`). Mêmes résultats.
+- Rupture : vocabulaire des paramètres (docs/interfaces.md, décision 2b). Renommés :
+  normale `.sd` → `.stddev` ; log-normale `.mu`, `.sigma` → `.log_mean`, `.log_stddev` ;
+  gaussienne discrète `.mu`, `.sigma` → `.location`, `.scale` ; von Mises `.mu`, `.kappa` →
+  `.location`, `.concentration` (von Mises–Fisher : `.concentration`) ; uniformes, arc
+  sinus, triangulaire `.low`, `.high` → `.lower`, `.upper` ; composition et partition
+  d'entier `.n` → `.total` ; arbre binaire `.nodes` → `.vertices`. Accesseurs renommés de
+  même (`stddev()`, `lower()`, `upper()`, `concentration()`… ; hypergéométrique `lower()`,
+  `upper()`). Ordre des champs position → échelle → formes : gamma `{.rate | .scale,
+  .shape}`, Erlang `{.rate, .shape}`, Weibull `{.scale, .shape}`, Fréchet `{.location,
+  .scale, .shape}`, stable `{.location, .scale, .alpha, .beta}`, Student multivariée
+  `{.location, .scale, .degrees_of_freedom}`, Wishart `{.scale, .degrees_of_freedom}`.
+  Valeurs par défaut position 0, échelle 1 (Cauchy, Gumbel, Laplace, logistique, Rayleigh,
+  Weibull, Pareto, Fréchet, stable, gaussienne discrète, von Mises, uniforme sur [0, 1]) ;
+  constructeurs par défaut pour les lois standard (`normal()`, `exponential()`, `uniform()`,
+  `cauchy()`…). Mêmes tirages et mêmes valeurs.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

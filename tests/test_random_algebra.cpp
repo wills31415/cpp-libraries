@@ -112,7 +112,7 @@ static_assert(wsl::random::mixture<normal_t, wsl::random::exponential<>>::sampli
 static_assert(wsl::random::mixture<normal_t, wsl::random::gamma<>>::sampling == wsl::random::exactness::approximate);
 static_assert(!wsl::random::has_pdf<wsl::random::mixture<wsl::random::poisson<>>> && wsl::random::has_cdf<wsl::random::mixture<wsl::random::poisson<>>>);
 // Évaluables à la compilation.
-static_assert(wsl::random::affine(wsl::random::normal({.mean = 1.0, .sd = 2.0}), {.scale = 3.0, .shift = -1.0}).mean() == 2.0);
+static_assert(wsl::random::affine(wsl::random::normal({.mean = 1.0, .stddev = 2.0}), {.scale = 3.0, .shift = -1.0}).mean() == 2.0);
 static_assert(wsl::random::cdf(wsl::random::affine(wsl::random::exponential({.rate = 1.0}), {.scale = 2.0}), 0.0) == 0.0);
 
 int main()
@@ -121,38 +121,38 @@ int main()
 
     // ---- Quantile de survie --------------------------------------------------------
     check_cquantile(wsl::random::exponential({.rate = 2.0}));
-    check_cquantile(wsl::random::normal({.mean = 1.0, .sd = 2.0}));
-    assert(wsl::random::cquantile(wsl::random::uniform({.low = -1.0, .high = 3.0}), 0.75) == wsl::random::quantile(wsl::random::uniform({.low = -1.0, .high = 3.0}), 0.25));   // (queue : x arrondi près de b)
-    check_cquantile(wsl::random::gamma({.shape = 2.5, .rate = 2.0}));
-    check_cquantile(wsl::random::gamma({.shape = 1e-3, .scale = 1.0}), 1e-10);
+    check_cquantile(wsl::random::normal({.mean = 1.0, .stddev = 2.0}));
+    assert(wsl::random::cquantile(wsl::random::uniform({.lower = -1.0, .upper = 3.0}), 0.75) == wsl::random::quantile(wsl::random::uniform({.lower = -1.0, .upper = 3.0}), 0.25));   // (queue : x arrondi près de b)
+    check_cquantile(wsl::random::gamma({.rate = 2.0, .shape = 2.5}));
+    check_cquantile(wsl::random::gamma({.scale = 1.0, .shape = 1e-3}), 1e-10);
     check_cquantile(wsl::random::beta({.alpha = 2.0, .beta = 0.5}), 1e-6);           // x près de 1 : 1 − x mal résolu
     check_cquantile(wsl::random::chi_squared({.degrees_of_freedom = 3.0}));
     check_cquantile(wsl::random::student_t({.degrees_of_freedom = 4.0}));
-    check_cquantile(wsl::random::lognormal({.mu = 0.0, .sigma = 0.5}));
+    check_cquantile(wsl::random::lognormal({.log_mean = 0.0, .log_stddev = 0.5}));
     check_cquantile(wsl::random::cauchy({.location = 1.0, .scale = 2.0}));
     check_cquantile(wsl::random::fisher_f({.d1 = 5.0, .d2 = 10.0}), 1e-10);
-    check_cquantile(wsl::random::weibull({.shape = 1.5, .scale = 2.0}));
+    check_cquantile(wsl::random::weibull({.scale = 2.0, .shape = 1.5}));
     check_cquantile(wsl::random::laplace({.location = 1.0, .scale = 2.0}));
     check_cquantile(wsl::random::logistic({.location = 1.0, .scale = 2.0}));
     check_cquantile(wsl::random::pareto({.scale = 1.0, .shape = 2.5}));
-    assert(wsl::random::cquantile(wsl::random::uniform({.low = 1.0, .high = 3.0}), 0.1) == 2.8);
+    assert(wsl::random::cquantile(wsl::random::uniform({.lower = 1.0, .upper = 3.0}), 0.1) == 2.8);
     assert(wsl::random::cquantile(wsl::random::exponential({.rate = 1.0}), 1e-300) > 690);     // 1 − q ne vaudrait rien
 
     // ---- Image affine : identités ---------------------------------------------------
     {
-        auto const Y = wsl::random::affine(wsl::random::normal({.mean = 1.0, .sd = 2.0}), {.scale = 2.0, .shift = 3});
-        assert(Y.mean() == 5 && Y.sd() == 4);
-        auto const U = wsl::random::affine(wsl::random::uniform({.low = 0.0, .high = 1.0}), {.scale = -2, .shift = 2});
-        assert(U.low() == 0 && U.high() == 2);
+        auto const Y = wsl::random::affine(wsl::random::normal({.mean = 1.0, .stddev = 2.0}), {.scale = 2.0, .shift = 3});
+        assert(Y.mean() == 5 && Y.stddev() == 4);
+        auto const U = wsl::random::affine(wsl::random::uniform({.lower = 0.0, .upper = 1.0}), {.scale = -2, .shift = 2});
+        assert(U.lower() == 0 && U.upper() == 2);
         auto const C = wsl::random::affine(wsl::random::cauchy({.location = 1.0, .scale = 2.0}), {.scale = -1});
         assert(C.location() == -1 && C.scale() == 2);
         // Familles fermées par changement d'échelle : mêmes bits que la loi de la famille.
         auto const E4 = wsl::random::affine(wsl::random::exponential({.rate = 2.0}), {.scale = 4});
         wsl::random::exponential const E({.rate = 0.5});
-        auto const G3 = wsl::random::affine(wsl::random::gamma({.shape = 2.5, .scale = 0.5}), {.scale = 3});
-        wsl::random::gamma const G({.shape = 2.5, .scale = 1.5});
-        auto const W2 = wsl::random::affine(wsl::random::weibull({.shape = 1.5, .scale = 2.0}), {.scale = 2});
-        wsl::random::weibull const W({.shape = 1.5, .scale = 4.0});
+        auto const G3 = wsl::random::affine(wsl::random::gamma({.scale = 0.5, .shape = 2.5}), {.scale = 3});
+        wsl::random::gamma const G({.scale = 1.5, .shape = 2.5});
+        auto const W2 = wsl::random::affine(wsl::random::weibull({.scale = 2.0, .shape = 1.5}), {.scale = 2});
+        wsl::random::weibull const W({.scale = 4.0, .shape = 1.5});
         auto const P5 = wsl::random::affine(wsl::random::pareto({.scale = 2.0, .shape = 2.5}), {.scale = 0.5});
         wsl::random::pareto const P({.scale = 1.0, .shape = 2.5});
         for (double x : {0.01, 0.5, 1.0, 3.0, 40.0})
@@ -163,13 +163,13 @@ int main()
         for (double p : {1e-100, 0.25, 0.5, 0.99})
             assert(wsl::random::quantile(E4, p) == wsl::random::quantile(E, p) && wsl::random::cquantile(G3, p) == wsl::random::cquantile(G, p) && wsl::random::quantile(P5, p) == wsl::random::quantile(P, p));
         assert(E4.mean() == 2 && E4.variance() == E.variance() && G3.entropy() == G.entropy() && W2.median() == W.median());
-        auto const L2 = wsl::random::affine(wsl::random::lognormal({.mu = 0.0, .sigma = 0.5}), {.scale = 2});
-        assert(std::abs(L2.median() - 2) < 4e-16 && close(wsl::random::cdf(L2, 3.0), wsl::random::cdf(wsl::random::lognormal({.mu = std::log(2.0), .sigma = 0.5}), 3.0), 1e-15));
+        auto const L2 = wsl::random::affine(wsl::random::lognormal({.log_mean = 0.0, .log_stddev = 0.5}), {.scale = 2});
+        assert(std::abs(L2.median() - 2) < 4e-16 && close(wsl::random::cdf(L2, 3.0), wsl::random::cdf(wsl::random::lognormal({.log_mean = std::log(2.0), .log_stddev = 0.5}), 3.0), 1e-15));
         // aX, a < 0 ou b ≠ 0 : composition.
         auto const S = wsl::random::affine(wsl::random::exponential({.rate = 1.0}), {.scale = -2, .shift = 1});              // support (−∞, 1]
         assert(S.support().lower == -INFINITY && S.support().upper == 1 && wsl::random::cdf(S, 1.0) == 1 && wsl::random::cdf(S, -1.0) == wsl::random::ccdf(wsl::random::exponential({.rate = 1.0}), 1.0));
         assert(wsl::random::quantile(S, 0.25) == 1 - 2 * wsl::random::cquantile(wsl::random::exponential({.rate = 1.0}), 0.25));
-        assert(throws_domain_error([] { (void)wsl::random::affine(wsl::random::normal({.mean = 0.0, .sd = 1.0}), {.scale = 0}); }));
+        assert(throws_domain_error([] { (void)wsl::random::affine(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), {.scale = 0}); }));
         assert(throws_domain_error([] { (void)wsl::random::affine(wsl::random::student_t({.degrees_of_freedom = 3.0}), {.scale = 1, .shift = INFINITY}); }));
     }
 
@@ -189,8 +189,8 @@ int main()
         auto const B = wsl::random::affine(wsl::random::beta({.alpha = 2.0, .beta = 3.0}), {.scale = 10, .shift = -4});
         assert(B.support().lower == -4 && B.support().upper == 6 && std::abs(B.mean() - 0) < 1e-15 && B.skewness() == wsl::random::beta({.alpha = 2.0, .beta = 3.0}).skewness());
         assert(kolmogorov_smirnov(B, g) < 1.95);
-        auto const N = wsl::random::affine(wsl::random::gamma({.shape = 3.0, .rate = 1.0}), {.scale = -1});
-        assert(N.skewness() == -wsl::random::gamma({.shape = 3.0, .rate = 1.0}).skewness() && kolmogorov_smirnov(N, g) < 1.95);
+        auto const N = wsl::random::affine(wsl::random::gamma({.rate = 1.0, .shape = 3.0}), {.scale = -1});
+        assert(N.skewness() == -wsl::random::gamma({.rate = 1.0, .shape = 3.0}).skewness() && kolmogorov_smirnov(N, g) < 1.95);
         auto const F = wsl::random::affine(wsl::random::student_t<float>({.degrees_of_freedom = 3.0f}), {.scale = 2.0, .shift = 1.0});   // float
         static_assert(std::is_same_v<decltype(wsl::random::cdf(F, 1.0f)), float>);
         assert(wsl::random::cdf(F, 1.0f) == 0.5f);
@@ -198,7 +198,7 @@ int main()
 
     // ---- Troncature ----------------------------------------------------------------
     {
-        wsl::random::normal const N({.mean = 0.0, .sd = 1.0});
+        wsl::random::normal const N({.mean = 0.0, .stddev = 1.0});
         auto const T = wsl::random::truncate(N, {.lower = 10.0});                     // queue droite : par la survie
         assert(T.mass() == wsl::random::ccdf(N, 10.0) && T.support().lower == 10 && wsl::random::cdf(T, 9.0) == 0 && wsl::random::pdf(T, 9.0) == 0);
         assert(close(wsl::random::pdf(T, 10.0), wsl::random::pdf(N, 10.0) / wsl::random::ccdf(N, 10.0), 1e-15) && close(wsl::random::ccdf(T, 10.5), wsl::random::ccdf(N, 10.5) / wsl::random::ccdf(N, 10.0), 1e-13));
@@ -211,8 +211,8 @@ int main()
             s += wsl::random::sample(T, g);
         assert(std::abs(s / 20000 - wsl::random::pdf(N, 10.0) / wsl::random::ccdf(N, 10.0)) < 0.005);
         assert(kolmogorov_smirnov(T, g) < 1.95);
-        auto const G = wsl::random::truncate(wsl::random::gamma({.shape = 2.0, .rate = 1.0}), {.lower = 1.0, .upper = 3.0});   // masse 0,54 : rejet
-        assert(close(G.mass(), wsl::random::cdf(wsl::random::gamma({.shape = 2.0, .rate = 1.0}), 3.0) - wsl::random::cdf(wsl::random::gamma({.shape = 2.0, .rate = 1.0}), 1.0), 1e-15));
+        auto const G = wsl::random::truncate(wsl::random::gamma({.rate = 1.0, .shape = 2.0}), {.lower = 1.0, .upper = 3.0});   // masse 0,54 : rejet
+        assert(close(G.mass(), wsl::random::cdf(wsl::random::gamma({.rate = 1.0, .shape = 2.0}), 3.0) - wsl::random::cdf(wsl::random::gamma({.rate = 1.0, .shape = 2.0}), 1.0), 1e-15));
         assert(kolmogorov_smirnov(G, g) < 1.95 && close(wsl::random::cdf(G, G.median()), 0.5, 1e-14));
         auto const L = wsl::random::truncate(wsl::random::cauchy({.location = 0.0, .scale = 1.0}), {.upper = -1e3});   // queue gauche
         assert(kolmogorov_smirnov(L, g) < 1.95 && L.support().upper == -1e3);
@@ -225,8 +225,8 @@ int main()
 
     // ---- Mélanges ------------------------------------------------------------------
     {
-        wsl::random::normal const A({.mean = -2.0, .sd = 1.0});
-        wsl::random::gamma const B({.shape = 3.0, .rate = 1.0});
+        wsl::random::normal const A({.mean = -2.0, .stddev = 1.0});
+        wsl::random::gamma const B({.rate = 1.0, .shape = 3.0});
         wsl::random::mixture const M(wsl::random::weighted(0.3, A), wsl::random::weighted(0.7, B));
         wsl::random::mixture const M10(wsl::random::weighted(3.0, A), wsl::random::weighted(7.0, B));    // poids non normalisés
         for (double x : {-3.0, 0.0, 0.5, 2.0, 10.0})
@@ -246,8 +246,8 @@ int main()
         for (double x : {0.5, 2.0, 9.0})
             assert(wsl::random::pdf(one, x) == wsl::random::pdf(B, x) && wsl::random::cdf(one, x) == wsl::random::cdf(B, x));
         // Choix exact des composantes : poids 1, 1, 2 ; χ² à 2 ddl.
-        wsl::random::mixture const C(wsl::random::weighted(1.0, wsl::random::uniform({.low = 0.0, .high = 1.0})), wsl::random::weighted(1.0, wsl::random::uniform({.low = 1.0, .high = 2.0})),
-                             wsl::random::weighted(2.0, wsl::random::uniform({.low = 2.0, .high = 3.0})));
+        wsl::random::mixture const C(wsl::random::weighted(1.0, wsl::random::uniform({.lower = 0.0, .upper = 1.0})), wsl::random::weighted(1.0, wsl::random::uniform({.lower = 1.0, .upper = 2.0})),
+                             wsl::random::weighted(2.0, wsl::random::uniform({.lower = 2.0, .upper = 3.0})));
         int counts[3] = {};
         for (int i = 0; i < 40000; ++i)
             ++counts[static_cast<int>(wsl::random::sample(C, g))];
@@ -259,8 +259,8 @@ int main()
         }
         assert(chi < 13.8);                                                  // seuil de 0,1 %
         // Poids d'étendue immense : grands entiers ; la composante de poids 2^-1000 n'apparaît pas.
-        wsl::random::mixture const H(wsl::random::weighted(0x1p1000, wsl::random::uniform({.low = 0.0, .high = 1.0})), wsl::random::weighted(0x1p-1000, wsl::random::uniform({.low = 5.0, .high = 6.0})),
-                             wsl::random::weighted(0x1p999, wsl::random::uniform({.low = 1.0, .high = 2.0})));
+        wsl::random::mixture const H(wsl::random::weighted(0x1p1000, wsl::random::uniform({.lower = 0.0, .upper = 1.0})), wsl::random::weighted(0x1p-1000, wsl::random::uniform({.lower = 5.0, .upper = 6.0})),
+                             wsl::random::weighted(0x1p999, wsl::random::uniform({.lower = 1.0, .upper = 2.0})));
         int above = 0;
         for (int i = 0; i < 30000; ++i)
         {
@@ -284,23 +284,23 @@ int main()
 
     // ---- Sommes indépendantes ------------------------------------------------------
     {
-        static_assert(std::is_same_v<decltype(wsl::random::convolution(wsl::random::normal({.mean = 1.0, .sd = 3.0}), wsl::random::normal({.mean = 2.0, .sd = 4.0}))), wsl::random::normal<>>);
+        static_assert(std::is_same_v<decltype(wsl::random::convolution(wsl::random::normal({.mean = 1.0, .stddev = 3.0}), wsl::random::normal({.mean = 2.0, .stddev = 4.0}))), wsl::random::normal<>>);
         static_assert(std::is_same_v<decltype(wsl::random::convolution(wsl::random::poisson({.mean = 1.0}), wsl::random::poisson({.mean = 2.0}))), wsl::random::poisson<>>);
-        static_assert(std::is_same_v<decltype(wsl::random::convolution(wsl::random::gamma({.shape = 1.0, .rate = 1.0}), wsl::random::gamma({.shape = 1.0, .rate = 1.0}))), wsl::random::convolution_law<wsl::random::gamma<>, wsl::random::gamma<>>>);
+        static_assert(std::is_same_v<decltype(wsl::random::convolution(wsl::random::gamma({.rate = 1.0, .shape = 1.0}), wsl::random::gamma({.rate = 1.0, .shape = 1.0}))), wsl::random::convolution_law<wsl::random::gamma<>, wsl::random::gamma<>>>);
         static_assert(wsl::random::has_cdf<wsl::random::convolution_law<wsl::random::gamma<>, wsl::random::exponential<>>> && !wsl::random::has_cdf<wsl::random::convolution_law<wsl::random::student_t<>, wsl::random::uniform<>>>);
         static_assert(wsl::random::convolution_law<wsl::random::poisson<>, wsl::random::geometric<>>::sampling == wsl::random::exactness::approximate);
         static_assert(wsl::random::convolution_law<wsl::random::discrete_uniform<>, wsl::random::discrete_uniform<>>::sampling == wsl::random::exactness::exact);
-        auto const S = wsl::random::convolution(wsl::random::normal({.mean = 1.0, .sd = 3.0}), wsl::random::normal({.mean = 2.0, .sd = 4.0}));
-        assert(S.mean() == 3 && S.sd() == 5);
-        auto const D = wsl::random::convolution(wsl::random::normal({.mean = 1.0, .sd = 3.0}), wsl::random::affine(wsl::random::normal({.mean = 2.0, .sd = 4.0}), {.scale = -1}));
-        assert(D.mean() == -1 && D.sd() == 5);
+        auto const S = wsl::random::convolution(wsl::random::normal({.mean = 1.0, .stddev = 3.0}), wsl::random::normal({.mean = 2.0, .stddev = 4.0}));
+        assert(S.mean() == 3 && S.stddev() == 5);
+        auto const D = wsl::random::convolution(wsl::random::normal({.mean = 1.0, .stddev = 3.0}), wsl::random::affine(wsl::random::normal({.mean = 2.0, .stddev = 4.0}), {.scale = -1}));
+        assert(D.mean() == -1 && D.stddev() == 5);
         auto const C = wsl::random::convolution(wsl::random::cauchy({.location = 1.0, .scale = 2.0}), wsl::random::cauchy({.location = -3.0, .scale = 0.5}));
         assert(C.location() == -2 && C.scale() == 2.5);
         assert(wsl::random::convolution(wsl::random::chi_squared({.degrees_of_freedom = 3.0}), wsl::random::chi_squared({.degrees_of_freedom = 4.5})).degrees_of_freedom() == 7.5);
         // Identités conditionnelles : mêmes bits que la loi de la famille.
-        auto const G = wsl::random::convolution(wsl::random::gamma({.shape = 2.0, .rate = 2.0}), wsl::random::gamma({.shape = 1.5, .scale = 0.5}));   // paramétrisations mêlées
-        wsl::random::gamma const G35({.shape = 3.5, .rate = 2.0});
-        auto const E = wsl::random::convolution(wsl::random::exponential({.rate = 2.0}), wsl::random::gamma({.shape = 2.5, .rate = 2.0}));
+        auto const G = wsl::random::convolution(wsl::random::gamma({.rate = 2.0, .shape = 2.0}), wsl::random::gamma({.scale = 0.5, .shape = 1.5}));   // paramétrisations mêlées
+        wsl::random::gamma const G35({.rate = 2.0, .shape = 3.5});
+        auto const E = wsl::random::convolution(wsl::random::exponential({.rate = 2.0}), wsl::random::gamma({.rate = 2.0, .shape = 2.5}));
         auto const B = wsl::random::convolution(wsl::random::binomial({.trials = 10, .p = 0.3}), wsl::random::binomial({.trials = 5, .p = 0.3}));
         wsl::random::binomial const B15({.trials = 15, .p = 0.3});
         assert(G.family() && E.family() && B.family());
@@ -310,7 +310,7 @@ int main()
         for (int k = 0; k <= 15; ++k)
             assert(wsl::random::pmf(B, k) == wsl::random::pmf(B15, k) && wsl::random::cdf(B, k) == wsl::random::cdf(B15, k));
         // Sans identité : moments par les cumulants ; NaN pour une somme continue.
-        auto const H = wsl::random::convolution(wsl::random::gamma({.shape = 2.0, .rate = 2.0}), wsl::random::gamma({.shape = 1.5, .rate = 3.0}));
+        auto const H = wsl::random::convolution(wsl::random::gamma({.rate = 2.0, .shape = 2.0}), wsl::random::gamma({.rate = 3.0, .shape = 1.5}));
         assert(!H.family() && std::isnan(wsl::random::cdf(H, 1.0)) && throws_domain_error([&] { (void)wsl::random::quantile(H, 0.5); }));
         assert(H.mean() == 1.5 && close(H.variance(), 0.5 + 1.5 / 9, 1e-15));
         double const k3 = 2.0 * 2 / 8 + 2.0 * 1.5 / 27, v = 0.5 + 1.5 / 9;                     // κ₃ = 2a/λ³
@@ -340,14 +340,14 @@ int main()
             assert(wsl::random::cdf(PB, k) >= p && (k == 0 || wsl::random::cdf(PB, k - 1) < p));
         }
         assert(close(wsl::random::ccdf(PB, 80), wsl::random::ccdf(P, 60) * 0 + wsl::random::ccdf(PB, 80), 0) && wsl::random::ccdf(PB, 80) > 0 && wsl::random::ccdf(PB, 80) < 1e-30);   // queue lointaine, sans 1 − cdf
-        auto const GU = wsl::random::convolution(wsl::random::geometric({.p = 0.2}), wsl::random::discrete_uniform({.low = -3, .high = 3}));        // supports négatifs
+        auto const GU = wsl::random::convolution(wsl::random::geometric({.p = 0.2}), wsl::random::discrete_uniform({.lower = -3, .upper = 3}));        // supports négatifs
         assert(GU.support().lower == -3 && close(wsl::random::cdf(GU, 0), [&] { double s = 0; for (int j = -3; j <= 3; ++j) s += wsl::random::cdf(wsl::random::geometric({.p = 0.2}), -j) / 7; return s; }(), 1e-14));
     }
 
     // ---- Loi jointe et image par une fonction ----------------------------------------
     {
         namespace sp = wsl::special;
-        wsl::random::normal const N({.mean = 0.0, .sd = 1.0});
+        wsl::random::normal const N({.mean = 0.0, .stddev = 1.0});
         wsl::random::exponential const E({.rate = 2.0});
         wsl::random::product_measure const J(N, E, wsl::random::poisson({.mean = 3.0}));
         static_assert(std::is_same_v<decltype(J)::value_type, std::tuple<double, double, std::int64_t>>);
@@ -362,12 +362,12 @@ int main()
         assert(x == wsl::random::sample(N, b) && y == wsl::random::sample(E, b) && k == wsl::random::sample(wsl::random::poisson({.mean = 3.0}), b));
         // Image monotone : exp(N) est la log-normale ; 1/X, X gamma, la gamma inverse.
         auto const L = wsl::random::pushforward(N, wsl::random::increasing([](double t) { return sp::exp(t); }, [](double t) { return sp::log(t); }, [](double t) { return 1 / t; }));
-        wsl::random::lognormal const LN({.mu = 0.0, .sigma = 1.0});
+        wsl::random::lognormal const LN({.log_mean = 0.0, .log_stddev = 1.0});
         for (double t : {0.1, 1.0, 2.0, 30.0})
             assert(close(wsl::random::cdf(L, t), wsl::random::cdf(LN, t), 1e-15) && close(wsl::random::pdf(L, t), wsl::random::pdf(LN, t), 1e-15) && close(wsl::random::log_pdf(L, t), wsl::random::log_pdf(LN, t), 1e-14));
         assert(close(wsl::random::quantile(L, 0.9), wsl::random::quantile(LN, 0.9), 1e-15) && L.median() == 1 && L.support().lower == 0 && kolmogorov_smirnov(L, g) < 1.95);
-        auto const I = wsl::random::pushforward(wsl::random::gamma({.shape = 3.0, .rate = 2.0}), wsl::random::decreasing([](double t) { return 1 / t; }, [](double t) { return 1 / t; }, [](double t) { return -1 / (t * t); }));
-        assert(close(wsl::random::cdf(I, 1.0), wsl::random::ccdf(wsl::random::gamma({.shape = 3.0, .rate = 2.0}), 1.0), 1e-15) && close(wsl::random::quantile(I, 0.25), 1 / wsl::random::cquantile(wsl::random::gamma({.shape = 3.0, .rate = 2.0}), 0.25), 1e-15));
+        auto const I = wsl::random::pushforward(wsl::random::gamma({.rate = 2.0, .shape = 3.0}), wsl::random::decreasing([](double t) { return 1 / t; }, [](double t) { return 1 / t; }, [](double t) { return -1 / (t * t); }));
+        assert(close(wsl::random::cdf(I, 1.0), wsl::random::ccdf(wsl::random::gamma({.rate = 2.0, .shape = 3.0}), 1.0), 1e-15) && close(wsl::random::quantile(I, 0.25), 1 / wsl::random::cquantile(wsl::random::gamma({.rate = 2.0, .shape = 3.0}), 0.25), 1e-15));
         assert(kolmogorov_smirnov(I, g) < 1.95 && wsl::random::pdf(I, -1.0) == 0);
         // Fonction quelconque : tirage seul. N² est la loi du χ² à 1 degré.
         auto const Q = wsl::random::pushforward(N, [](double t) { return t * t; });
@@ -390,10 +390,10 @@ int main()
     {
         wsl::random::xoshiro256pp x(42);
         auto const Z = wsl::random::affine(wsl::random::student_t({.degrees_of_freedom = 5.0}), {.scale = -1.5, .shift = 2});
-        auto const T = wsl::random::truncate(wsl::random::normal({.mean = 0.0, .sd = 1.0}), {.lower = 3.0});     // inversion
+        auto const T = wsl::random::truncate(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), {.lower = 3.0});     // inversion
         auto const R = wsl::random::truncate(wsl::random::laplace({.location = 0.0, .scale = 1.0}), {.lower = -1.0, .upper = 2.0}); // rejet, tirage de X exact
-        wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .sd = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3.0, .rate = 1.0})));
-        wsl::random::mixture const H(wsl::random::weighted(0x1p600, wsl::random::exponential({.rate = 1.0})), wsl::random::weighted(0x1p-600, wsl::random::normal({.mean = 0.0, .sd = 1.0})),
+        wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .stddev = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.rate = 1.0, .shape = 3.0})));
+        wsl::random::mixture const H(wsl::random::weighted(0x1p600, wsl::random::exponential({.rate = 1.0})), wsl::random::weighted(0x1p-600, wsl::random::normal({.mean = 0.0, .stddev = 1.0})),
                              wsl::random::weighted(0x1p599, wsl::random::laplace({.location = 0.0, .scale = 1.0})));
         wsl::random::mixture const D(wsl::random::weighted(1.0, wsl::random::poisson({.mean = 2.0})), wsl::random::weighted(3.0, wsl::random::binomial({.trials = 40, .p = 0.5})));
         ok &= check("affine", fingerprint([&] { return bits(wsl::random::sample(Z, x)); }), 0x44509b09b529826c);
@@ -403,9 +403,9 @@ int main()
         ok &= check("mixture (grands)", fingerprint([&] { return bits(wsl::random::sample(H, x)); }), 0xa71e5cac21b536d6);
         ok &= check("mixture discrète", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(D, x)); }), 0x2c54e55c5ac36aab);
         auto const PB = wsl::random::convolution(wsl::random::poisson({.mean = 3.5}), wsl::random::binomial({.trials = 20, .p = 0.3}));
-        auto const ST = wsl::random::convolution(wsl::random::student_t({.degrees_of_freedom = 3.0}), wsl::random::uniform({.low = 0.0, .high = 1.0}));
-        wsl::random::product_measure const J(wsl::random::normal({.mean = 0.0, .sd = 1.0}), wsl::random::gamma({.shape = 2.0, .rate = 1.0}));
-        auto const LP = wsl::random::pushforward(wsl::random::normal({.mean = 0.0, .sd = 1.0}), wsl::random::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }));
+        auto const ST = wsl::random::convolution(wsl::random::student_t({.degrees_of_freedom = 3.0}), wsl::random::uniform({.lower = 0.0, .upper = 1.0}));
+        wsl::random::product_measure const J(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), wsl::random::gamma({.rate = 1.0, .shape = 2.0}));
+        auto const LP = wsl::random::pushforward(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), wsl::random::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }));
         ok &= check("sum (discrète)", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(PB, x)); }), 0xb95ba5ee227f675e);
         ok &= check("sum (continue)", fingerprint([&] { return bits(wsl::random::sample(ST, x)); }), 0xa5686f02baa4b6f2);
         ok &= check("independent", fingerprint([&] { auto const [u, w] = wsl::random::sample(J, x); return bits(u) ^ (bits(w) << 1); }), 0xf8b02c1c396edb9f);
@@ -420,7 +420,7 @@ int main()
             namespace fp = wsl::special::detail;
             double const u = wsl::random::uniform_real(x), t = fp::fmul(20.0, u) - 10;
             return bits(wsl::random::cdf(Z, t)) ^ (bits(wsl::random::quantile(Z, u)) << 1) ^ (bits(wsl::random::cdf(T, t + 13)) << 2) ^ (bits(wsl::random::quantile(T, u)) << 3)
-                 ^ (bits(wsl::random::cdf(M, t)) << 4) ^ (bits(wsl::random::quantile(M, u)) << 5) ^ (bits(wsl::random::cquantile(wsl::random::gamma({.shape = 0.5, .rate = 1.0}), u)) << 6);
+                 ^ (bits(wsl::random::cdf(M, t)) << 4) ^ (bits(wsl::random::quantile(M, u)) << 5) ^ (bits(wsl::random::cquantile(wsl::random::gamma({.rate = 1.0, .shape = 0.5}), u)) << 6);
         }, 1 << 9), 0x22bda422ad262729);
     }
     assert(ok);

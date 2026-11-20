@@ -3,7 +3,7 @@
 // Loi log-normale : X = e^Y, Y normale de moyenne μ et d'écart type σ > 0 (paramètres
 // de log X) ; densité φ((log x − μ)/σ)/(σx) sur (0, +∞).
 //
-//   wsl::random::lognormal X({.mu = 0, .sigma = 0.5});
+//   wsl::random::lognormal X({.log_mean = 0, .log_stddev = 0.5});
 //   X.median(); X.cdf(2.0); X.quantile(0.9); X(g);
 //
 // Les fonctions de la loi passent par celles de la normale : z = (log x − μ)/σ avec
@@ -35,17 +35,17 @@ namespace wsl::random
 
         struct parameters
         {
-            T mu, sigma;
+            T log_mean, log_stddev;
         };
 
-        constexpr lognormal(parameters p) : mu_(p.mu), sigma_(p.sigma)
+        constexpr lognormal(parameters p) : mu_(p.log_mean), sigma_(p.log_stddev)
         {
             if (!detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::random::lognormal : il faut mu fini et sigma > 0, fini");
+                throw std::domain_error("wsl::random::lognormal : il faut log_mean fini et log_stddev > 0, fini");
         }
 
-        constexpr T mu() const noexcept { return mu_; }
-        constexpr T sigma() const noexcept { return sigma_; }
+        constexpr T log_mean() const noexcept { return mu_; }
+        constexpr T log_stddev() const noexcept { return sigma_; }
         constexpr interval<T> support() const noexcept { return {T(0), std::numeric_limits<T>::infinity()}; }
 
         constexpr T median() const noexcept { return exponential_of(mu_, 0.0); }
@@ -178,7 +178,7 @@ namespace wsl::random
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return static_cast<T>(wsl::special::exp(double(wsl::random::sample(normal<double>({.mean = X.mu_, .sd = X.sigma_}), g))));
+            return static_cast<T>(wsl::special::exp(double(wsl::random::sample(normal<double>({.mean = X.mu_, .stddev = X.sigma_}), g))));
         }
         template <std::uniform_random_bit_generator G>
         constexpr T sample(G& g, fast_t) const

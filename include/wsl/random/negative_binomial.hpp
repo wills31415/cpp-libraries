@@ -165,7 +165,7 @@ namespace wsl::random
             if (X.p_ == 1)
                 return 0;
             double const scale = (1 - X.p_) / X.p_;
-            double const lambda = wsl::random::sample(gamma<double>(typename gamma<double>::shape_scale{X.r_, scale}), g);
+            double const lambda = wsl::random::sample(gamma<double>(typename gamma<double>::shape_scale{.scale = scale, .shape = X.r_}), g);
             if (!(lambda > 0))
                 return 0;
             return wsl::random::sample(poisson<I>({.mean = lambda}), g);

@@ -32,8 +32,10 @@ namespace wsl::random
 
         struct parameters
         {
-            T scale;
+            T scale = 1;
         };
+
+        constexpr rayleigh() : rayleigh(parameters{}) {}
 
         constexpr rayleigh(parameters p) : sigma_(p.scale)
         {

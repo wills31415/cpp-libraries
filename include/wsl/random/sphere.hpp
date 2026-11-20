@@ -44,7 +44,7 @@ namespace wsl::random
         template <class T, std::size_t N, class G>
         constexpr vector_of<T, N> uniform_direction(std::size_t n, G& g)
         {
-            normal<double> const standard({.mean = 0.0, .sd = 1.0});
+            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             auto z = make_vector<double, N>(n);
             for (;;)
             {

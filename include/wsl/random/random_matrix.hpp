@@ -138,7 +138,7 @@ namespace wsl::random
         {
             auto const& O = *this;
             std::size_t const n = O.n_;
-            normal<double> const standard({.mean = 0.0, .sd = 1.0});
+            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             std::vector<std::vector<double>> re(n, std::vector<double>(n)), im;
             for (auto& column : re)
                 for (auto& v : column)
@@ -176,7 +176,7 @@ namespace wsl::random
         {
             auto const& U = *this;
             std::size_t const n = U.n_;
-            normal<double> const half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
+            normal<double> const half({.mean = 0.0, .stddev = detail::inv_sqrt2_hi});
             std::vector<std::vector<double>> re(n, std::vector<double>(n)), im(n, std::vector<double>(n));
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = 0; i < n; ++i)
@@ -247,7 +247,7 @@ namespace wsl::random
         {
             auto const& H = *this;
             std::size_t const n = H.n_;
-            normal<double> const one({.mean = 0.0, .sd = 1.0}), half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
+            normal<double> const one({.mean = 0.0, .stddev = 1.0}), half({.mean = 0.0, .stddev = detail::inv_sqrt2_hi});
             auto h = detail::make_matrix<T, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
@@ -322,7 +322,7 @@ namespace wsl::random
         {
             auto const& H = *this;
             std::size_t const n = H.n_;
-            normal<double> const one({.mean = 0.0, .sd = 1.0}), half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
+            normal<double> const one({.mean = 0.0, .stddev = 1.0}), half({.mean = 0.0, .stddev = detail::inv_sqrt2_hi});
             auto h = detail::make_matrix<std::complex<T>, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)

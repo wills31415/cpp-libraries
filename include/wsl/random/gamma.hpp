@@ -3,8 +3,8 @@
 // Loi gamma de forme a > 0, de taux λ > 0 ou d'échelle θ = 1/λ :
 // densité λ^a x^{a−1} e^{−λx} / Γ(a) sur [0, +∞).
 //
-//   wsl::random::gamma X({.shape = 2.5, .rate = 2.0});
-//   wsl::random::gamma Y({.shape = 2.5, .scale = 0.5});        // la même loi
+//   wsl::random::gamma X({.rate = 2.0, .shape = 2.5});
+//   wsl::random::gamma Y({.scale = 0.5, .shape = 2.5});        // la même loi
 //   X.mean(); X.pdf(1.0); X.log_pdf(1.0); X(g);
 //
 // Le paramètre donné (taux ou échelle) est gardé tel quel : les calculs
@@ -97,11 +97,11 @@ namespace wsl::random
 
         struct shape_rate
         {
-            T shape, rate;
+            T rate, shape;
         };
         struct shape_scale
         {
-            T shape, scale;
+            T scale, shape;
         };
 
         constexpr gamma(shape_rate p) : shape_(p.shape), parameter_(p.rate), by_rate_(true) { validate(); }
@@ -333,7 +333,7 @@ namespace wsl::random
             auto const a = static_cast<T>(double(X.shape_) + double(Y.shape_));
             if (!same || !detail::is_finite(a))
                 return std::nullopt;
-            return X.by_rate_ ? gamma(shape_rate{a, X.parameter_}) : gamma(shape_scale{a, X.parameter_});
+            return X.by_rate_ ? gamma(shape_rate{.rate = X.parameter_, .shape = a}) : gamma(shape_scale{.scale = X.parameter_, .shape = a});
         }
 
         // Identité de l'algèbre (voir affine.hpp) : c X, c > 0, est gamma(a, θc) (ou λ/c), dans la
@@ -344,7 +344,7 @@ namespace wsl::random
             auto const t = static_cast<T>(v);
             if (!(t > 0) || !detail::is_finite(t))
                 return std::nullopt;
-            return X.by_rate_ ? gamma(shape_rate{X.shape_, t}) : gamma(shape_scale{X.shape_, t});
+            return X.by_rate_ ? gamma(shape_rate{.rate = t, .shape = X.shape_}) : gamma(shape_scale{.scale = t, .shape = X.shape_});
         }
 
         friend constexpr bool operator==(gamma const& a, gamma const& b) noexcept
