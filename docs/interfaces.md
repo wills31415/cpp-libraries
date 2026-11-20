@@ -219,7 +219,23 @@ Un seul exemple (`examples/dlist_demo.cpp`) pour neuf bibliothèques.
   public dans array2d (agrégats).
 - Hachage de graded : constantes FNV de 64 bits dans un `std::size_t` (32 bits ailleurs).
 
-## 6. Décisions à prendre d'abord
+## 6. Décisions prises
+
+| # | Point | Décision (date) |
+|---|---|---|
+| 1 | Espaces de noms | `wsl::random::…` pour tout wsl::random (lois, processus, objets combinatoires, moteurs, primitives ; appels non qualifiés par ADL) ; internes `wsl::random::detail`, `wsl::special::detail`, `wsl::detail::<bibliothèque>` pour les petites (2026-11-20) |
+| 2a | Construction des lois | Structure de paramètres nommés conservée (arguments nommés, plusieurs paramétrisations sans ambiguïté, défauts libres) ; ajout d'un `param()` commun (2026-11-20) |
+| 2b | Vocabulaire des paramètres | Compromis : moyenne, écart type, variance en `.mean`, `.stddev` (nom de `<random>`), `.variance`, plusieurs paramétrisations au besoin (normale par l'écart type ou la variance) ; position, échelle, intensité en `.location`, `.scale`, `.rate` ; formes par leur lettre usuelle quand elle est stable (`.alpha`, `.beta`, `.kappa`, `.nu`), sinon `.shape` ; effectifs en mots (`.trials`, `.size`, `.vertices`…). Chaque loi documente sa formule et la table symbole ↔ champ ; accesseurs nommés comme les champs. Défauts : location 0, scale 1 quand une forme standard existe, aucun pour les formes ; champs dans l'ordre position, échelle, formes (2026-11-20) |
+
+### Pistes en réserve (pour une refonte ultérieure)
+
+- Construction : constructeurs positionnels (comme `<random>`), fabriques nommées
+  (`gamma::with_rate(2, 1)`), types forts (`gamma(shape{2}, rate{1})`, ordre libre), ou
+  variante mixte (positionnel pour les lois à un paramètre sans ambiguïté, `bernoulli(0.3)`,
+  `poisson(4)`). Écartées pour l'instant : conventions silencieuses ou surcoût de types ;
+  la structure impose l'ordre de déclaration des champs (C++20).
+
+## 7. Décisions à prendre d'abord
 
 1. Espaces de noms : `wsl::random::…` ou `wsl::…` ; un `detail` par bibliothèque.
 2. Vocabulaire des paramètres et leurs défauts.
