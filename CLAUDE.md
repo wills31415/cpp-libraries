@@ -14,8 +14,11 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   algorithmes standard).
 - **Langue** : identifiants, noms de fichiers et de cibles en anglais ; commentaires
   et messages en français.
-- Standard minimal par bibliothèque : C++20 si possible, C++23 seulement si une
-  fonctionnalité l'exige. Le déclarer dans `wsl_add_library(... STANDARD ...)`.
+- Standard : **C++23 partout** (décision 2026-11-20, docs/interfaces.md) ; C++20 seulement
+  sur décision explicite, pour un besoin de compatibilité identifié. Le déclarer dans
+  `wsl_add_library(... STANDARD ...)`.
+- Interfaces : les décisions de la revue (espaces de noms, paramètres, types, erreurs…) sont
+  dans `docs/interfaces.md` ; tout nouveau code les suit.
 - Aucune dépendance externe dans une bibliothèque, sauf décision explicite.
 
 ## Dépôt, versions, CI
