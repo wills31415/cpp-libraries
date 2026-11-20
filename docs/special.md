@@ -102,26 +102,31 @@ d'empreintes dans les configurations FMA de la CI.
 Là où une `fma` serait voulue, elle s'écrirait explicitement (`std::fma`) ; la phase 1
 n'en utilise aucune.
 
-## 3. Interface ◻︎
+## 3. Interface ✅
 
 - Cible CMake `wsl::special`, en-tête parapluie `<wsl/special.hpp>`, en-têtes par
-  famille sous `<wsl/special/…>` (`elementary.hpp`, `gamma.hpp`, `error.hpp`…).
-- Namespace **`wsl::special`** : les noms de fonctions (`beta`, `gamma`, `zeta`…) sont
-  aussi des noms de lois dans `wsl` ; les séparer évite toute collision. Employer des
+  famille sous `<wsl/special/…>` : `elementary.hpp`, `trigonometric.hpp`, `algebraic.hpp`,
+  `error_function.hpp`, `gamma.hpp`, `incomplete_gamma.hpp`, `incomplete_beta.hpp`,
+  `bessel.hpp`.
+- Namespace **`wsl::special`** : des noms de fonctions (`beta`, `gamma`…) sont aussi des
+  noms de lois (`wsl::random::beta`) ; les séparer évite toute collision. Employer des
   noms qualifiés ou un alias (`namespace sp = wsl::special;`) : un
   `using namespace wsl::special;` rendrait `exp(2.0)` ambigu avec le `::exp` de
   `<math.h>`.
-- Noms et sémantique **de `<cmath>`** quand la fonction y existe (`exp`, `log1p`,
-  `lgamma`, `tgamma`, `erf`, `beta`, `expint`, `riemann_zeta`, `cyl_bessel_i`…),
-  y compris le traitement des cas limites (±0, ±∞, NaN, valeurs sous-normales) tel
-  qu'Annexe F de C le décrit. Noms des manuels sinon (`gamma_p`, `gamma_q`, `beta_inc`,
-  `erf_inv`…).
+- **Noms** (revue des interfaces, décision 4) : ceux de **`<cmath>`** quand la fonction y
+  existe, fonctions spéciales de C++17 comprises (`exp`, `log1p`, `lgamma`, `tgamma`, `erf`,
+  `beta`, `cyl_bessel_i`, et plus tard `expint`, `riemann_zeta`…), avec leur sémantique et
+  le traitement des cas limites (±0, ±∞, NaN, sous-normaux) de l'Annexe F de C ; sinon ceux
+  de **Boost.Math** (`gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `ibeta`, `ibetac`,
+  `ibeta_inv`, `ibetac_inv`, `erf_inv`, `erfc_inv`, `digamma`) ; `lbeta` (log B, absent des
+  deux) suit R.
 - Domaine : hors domaine, NaN comme `<cmath>` (pas d'exception : ce sont des fonctions
   numériques, pas des constructeurs de lois).
 - `constexpr` partout où c'est possible : écrites en arithmétique pure, ces fonctions
   peuvent être évaluées à la compilation, ce que `<cmath>` ne permet pas en C++23.
-- Surcharges `float` et `double`, plus les entiers (traités en `double`, comme
-  `<cmath>`) ; `long double` est supprimé (`= delete`).
+- Surcharges `float` et `double` ; arguments entiers, ou mêlés (entiers, `float`, `double`),
+  calculés en `double`, comme `<cmath>` (`hypot(3, 4.0f)`, `ibeta(2, 3, 0.5)`) ; `long double`
+  est supprimé (`= delete`).
 - En phase 1, la version `float` est calculée en `double` puis arrondie une fois :
   déterministe, et presque toujours l'arrondi correct.
 
@@ -146,7 +151,7 @@ n'en utilise aucune.
 |---|---|---|
 | **1** | `exp`, `exp2`, `expm1`, `log`, `log2`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `cbrt`, `hypot` | Toutes les lois continues : exponentielle, normale (Box–Muller), Cauchy, sphère, von Mises… |
 | **1** | `lgamma`, `tgamma`, `erf`, `erfc`, `erf_inv`, `erfc_inv` | Densités de gamma, bêta, Poisson ; normale (répartition, quantile) |
-| **4** | `gamma_p`, `gamma_q` (gamma incomplètes régularisées) et inverses ; `beta`, `lbeta`, `beta_inc` et inverse ; `digamma` | Répartition et quantiles : gamma, χ², Poisson, bêta, binomiale, Student, Fisher |
+| **4** | `gamma_p`, `gamma_q` (gamma incomplètes régularisées) et inverses ; `beta`, `lbeta`, `ibeta`, `ibetac` et inverses ; `digamma` | Répartition et quantiles : gamma, χ², Poisson, bêta, binomiale, Student, Fisher |
 | **5** | `cyl_bessel_i` (Bessel modifiée I_ν) | von Mises, von Mises–Fisher |
 | plus tard | Bessel (`cyl_bessel_k`, `cyl_bessel_j`…), `riemann_zeta` et zeta de Hurwitz, `expint`, Owen T, fonctions de Lambert, polylogarithme… | von Mises, Zipf, Skellam, normale asymétrique, Rice… |
 

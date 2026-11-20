@@ -517,4 +517,19 @@ namespace wsl::special
 
     constexpr float gamma_p_inv(float a, float p) noexcept { return detail::to_float(gamma_p_inv(static_cast<double>(a), static_cast<double>(p))); }
     constexpr float gamma_q_inv(float a, float q) noexcept { return detail::to_float(gamma_q_inv(static_cast<double>(a), static_cast<double>(q))); }
+
+    // Arguments mêlés (entiers, float, double), en double, comme <cmath>.
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double gamma_p(A a, B x) noexcept { return gamma_p(static_cast<double>(a), static_cast<double>(x)); }
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double gamma_q(A a, B x) noexcept { return gamma_q(static_cast<double>(a), static_cast<double>(x)); }
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double gamma_p_inv(A a, B p) noexcept { return gamma_p_inv(static_cast<double>(a), static_cast<double>(p)); }
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double gamma_q_inv(A a, B q) noexcept { return gamma_q_inv(static_cast<double>(a), static_cast<double>(q)); }
+
+    long double gamma_p(long double, long double) = delete;
+    long double gamma_q(long double, long double) = delete;
+    long double gamma_p_inv(long double, long double) = delete;
+    long double gamma_q_inv(long double, long double) = delete;
 }

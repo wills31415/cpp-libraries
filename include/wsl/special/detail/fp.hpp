@@ -183,4 +183,11 @@ namespace wsl::special::detail
 
     inline constexpr double infinity = std::numeric_limits<double>::infinity();
     inline constexpr double quiet_nan = std::numeric_limits<double>::quiet_NaN();
+
+    // Surcharges supplémentaires à la manière de <cmath> : arguments arithmétiques mêlés
+    // (entiers, float, double), calculés en double ; tous float ou tous double : les
+    // surcharges propres ; long double exclu (voir les suppressions).
+    template <class... A>
+    concept mixed_arithmetic = (std::is_arithmetic_v<A> && ...) && (!std::is_same_v<A, long double> && ...)
+                               && !(std::is_same_v<A, float> && ...) && !(std::is_same_v<A, double> && ...);
 }

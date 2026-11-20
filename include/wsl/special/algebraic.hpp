@@ -189,4 +189,8 @@ namespace wsl::special
     long double sqrt(long double) = delete;
     long double cbrt(long double) = delete;
     long double hypot(long double, long double) = delete;
+
+    // Arguments mêlés, comme <cmath>.
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double hypot(A x, B y) noexcept { return hypot(static_cast<double>(x), static_cast<double>(y)); }
 }

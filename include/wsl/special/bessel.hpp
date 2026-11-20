@@ -219,4 +219,10 @@ namespace wsl::special
     {
         return detail::to_float(cyl_bessel_i(static_cast<double>(nu), static_cast<double>(x)));
     }
+
+    // Arguments mêlés (entiers, float, double), en double, comme <cmath>.
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double cyl_bessel_i(A nu, B x) noexcept { return cyl_bessel_i(static_cast<double>(nu), static_cast<double>(x)); }
+
+    long double cyl_bessel_i(long double, long double) = delete;
 }

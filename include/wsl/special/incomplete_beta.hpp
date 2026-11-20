@@ -552,4 +552,37 @@ namespace wsl::special
     {
         return detail::to_float(ibetac_inv(static_cast<double>(a), static_cast<double>(b), static_cast<double>(q)));
     }
+
+    // Arguments mêlés (entiers, float, double), en double, comme <cmath>.
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double beta(A a, B b) noexcept { return beta(static_cast<double>(a), static_cast<double>(b)); }
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double lbeta(A a, B b) noexcept { return lbeta(static_cast<double>(a), static_cast<double>(b)); }
+    template <class A, class B, class C> requires detail::mixed_arithmetic<A, B, C>
+    constexpr double ibeta(A a, B b, C x) noexcept
+    {
+        return ibeta(static_cast<double>(a), static_cast<double>(b), static_cast<double>(x));
+    }
+    template <class A, class B, class C> requires detail::mixed_arithmetic<A, B, C>
+    constexpr double ibetac(A a, B b, C x) noexcept
+    {
+        return ibetac(static_cast<double>(a), static_cast<double>(b), static_cast<double>(x));
+    }
+    template <class A, class B, class C> requires detail::mixed_arithmetic<A, B, C>
+    constexpr double ibeta_inv(A a, B b, C p) noexcept
+    {
+        return ibeta_inv(static_cast<double>(a), static_cast<double>(b), static_cast<double>(p));
+    }
+    template <class A, class B, class C> requires detail::mixed_arithmetic<A, B, C>
+    constexpr double ibetac_inv(A a, B b, C q) noexcept
+    {
+        return ibetac_inv(static_cast<double>(a), static_cast<double>(b), static_cast<double>(q));
+    }
+
+    long double beta(long double, long double) = delete;
+    long double lbeta(long double, long double) = delete;
+    long double ibeta(long double, long double, long double) = delete;
+    long double ibetac(long double, long double, long double) = delete;
+    long double ibeta_inv(long double, long double, long double) = delete;
+    long double ibetac_inv(long double, long double, long double) = delete;
 }

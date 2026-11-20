@@ -324,4 +324,7 @@ namespace wsl::special
     long double erfc(long double) = delete;
     long double erf_inv(long double) = delete;
     long double erfc_inv(long double) = delete;
+
+    template <std::integral I> constexpr double erf_inv(I y) noexcept { return erf_inv(static_cast<double>(y)); }
+    template <std::integral I> constexpr double erfc_inv(I z) noexcept { return erfc_inv(static_cast<double>(z)); }
 }

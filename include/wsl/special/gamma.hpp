@@ -416,4 +416,6 @@ namespace wsl::special
 
     long double lgamma(long double) = delete;
     long double tgamma(long double) = delete;
+
+    long double digamma(long double) = delete;
 }

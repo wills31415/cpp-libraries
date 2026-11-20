@@ -17,6 +17,7 @@
 #include <iterator>
 #include <limits>
 #include <span>
+#include <type_traits>
 
 namespace sp = wsl::special;
 using reference_data::reference;
@@ -530,6 +531,19 @@ int main()
     // e^x : l'aller-retour y est mal conditionné, quelle que soit la précision.)
     for (double x = -1; x < 700; x += 0.173)
         assert(std::abs(sp::log1p(sp::expm1(x)) - x) <= 4 * ulp(x));
+
+    // Arguments entiers ou mêlés : en double, comme <cmath> ; même valeur que l'appel en double.
+    {
+        namespace sp = wsl::special;
+        static_assert(std::is_same_v<decltype(sp::hypot(3, 4.0f)), double> && std::is_same_v<decltype(sp::hypot(3.0f, 4.0f)), float>);
+        static_assert(std::is_same_v<decltype(sp::ibeta(2, 3, 0.5f)), double> && std::is_same_v<decltype(sp::gamma_p(2, 1.5)), double>);
+        static_assert(sp::hypot(3, 4) == 5.0 && sp::erf_inv(0) == 0.0);
+        assert(sp::atan2(1, 2.0f) == sp::atan2(1.0, double(2.0f)) && sp::beta(2, 3) == sp::beta(2.0, 3.0));
+        assert(sp::ibeta(2, 3, 0.25) == sp::ibeta(2.0, 3.0, 0.25) && sp::ibetac_inv(2, 3.0f, 0.5) == sp::ibetac_inv(2.0, 3.0, 0.5));
+        assert(sp::gamma_q(3, 2) == sp::gamma_q(3.0, 2.0) && sp::gamma_p_inv(2.5f, 1) == sp::gamma_p_inv(double(2.5f), 1.0));
+        assert(sp::cyl_bessel_i(1, 2) == sp::cyl_bessel_i(1.0, 2.0) && sp::lbeta(10, 20) == sp::lbeta(10.0, 20.0));
+        assert(sp::erfc_inv(1) == 0.0 && sp::pow(2, 0.5f) == sp::pow(2.0, double(0.5f)));
+    }
 
     return 0;
 }

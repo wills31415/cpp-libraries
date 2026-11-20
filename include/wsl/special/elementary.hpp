@@ -548,10 +548,7 @@ namespace wsl::special
 
     // pow à arguments mixtes (entier, float et double mêlés) : en double, comme <cmath>.
     template <class A, class B>
-        requires std::is_arithmetic_v<A> && std::is_arithmetic_v<B>
-                 && (!std::same_as<A, long double>) && (!std::same_as<B, long double>)
-                 && (!(std::same_as<A, float> && std::same_as<B, float>))
-                 && (!(std::same_as<A, double> && std::same_as<B, double>))
+        requires detail::mixed_arithmetic<A, B>
     constexpr double pow(A x, B y) noexcept
     {
         return pow(static_cast<double>(x), static_cast<double>(y));

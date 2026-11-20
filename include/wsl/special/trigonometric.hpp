@@ -438,4 +438,8 @@ namespace wsl::special
     long double tan(long double) = delete;
     long double atan(long double) = delete;
     long double atan2(long double, long double) = delete;
+
+    // Arguments mêlés, comme <cmath>.
+    template <class A, class B> requires detail::mixed_arithmetic<A, B>
+    constexpr double atan2(A y, B x) noexcept { return atan2(static_cast<double>(y), static_cast<double>(x)); }
 }

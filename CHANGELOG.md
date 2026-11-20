@@ -151,6 +151,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Preset release des nouveaux projets en `-march=native` sur x86-64 (fma, AVX2…).
 
 ### special (nouvelle)
+- Arguments entiers ou mêlés (entiers, `float`, `double`) pour toutes les fonctions à
+  plusieurs arguments (`hypot`, `atan2`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`,
+  `ibetac_inv`, `gamma_p`, `gamma_q` et inverses, `cyl_bessel_i`) et entiers pour `erf_inv`,
+  `erfc_inv`, calculés en `double` comme `<cmath>` ; `long double` supprimé partout
+  (`digamma` et ces fonctions compris). Règle de nommage écrite (special.md §3).
 - `cyl_bessel_i(ν, x)` (Bessel modifiée I_ν, float et double) : série, Hankel, Debye
   (polynômes engendrés exactement) ; 0,4993 ulp mesurée, arrondi correct partout.
 - `wsl::special::exp` et `wsl::special::log`, en `float` et en `double` : même
