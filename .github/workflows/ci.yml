@@ -7,7 +7,11 @@
 # contraction de a*b + c permise partout (-ffp-contract=fast). Les empreintes de
 # tests/test_special_bitexact.cpp doivent y être les mêmes qu'ailleurs : c'est la
 # preuve que la garantie bit-exacte de wsl::special résiste aux options du
-# projet consommateur.
+# projet consommateur. Elles ne tournent qu'en Release : la garantie bit-exacte
+# s'y vérifie, et les sanitizers sont couverts par les jobs Debug sans FMA.
+#
+# Debug en -O1 (ASan et UBSan restent efficaces, tests 2 à 3 fois plus rapides) ;
+# ccache garde les unités de traduction inchangées d'un run à l'autre.
 name: CI
 
 on:
@@ -36,8 +40,17 @@ jobs:
           - { name: "Clang 18 FMA", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }
           - { name: "Apple Clang FMA", os: macos-latest, cxx: /usr/bin/clang++, flags: "-ffp-contract=fast" }
         preset: [debug, release]
+        exclude:
+          - { compiler: { name: "GCC 14 FMA", os: ubuntu-24.04, cxx: g++-14, flags: "-march=x86-64-v3 -ffp-contract=fast" }, preset: debug }
+          - { compiler: { name: "Clang 18 FMA", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }, preset: debug }
+          - { compiler: { name: "Apple Clang FMA", os: macos-latest, cxx: /usr/bin/clang++, flags: "-ffp-contract=fast" }, preset: debug }
     steps:
       - uses: actions/checkout@v4
+
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.compiler.name }}-${{ matrix.preset }}
+          max-size: 500M
 
       # uv engendre les valeurs de référence de wsl::special (mpmath), non versionnées.
       - uses: astral-sh/setup-uv@v10.3.3
@@ -54,6 +67,8 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
           "-DCMAKE_CXX_FLAGS=${{ matrix.compiler.flags }}"
           -DWSL_LIBRARIES_WERROR=ON
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          "-DCMAKE_CXX_FLAGS_DEBUG=-g -O1"
 
       - name: Compilation
         run: cmake --build --preset ${{ matrix.preset }} -j 4
