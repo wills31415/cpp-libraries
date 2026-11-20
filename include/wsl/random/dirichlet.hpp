@@ -5,7 +5,7 @@
 //
 //   wsl::random::dirichlet<double, 3> D({.alpha = {1.0, 2.0, 3.0}});
 //   wsl::random::dirichlet<double, wsl::random::dynamic> E({.alpha = std::vector<double>(10, 0.5)});
-//   D.mean(); D.covariance(); pdf(D, {0.2, 0.3, 0.5}); D.marginal(0); sample(D, g);
+//   D.mean(); D.covariance(); D.pdf({0.2, 0.3, 0.5}); D.marginal(0); D(g);
 //
 // Densité Γ(α₀)/Π Γ(αᵢ) Π xᵢ^{αᵢ − 1}, α₀ = Σ αᵢ, calculée en logarithme double-double
 // (log B(α) = Σ lgamma(αᵢ) − lgamma(α₀)) puis un arrondi ; x doit être dans le
@@ -32,7 +32,7 @@
 namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
-    class dirichlet
+    class dirichlet : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -121,8 +121,9 @@ namespace wsl::random
             return beta<T>({.alpha = alpha_[i], .beta = static_cast<T>(r.hi + r.lo)});
         }
 
-        friend constexpr double log_pdf(dirichlet const& D, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
+            auto const& D = *this;
             if (x.size() != D.dimension() || !D.in_simplex(x))
                 return -std::numeric_limits<double>::infinity();
             detail::sd::double_double l{-D.log_beta_.hi, -D.log_beta_.lo};
@@ -131,8 +132,9 @@ namespace wsl::random
                     l = detail::sum(l, detail::mul({double(D.alpha_[i]) - 1, 0.0}, detail::log_precise(double(x[i]))));
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(dirichlet const& D, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
+            auto const& D = *this;
             if (x.size() != D.dimension() || !D.in_simplex(x))
                 return 0;
             detail::sd::double_double l{-D.log_beta_.hi, -D.log_beta_.lo};
@@ -147,13 +149,14 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(dirichlet const& D, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& D = *this;
             value_type x = detail::make_vector<T, N>(D.dimension());
             detail::sd::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < D.dimension(); ++i)
             {
-                double const v = sample(D.gammas_[i], g);
+                double const v = wsl::random::sample(D.gammas_[i], g);
                 x[i] = static_cast<T>(v);
                 s = detail::sum(s, {v, 0.0});
             }

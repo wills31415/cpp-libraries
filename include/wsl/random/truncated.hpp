@@ -4,7 +4,7 @@
 //
 //   wsl::random::normal N({.mean = 0, .sd = 1});
 //   auto T = wsl::random::truncate(N, 10.0, INFINITY);   // N | N >= 10, masse ~ 7,6·10⁻²⁴
-//   cdf(T, 10.5); quantile(T, 0.5); sample(T, g);
+//   T.cdf(10.5); T.quantile(0.5); T(g);
 //
 // Masse m = P(a <= X <= b), F_T(x) = P(a <= X <= x)/m et S_T(x) = P(x < X <= b)/m sont
 // des différences de répartitions F ou de survies S de X, choisies point par point pour
@@ -32,7 +32,7 @@ namespace wsl::random
 {
     template <real_law L>
         requires has_cdf<L> && has_ccdf<L>
-    class truncated
+    class truncated : public law_interface
     {
     public:
         using value_type = typename L::value_type;
@@ -46,10 +46,10 @@ namespace wsl::random
             auto const [lo, up] = law_.support();
             low_ = lower > lo ? lower : lo;
             high_ = upper < up ? upper : up;
-            fa_ = cdf(law_, low_);
-            sa_ = ccdf(law_, low_);
-            fb_ = cdf(law_, high_);
-            sb_ = ccdf(law_, high_);
+            fa_ = wsl::random::cdf(law_, low_);
+            sa_ = wsl::random::ccdf(law_, low_);
+            fb_ = wsl::random::cdf(law_, high_);
+            sb_ = wsl::random::ccdf(law_, high_);
             if (fb_ <= 0.5)
                 mass_ = fb_ - fa_;
             else if (sa_ <= 0.5)
@@ -66,60 +66,66 @@ namespace wsl::random
         constexpr double mass() const noexcept { return mass_; }               // P(a <= X <= b)
         constexpr interval<value_type> support() const noexcept { return {low_, high_}; }
 
-        constexpr value_type median() const requires has_quantile<L> && has_cquantile<L> { return quantile(*this, 0.5); }
+        constexpr value_type median() const requires has_quantile<L> && has_cquantile<L> { return wsl::random::quantile(*this, 0.5); }
 
-        friend constexpr value_type pdf(truncated const& Y, value_type x) noexcept requires has_pdf<L>
+        constexpr value_type pdf(value_type x) const noexcept requires has_pdf<L>
         {
+            auto const& Y = *this;
             if (!(x == x))
                 return static_cast<value_type>(detail::sd::opaque(double(x)));   // NaN opaque : GCC fusionnerait x + x chez l'appelant
             if (!(x >= Y.low_ && x <= Y.high_))
                 return 0;
-            return static_cast<value_type>(double(pdf(Y.law_, x)) / Y.mass_);
+            return static_cast<value_type>(double(wsl::random::pdf(Y.law_, x)) / Y.mass_);
         }
-        friend constexpr value_type log_pdf(truncated const& Y, value_type x) noexcept requires requires(L const& X, value_type v) { log_pdf(X, v); }
+        constexpr value_type log_pdf(value_type x) const noexcept requires requires(L const& X, value_type v) { wsl::random::log_pdf(X, v); }
         {
+            auto const& Y = *this;
             if (!(x == x))
                 return static_cast<value_type>(detail::sd::opaque(double(x)));   // NaN opaque : GCC fusionnerait x + x chez l'appelant
             if (!(x >= Y.low_ && x <= Y.high_))
                 return -std::numeric_limits<value_type>::infinity();
             auto const lm = detail::log_precise(Y.mass_);
-            auto const l = detail::sum({double(log_pdf(Y.law_, x)), 0.0}, {-lm.hi, -lm.lo});
+            auto const l = detail::sum({double(wsl::random::log_pdf(Y.law_, x)), 0.0}, {-lm.hi, -lm.lo});
             return static_cast<value_type>(l.hi + l.lo);
         }
 
-        friend constexpr value_type cdf(truncated const& Y, value_type x) noexcept
+        constexpr value_type cdf(value_type x) const noexcept
         {
+            auto const& Y = *this;
             if (!(x == x))
                 return static_cast<value_type>(detail::sd::opaque(double(x)));   // NaN opaque : GCC fusionnerait x + x chez l'appelant
             if (x < Y.low_)
                 return 0;
             if (x >= Y.high_)
                 return 1;
-            double const f = cdf(Y.law_, x);                                 // P(a <= X <= x)
-            double const d = f <= 0.5 || Y.sa_ > 0.5 ? f - Y.fa_ : Y.sa_ - double(ccdf(Y.law_, x));
+            double const f = wsl::random::cdf(Y.law_, x);                                 // P(a <= X <= x)
+            double const d = f <= 0.5 || Y.sa_ > 0.5 ? f - Y.fa_ : Y.sa_ - double(wsl::random::ccdf(Y.law_, x));
             return clamp01(d / Y.mass_);
         }
-        friend constexpr value_type ccdf(truncated const& Y, value_type x) noexcept
+        constexpr value_type ccdf(value_type x) const noexcept
         {
+            auto const& Y = *this;
             if (!(x == x))
                 return static_cast<value_type>(detail::sd::opaque(double(x)));   // NaN opaque : GCC fusionnerait x + x chez l'appelant
             if (x < Y.low_)
                 return 1;
             if (x >= Y.high_)
                 return 0;
-            double const t = ccdf(Y.law_, x);                                // P(x < X <= b)
-            double const d = t <= 0.5 || Y.fb_ > 0.5 ? t - Y.sb_ : Y.fb_ - double(cdf(Y.law_, x));
+            double const t = wsl::random::ccdf(Y.law_, x);                                // P(x < X <= b)
+            double const d = t <= 0.5 || Y.fb_ > 0.5 ? t - Y.sb_ : Y.fb_ - double(wsl::random::cdf(Y.law_, x));
             return clamp01(d / Y.mass_);
         }
 
-        friend constexpr value_type quantile(truncated const& Y, double p) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type quantile(double p) const requires has_quantile<L> && has_cquantile<L>
         {
+            auto const& Y = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             return Y.solve(p, false);
         }
-        friend constexpr value_type cquantile(truncated const& Y, double q) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type cquantile(double q) const requires has_quantile<L> && has_cquantile<L>
         {
+            auto const& Y = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             return Y.solve(q, true);
@@ -127,28 +133,30 @@ namespace wsl::random
 
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(truncated const& Y, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
                     return Y.solve(uniform_real<double>(g), false);
             for (;;)
             {
-                value_type const x = sample(Y.law_, g);
+                value_type const x = wsl::random::sample(Y.law_, g);
                 if (x >= Y.low_ && x <= Y.high_)
                     return x;
             }
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(truncated const& Y, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
+            auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
                     return Y.solve(uniform_real<double>(g), false);
             for (;;)
             {
-                value_type const x = sample(Y.law_, g, fast);
+                value_type const x = wsl::random::sample(Y.law_, g, fast);
                 if (x >= Y.low_ && x <= Y.high_)
                     return x;
             }
@@ -173,7 +181,7 @@ namespace wsl::random
                 return upper ? low_ : high_;
             double const p = upper ? 1.0 - t : t, q = upper ? t : 1.0 - t;   // F_T, S_T (l'un des deux exact)
             double const target_f = fa_ + fp::fmul(p, mass_);
-            value_type const x = target_f <= 0.5 ? quantile(law_, target_f) : cquantile(law_, sb_ + fp::fmul(q, mass_));
+            value_type const x = target_f <= 0.5 ? wsl::random::quantile(law_, target_f) : wsl::random::cquantile(law_, sb_ + fp::fmul(q, mass_));
             return x < low_ ? low_ : x > high_ ? high_ : x;
         }
 

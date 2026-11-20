@@ -4,8 +4,8 @@
 // docs/random.md §4.6).
 //
 //   wsl::random::independent J(wsl::random::normal({.mean = 0, .sd = 1}), wsl::random::exponential({.rate = 2}));
-//   auto [x, y] = sample(J, g);                       // tirés dans cet ordre
-//   pdf(J, {0.5, 1.0}); cdf(J, {0.0, 1.0}); J.mean(); J.entropy();
+//   auto [x, y] = J(g);                       // tirés dans cet ordre
+//   J.pdf({0.5, 1.0}); J.cdf({0.0, 1.0}); J.mean(); J.entropy();
 //
 // value_type : std::tuple des valeurs des composantes. Densité (lois toutes continues)
 // ou masse (toutes discrètes) : produit, arrondi une fois ; log-densité : somme ;
@@ -26,7 +26,7 @@ namespace wsl::random
 {
     template <probability_law... L>
         requires(sizeof...(L) >= 1)
-    class independent
+    class independent : public law_interface
     {
         static constexpr bool all_continuous = (std::is_floating_point_v<typename L::value_type> && ...);
         static constexpr bool all_discrete = (std::is_integral_v<typename L::value_type> && ...);
@@ -62,46 +62,54 @@ namespace wsl::random
             return s.hi + s.lo;
         }
 
-        friend constexpr double pdf(independent const& J, value_type const& x) noexcept requires all_continuous && (has_pdf<L> && ...)
+        constexpr double pdf(value_type const& x) const noexcept requires all_continuous && (has_pdf<L> && ...)
         {
-            return J.product(x, [](auto const& c, auto v) { return double(pdf(c, v)); });
+            auto const& J = *this;
+            return J.product(x, [](auto const& c, auto v) { return double(wsl::random::pdf(c, v)); });
         }
-        friend constexpr double pmf(independent const& J, value_type const& x) noexcept requires all_discrete && (has_pmf<L> && ...)
+        constexpr double pmf(value_type const& x) const noexcept requires all_discrete && (has_pmf<L> && ...)
         {
-            return J.product(x, [](auto const& c, auto v) { return double(pmf(c, v)); });
+            auto const& J = *this;
+            return J.product(x, [](auto const& c, auto v) { return double(wsl::random::pmf(c, v)); });
         }
-        friend constexpr double log_pdf(independent const& J, value_type const& x) noexcept
-            requires all_continuous && (requires(L const& c, typename L::value_type v) { log_pdf(c, v); } && ...)
+        constexpr double log_pdf(value_type const& x) const noexcept
+            requires all_continuous && (requires(L const& c, typename L::value_type v) { wsl::random::log_pdf(c, v); } && ...)
         {
-            return J.total(x, [](auto const& c, auto v) { return double(log_pdf(c, v)); });
+            auto const& J = *this;
+            return J.total(x, [](auto const& c, auto v) { return double(wsl::random::log_pdf(c, v)); });
         }
-        friend constexpr double log_pmf(independent const& J, value_type const& x) noexcept
-            requires all_discrete && (requires(L const& c, typename L::value_type v) { log_pmf(c, v); } && ...)
+        constexpr double log_pmf(value_type const& x) const noexcept
+            requires all_discrete && (requires(L const& c, typename L::value_type v) { wsl::random::log_pmf(c, v); } && ...)
         {
-            return J.total(x, [](auto const& c, auto v) { return double(log_pmf(c, v)); });
+            auto const& J = *this;
+            return J.total(x, [](auto const& c, auto v) { return double(wsl::random::log_pmf(c, v)); });
         }
         // P(X₁ <= x₁, …, Xₙ <= xₙ)
-        friend constexpr double cdf(independent const& J, value_type const& x) noexcept requires(has_cdf<L> && ...)
+        constexpr double cdf(value_type const& x) const noexcept requires(has_cdf<L> && ...)
         {
-            return J.product(x, [](auto const& c, auto v) { return double(cdf(c, v)); });
+            auto const& J = *this;
+            return J.product(x, [](auto const& c, auto v) { return double(wsl::random::cdf(c, v)); });
         }
         // P(X₁ > x₁, …, Xₙ > xₙ)
-        friend constexpr double ccdf(independent const& J, value_type const& x) noexcept requires(has_ccdf<L> && ...)
+        constexpr double ccdf(value_type const& x) const noexcept requires(has_ccdf<L> && ...)
         {
-            return J.product(x, [](auto const& c, auto v) { return double(ccdf(c, v)); });
+            auto const& J = *this;
+            return J.product(x, [](auto const& c, auto v) { return double(wsl::random::ccdf(c, v)); });
         }
 
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        friend constexpr value_type sample(independent const& J, G& g)
+        constexpr value_type sample(G& g) const
         {
-            return std::apply([&g](auto const&... c) { return value_type{sample(c, g)...}; }, J.laws_);   // accolades : dans l'ordre
+            auto const& J = *this;
+            return std::apply([&g](auto const&... c) { return value_type{wsl::random::sample(c, g)...}; }, J.laws_);   // accolades : dans l'ordre
         }
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        friend constexpr value_type sample(independent const& J, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            return std::apply([&g](auto const&... c) { return value_type{sample(c, g, fast)...}; }, J.laws_);
+            auto const& J = *this;
+            return std::apply([&g](auto const&... c) { return value_type{wsl::random::sample(c, g, fast)...}; }, J.laws_);
         }
 
         friend constexpr bool operator==(independent const& a, independent const& b) noexcept { return a.laws_ == b.laws_; }

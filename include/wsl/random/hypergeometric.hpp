@@ -5,7 +5,7 @@
 // max(0, n − (N − K)) <= k <= min(n, K).
 //
 //   wsl::random::hypergeometric X({.population = 50, .successes = 20, .draws = 10});
-//   pmf(X, 4); cdf(X, 4); quantile(X, 0.5); sample(X, g);
+//   X.pmf(4); X.cdf(4); X.quantile(0.5); X(g);
 //
 // Masse (Loader, comme dhyper de R) : avec π = n/N en double-double, le produit de deux
 // masses binomiales b(k; K, π) b(n − k; N − K, π) divisé par b(n; N, π), en logarithme
@@ -34,7 +34,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class hypergeometric
+    class hypergeometric : public law_interface
     {
     public:
         using value_type = I;
@@ -91,8 +91,9 @@ namespace wsl::random
             return f;
         }
 
-        friend constexpr double pmf(hypergeometric const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low() || k > X.high())
                 return 0;
             if (X.low() == X.high())
@@ -102,8 +103,9 @@ namespace wsl::random
                 return 0;
             return detail::rounded(detail::exp_scaled(l.hi, l.lo));
         }
-        friend constexpr double log_pmf(hypergeometric const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low() || k > X.high())
                 return -std::numeric_limits<double>::infinity();
             if (X.low() == X.high())
@@ -111,8 +113,9 @@ namespace wsl::random
             auto const l = X.log_mass(k);
             return l.hi + l.lo;
         }
-        friend constexpr double cdf(hypergeometric const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low())
                 return 0;
             if (k >= X.high())
@@ -120,8 +123,9 @@ namespace wsl::random
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::rounded(v) : detail::sd::one_minus(v);
         }
-        friend constexpr double ccdf(hypergeometric const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low())
                 return 1;
             if (k >= X.high())
@@ -131,8 +135,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u.
-        friend constexpr I quantile(hypergeometric const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.low() == X.high())
@@ -151,8 +156,9 @@ namespace wsl::random
         // Inversion depuis le mode : u comparé exactement aux sommes partielles de masses
         // (double-double), en s'éloignant du mode de part et d'autre.
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(hypergeometric const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             if (X.low() == X.high())
                 return X.low();
             double const u = uniform_real<double>(g);

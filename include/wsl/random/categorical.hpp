@@ -5,7 +5,7 @@
 // pas exactement 1 conviennent donc).
 //
 //   wsl::random::categorical C({.p = {0.2, 0.5, 0.3}});
-//   sample(C, g); pmf(C, 1); cdf(C, 1); quantile(C, 0.9); C.mean(); C.entropy();
+//   C(g); C.pmf(1); C.cdf(1); C.quantile(0.9); C.mean(); C.entropy();
 //
 // Tirage exact en O(1) : les poids sont des entiers Nᵢ à une même puissance de 2 près ;
 // table d'alias de Walker–Vose construite sur des entiers (colonne de capacité N = Σ Nᵢ,
@@ -34,7 +34,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::size_t>
-    class categorical
+    class categorical : public law_interface
     {
     public:
         using value_type = I;
@@ -97,32 +97,36 @@ namespace wsl::random
             return s.hi + s.lo;
         }
 
-        friend constexpr double pmf(categorical const& C, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& C = *this;
             if (k < 0 || static_cast<std::uint64_t>(k) >= C.w_.size())
                 return 0;
             auto const q = detail::sd::quotient_dd({C.w_[static_cast<std::size_t>(k)], 0.0}, C.total_);
             return q.hi + q.lo;
         }
-        friend constexpr double log_pmf(categorical const& C, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
-            double const p = pmf(C, k);
+            auto const& C = *this;
+            double const p = wsl::random::pmf(C, k);
             if (!(p > 0))
                 return -std::numeric_limits<double>::infinity();
             auto const l = detail::sum(detail::log_precise(C.w_[static_cast<std::size_t>(k)]), [&] { auto const t = detail::log(detail::normalized(C.total_.hi, C.total_.lo)); return detail::sd::double_double{-t.hi, -t.lo}; }());
             return l.hi + l.lo;
         }
         // P(X <= k), P(X > k) : sommes de poids, en double-double.
-        friend constexpr double cdf(categorical const& C, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& C = *this;
             if (k < 0)
                 return 0;
             if (static_cast<std::uint64_t>(k) >= C.w_.size() - 1)
                 return 1;
             return C.partial(0, static_cast<std::size_t>(k) + 1);
         }
-        friend constexpr double ccdf(categorical const& C, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& C = *this;
             if (k < 0)
                 return 1;
             if (static_cast<std::uint64_t>(k) >= C.w_.size() - 1)
@@ -130,8 +134,9 @@ namespace wsl::random
             return C.partial(static_cast<std::size_t>(k) + 1, C.w_.size());
         }
         // Plus petit k tel que P(X <= k) >= p, exactement : C_k >= p N en entiers.
-        friend constexpr I quantile(categorical const& C, double p)
+        constexpr I quantile(double p) const
         {
+            auto const& C = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -153,8 +158,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(categorical const& C, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& C = *this;
             std::size_t const k = C.w_.size();
             if (k == 1)
                 return 0;

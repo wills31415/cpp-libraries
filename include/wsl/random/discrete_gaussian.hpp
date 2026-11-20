@@ -4,7 +4,7 @@
 // μ réel, σ > 0.
 //
 //   wsl::random::discrete_gaussian X({.mu = 0.3, .sigma = 2.5});
-//   pmf(X, 1); cdf(X, -2); quantile(X, 0.9); X.mean(); sample(X, g);
+//   X.pmf(1); X.cdf(-2); X.quantile(0.9); X.mean(); X(g);
 //
 // Z : σ >= 1, sommation de Poisson, σ√(2π) (1 + 2 Σ_{m>=1} e^{−2π²σ²m²} cos 2πmμ) (deux
 // termes suffisent : e^{−8π²} < 2^-113) ; σ < 1, somme directe. Moyenne et variance de même
@@ -37,7 +37,7 @@ namespace wsl::random
     }
 
     template <law_integer I = std::int64_t>
-    class discrete_gaussian
+    class discrete_gaussian : public law_interface
     {
     public:
         using value_type = I;
@@ -69,32 +69,37 @@ namespace wsl::random
         constexpr double variance() const noexcept { return variance_; }
         constexpr I mode() const noexcept { return center_; }
 
-        friend constexpr double pmf(discrete_gaussian const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             auto const l = X.log_mass(k);
             if (!(l.hi > -1500))
                 return 0;
             return detail::rounded(detail::exp_scaled(l.hi, l.lo));
         }
-        friend constexpr double log_pmf(discrete_gaussian const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             auto const l = X.log_mass(k);
             return l.hi + l.lo;
         }
-        friend constexpr double cdf(discrete_gaussian const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::rounded(v) : detail::sd::one_minus(v);
         }
-        friend constexpr double ccdf(discrete_gaussian const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::sd::one_minus(v) : detail::rounded(v);
         }
 
         // Plus petit k tel que P(X <= k) >= u.
-        friend constexpr I quantile(discrete_gaussian const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -114,8 +119,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(discrete_gaussian const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             double const t = detail::floor_small(X.sigma_) + 1;
             double const delta = X.mu_ - double(X.center_);                 // |δ| <= ½, exact
@@ -124,7 +130,7 @@ namespace wsl::random
             for (;;)
             {
                 bool const negative = bernoulli_trial(g, 0.5);
-                I const d = sample(magnitude, g);
+                I const d = wsl::random::sample(magnitude, g);
                 if (negative && d == 0)
                     continue;
                 double const dd = negative ? -double(d) : double(d);

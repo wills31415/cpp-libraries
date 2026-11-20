@@ -3,7 +3,7 @@
 // Loi exponentielle de paramètre λ > 0 (rate) : densité λ e^{−λx} sur [0, +∞).
 //
 //   wsl::random::exponential X({.rate = 2});
-//   X.mean(); cdf(X, 1.0); quantile(X, 0.5); sample(X, g); sample(X, g, wsl::random::fast);
+//   X.mean(); X.cdf(1.0); X.quantile(0.5); X(g); X(g, wsl::random::fast);
 //
 // Tirage exact : E exponentielle de paramètre 1 tirée exactement (von Neumann,
 // réel paresseux), puis l'arrondi correct de E/λ — la valeur tirée suit donc la
@@ -28,7 +28,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class exponential
+    class exponential : public law_interface
     {
     public:
         using value_type = T;
@@ -68,8 +68,9 @@ namespace wsl::random
             return static_cast<T>(s + (s_error - lo));
         }
 
-        friend constexpr T pdf(exponential const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const l = X.rate_, v = x;
             if (!(v >= 0))
                 return v == v ? T(0) : x;
@@ -83,8 +84,9 @@ namespace wsl::random
         }
 
         // log λ − λx.
-        friend constexpr T log_pdf(exponential const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const l = X.rate_, v = x;
             if (!(v >= 0))
                 return v == v ? -std::numeric_limits<T>::infinity() : x;
@@ -100,8 +102,9 @@ namespace wsl::random
         }
 
         // 1 − e^{−λx} = −expm1(−λx).
-        friend constexpr T cdf(exponential const& X, T x) noexcept
+        constexpr T cdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const l = X.rate_, v = x;
             if (!(v > 0))
                 return v == v ? T(0) : x;
@@ -115,8 +118,9 @@ namespace wsl::random
         }
 
         // e^{−λx}.
-        friend constexpr T ccdf(exponential const& X, T x) noexcept
+        constexpr T ccdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const l = X.rate_, v = x;
             if (!(v > 0))
                 return v == v ? T(1) : x;
@@ -130,8 +134,9 @@ namespace wsl::random
         }
 
         // −log(1 − p)/λ.
-        friend constexpr T quantile(exponential const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -143,12 +148,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(exponential const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [hi, lo] = detail::log_precise(q);                   // x = −log q / λ
@@ -156,16 +162,18 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(exponential const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             detail::lazy_real v = detail::exact_exponential(g);
             return detail::round_lazy<T>(0.0, 1.0, double(X.rate_), false, v, g);
         }
 
         // Inversion : −log(U)/λ, U uniforme dans (0, 1) (approché, bit-exact).
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(exponential const& X, G& g, fast_t)
+        constexpr T sample(G& g, fast_t) const
         {
+            auto const& X = *this;
             return static_cast<T>(-wsl::special::log(detail::uniform_positive(g)) / double(X.rate_));
         }
 

@@ -4,7 +4,7 @@
 // densité e^{−|x − μ|/b}/(2b).
 //
 //   wsl::random::laplace L({.location = 0, .scale = 1});
-//   cdf(L, 1.5); quantile(L, 0.9); sample(L, g);
+//   L.cdf(1.5); L.quantile(0.9); L(g);
 //
 // z = (x − μ)/b en double-double ; répartition e^{z}/2 (z < 0), 1 − e^{−z}/2 sinon ;
 // quantile μ + b log(2p) (p < ½), μ − b log(2(1 − p)) ; un seul arrondi.
@@ -26,7 +26,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class laplace
+    class laplace : public law_interface
     {
     public:
         using value_type = T;
@@ -64,8 +64,9 @@ namespace wsl::random
         }
 
         // e^{−|z|}/(2b)
-        friend constexpr T pdf(laplace const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mu_, X.b_);
@@ -76,8 +77,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(e / double(X.b_) / 2.0));
         }
         // −|z| − log(2b)
-        friend constexpr T log_pdf(laplace const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mu_, X.b_);
@@ -89,12 +91,13 @@ namespace wsl::random
             return static_cast<T>(-(e.hi + e.lo));
         }
 
-        friend constexpr T cdf(laplace const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(laplace const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // μ + b log(2p) (p < ½), μ − b log(2(1 − p))
-        friend constexpr T quantile(laplace const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -111,12 +114,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(laplace const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [l_hi, l_lo] = detail::log_precise(detail::sd::fmul(q, 2.0));   // μ − b log(2q)
@@ -125,8 +129,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(laplace const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             detail::lazy_real v = detail::exact_exponential(g);
             bool const negative = (random_bits(g) >> 63) != 0;
             return detail::round_lazy<T>(X.mu_, X.b_, 1.0, negative, v, g);

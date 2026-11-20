@@ -4,7 +4,7 @@
 //
 //   wsl::random::von_mises V({.mu = 0.5, .kappa = 4});                   // angles dans [μ − π, μ + π]
 //   wsl::random::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .kappa = 10});
-//   pdf(V, 1.0); V.circular_variance(); sample(V, g); pdf(F, x); F.mean(); sample(F, g);
+//   V.pdf(1.0); V.circular_variance(); V(g); F.pdf(x); F.mean(); F(g);
 //
 // von Mises : densité e^{κ cos(x − μ)}/(2π I₀(κ)) sur [μ − π, μ + π], calculée comme
 // exp(−2κ sin²((x − μ)/2) − log 2π − log(e^{−κ} I₀(κ))) (sans compensation près du mode ;
@@ -119,7 +119,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class von_mises
+    class von_mises : public law_interface
     {
     public:
         using value_type = T;
@@ -182,13 +182,15 @@ namespace wsl::random
             return h.hi + h.lo;
         }
 
-        friend constexpr T log_pdf(von_mises const& V, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& V = *this;
             auto const l = V.log_density(x);
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T pdf(von_mises const& V, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& V = *this;
             auto const l = V.log_density(x);
             if (!(l.hi > -1500))
                 return l.hi == l.hi ? T(0) : static_cast<T>(l.hi);
@@ -197,14 +199,15 @@ namespace wsl::random
 
         // P(X <= x) sur [μ − π, μ + π] : la part la plus petite, ∫_{|θ|}^π e^{κ(cos t − 1)} dt/(2π e^{−κ} I₀(κ))
         // (θ = x − μ en double-double), l'autre par complément ; un arrondi.
-        friend constexpr T cdf(von_mises const& V, T x) noexcept { return V.distribution(x, false); }
-        friend constexpr T ccdf(von_mises const& V, T x) noexcept { return V.distribution(x, true); }
-        friend constexpr T quantile(von_mises const& V, double p) { return V.inverse(p, false); }
-        friend constexpr T cquantile(von_mises const& V, double q) { return V.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& V = *this; return V.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& V = *this; return V.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& V = *this; return V.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& V = *this; return V.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(von_mises const& V, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& V = *this;
             namespace fp = detail::sd;
             namespace sp = wsl::special;
             double const mu = V.mu_, k = V.kappa_;
@@ -346,7 +349,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class von_mises_fisher
+    class von_mises_fisher : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -430,13 +433,15 @@ namespace wsl::random
             return h.hi + h.lo;
         }
 
-        friend constexpr double log_pdf(von_mises_fisher const& F, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
+            auto const& F = *this;
             auto const l = F.log_density(x);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(von_mises_fisher const& F, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
+            auto const& F = *this;
             auto const l = F.log_density(x);
             if (!(l.hi > -1500))
                 return 0;
@@ -446,8 +451,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(von_mises_fisher const& F, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& F = *this;
             namespace fp = detail::sd;
             namespace sp = wsl::special;
             std::size_t const n = F.dimension();
@@ -458,7 +464,7 @@ namespace wsl::random
             double w = 0;
             for (;;)
             {
-                double const z = sample(z_law, g);
+                double const z = wsl::random::sample(z_law, g);
                 double const u = detail::uniform_positive(g);
                 w = (1 - fp::fmul(1 + F.b_, z)) / (1 - fp::fmul(1 - F.b_, z));
                 double const t = 1 - fp::fmul(F.x0_, w);

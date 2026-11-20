@@ -3,7 +3,7 @@
 // Loi de Weibull de forme k > 0 et d'échelle λ > 0 : P(X > x) = e^{−(x/λ)^k}, x >= 0.
 //
 //   wsl::random::weibull W({.shape = 1.5, .scale = 2});
-//   cdf(W, 1.0); quantile(W, 0.5); W.mean(); sample(W, g);
+//   W.cdf(1.0); W.quantile(0.5); W.mean(); W(g);
 //
 // t = (x/λ)^k = e^{k (log x − log λ)} en double-double ; répartition −expm1(−t),
 // survie e^{−t}, densité k t e^{−t}/x ; quantile λ (−log1p(−p))^{1/k}, un arrondi.
@@ -29,7 +29,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class weibull
+    class weibull : public law_interface
     {
     public:
         using value_type = T;
@@ -101,8 +101,9 @@ namespace wsl::random
             return static_cast<T>(h.hi + h.lo);
         }
 
-        friend constexpr T pdf(weibull const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -117,8 +118,9 @@ namespace wsl::random
                 return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
         }
-        friend constexpr T log_pdf(weibull const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -129,12 +131,13 @@ namespace wsl::random
             return static_cast<T>(l.hi + l.lo);
         }
 
-        friend constexpr T cdf(weibull const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(weibull const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // λ (−log1p(−p))^{1/k}
-        friend constexpr T quantile(weibull const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -148,12 +151,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(weibull const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             namespace fp = detail::sd;
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
@@ -163,9 +167,10 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(weibull const& X, G& g)
+        constexpr T sample(G& g) const
         {
-            double const e = sample(exponential<double>({.rate = 1.0}), g);
+            auto const& X = *this;
+            double const e = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             if (e == 0)
                 return 0;
             return static_cast<T>(detail::sd::fmul(double(X.lambda_), wsl::special::exp(wsl::special::log(e) / double(X.k_))));

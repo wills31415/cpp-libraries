@@ -5,7 +5,7 @@
 //   wsl::random::uniform_permutation U({.size = 10});
 //   wsl::random::ewens E({.size = 10, .theta = 2.5});      // P(σ) = θ^{cycles(σ)} / θ(θ + 1)…(θ + n − 1)
 //   wsl::random::mallows M({.size = 10, .q = 0.7});        // P(σ) = q^{inversions(σ)} / Π [i]_q
-//   sample(U, g); pmf(E, sigma); log_pmf(M, sigma); E.mean_cycles(); M.mean_inversions();
+//   U(g); E.pmf(sigma); M.log_pmf(sigma); E.mean_cycles(); M.mean_inversions();
 //
 // Tirages exacts (la permutation tirée a exactement la probabilité annoncée) :
 // - uniforme : Fisher–Yates (n − 1 entiers uniformes) ;
@@ -83,7 +83,7 @@ namespace wsl::random
         std::size_t size;
     };
 
-    class uniform_permutation
+    class uniform_permutation : public law_interface
     {
     public:
         using value_type = permutation;
@@ -99,12 +99,14 @@ namespace wsl::random
             return l.hi + l.lo;
         }
 
-        friend constexpr double log_pmf(uniform_permutation const& U, permutation const& s) noexcept
+        constexpr double log_pmf(permutation const& s) const noexcept
         {
+            auto const& U = *this;
             return s.size() == U.n_ ? -U.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_permutation const& U, permutation const& s) noexcept
+        constexpr double pmf(permutation const& s) const noexcept
         {
+            auto const& U = *this;
             if (s.size() != U.n_)
                 return 0;
             auto const l = detail::log_factorial(U.n_);
@@ -112,8 +114,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr permutation sample(uniform_permutation const& U, G& g)
+        constexpr permutation sample(G& g) const
         {
+            auto const& U = *this;
             std::vector<std::size_t> images(U.n_);
             for (std::size_t i = 0; i < U.n_; ++i)
                 images[i] = i;
@@ -127,7 +130,7 @@ namespace wsl::random
         std::size_t n_;
     };
 
-    class ewens
+    class ewens : public law_interface
     {
     public:
         using value_type = permutation;
@@ -168,16 +171,18 @@ namespace wsl::random
         }
 
         // k log θ − log θ^{(n)}
-        friend constexpr double log_pmf(ewens const& E, permutation const& s) noexcept
+        constexpr double log_pmf(permutation const& s) const noexcept
         {
+            auto const& E = *this;
             auto const l = E.log_mass(s);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(ewens const& E, permutation const& s) noexcept { return detail::exp_of_dd(E.log_mass(s)); }
+        constexpr double pmf(permutation const& s) const noexcept { auto const& E = *this; return detail::exp_of_dd(E.log_mass(s)); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr permutation sample(ewens const& E, G& g)
+        constexpr permutation sample(G& g) const
         {
+            auto const& E = *this;
             std::vector<std::size_t> images(E.n_);
             for (std::size_t i = 0; i < E.n_; ++i)
             {
@@ -209,7 +214,7 @@ namespace wsl::random
         detail::sd::double_double log_rising_{}, log_theta_{};
     };
 
-    class mallows
+    class mallows : public law_interface
     {
     public:
         using value_type = permutation;
@@ -242,16 +247,18 @@ namespace wsl::random
             return s.hi + s.lo;
         }
 
-        friend constexpr double log_pmf(mallows const& M, permutation const& s) noexcept
+        constexpr double log_pmf(permutation const& s) const noexcept
         {
+            auto const& M = *this;
             auto const l = M.log_mass(s);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(mallows const& M, permutation const& s) noexcept { return detail::exp_of_dd(M.log_mass(s)); }
+        constexpr double pmf(permutation const& s) const noexcept { auto const& M = *this; return detail::exp_of_dd(M.log_mass(s)); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr permutation sample(mallows const& M, G& g)
+        constexpr permutation sample(G& g) const
         {
+            auto const& M = *this;
             // La valeur i s'insère en position i − V_i (V_i inversions avec les plus petites).
             std::vector<std::size_t> line;
             line.reserve(M.n_);

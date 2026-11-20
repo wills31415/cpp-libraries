@@ -4,7 +4,7 @@
 // x >= x_m.
 //
 //   wsl::random::pareto P({.scale = 1, .shape = 2.5});
-//   P.mean(); cdf(P, 3.0); quantile(P, 0.99); sample(P, g);
+//   P.mean(); P.cdf(3.0); P.quantile(0.99); P(g);
 //
 // L = α log(x/x_m) en double-double (log du rapport, par log1p près de 1) ; survie
 // e^{−L}, répartition −expm1(−L), densité (α/x) e^{−L} ; quantile x_m e^{−log1p(−p)/α} ;
@@ -25,7 +25,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class pareto
+    class pareto : public law_interface
     {
     public:
         using value_type = T;
@@ -101,8 +101,9 @@ namespace wsl::random
         }
 
         // (α/x) (x_m/x)^α
-        friend constexpr T pdf(pareto const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -113,8 +114,9 @@ namespace wsl::random
                 return 0;
             return static_cast<T>(detail::rounded(detail::exp_scaled(-l.hi, -l.lo) * detail::normalized(double(X.alpha_), 0.0) / v));
         }
-        friend constexpr T log_pdf(pareto const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -127,12 +129,13 @@ namespace wsl::random
             return static_cast<T>(l.hi + l.lo);
         }
 
-        friend constexpr T cdf(pareto const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(pareto const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // x_m e^{−log1p(−p)/α}
-        friend constexpr T quantile(pareto const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -144,12 +147,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(pareto const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [l_hi, l_lo] = detail::log_precise(q);               // x_m e^{−log q/α}
@@ -157,9 +161,10 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(pareto const& X, G& g)
+        constexpr T sample(G& g) const
         {
-            double const e = sample(exponential<double>({.rate = 1.0}), g);
+            auto const& X = *this;
+            double const e = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             return static_cast<T>(detail::sd::fmul(double(X.xm_), wsl::special::exp(e / double(X.alpha_))));
         }
 

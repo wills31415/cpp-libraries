@@ -4,7 +4,7 @@
 // sur [0, 1].
 //
 //   wsl::random::beta X({.alpha = 2, .beta = 5});
-//   X.mean(); X.a(); X.b(); pdf(X, 0.3); log_pdf(X, 0.3); sample(X, g);
+//   X.mean(); X.a(); X.b(); X.pdf(0.3); X.log_pdf(0.3); X(g);
 //
 // (Une fonction membre ne peut pas s'appeler comme sa classe : les paramètres se
 // lisent par a() et b().)
@@ -76,7 +76,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class beta
+    class beta : public law_interface
     {
     public:
         using value_type = T;
@@ -150,37 +150,42 @@ namespace wsl::random
             return static_cast<T>(hi + lo);
         }
 
-        friend constexpr T cdf(beta const& X, T x) noexcept
+        constexpr T cdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             return static_cast<T>(x <= 0 ? 0.0 : x >= 1 ? 1.0 : wsl::special::ibeta(double(X.a_), double(X.b_), double(x)));
         }
-        friend constexpr T ccdf(beta const& X, T x) noexcept
+        constexpr T ccdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             return static_cast<T>(x <= 0 ? 1.0 : x >= 1 ? 0.0 : wsl::special::ibetac(double(X.a_), double(X.b_), double(x)));
         }
-        friend constexpr T quantile(beta const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             return static_cast<T>(wsl::special::ibeta_inv(double(X.a_), double(X.b_), p));
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(beta const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             return static_cast<T>(wsl::special::ibetac_inv(double(X.a_), double(X.b_), q));
         }
 
-        friend constexpr T pdf(beta const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x, a = X.a_, b = X.b_;
             if (!(v >= 0 && v <= 1))
                 return v == v ? T(0) : x;
@@ -194,8 +199,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(detail::exp_scaled(e_hi, e_lo) * factor));
         }
 
-        friend constexpr T log_pdf(beta const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x, a = X.a_, b = X.b_;
             if (!(v >= 0 && v <= 1))
                 return v == v ? -std::numeric_limits<T>::infinity() : x;
@@ -207,8 +213,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(beta const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             double const a = X.a_, b = X.b_;
             double const ga = detail::marsaglia_tsang(X.d_a_, X.c_a_, g);
             double const gb = detail::marsaglia_tsang(X.d_b_, X.c_b_, g);

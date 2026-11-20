@@ -5,7 +5,7 @@
 //
 //   wsl::random::wishart<double, 2> W({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
 //   wsl::random::inverse_wishart<double, 2> I({.degrees_of_freedom = 6, .scale = {{1, 0.2}, {0.2, 2}}});
-//   W.mean(); log_pdf(W, X); W.entropy(); sample(W, g);
+//   W.mean(); W.log_pdf(X); W.entropy(); W(g);
 //
 // Wishart : log-densité ((n − p − 1)/2) log det X − ½ tr(V⁻¹X) − (np/2) log 2
 // − (n/2) log det V − log Γ_p(n/2), par Cholesky de X (−∞ si X n'est pas symétrique
@@ -48,9 +48,9 @@ namespace wsl::random
             normal<double> const standard({.mean = 0.0, .sd = 1.0});
             for (std::size_t i = 0; i < p; ++i)
             {
-                a(i, i) = wsl::special::sqrt(sample(chi[i], g));
+                a(i, i) = wsl::special::sqrt(wsl::random::sample(chi[i], g));
                 for (std::size_t j = 0; j < i; ++j)
-                    a(i, j) = sample(standard, g);
+                    a(i, j) = wsl::random::sample(standard, g);
             }
             return a;
         }
@@ -119,7 +119,7 @@ namespace wsl::random
     }
 
     template <law_real T = double, std::size_t N = dynamic>
-    class wishart
+    class wishart : public law_interface
     {
     public:
         using value_type = square_matrix<T, N>;
@@ -168,13 +168,15 @@ namespace wsl::random
             return gamma<T>(typename gamma<T>::shape_scale{static_cast<T>(detail::sd::fmul(double(b_.n), 0.5)), static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i))))});
         }
 
-        friend constexpr double log_pdf(wishart const& W, value_type const& x)
+        constexpr double log_pdf(value_type const& x) const
         {
+            auto const& W = *this;
             auto const l = W.log_density(x);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(wishart const& W, value_type const& x)
+        constexpr double pdf(value_type const& x) const
         {
+            auto const& W = *this;
             auto const l = W.log_density(x);
             if (!(l.hi > -1500))
                 return 0;
@@ -184,8 +186,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(wishart const& W, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& W = *this;
             auto const a = detail::bartlett<N>(W.b_.chi, g);
             return detail::gram<T>(detail::multiply(W.b_.l, a));
         }
@@ -218,7 +221,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class inverse_wishart
+    class inverse_wishart : public law_interface
     {
     public:
         using value_type = square_matrix<T, N>;
@@ -257,13 +260,15 @@ namespace wsl::random
             return h.hi + h.lo;
         }
 
-        friend constexpr double log_pdf(inverse_wishart const& W, value_type const& x)
+        constexpr double log_pdf(value_type const& x) const
         {
+            auto const& W = *this;
             auto const l = W.log_density(x);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(inverse_wishart const& W, value_type const& x)
+        constexpr double pdf(value_type const& x) const
         {
+            auto const& W = *this;
             auto const l = W.log_density(x);
             if (!(l.hi > -1500))
                 return 0;
@@ -273,8 +278,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(inverse_wishart const& W, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& W = *this;
             auto const a = detail::bartlett<N>(W.b_.chi, g);
             auto const inv = detail::lower_inverse(a);                      // A⁻¹
             std::size_t const p = W.dimension();

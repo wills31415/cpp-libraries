@@ -4,7 +4,7 @@
 //
 //   auto S = wsl::random::normal({.mean = 1, .sd = 3}) + wsl::random::normal({.mean = 2, .sd = 4});   // wsl::random::normal : N(3, 5)
 //   auto P = wsl::random::poisson({.mean = 2.0}) + wsl::random::binomial({.trials = 10, .p = 0.3});  // convolution
-//   pmf(P, 4); cdf(P, 6); quantile(P, 0.9); P.mean(); sample(P, g);
+//   P.pmf(4); P.cdf(6); P.quantile(0.9); P.mean(); P(g);
 //
 // X + Y est la loi de X + Y, X et Y indépendantes : X + X est donc la somme de deux
 // copies indépendantes (de loi celle de 2X seulement pour une loi stable).
@@ -225,81 +225,91 @@ namespace wsl::random
         }
 
         // ---- Lois continues : seulement par une identité conditionnelle ----
-        friend constexpr value_type pdf(independent_sum const& S, value_type x) noexcept requires continuous && has_family && has_pdf<family_type>
+        constexpr value_type pdf(value_type x) const noexcept requires continuous && has_family && has_pdf<family_type>
         {
-            return S.family_ ? pdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
+            auto const& S = *this;
+            return S.family_ ? wsl::random::pdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
         }
-        friend constexpr value_type log_pdf(independent_sum const& S, value_type x) noexcept
-            requires continuous && has_family && requires(family_type const& F, value_type v) { log_pdf(F, v); }
+        constexpr value_type log_pdf(value_type x) const noexcept
+            requires continuous && has_family && requires(family_type const& F, value_type v) { wsl::random::log_pdf(F, v); }
         {
-            return S.family_ ? log_pdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
+            auto const& S = *this;
+            return S.family_ ? wsl::random::log_pdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
         }
-        friend constexpr value_type cdf(independent_sum const& S, value_type x) noexcept requires continuous && has_family && has_cdf<family_type>
+        constexpr value_type cdf(value_type x) const noexcept requires continuous && has_family && has_cdf<family_type>
         {
-            return S.family_ ? cdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
+            auto const& S = *this;
+            return S.family_ ? wsl::random::cdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
         }
-        friend constexpr value_type ccdf(independent_sum const& S, value_type x) noexcept requires continuous && has_family && has_ccdf<family_type>
+        constexpr value_type ccdf(value_type x) const noexcept requires continuous && has_family && has_ccdf<family_type>
         {
-            return S.family_ ? ccdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
+            auto const& S = *this;
+            return S.family_ ? wsl::random::ccdf(*S.family_, x) : std::numeric_limits<value_type>::quiet_NaN();
         }
-        friend constexpr value_type quantile(independent_sum const& S, double p) requires continuous && has_family && has_quantile<family_type>
+        constexpr value_type quantile(double p) const requires continuous && has_family && has_quantile<family_type>
         {
+            auto const& S = *this;
             if (!S.family_)
                 throw std::domain_error("wsl::random::quantile : somme indépendante sans forme connue");
-            return quantile(*S.family_, p);
+            return wsl::random::quantile(*S.family_, p);
         }
-        friend constexpr value_type cquantile(independent_sum const& S, double q) requires continuous && has_family && has_cquantile<family_type>
+        constexpr value_type cquantile(double q) const requires continuous && has_family && has_cquantile<family_type>
         {
+            auto const& S = *this;
             if (!S.family_)
                 throw std::domain_error("wsl::random::cquantile : somme indépendante sans forme connue");
-            return cquantile(*S.family_, q);
+            return wsl::random::cquantile(*S.family_, q);
         }
 
         // ---- Lois discrètes : convolution ----
         static constexpr bool convolvable = !continuous && has_pmf<L1> && has_pmf<L2> && has_cdf<L1> && has_cdf<L2> && has_ccdf<L1> && has_ccdf<L2>;
 
         // Σⱼ P(X = j) P(Y = k − j)
-        friend constexpr double pmf(independent_sum const& S, value_type k) noexcept requires convolvable
+        constexpr double pmf(value_type k) const noexcept requires convolvable
         {
+            auto const& S = *this;
             if constexpr (has_family)
                 if (S.family_)
-                    return pmf(*S.family_, k);
+                    return wsl::random::pmf(*S.family_, k);
             auto const [lo, hi] = S.range(k);
             detail::sd::double_double s{0.0, 0.0};
             for (value_type j = lo; j <= hi; ++j)
             {
-                s = detail::sum(s, detail::product(double(pmf(S.x_, j)), double(pmf(S.y_, static_cast<value_type>(k - j)))));
+                s = detail::sum(s, detail::product(double(wsl::random::pmf(S.x_, j)), double(wsl::random::pmf(S.y_, static_cast<value_type>(k - j)))));
                 if (j == hi)
                     break;
             }
             return s.hi + s.lo;
         }
         // P(X <= k − sup Y − 1) + Σⱼ P(X = j) P(Y <= k − j)
-        friend constexpr double cdf(independent_sum const& S, value_type k) noexcept requires convolvable
+        constexpr double cdf(value_type k) const noexcept requires convolvable
         {
+            auto const& S = *this;
             if constexpr (has_family)
                 if (S.family_)
-                    return cdf(*S.family_, k);
+                    return wsl::random::cdf(*S.family_, k);
             auto const s = S.cdf_dd(k);
             return clamp01(s.hi + s.lo);
         }
         // Σⱼ P(X = j) P(Y > k − j) + P(X > k − inf Y)
-        friend constexpr double ccdf(independent_sum const& S, value_type k) noexcept requires convolvable
+        constexpr double ccdf(value_type k) const noexcept requires convolvable
         {
+            auto const& S = *this;
             if constexpr (has_family)
                 if (S.family_)
-                    return ccdf(*S.family_, k);
+                    return wsl::random::ccdf(*S.family_, k);
             auto const s = S.ccdf_dd(k);
             return clamp01(s.hi + s.lo);
         }
         // Plus petit k tel que P(X + Y <= k) >= p.
-        friend constexpr value_type quantile(independent_sum const& S, double p) requires convolvable
+        constexpr value_type quantile(double p) const requires convolvable
         {
+            auto const& S = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if constexpr (has_family && has_quantile<family_type>)
                 if (S.family_)
-                    return quantile(*S.family_, p);
+                    return wsl::random::quantile(*S.family_, p);
             auto const [low, high] = S.support();
             if (p == 0)
                 return low;
@@ -307,7 +317,7 @@ namespace wsl::random
                 return high;
             value_type guess = low;
             if constexpr (has_quantile<L1> && has_quantile<L2>)
-                guess = detail::saturated_sum(quantile(S.x_, p), quantile(S.y_, p));
+                guess = detail::saturated_sum(wsl::random::quantile(S.x_, p), wsl::random::quantile(S.y_, p));
             double const q = 1.0 - p;                                       // utilisé pour p > ½ : exact
             auto const ge = [&](value_type k) { return p <= 0.5 ? detail::at_least(S.cdf_dd(k), p) : detail::at_most(S.ccdf_dd(k), q); };
             return detail::smallest_true(guess, low, high, ge);
@@ -315,18 +325,20 @@ namespace wsl::random
 
         template <std::uniform_random_bit_generator G>
             requires samplable<L1, G> && samplable<L2, G>
-        friend constexpr value_type sample(independent_sum const& S, G& g)
+        constexpr value_type sample(G& g) const
         {
-            value_type const a = sample(S.x_, g);
-            value_type const b = sample(S.y_, g);
+            auto const& S = *this;
+            value_type const a = wsl::random::sample(S.x_, g);
+            value_type const b = wsl::random::sample(S.y_, g);
             return add(a, b);
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L1, G> && samplable<L2, G>
-        friend constexpr value_type sample(independent_sum const& S, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            value_type const a = sample(S.x_, g, fast);
-            value_type const b = sample(S.y_, g, fast);
+            auto const& S = *this;
+            value_type const a = wsl::random::sample(S.x_, g, fast);
+            value_type const b = wsl::random::sample(S.y_, g, fast);
             return add(a, b);
         }
 
@@ -360,7 +372,7 @@ namespace wsl::random
             detail::sd::double_double s{0.0, 0.0};
             for (value_type j = lo; j <= hi; ++j)
             {
-                s = detail::sum(s, detail::product(double(pmf(x_, j)), f(static_cast<value_type>(k - j))));
+                s = detail::sum(s, detail::product(double(wsl::random::pmf(x_, j)), f(static_cast<value_type>(k - j))));
                 if (j == hi)
                     break;
             }
@@ -368,22 +380,22 @@ namespace wsl::random
         }
         constexpr detail::sd::double_double cdf_dd(value_type k) const
         {
-            auto s = convolve(k, [&](value_type m) { return double(cdf(y_, m)); });
+            auto s = convolve(k, [&](value_type m) { return double(wsl::random::cdf(y_, m)); });
             auto const b = y_.support().upper;
             if (b < std::numeric_limits<value_type>::max())                // j < k − sup Y : P(Y <= k − j) = 1
             {
                 value_type const edge = detail::saturated_difference(detail::saturated_difference(k, b), value_type(1));
                 if (edge >= x_.support().lower)
-                    s = detail::sum(s, {double(cdf(x_, edge)), 0.0});
+                    s = detail::sum(s, {double(wsl::random::cdf(x_, edge)), 0.0});
             }
             return s;
         }
         constexpr detail::sd::double_double ccdf_dd(value_type k) const
         {
-            auto s = convolve(k, [&](value_type m) { return double(ccdf(y_, m)); });
+            auto s = convolve(k, [&](value_type m) { return double(wsl::random::ccdf(y_, m)); });
             value_type const edge = detail::saturated_difference(k, y_.support().lower);   // j > k − inf Y : P(Y > k − j) = 1
             if (edge < x_.support().upper)
-                s = detail::sum(s, {double(ccdf(x_, edge)), 0.0});
+                s = detail::sum(s, {double(wsl::random::ccdf(x_, edge)), 0.0});
             return s;
         }
 

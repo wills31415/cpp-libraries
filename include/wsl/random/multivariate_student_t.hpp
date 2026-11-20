@@ -5,7 +5,7 @@
 //
 //   wsl::random::multivariate_student_t<double, 2> X({.degrees_of_freedom = 4, .location = {0, 1},
 //                                             .scale = {{1, 0.3}, {0.3, 2}}});
-//   pdf(X, {0.5, 0.5}); X.covariance(); X.marginal(0); sample(X, g);
+//   X.pdf({0.5, 0.5}); X.covariance(); X.marginal(0); X(g);
 //
 // Log-densité lgamma((ν + n)/2) − lgamma(ν/2) − (n/2) log(νπ) − ½ log det Σ
 // − ((ν + n)/2) log1p(q/ν), q = (x − μ)ᵀ Σ⁻¹ (x − μ), en double-double. Moyenne μ (ν > 1),
@@ -33,7 +33,7 @@
 namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
-    class multivariate_student_t
+    class multivariate_student_t : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -119,14 +119,16 @@ namespace wsl::random
             return affine_image<student_t<T>>(student_t<T>({.degrees_of_freedom = nu_}), {.scale = wsl::special::sqrt(double(sigma_(i, i))), .shift = double(mu_[i])});
         }
 
-        friend constexpr double log_pdf(multivariate_student_t const& X, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
-            auto const l = X.log_density(x);
+            auto const& X = *this;
+            auto const l = X.log_density_dd(x);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(multivariate_student_t const& X, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
-            auto const l = X.log_density(x);
+            auto const& X = *this;
+            auto const l = X.log_density_dd(x);
             if (!(l.hi > -1500))
                 return l.hi == l.hi ? 0.0 : l.hi;
             if (l.hi > 1400)
@@ -135,13 +137,14 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(multivariate_student_t const& X, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());
             normal<double> const standard({.mean = 0.0, .sd = 1.0});
             for (auto& v : z)
-                v = sample(standard, g);
-            double const w = sample(X.chi_, g);
+                v = wsl::random::sample(standard, g);
+            double const w = wsl::random::sample(X.chi_, g);
             double const f = wsl::special::sqrt(double(X.nu_) / w);         // √(ν/V)
             value_type x = detail::make_vector<T, N>(X.dimension());
             for (std::size_t i = 0; i < X.dimension(); ++i)
@@ -159,7 +162,7 @@ namespace wsl::random
         }
 
     private:
-        constexpr detail::sd::double_double log_density(value_type const& x) const noexcept
+        constexpr detail::sd::double_double log_density_dd(value_type const& x) const noexcept
         {
             if (x.size() != dimension())
                 return {-std::numeric_limits<double>::infinity(), 0.0};

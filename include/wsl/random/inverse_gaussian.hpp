@@ -4,7 +4,7 @@
 // densité √(λ/(2πx³)) e^{−λ(x − μ)²/(2μ²x)}, x > 0.
 //
 //   wsl::random::inverse_gaussian W({.mean = 1, .shape = 3});
-//   cdf(W, 2.0); ccdf(W, 50.0); quantile(W, 0.99); W.variance(); sample(W, g);
+//   W.cdf(2.0); W.ccdf(50.0); W.quantile(0.99); W.variance(); W(g);
 //
 // Avec c = √(λ/x), a = c (x − μ)/μ, δ = 2c et R(s) = e^{s²/2} Φ(−s) (rapport de Mills) :
 //     P(X > x) = e^{−a²/2} (R(a) − R(a + δ)),   P(X <= x) = e^{−a²/2} (R(|a|) + R(a + δ)) si a < 0.
@@ -211,7 +211,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class inverse_gaussian
+    class inverse_gaussian : public law_interface
     {
     public:
         using value_type = T;
@@ -263,10 +263,11 @@ namespace wsl::random
             }
             return static_cast<T>(detail::rounded(detail::normalized(double(mu_), 0.0) / w));
         }
-        constexpr T median() const { return quantile(*this, 0.5); }
+        constexpr T median() const { return wsl::random::quantile(*this, 0.5); }
 
-        friend constexpr T pdf(inverse_gaussian const& W, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& W = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -279,8 +280,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(p.c_over_x * e * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo)));
         }
         // log √(λ/x³) − ½ log 2π − a²/2
-        friend constexpr T log_pdf(inverse_gaussian const& W, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& W = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -291,19 +293,20 @@ namespace wsl::random
             l = detail::sum(l, detail::negated(p.half_a2));
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(inverse_gaussian const& W, T x) noexcept { return W.distribution(x, false); }
-        friend constexpr T ccdf(inverse_gaussian const& W, T x) noexcept { return W.distribution(x, true); }
-        friend constexpr T quantile(inverse_gaussian const& W, double p) { return W.inverse(p, false); }
-        friend constexpr T cquantile(inverse_gaussian const& W, double q) { return W.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& W = *this; return W.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& W = *this; return W.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& W = *this; return W.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& W = *this; return W.inverse(q, true); }
 
         // Michael, Schucany et Haas : y = N², x₁ = μ²/x₂, x₂ = μ (1 + (μy + √(μy (4λ + μy)))/(2λ)) ;
         // x₁ avec probabilité μ/(μ + x₁), x₂ sinon.
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(inverse_gaussian const& W, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& W = *this;
             namespace fp = detail::sd;
             double const mu = W.mu_, lambda = W.lambda_;
-            double const z = sample(normal<double>({.mean = 0.0, .sd = 1.0}), g);
+            double const z = wsl::random::sample(normal<double>({.mean = 0.0, .sd = 1.0}), g);
             double const w = fp::fmul(mu, fp::fmul(z, z));
             double const s = wsl::special::sqrt(fp::fmul(w, fp::fmul(4.0, lambda) + w));
             double const x2 = mu + fp::fmul(mu, (w + s) / fp::fmul(2.0, lambda));

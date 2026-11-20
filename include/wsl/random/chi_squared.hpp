@@ -4,7 +4,7 @@
 // (somme des carrés de k normales centrées réduites, pour k entier).
 //
 //   wsl::random::chi_squared X({.degrees_of_freedom = 3});
-//   X.mean(); cdf(X, 7.81); quantile(X, 0.95); sample(X, g);
+//   X.mean(); X.cdf(7.81); X.quantile(0.95); X(g);
 //
 // Tout est délégué à wsl::random::gamma (k/2 et l'échelle 2 sont exacts) : mêmes méthodes,
 // même précision.
@@ -18,7 +18,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class chi_squared
+    class chi_squared : public law_interface
     {
     public:
         using value_type = T;
@@ -40,17 +40,18 @@ namespace wsl::random
         constexpr T excess_kurtosis() const noexcept { return g_.excess_kurtosis(); }
         constexpr T entropy() const noexcept { return g_.entropy(); }
 
-        friend constexpr T pdf(chi_squared const& X, T x) noexcept { return pdf(X.g_, x); }
-        friend constexpr T log_pdf(chi_squared const& X, T x) noexcept { return log_pdf(X.g_, x); }
-        friend constexpr T cdf(chi_squared const& X, T x) noexcept { return cdf(X.g_, x); }
-        friend constexpr T ccdf(chi_squared const& X, T x) noexcept { return ccdf(X.g_, x); }
-        friend constexpr T quantile(chi_squared const& X, double p) { return quantile(X.g_, p); }
-        friend constexpr T cquantile(chi_squared const& X, double q) { return cquantile(X.g_, q); }
+        constexpr T pdf(T x) const noexcept { auto const& X = *this; return wsl::random::pdf(X.g_, x); }
+        constexpr T log_pdf(T x) const noexcept { auto const& X = *this; return wsl::random::log_pdf(X.g_, x); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return wsl::random::cdf(X.g_, x); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return wsl::random::ccdf(X.g_, x); }
+        constexpr T quantile(double p) const { auto const& X = *this; return wsl::random::quantile(X.g_, p); }
+        constexpr T cquantile(double q) const { auto const& X = *this; return wsl::random::cquantile(X.g_, q); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(chi_squared const& X, G& g)
+        constexpr T sample(G& g) const
         {
-            return sample(X.g_, g);
+            auto const& X = *this;
+            return wsl::random::sample(X.g_, g);
         }
 
         friend constexpr bool operator==(chi_squared const& a, chi_squared const& b) noexcept { return a.k_ == b.k_; }

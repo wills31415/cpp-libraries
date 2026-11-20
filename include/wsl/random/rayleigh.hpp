@@ -2,7 +2,7 @@
 
 // Loi de Rayleigh de paramètre σ > 0 : densité (x/σ²) e^{−x²/(2σ²)}, x >= 0.
 //
-//   wsl::random::rayleigh R({.scale = 2});   cdf(R, 1.0); quantile(R, 0.5); R.mean(); sample(R, g);
+//   wsl::random::rayleigh R({.scale = 2});   R.cdf(1.0); R.quantile(0.5); R.mean(); R(g);
 //
 // h = z²/2, z = x/σ en double-double ; répartition −expm1(−h), survie e^{−h}, densité
 // (z/σ) e^{−h} ; quantile σ √(−2 log1p(−p)) (cquantile : σ √(−2 log q)) ; un arrondi.
@@ -24,7 +24,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class rayleigh
+    class rayleigh : public law_interface
     {
     public:
         using value_type = T;
@@ -63,8 +63,9 @@ namespace wsl::random
             return static_cast<T>(h.hi + h.lo);
         }
 
-        friend constexpr T pdf(rayleigh const& R, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& R = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -75,8 +76,9 @@ namespace wsl::random
                 return 0;
             return static_cast<T>(detail::rounded(z * detail::exp_scaled(-h.hi, -h.lo) / double(R.sigma_)));
         }
-        friend constexpr T log_pdf(rayleigh const& R, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& R = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -89,17 +91,18 @@ namespace wsl::random
             l = detail::sum(l, {-h.hi, -h.lo});
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(rayleigh const& R, T x) noexcept { return R.distribution(x, false); }
-        friend constexpr T ccdf(rayleigh const& R, T x) noexcept { return R.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& R = *this; return R.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& R = *this; return R.distribution(x, true); }
 
         // σ √(−2 log(1 − p)) ; cquantile : σ √(−2 log q)
-        friend constexpr T quantile(rayleigh const& R, double p) { return R.inverse(p, false); }
-        friend constexpr T cquantile(rayleigh const& R, double q) { return R.inverse(q, true); }
+        constexpr T quantile(double p) const { auto const& R = *this; return R.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& R = *this; return R.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(rayleigh const& R, G& g)
+        constexpr T sample(G& g) const
         {
-            double const e = sample(exponential<double>({.rate = 1.0}), g);
+            auto const& R = *this;
+            double const e = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             return static_cast<T>(detail::sd::fmul(double(R.sigma_), wsl::special::sqrt(detail::sd::fmul(2.0, e))));
         }
 

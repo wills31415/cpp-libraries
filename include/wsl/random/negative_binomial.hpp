@@ -4,7 +4,7 @@
 // de paramètre p, r > 0 réel : P(X = k) = Γ(k + r)/(k! Γ(r)) p^r (1 − p)^k, k >= 0.
 //
 //   wsl::random::negative_binomial X({.successes = 3.5, .p = 0.4});
-//   X.mean(); pmf(X, 6); cdf(X, 6); quantile(X, 0.99); sample(X, g);
+//   X.mean(); X.pmf(6); X.cdf(6); X.quantile(0.99); X(g);
 //
 // Masse : r/(k + r) fois la masse binomiale de r succès en n = k + r épreuves (Loader,
 // n réel en double-double) :
@@ -32,7 +32,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class negative_binomial
+    class negative_binomial : public law_interface
     {
     public:
         using value_type = I;
@@ -80,8 +80,9 @@ namespace wsl::random
             return static_cast<I>(detail::sd::fmul(r_ - 1, 1 - p_) / p_);
         }
 
-        friend constexpr double pmf(negative_binomial const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (X.p_ == 1)
@@ -95,8 +96,9 @@ namespace wsl::random
             return detail::rounded(value);
         }
 
-        friend constexpr double log_pmf(negative_binomial const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return -std::numeric_limits<double>::infinity();
             if (X.p_ == 1)
@@ -108,8 +110,9 @@ namespace wsl::random
         }
 
         // P(X <= k) = I_p(r, k + 1).
-        friend constexpr double cdf(negative_binomial const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (X.p_ == 1)
@@ -118,8 +121,9 @@ namespace wsl::random
         }
 
         // P(X > k) = 1 − I_p(r, k + 1).
-        friend constexpr double ccdf(negative_binomial const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 1;
             if (X.p_ == 1)
@@ -128,8 +132,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u.
-        friend constexpr I quantile(negative_binomial const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -154,15 +159,16 @@ namespace wsl::random
 
         // Mélange gamma–Poisson.
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(negative_binomial const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             if (X.p_ == 1)
                 return 0;
             double const scale = (1 - X.p_) / X.p_;
-            double const lambda = sample(gamma<double>(typename gamma<double>::shape_scale{X.r_, scale}), g);
+            double const lambda = wsl::random::sample(gamma<double>(typename gamma<double>::shape_scale{X.r_, scale}), g);
             if (!(lambda > 0))
                 return 0;
-            return sample(poisson<I>({.mean = lambda}), g);
+            return wsl::random::sample(poisson<I>({.mean = lambda}), g);
         }
 
         friend constexpr bool operator==(negative_binomial const& a, negative_binomial const& b) noexcept { return a.r_ == b.r_ && a.p_ == b.p_; }

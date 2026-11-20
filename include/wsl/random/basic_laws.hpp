@@ -7,7 +7,7 @@
 //   wsl::random::discrete_uniform D({.low = 1, .high = 6});     // un dé : {1, …, 6}
 //   wsl::random::bernoulli B({.p = 0.3});
 //
-//   X.mean(); X.variance(); cdf(X, 3.0); quantile(X, 0.25); sample(X, g);
+//   X.mean(); X.variance(); X.cdf(3.0); X.quantile(0.25); X(g);
 //
 // Les calculs se font en double (puis un arrondi vers float pour les lois en
 // float), en double-double là où c'est nécessaire pour rester sous 1 ulp.
@@ -39,7 +39,7 @@ namespace wsl::random
     // réel uniforme exact sur [low, high)).
     // -----------------------------------------------------------------------
     template <law_real T = double>
-    class uniform
+    class uniform : public law_interface
     {
     public:
         using value_type = T;
@@ -87,21 +87,24 @@ namespace wsl::random
             return static_cast<T>(detail::log_dd(d, d_error) + (doubled ? detail::sd::ln2_hi : 0.0));
         }
 
-        friend constexpr T pdf(uniform const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x >= X.low_ && x < X.high_))
                 return 0;
             auto const [d, d_error, doubled] = X.width();
             return static_cast<T>(detail::sd::scale_by_power_of_two(detail::divide(1.0, 0.0, d, d_error), -doubled));
         }
-        friend constexpr T log_pdf(uniform const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x >= X.low_ && x < X.high_))
                 return -std::numeric_limits<T>::infinity();
             return -X.entropy();
         }
-        friend constexpr T cdf(uniform const& X, T x) noexcept
+        constexpr T cdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x > X.low_))
                 return x == x ? T(0) : x;
             if (!(x < X.high_))
@@ -109,16 +112,18 @@ namespace wsl::random
             return static_cast<T>(detail::ratio(x, X.low_, X.high_));
         }
         // P(X > x) = (high − x)/(high − low), sans annulation.
-        friend constexpr T ccdf(uniform const& X, T x) noexcept
+        constexpr T ccdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x > X.low_))
                 return x == x ? T(1) : x;
             if (!(x < X.high_))
                 return 0;
             return static_cast<T>(detail::ratio(-static_cast<double>(x), -static_cast<double>(X.high_), -static_cast<double>(X.low_)));
         }
-        friend constexpr T quantile(uniform const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 1)
@@ -127,20 +132,22 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(uniform const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return X.high_;
             return X.clamp(-detail::interpolate(-X.high_, -X.low_, q));     // b − q (b − a), un arrondi
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(uniform const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             return X.clamp(detail::interpolate(X.low_, X.high_, uniform_real<double>(g)));
         }
 
@@ -179,7 +186,7 @@ namespace wsl::random
     // Uniforme discrète sur {low, …, high} (bornes comprises). Tirage exact.
     // -----------------------------------------------------------------------
     template <law_integer I = std::int64_t>
-    class discrete_uniform
+    class discrete_uniform : public law_interface
     {
     public:
         using value_type = I;
@@ -226,22 +233,25 @@ namespace wsl::random
             return detail::log_dd(n, n_lo);
         }
 
-        friend constexpr double pmf(discrete_uniform const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low_ || k > X.high_)
                 return 0;
             auto const [n, n_lo] = X.count();
             return detail::divide(1.0, 0.0, n, n_lo);
         }
-        friend constexpr double log_pmf(discrete_uniform const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low_ || k > X.high_)
                 return -std::numeric_limits<double>::infinity();
             return -X.entropy();
         }
         // P(X <= k) = (k − low + 1)/n.
-        friend constexpr double cdf(discrete_uniform const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low_)
                 return 0;
             if (k >= X.high_)
@@ -251,8 +261,9 @@ namespace wsl::random
             return detail::divide(m, m_lo, n, n_lo);
         }
         // P(X > k) = (high − k)/n.
-        friend constexpr double ccdf(discrete_uniform const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < X.low_)
                 return 1;
             if (k >= X.high_)
@@ -263,12 +274,13 @@ namespace wsl::random
         }
         // Quantile exact : plus petit k tel que P(X <= k) >= p, pour la vraie loi,
         // soit low + ⌈p n⌉ − 1 (p = m 2^e, produit entier m n sur 128 bits). La cdf
-        // calculée étant arrondie, quantile(cdf(k)) vaut k, ou k + 1 quand cdf(k)
+        // calculée étant arrondie, wsl::random::quantile(wsl::random::cdf(k)) vaut k, ou k + 1 quand wsl::random::cdf(k)
         // a été arrondie vers le haut. (« Le plus petit k dont la cdf calculée
         // atteint p » ne serait pas tenable : au-delà de 2^53 valeurs, des milliers
         // de k voisins ont la même cdf arrondie.)
-        friend constexpr I quantile(discrete_uniform const& X, double p)
+        constexpr I quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -290,8 +302,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(discrete_uniform const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             return uniform_int(g, X.low_, X.high_);
         }
 
@@ -333,7 +346,7 @@ namespace wsl::random
     // -----------------------------------------------------------------------
     // Bernoulli : vrai avec probabilité p. Tirage exact.
     // -----------------------------------------------------------------------
-    class bernoulli
+    class bernoulli : public law_interface
     {
     public:
         using value_type = bool;
@@ -373,13 +386,14 @@ namespace wsl::random
             return -(detail::sd::fmul(p_, sp::log(p_)) + detail::sd::fmul(1.0 - p_, sp::log1p(-p_)));
         }
 
-        friend constexpr double pmf(bernoulli const& X, bool k) noexcept { return k ? X.p_ : 1.0 - X.p_; }
-        friend constexpr double cdf(bernoulli const& X, bool k) noexcept { return k ? 1.0 : 1.0 - X.p_; }
-        friend constexpr double ccdf(bernoulli const& X, bool k) noexcept { return k ? 0.0 : X.p_; }
+        constexpr double pmf(bool k) const noexcept { auto const& X = *this; return k ? X.p_ : 1.0 - X.p_; }
+        constexpr double cdf(bool k) const noexcept { auto const& X = *this; return k ? 1.0 : 1.0 - X.p_; }
+        constexpr double ccdf(bool k) const noexcept { auto const& X = *this; return k ? 0.0 : X.p_; }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr bool sample(bernoulli const& X, G& g)
+        constexpr bool sample(G& g) const
         {
+            auto const& X = *this;
             return bernoulli_trial(g, X.p_);
         }
 

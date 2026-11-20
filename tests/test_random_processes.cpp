@@ -139,18 +139,18 @@ int main()
     {
         wsl::random::categorical const C({.p = {0.1, 1e-3, 2.5, 0.0, 7.0}});
         std::vector<std::size_t> const k{0, 1, 2, 3, 4};
-        assert(chi_square(k, draws, [&] { return sample(C, g); }, [&](std::size_t i) { return pmf(C, i); }) < 4);
+        assert(chi_square(k, draws, [&] { return wsl::random::sample(C, g); }, [&](std::size_t i) { return wsl::random::pmf(C, i); }) < 4);
         double const total = 0.1 + 1e-3 + 2.5 + 7.0;
-        assert(close(pmf(C, 2), 2.5 / total, 1e-15) && pmf(C, 3) == 0 && pmf(C, 7) == 0 && cdf(C, 4) == 1 && close(cdf(C, 1) + ccdf(C, 1), 1, 1e-15));
+        assert(close(wsl::random::pmf(C, 2), 2.5 / total, 1e-15) && wsl::random::pmf(C, 3) == 0 && wsl::random::pmf(C, 7) == 0 && wsl::random::cdf(C, 4) == 1 && close(wsl::random::cdf(C, 1) + wsl::random::ccdf(C, 1), 1, 1e-15));
         assert(C.mode() == 4 && close(C.mean(), (1e-3 + 5.0 + 28.0) / total, 1e-15));
         wsl::random::categorical const Q({.p = {1.0, 1.0, 2.0}});                    // quantile exact aux frontières
-        assert(quantile(Q, 0.25) == 0 && quantile(Q, std::nextafter(0.25, 1.0)) == 1 && quantile(Q, 0.5) == 1 && quantile(Q, 0.5000000001) == 2 && quantile(Q, 0.0) == 0);
-        assert(quantile(wsl::random::categorical({.p = {0.0, 0.0, 3.0}}), 0.0) == 2);
+        assert(wsl::random::quantile(Q, 0.25) == 0 && wsl::random::quantile(Q, std::nextafter(0.25, 1.0)) == 1 && wsl::random::quantile(Q, 0.5) == 1 && wsl::random::quantile(Q, 0.5000000001) == 2 && wsl::random::quantile(Q, 0.0) == 0);
+        assert(wsl::random::quantile(wsl::random::categorical({.p = {0.0, 0.0, 3.0}}), 0.0) == 2);
         wsl::random::categorical const B({.p = {0x1p600, 0x1p-600, 0x1p599}});      // grands entiers (pas d'alias)
         int above = 0;
         for (int i = 0; i < 30000; ++i)
         {
-            auto const x = sample(B, g);
+            auto const x = wsl::random::sample(B, g);
             assert(x != 1);
             above += x == 2;
         }
@@ -165,7 +165,7 @@ int main()
         for (std::size_t k : {1, 2, 7, 30})
         {
             wsl::random::xoshiro256pp a(5), b(5);
-            auto const path = sample(M.steps(k - 1), a);                    // k états
+            auto const path = wsl::random::sample(M.steps(k - 1), a);                    // k états
             std::vector<std::size_t> lazy;
             for (std::size_t x : wsl::random::trajectory(M, b) | std::views::take(k))
                 lazy.push_back(x);
@@ -182,7 +182,7 @@ int main()
         std::vector<std::size_t> head;
         for (std::size_t t : wsl::random::trajectory(R, c) | std::views::take_while([](std::size_t t) { return t < 3; }))
             head.push_back(t);
-        auto const ref = sample(R.at(head.size() + 1), d);
+        auto const ref = wsl::random::sample(R.at(head.size() + 1), d);
         assert(std::equal(head.begin(), head.end(), ref.begin()) && ref.back() >= 3 && c() == d());
     }
 
@@ -193,14 +193,14 @@ int main()
         for (std::int64_t v = -10; v <= 10; v += 2)
             ends.push_back(v);
         wsl::random::binomial const B({.trials = 10, .p = 0.5});
-        assert(chi_square(ends, draws, [&] { return sample(W.steps(10), g).back(); }, [&](std::int64_t v) { return pmf(B, (v + 10) / 2); }) < 4);
+        assert(chi_square(ends, draws, [&] { return wsl::random::sample(W.steps(10), g).back(); }, [&](std::int64_t v) { return wsl::random::pmf(B, (v + 10) / 2); }) < 4);
         assert(W.mean(10) == 0 && W.variance(10) == 10);
         wsl::random::random_walk const V(wsl::random::rademacher({.p = 0.3}), {.start = 5});
-        auto const p = sample(V.steps(6), g);
-        assert(p[0] == 5 && close(pmf(V.steps(6), p), std::pow(0.3, double((p.back() - 5 + 6) / 2)) * std::pow(0.7, double(6 - (p.back() - 5 + 6) / 2)), 1e-14));
-        assert(pmf(V.steps(2), {5, 7, 8}) == 0 && pmf(V.steps(2), {4, 5, 6}) == 0);
+        auto const p = wsl::random::sample(V.steps(6), g);
+        assert(p[0] == 5 && close(wsl::random::pmf(V.steps(6), p), std::pow(0.3, double((p.back() - 5 + 6) / 2)) * std::pow(0.7, double(6 - (p.back() - 5 + 6) / 2)), 1e-14));
+        assert(wsl::random::pmf(V.steps(2), {5, 7, 8}) == 0 && wsl::random::pmf(V.steps(2), {4, 5, 6}) == 0);
         wsl::random::random_walk const P(wsl::random::poisson({.mean = 2.0}));              // pas quelconques entiers
-        assert(close(P.mean(100), 200, 1e-15) && sample(P.steps(100), g).back() > 100);
+        assert(close(P.mean(100), 200, 1e-15) && wsl::random::sample(P.steps(100), g).back() > 100);
     }
 
     // ---- Chaînes de Markov -------------------------------------------------------------
@@ -208,27 +208,27 @@ int main()
         wsl::random::markov_chain const M({.transition = {{0.5, 0.3, 0.2}, {0.1, 0.8, 0.1}, {0.25, 0.25, 0.5}}, .start = 2});
         auto const at5 = M.at(5);
         std::vector<std::size_t> const states{0, 1, 2};
-        assert(chi_square(states, draws, [&] { return sample(M.steps(5), g).back(); }, [&](std::size_t i) { return pmf(at5, i); }) < 4);
+        assert(chi_square(states, draws, [&] { return wsl::random::sample(M.steps(5), g).back(); }, [&](std::size_t i) { return wsl::random::pmf(at5, i); }) < 4);
         auto const pi = M.stationary(), far = M.at(200);
         for (std::size_t i = 0; i < 3; ++i)
-            assert(std::abs(pmf(pi, i) - pmf(far, i)) < 1e-14);
+            assert(std::abs(wsl::random::pmf(pi, i) - wsl::random::pmf(far, i)) < 1e-14);
         double s = 0;                                                       // π P = π
         for (std::size_t j = 0; j < 3; ++j)
         {
             double v = 0;
             for (std::size_t i = 0; i < 3; ++i)
-                v += pmf(pi, i) * M.probability(i, j);
-            s += std::abs(v - pmf(pi, j));
+                v += wsl::random::pmf(pi, i) * M.probability(i, j);
+            s += std::abs(v - wsl::random::pmf(pi, j));
         }
         assert(s < 1e-14);
         auto const paths = sequences(4, 3);                                 // masses des trajectoires : somme 1
         double t = 0;
         for (auto const& q : paths)
-            t += pmf(M.steps(3), q);
-        assert(close(t, 1, 1e-14) && pmf(M.steps(3), paths[0]) == 0);       // x₀ = 0 impossible
-        assert(chi_square(paths, draws, [&] { return sample(M.steps(3), g); }, [&](std::vector<std::size_t> const& q) { return pmf(M.steps(3), q); }) < 4);
+            t += wsl::random::pmf(M.steps(3), q);
+        assert(close(t, 1, 1e-14) && wsl::random::pmf(M.steps(3), paths[0]) == 0);       // x₀ = 0 impossible
+        assert(chi_square(paths, draws, [&] { return wsl::random::sample(M.steps(3), g); }, [&](std::vector<std::size_t> const& q) { return wsl::random::pmf(M.steps(3), q); }) < 4);
         wsl::random::markov_chain const L({.transition = {{1, 0}, {0.4, 0.6}}, .initial = {0.25, 0.75}});
-        assert(L.is_absorbing(0) && !L.is_absorbing(1) && close(pmf(L.at(3), 1), 0.75 * 0.216, 1e-15));
+        assert(L.is_absorbing(0) && !L.is_absorbing(1) && close(wsl::random::pmf(L.at(3), 1), 0.75 * 0.216, 1e-15));
         assert(throws_domain_error([] { (void)wsl::random::markov_chain({.transition = {{1, 0}, {0, 1}}, .start = 0}).stationary(); }));   // non unique
         assert(throws_domain_error([] { wsl::random::markov_chain X({.transition = {{0.5, 0.4}, {0.5, 0.5}}, .start = 0}); }));
         assert(throws_domain_error([] { wsl::random::markov_chain X({.transition = {{1, 0}, {0, 1}}, .start = 2}); }));
@@ -242,24 +242,24 @@ int main()
         for (std::int64_t a = 0; a <= 6; ++a)
             counts.push_back({a, 6 - a});
         assert(chi_square(counts, draws, [&] {
-            auto const c = sample(U.steps(5), g);
+            auto const c = wsl::random::sample(U.steps(5), g);
             std::int64_t const zeros = std::ranges::count(c, std::size_t{0});
             return std::vector<std::int64_t>{zeros, 6 - zeros};
-        }, [&](std::vector<std::int64_t> const& k) { return pmf(D, k); }) < 4);
+        }, [&](std::vector<std::int64_t> const& k) { return wsl::random::pmf(D, k); }) < 4);
         auto const seq = sequences(4, 2);
         double t = 0;
         for (auto const& q : seq)
-            t += pmf(U.steps(3), q);
-        assert(close(t, 1, 1e-14) && close(pmf(U.steps(3), {0, 1, 1, 0}), pmf(U.steps(3), {1, 1, 0, 0}), 1e-15));   // échangeable
+            t += wsl::random::pmf(U.steps(3), q);
+        assert(close(t, 1, 1e-14) && close(wsl::random::pmf(U.steps(3), {0, 1, 1, 0}), wsl::random::pmf(U.steps(3), {1, 1, 0, 0}), 1e-15));   // échangeable
         wsl::random::dirichlet_multinomial const M({.trials = 4, .alpha = {0.5, 1.5, 2.0}});
         std::vector<std::vector<std::int64_t>> ks;
         for (std::int64_t a = 0; a <= 4; ++a)
             for (std::int64_t b = 0; a + b <= 4; ++b)
                 ks.push_back({a, b, 4 - a - b});
-        assert(chi_square(ks, draws, [&] { return sample(M, g); }, [&](std::vector<std::int64_t> const& k) { return pmf(M, k); }) < 4);
+        assert(chi_square(ks, draws, [&] { return wsl::random::sample(M, g); }, [&](std::vector<std::int64_t> const& k) { return wsl::random::pmf(M, k); }) < 4);
         assert(close(M.mean()[2], 2.0, 1e-15) && close(M.variance()[0], 4 * 0.125 * 0.875 * 8 / 5, 1e-14));
         wsl::random::polya_urn const R({.balls = {0.3, 0.7, 1.1}, .added = 0.25});  // poids non entiers : exacts
-        assert(chi_square(sequences(3, 3), draws, [&] { return sample(R.steps(2), g); }, [&](std::vector<std::size_t> const& q) { return pmf(R.steps(2), q); }) < 4);
+        assert(chi_square(sequences(3, 3), draws, [&] { return wsl::random::sample(R.steps(2), g); }, [&](std::vector<std::size_t> const& q) { return wsl::random::pmf(R.steps(2), q); }) < 4);
         assert(throws_domain_error([] { (void)wsl::random::polya_urn({.balls = {1, 1}, .added = 0}).at(3); }));
     }
 
@@ -277,13 +277,13 @@ int main()
                 for (std::size_t t : wsl::random::trajectory(R, g) | std::views::take(5))
                     s.push_back(t);
                 return s;
-            }, [&](std::vector<std::size_t> const& q) { return pmf(P, q); }) < 4);
+            }, [&](std::vector<std::size_t> const& q) { return wsl::random::pmf(P, q); }) < 4);
         }
         wsl::random::ewens_partition const E({.size = 200, .theta = 2.0});
         double k = 0;
         for (int i = 0; i < 500; ++i)
         {
-            auto const s = sample(E, g);
+            auto const s = wsl::random::sample(E, g);
             k += double(*std::ranges::max_element(s) + 1);
         }
         assert(std::abs(k / 500 - E.mean_blocks()) < 0.3 && close(E.mean_blocks(), wsl::random::ewens({.size = 200, .theta = 2.0}).mean_cycles(), 1e-15));
@@ -291,11 +291,11 @@ int main()
         double kp = 0;
         for (int i = 0; i < 500; ++i)
         {
-            auto const s = sample(PY, g);
+            auto const s = wsl::random::sample(PY, g);
             kp += double(*std::ranges::max_element(s) + 1);
         }
         assert(std::abs(kp / 500 - PY.mean_blocks()) < 0.8);
-        assert(pmf(E, std::vector<std::size_t>(200, 0)) > 0 && pmf(wsl::random::ewens_partition({.size = 3, .theta = 1.0}), {0, 2, 1}) == 0);
+        assert(wsl::random::pmf(E, std::vector<std::size_t>(200, 0)) > 0 && wsl::random::pmf(wsl::random::ewens_partition({.size = 3, .theta = 1.0}), {0, 2, 1}) == 0);
         assert(throws_domain_error([] { wsl::random::chinese_restaurant X({.theta = -0.6, .discount = 0.5}); }));
     }
 
@@ -306,7 +306,7 @@ int main()
         wsl::random::categorical const C({.p = {0.1, 0.25, 0.3, 0.05, 0.3}});
         wsl::random::markov_chain const M({.transition = {{0.5, 0.3, 0.2}, {0.1, 0.8, 0.1}, {0.25, 0.25, 0.5}}, .start = 0});
         auto const take = [&](fnv1a& h, auto const& process, std::size_t n) { for (auto v : wsl::random::trajectory(process, x) | std::views::take(n)) h.add(static_cast<std::uint64_t>(v)); };
-        ok &= check("categorical", fingerprint([&](fnv1a& h) { h.add(sample(C, x)); }), 0x75204fe3d6fc7447);
+        ok &= check("categorical", fingerprint([&](fnv1a& h) { h.add(wsl::random::sample(C, x)); }), 0x75204fe3d6fc7447);
         ok &= check("random_walk", fingerprint([&](fnv1a& h) { take(h, wsl::random::random_walk(wsl::random::rademacher({.p = 0.6})), 20); }, 1 << 9), 0xe141a7ef8f3eb38a);
         ok &= check("markov_chain", fingerprint([&](fnv1a& h) { take(h, M, 20); }, 1 << 9), 0xbd7b75b6f3dea6a4);
         ok &= check("polya_urn", fingerprint([&](fnv1a& h) { take(h, wsl::random::polya_urn({.balls = {1, 2, 0.5}, .added = 1.5}), 20); }, 1 << 9), 0x0c3d0a6d77d909e4);

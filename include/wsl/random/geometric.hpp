@@ -6,7 +6,7 @@
 // est X + 1).
 //
 //   wsl::random::geometric X({.p = 0.2});
-//   X.mean(); pmf(X, 3); cdf(X, 3); quantile(X, 0.5); sample(X, g);
+//   X.mean(); X.pmf(3); X.cdf(3); X.quantile(0.5); X(g);
 //
 // Masse, répartition, survie : (1 − p)^k = e^{k log1p(−p)}, k log1p(−p) en
 // double-double (k exact), un seul arrondi. Quantile exact de la vraie loi,
@@ -29,7 +29,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class geometric
+    class geometric : public law_interface
     {
     public:
         using value_type = I;
@@ -66,7 +66,7 @@ namespace wsl::random
             return detail::rounded(failure() / p_ / p_);
         }
         constexpr I mode() const noexcept { return 0; }
-        constexpr I median() const { return quantile(*this, 0.5); }
+        constexpr I median() const { return wsl::random::quantile(*this, 0.5); }
         constexpr double skewness() const noexcept
         {
             return (2 - p_) / wsl::special::sqrt(1 - p_);
@@ -89,8 +89,9 @@ namespace wsl::random
             return s + (s_error + (m_lo - l_lo));
         }
 
-        friend constexpr double pmf(geometric const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (X.p_ == 1)
@@ -103,8 +104,9 @@ namespace wsl::random
             return detail::rounded(detail::exp_scaled(m_hi, m_lo) * detail::normalized(X.p_, 0.0));
         }
 
-        friend constexpr double log_pmf(geometric const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return -std::numeric_limits<double>::infinity();
             if (X.p_ == 1)
@@ -116,8 +118,9 @@ namespace wsl::random
         }
 
         // 1 − (1 − p)^(k+1) = −expm1((k + 1) log(1 − p)).
-        friend constexpr double cdf(geometric const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (X.p_ == 1)
@@ -131,8 +134,9 @@ namespace wsl::random
         }
 
         // (1 − p)^(k+1).
-        friend constexpr double ccdf(geometric const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 1;
             if (X.p_ == 1)
@@ -146,8 +150,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u : ⌈log1p(−u)/log1p(−p)⌉ − 1.
-        friend constexpr I quantile(geometric const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.p_ == 1)
@@ -164,8 +169,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(geometric const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             if (X.p_ == 1)
                 return 0;
             double const r = wsl::special::log(detail::uniform_positive(g)) / X.log_q_.hi;   // >= 0

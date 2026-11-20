@@ -6,12 +6,12 @@
 //
 //   wsl::random::brownian_motion B({.drift = 0, .volatility = 1});
 //   B.at(2.0);                                             // normal(0, √2)
-//   auto x = sample(B.on_grid({0.5, 1.0, 2.0}), g);        // B aux instants donnés
+//   auto x = wsl::random::sample(B.on_grid({0.5, 1.0, 2.0}), g);        // B aux instants donnés
 //   for (auto [t, v] : wsl::random::trajectory(B, g, {.step = 0.01}) | std::views::take(100)) …
-//   wsl::random::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  sample(D.on_grid(ts), g);
+//   wsl::random::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  wsl::random::sample(D.on_grid(ts), g);
 //   wsl::random::ornstein_uhlenbeck O({.theta = 1, .mean = 0, .volatility = 1, .start = 2});
 //   wsl::random::geometric_brownian_motion S({.drift = 0.05, .volatility = 0.2, .start = 100});
-//   wsl::random::poisson_process N({.rate = 2});    N.at(3.0);   sample(N.on(10.0), g);
+//   wsl::random::poisson_process N({.rate = 2});    N.at(3.0);   wsl::random::sample(N.on(10.0), g);
 //   for (double t : wsl::random::trajectory(N, g) | std::views::take(10)) …   // instants des sauts
 //   wsl::random::inhomogeneous_poisson_process M(f, /* borne */ 5.0);
 //   wsl::random::compound_poisson C(2.0, wsl::random::exponential({.rate = 1.0}));     // (instant, valeur)
@@ -142,7 +142,7 @@ namespace wsl::random
         }
 
         // Valeurs aux instants donnés (>= 0, croissants).
-        class grid_law
+        class grid_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -151,8 +151,9 @@ namespace wsl::random
             constexpr grid_law(parameters b, std::vector<double> times) : b_(b), times_(std::move(times)) { detail::check_times(times_); }
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(grid_law const& L, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& L = *this;
                 detail::brownian_sum w;
                 value_type x;
                 for (double t : L.times_)
@@ -275,7 +276,7 @@ namespace wsl::random
             return normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .sd = wsl::special::sqrt(v)});
         }
 
-        class grid_law
+        class grid_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -290,8 +291,9 @@ namespace wsl::random
 
             // W(tᵢ − t₀) pour tous les instants, puis W(T − t₀) ; X(tᵢ) = a + rᵢ (b − a) + σ (Wᵢ − rᵢ W_T).
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(grid_law const& L, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& L = *this;
                 namespace d = detail;
                 d::brownian_sum w;
                 d::dyadic_value const t0 = d::to_dyadic(L.b_.from.time), span = d::to_dyadic(L.b_.to.time) - t0;
@@ -355,7 +357,7 @@ namespace wsl::random
         }
         constexpr normal<> stationary() const { return normal<>({.mean = mu_, .sd = sigma_ / wsl::special::sqrt(detail::sd::fmul(2.0, theta_))}); }
 
-        class grid_law
+        class grid_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -364,8 +366,9 @@ namespace wsl::random
             constexpr grid_law(parameters o, std::vector<double> times) : o_(o), times_(std::move(times)) { detail::check_times(times_); }
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(grid_law const& L, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& L = *this;
                 detail::brownian_sum w;
                 value_type x;
                 for (double t : L.times_)
@@ -464,7 +467,7 @@ namespace wsl::random
             return lognormal<>({.mu = wsl::special::log(s0_) + n.mean(), .sigma = n.sd()});
         }
 
-        class grid_law
+        class grid_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -473,9 +476,10 @@ namespace wsl::random
             constexpr grid_law(brownian_motion log, double s0, std::vector<double> times) : log_(std::move(log)), s0_(s0), times_(std::move(times)) {}
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(grid_law const& L, G& g)
+            constexpr value_type sample(G& g) const
             {
-                auto x = sample(L.log_.on_grid(L.times_), g);
+                auto const& L = *this;
+                auto x = wsl::random::sample(L.log_.on_grid(L.times_), g);
                 for (auto& v : x)
                     v = detail::sd::fmul(L.s0_, wsl::special::exp(v));
                 return x;
@@ -542,13 +546,13 @@ namespace wsl::random
             template <class G>
             constexpr double next(G& g)
             {
-                t = detail::sum(t, {sample(exponential<double>({.rate = lambda}), g, fast), 0.0});
+                t = detail::sum(t, {wsl::random::sample(exponential<double>({.rate = lambda}), g, fast), 0.0});
                 return t.hi + t.lo;
             }
         };
 
         // Instants dans [0, T] : loi d'un ensemble fini.
-        class window_law
+        class window_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -561,8 +565,9 @@ namespace wsl::random
             }
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(window_law const& W, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& W = *this;
                 walker_type w{W.lambda_};
                 value_type times;
                 for (;;)
@@ -593,7 +598,7 @@ namespace wsl::random
     // acceptés avec probabilité f(t)/Λ exactement, f évaluée à l'instant arrondi).
     template <class F>
         requires std::invocable<F const&, double>
-    class inhomogeneous_poisson_process
+    class inhomogeneous_poisson_process : public law_interface
     {
     public:
         using state_type = double;
@@ -627,7 +632,7 @@ namespace wsl::random
         };
         constexpr walker_type walker() const { return {this, poisson_process::walker_type{bound_}}; }
 
-        class window_law
+        class window_law : public law_interface
         {
         public:
             using value_type = std::vector<double>;
@@ -636,8 +641,9 @@ namespace wsl::random
             constexpr window_law(inhomogeneous_poisson_process const& p, double horizon) : p_(p), horizon_(horizon) {}
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(window_law const& W, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& W = *this;
                 poisson_process::walker_type c{W.p_.bound_};
                 value_type times;
                 for (;;)
@@ -669,7 +675,7 @@ namespace wsl::random
     // -----------------------------------------------------------------------
     template <probability_law L>
         requires std::floating_point<typename L::value_type>
-    class compound_poisson
+    class compound_poisson : public law_interface
     {
     public:
         using state_type = std::pair<double, double>;
@@ -705,7 +711,7 @@ namespace wsl::random
                 if constexpr (detail::lazy_samplable<L, G>)
                     values.add(detail::lazy_sample(p->jump_, g), g);
                 else
-                    values.add_constant(detail::to_dyadic(double(sample(p->jump_, g))));
+                    values.add_constant(detail::to_dyadic(double(wsl::random::sample(p->jump_, g))));
                 return {t, values.rounded(g)};
             }
         };
@@ -819,7 +825,7 @@ namespace wsl::random
                     return {std::numeric_limits<double>::infinity(), x};
                 }
                 times.add(detail::lazy_sample(exponential<double>({.rate = q}), g), g);
-                x = static_cast<std::size_t>(sample(c->jumps_[x], g));
+                x = static_cast<std::size_t>(wsl::random::sample(c->jumps_[x], g));
                 return {times.rounded(g), x};
             }
         };

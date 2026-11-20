@@ -3,7 +3,7 @@
 // Loi d'Erlang : somme de k exponentielles indépendantes de taux λ, gamma(k, λ) à forme
 // entière.
 //
-//   wsl::random::erlang E({.shape = 3, .rate = 2});   cdf(E, 1.0); quantile(E, 0.5); sample(E, g);
+//   wsl::random::erlang E({.shape = 3, .rate = 2});   E.cdf(1.0); E.quantile(0.5); E(g);
 //
 // Fonctions : celles de wsl::random::gamma (sous 0,5 ulp). Tirage **exact** : somme paresseuse de k
 // exponentielles exactes, arrondie correctement (detail/lazy_sum.hpp) ; coût O(k).
@@ -20,7 +20,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class erlang
+    class erlang : public law_interface
     {
     public:
         using value_type = T;
@@ -47,25 +47,27 @@ namespace wsl::random
         constexpr T excess_kurtosis() const noexcept { return g_.excess_kurtosis(); }
         constexpr T entropy() const noexcept { return g_.entropy(); }
 
-        friend constexpr T pdf(erlang const& E, T x) noexcept { return pdf(E.g_, x); }
-        friend constexpr T log_pdf(erlang const& E, T x) noexcept { return log_pdf(E.g_, x); }
-        friend constexpr T cdf(erlang const& E, T x) noexcept { return cdf(E.g_, x); }
-        friend constexpr T ccdf(erlang const& E, T x) noexcept { return ccdf(E.g_, x); }
-        friend constexpr T quantile(erlang const& E, double p) { return quantile(E.g_, p); }
-        friend constexpr T cquantile(erlang const& E, double q) { return cquantile(E.g_, q); }
+        constexpr T pdf(T x) const noexcept { auto const& E = *this; return wsl::random::pdf(E.g_, x); }
+        constexpr T log_pdf(T x) const noexcept { auto const& E = *this; return wsl::random::log_pdf(E.g_, x); }
+        constexpr T cdf(T x) const noexcept { auto const& E = *this; return wsl::random::cdf(E.g_, x); }
+        constexpr T ccdf(T x) const noexcept { auto const& E = *this; return wsl::random::ccdf(E.g_, x); }
+        constexpr T quantile(double p) const { auto const& E = *this; return wsl::random::quantile(E.g_, p); }
+        constexpr T cquantile(double q) const { auto const& E = *this; return wsl::random::cquantile(E.g_, q); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(erlang const& E, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& E = *this;
             detail::lazy_sum s(std::vector<double>{double(E.g_.rate())});
             for (std::int64_t i = 0; i < E.k_; ++i)
                 s.add(detail::lazy_sample(exponential<double>({.rate = double(E.g_.rate())}), g), g);
             return s.template rounded<T>(g, {}, {}, 0, detail::to_dyadic(1.0));
         }
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(erlang const& E, G& g, fast_t)
+        constexpr T sample(G& g, fast_t) const
         {
-            return sample(E.g_, g);
+            auto const& E = *this;
+            return wsl::random::sample(E.g_, g);
         }
 
         friend constexpr bool operator==(erlang const& a, erlang const& b) noexcept { return a.k_ == b.k_ && a.g_ == b.g_; }

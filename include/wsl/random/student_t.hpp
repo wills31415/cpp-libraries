@@ -4,7 +4,7 @@
 //   Γ((ν + 1)/2) / (√(νπ) Γ(ν/2)) · (1 + t²/ν)^{−(ν+1)/2}.
 //
 //   wsl::random::student_t T({.degrees_of_freedom = 5});
-//   cdf(T, 2.0); quantile(T, 0.975); sample(T, g);
+//   T.cdf(2.0); T.quantile(0.975); T(g);
 //
 // Répartition : P(T > |t|) = I_x(ν/2, 1/2)/2, x = ν/(ν + t²) et 1 − x = t²/(ν + t²)
 // en double-double, la bêta incomplète prise à argument double-double (premier
@@ -32,7 +32,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class student_t
+    class student_t : public law_interface
     {
     public:
         using value_type = T;
@@ -109,28 +109,31 @@ namespace wsl::random
             return static_cast<T>(e.hi + e.lo);
         }
 
-        friend constexpr T pdf(student_t const& X, T t) noexcept
+        constexpr T pdf(T t) const noexcept
         {
+            auto const& X = *this;
             if (!(t == t))
                 return t;
-            auto const [e_hi, e_lo] = X.log_density(double(t));
+            auto const [e_hi, e_lo] = X.log_density_dd(double(t));
             if (e_hi < -1500)
                 return 0;
             return static_cast<T>(detail::rounded(detail::exp_scaled(e_hi, e_lo)));
         }
-        friend constexpr T log_pdf(student_t const& X, T t) noexcept
+        constexpr T log_pdf(T t) const noexcept
         {
+            auto const& X = *this;
             if (!(t == t))
                 return t;
-            auto const [e_hi, e_lo] = X.log_density(double(t));
+            auto const [e_hi, e_lo] = X.log_density_dd(double(t));
             return static_cast<T>(e_hi + e_lo);
         }
 
-        friend constexpr T cdf(student_t const& X, T t) noexcept { return X.distribution(double(t), false); }
-        friend constexpr T ccdf(student_t const& X, T t) noexcept { return X.distribution(double(t), true); }
+        constexpr T cdf(T t) const noexcept { auto const& X = *this; return X.distribution(double(t), false); }
+        constexpr T ccdf(T t) const noexcept { auto const& X = *this; return X.distribution(double(t), true); }
 
-        friend constexpr T quantile(student_t const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -163,18 +166,20 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(student_t const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
-            return -quantile(X, q);                                         // loi symétrique
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
+            return -wsl::random::quantile(X, q);                                         // loi symétrique
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(student_t const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             double const z = detail::ziggurat_normal(g);
             double const h = double(X.nu_) / 2;
@@ -188,7 +193,7 @@ namespace wsl::random
 
     private:
         // log f(t) = lgamma(h + ½) − lgamma(h) − ½ log(νπ) − (h + ½) log1p(t²/ν), h = ν/2.
-        constexpr detail::sd::double_double log_density(double t) const noexcept
+        constexpr detail::sd::double_double log_density_dd(double t) const noexcept
         {
             namespace fp = detail::sd;
             double const nu = nu_, h = detail::sd::fmul(nu, 0.5);

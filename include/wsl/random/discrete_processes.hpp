@@ -8,7 +8,7 @@
 //   wsl::random::polya_urn U({.balls = {1, 2}, .added = 1});
 //   wsl::random::chinese_restaurant R({.theta = 1.5});
 //   for (auto x : wsl::random::trajectory(C, g) | std::views::take(100)) …
-//   C.at(5); C.stationary(); sample(C.steps(100), g); pmf(C.steps(3), {0, 0, 1, 1});
+//   C.at(5); C.stationary(); wsl::random::sample(C.steps(100), g); wsl::random::pmf(C.steps(3), {0, 0, 1, 1});
 //   U.at(10);  R.at(100);                                                  // lois marginales
 //
 // Tous les tirages sont exacts : pas tirés exactement (sommes entières), transitions
@@ -48,7 +48,7 @@
 namespace wsl::random
 {
     // ±1 : P(+1) = p, P(−1) = 1 − p (pas de la marche simple).
-    class rademacher
+    class rademacher : public law_interface
     {
     public:
         using value_type = std::int64_t;
@@ -71,13 +71,14 @@ namespace wsl::random
         constexpr double mean() const noexcept { return detail::sd::fmul(2.0, p_) - 1; }
         constexpr double variance() const noexcept { return detail::sd::fmul(4.0, detail::sd::fmul(p_, 1 - p_)); }
 
-        friend constexpr double pmf(rademacher const& X, std::int64_t k) noexcept { return k == 1 ? X.p_ : k == -1 ? 1 - X.p_ : 0.0; }
-        friend constexpr double cdf(rademacher const& X, std::int64_t k) noexcept { return k < -1 ? 0.0 : k < 1 ? 1 - X.p_ : 1.0; }
-        friend constexpr double ccdf(rademacher const& X, std::int64_t k) noexcept { return k < -1 ? 1.0 : k < 1 ? X.p_ : 0.0; }
+        constexpr double pmf(std::int64_t k) const noexcept { auto const& X = *this; return k == 1 ? X.p_ : k == -1 ? 1 - X.p_ : 0.0; }
+        constexpr double cdf(std::int64_t k) const noexcept { auto const& X = *this; return k < -1 ? 0.0 : k < 1 ? 1 - X.p_ : 1.0; }
+        constexpr double ccdf(std::int64_t k) const noexcept { auto const& X = *this; return k < -1 ? 1.0 : k < 1 ? X.p_ : 0.0; }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr std::int64_t sample(rademacher const& X, G& g)
+        constexpr std::int64_t sample(G& g) const
         {
+            auto const& X = *this;
             return bernoulli_trial(g, X.p_) ? 1 : -1;
         }
 
@@ -91,7 +92,7 @@ namespace wsl::random
     {
         // Loi d'une trajectoire finie : les n + 1 premiers états du marcheur de P.
         template <class P>
-        class finite_path
+        class finite_path : public law_interface
         {
         public:
             using value_type = std::vector<typename P::state_type>;
@@ -101,23 +102,26 @@ namespace wsl::random
 
             constexpr std::size_t steps() const noexcept { return n_; }
 
-            friend constexpr double log_pmf(finite_path const& F, value_type const& path) requires requires(P const& p, value_type const& v) { p.log_path_mass(v); }
+            constexpr double log_pmf(value_type const& path) const requires requires(P const& p, value_type const& v) { p.log_path_mass(v); }
             {
+                auto const& F = *this;
                 if (path.size() != F.n_ + 1)
                     return -std::numeric_limits<double>::infinity();
                 auto const l = F.process_.log_path_mass(path);
                 return l.hi + l.lo;
             }
-            friend constexpr double pmf(finite_path const& F, value_type const& path) requires requires(P const& p, value_type const& v) { p.log_path_mass(v); }
+            constexpr double pmf(value_type const& path) const requires requires(P const& p, value_type const& v) { p.log_path_mass(v); }
             {
+                auto const& F = *this;
                 if (path.size() != F.n_ + 1)
                     return 0;
                 return exp_of_dd(F.process_.log_path_mass(path));
             }
 
             template <std::uniform_random_bit_generator G>
-            friend constexpr value_type sample(finite_path const& F, G& g)
+            constexpr value_type sample(G& g) const
             {
+                auto const& F = *this;
                 auto w = F.process_.walker();
                 value_type path;
                 path.reserve(F.n_ + 1);
@@ -172,13 +176,13 @@ namespace wsl::random
             constexpr state_type next(G& g)
             {
                 if constexpr (std::integral<state_type>)
-                    return x = detail::saturated_sum(x, static_cast<state_type>(sample(step, g)));
+                    return x = detail::saturated_sum(x, static_cast<state_type>(wsl::random::sample(step, g)));
                 else
                 {
                     if constexpr (detail::lazy_samplable<L, G>)
                         sum.add(detail::lazy_sample(step, g), g);
                     else
-                        sum.add_constant(detail::to_dyadic(double(sample(step, g))));
+                        sum.add_constant(detail::to_dyadic(double(wsl::random::sample(step, g))));
                     return static_cast<state_type>(sum.template rounded<double>(g, detail::to_dyadic(double(x)), {}, 0, detail::to_dyadic(1.0)));
                 }
             }
@@ -195,7 +199,7 @@ namespace wsl::random
             detail::sd::double_double l{0.0, 0.0};
             for (std::size_t k = 1; k < path.size(); ++k)
             {
-                double const p = pmf(step_, static_cast<state_type>(path[k] - path[k - 1]));
+                double const p = wsl::random::pmf(step_, static_cast<state_type>(path[k] - path[k - 1]));
                 if (!(p > 0))
                     return none;
                 l = detail::sum(l, detail::log_precise(p));
@@ -242,7 +246,7 @@ namespace wsl::random
 
         constexpr std::size_t size() const noexcept { return p_.size(); }
         constexpr square_matrix<double> const& transition() const noexcept { return p_; }
-        constexpr double probability(std::size_t i, std::size_t j) const noexcept { return pmf(rows_[i], j); }
+        constexpr double probability(std::size_t i, std::size_t j) const noexcept { return wsl::random::pmf(rows_[i], j); }
         constexpr bool is_absorbing(std::size_t i) const noexcept { return probability(i, i) == 1; }
 
         // Loi de X_n : π₀ Pⁿ (carrés successifs de P, produits en double-double).
@@ -302,9 +306,9 @@ namespace wsl::random
             markov_chain const* chain;
             std::size_t x = 0;
             template <class G>
-            constexpr std::size_t first(G& g) { return x = static_cast<std::size_t>(sample(chain->initial_law_, g)); }
+            constexpr std::size_t first(G& g) { return x = static_cast<std::size_t>(wsl::random::sample(chain->initial_law_, g)); }
             template <class G>
-            constexpr std::size_t next(G& g) { return x = static_cast<std::size_t>(sample(chain->rows_[x], g)); }
+            constexpr std::size_t next(G& g) { return x = static_cast<std::size_t>(wsl::random::sample(chain->rows_[x], g)); }
         };
         constexpr walker_type walker() const { return {this}; }
         constexpr detail::finite_path<markov_chain> steps(std::size_t n) const { return {*this, n}; }
@@ -315,7 +319,7 @@ namespace wsl::random
             constexpr detail::sd::double_double none{-std::numeric_limits<double>::infinity(), 0.0};
             if (path.empty() || path[0] >= size())
                 return none;
-            double const p0 = pmf(initial_law_, path[0]);
+            double const p0 = wsl::random::pmf(initial_law_, path[0]);
             if (!(p0 > 0))
                 return none;
             auto l = detail::log_precise(p0);
@@ -377,7 +381,7 @@ namespace wsl::random
         {
             std::vector<double> v(size());
             for (std::size_t i = 0; i < size(); ++i)
-                v[i] = pmf(initial_law_, i);
+                v[i] = wsl::random::pmf(initial_law_, i);
             return v;
         }
         static constexpr std::vector<double> times(std::vector<double> const& v, square_matrix<double> const& m)
@@ -401,7 +405,7 @@ namespace wsl::random
     // Loi de Dirichlet-multinomiale (n tirages d'une urne de Pólya) ; bêta-binomiale
     // pour K = 2.
     // -----------------------------------------------------------------------
-    class dirichlet_multinomial
+    class dirichlet_multinomial : public law_interface
     {
     public:
         using value_type = std::vector<std::int64_t>;
@@ -454,17 +458,19 @@ namespace wsl::random
         }
 
         // log n! − Σ log kᵢ! + lgamma(A) − lgamma(n + A) + Σ (lgamma(kᵢ + αᵢ) − lgamma(αᵢ))
-        friend constexpr double log_pmf(dirichlet_multinomial const& D, value_type const& k) noexcept
+        constexpr double log_pmf(value_type const& k) const noexcept
         {
+            auto const& D = *this;
             auto const l = D.log_mass(k);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(dirichlet_multinomial const& D, value_type const& k) noexcept { return detail::exp_of_dd(D.log_mass(k)); }
+        constexpr double pmf(value_type const& k) const noexcept { auto const& D = *this; return detail::exp_of_dd(D.log_mass(k)); }
 
         // Urne de Pólya : poids αᵢ + kᵢ exacts (entiers à une puissance de 2 près).
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(dirichlet_multinomial const& D, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& D = *this;
             value_type k(D.dimension(), 0);
             int e = 0;
             for (double const a : D.alpha_)
@@ -706,7 +712,7 @@ namespace wsl::random
         };
     }
 
-    class ewens_partition
+    class ewens_partition : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -741,16 +747,18 @@ namespace wsl::random
         }
 
         // EPPF : Π_{i=1}^{K−1} (θ + i d) / (θ + 1)_{n−1} · Π_j (1 − d)_{n_j − 1}
-        friend constexpr double log_pmf(ewens_partition const& P, value_type const& a) noexcept
+        constexpr double log_pmf(value_type const& a) const noexcept
         {
+            auto const& P = *this;
             auto const l = P.log_mass(a);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(ewens_partition const& P, value_type const& a) noexcept { return detail::exp_of_dd(P.log_mass(a)); }
+        constexpr double pmf(value_type const& a) const noexcept { auto const& P = *this; return detail::exp_of_dd(P.log_mass(a)); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(ewens_partition const& P, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& P = *this;
             detail::restaurant_state r{P.theta_, P.d_, {}, {}, 0, {}, {}, {}, {}};
             value_type a;
             a.reserve(P.n_);

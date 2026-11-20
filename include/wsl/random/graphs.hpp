@@ -117,7 +117,7 @@ namespace wsl::random
         }
     }
 
-    class erdos_renyi
+    class erdos_renyi : public law_interface
     {
     public:
         using value_type = edge_list;
@@ -139,16 +139,18 @@ namespace wsl::random
         constexpr double p() const noexcept { return p_; }
         constexpr double mean_edges() const noexcept { return detail::sd::fmul(double(detail::pair_count(n_)), p_); }
 
-        friend constexpr double log_pmf(erdos_renyi const& G, edge_list const& e) noexcept
+        constexpr double log_pmf(edge_list const& e) const noexcept
         {
+            auto const& G = *this;
             auto const l = G.log_mass(e);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(erdos_renyi const& G, edge_list const& e) noexcept { return detail::exp_of_dd(G.log_mass(e)); }
+        constexpr double pmf(edge_list const& e) const noexcept { auto const& G = *this; return detail::exp_of_dd(G.log_mass(e)); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr edge_list sample(erdos_renyi const& R, G& g)
+        constexpr edge_list sample(G& g) const
         {
+            auto const& R = *this;
             edge_list e;
             for (std::size_t u = 0; u < R.n_; ++u)
                 for (std::size_t v = u + 1; v < R.n_; ++v)
@@ -186,7 +188,7 @@ namespace wsl::random
         double p_;
     };
 
-    class uniform_graph
+    class uniform_graph : public law_interface
     {
     public:
         using value_type = edge_list;
@@ -208,19 +210,22 @@ namespace wsl::random
         constexpr std::size_t edges() const noexcept { return m_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_graph const& G, edge_list const& e) noexcept
+        constexpr double log_pmf(edge_list const& e) const noexcept
         {
+            auto const& G = *this;
             return e.size() == G.m_ && detail::is_edge_list(e, G.n_) ? -G.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_graph const& G, edge_list const& e) noexcept
+        constexpr double pmf(edge_list const& e) const noexcept
         {
+            auto const& G = *this;
             return e.size() == G.m_ && detail::is_edge_list(e, G.n_) ? detail::exp_of_dd({-G.log_count_.hi, -G.log_count_.lo}) : 0.0;
         }
 
         // Floyd sur les indices des paires.
         template <std::uniform_random_bit_generator G>
-        friend constexpr edge_list sample(uniform_graph const& R, G& g)
+        constexpr edge_list sample(G& g) const
         {
+            auto const& R = *this;
             std::uint64_t const total = detail::pair_count(R.n_);
             std::vector<std::uint64_t> chosen;
             chosen.reserve(R.m_);
@@ -247,7 +252,7 @@ namespace wsl::random
         detail::sd::double_double log_count_{};
     };
 
-    class barabasi_albert
+    class barabasi_albert : public law_interface
     {
     public:
         using value_type = edge_list;
@@ -269,8 +274,9 @@ namespace wsl::random
         constexpr std::size_t edge_count() const noexcept { return (m_ + 1) * m_ / 2 + (n_ - m_ - 1) * m_; }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr edge_list sample(barabasi_albert const& B, G& g)
+        constexpr edge_list sample(G& g) const
         {
+            auto const& B = *this;
             edge_list e;
             std::vector<std::size_t> ends;                                  // chaque sommet, autant de fois que son degré
             for (std::size_t u = 0; u <= B.m_; ++u)
@@ -308,7 +314,7 @@ namespace wsl::random
         std::size_t n_, m_;
     };
 
-    class random_regular_graph
+    class random_regular_graph : public law_interface
     {
     public:
         using value_type = edge_list;
@@ -329,8 +335,9 @@ namespace wsl::random
         constexpr std::size_t degree() const noexcept { return d_; }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr edge_list sample(random_regular_graph const& R, G& g)
+        constexpr edge_list sample(G& g) const
         {
+            auto const& R = *this;
             std::size_t const points = R.n_ * R.d_;
             std::vector<std::size_t> owner(points);
             for (;;)
@@ -362,7 +369,7 @@ namespace wsl::random
         std::size_t n_, d_;
     };
 
-    class uniform_tree
+    class uniform_tree : public law_interface
     {
     public:
         using value_type = edge_list;
@@ -389,9 +396,10 @@ namespace wsl::random
             return l.hi + l.lo;
         }
 
-        friend constexpr double log_pmf(uniform_tree const& T, edge_list const& e) { return detail::is_tree(e, T.n_) ? -T.entropy() : -std::numeric_limits<double>::infinity(); }
-        friend constexpr double pmf(uniform_tree const& T, edge_list const& e)
+        constexpr double log_pmf(edge_list const& e) const { auto const& T = *this; return detail::is_tree(e, T.n_) ? -T.entropy() : -std::numeric_limits<double>::infinity(); }
+        constexpr double pmf(edge_list const& e) const
         {
+            auto const& T = *this;
             if (!detail::is_tree(e, T.n_))
                 return 0;
             if (T.n_ <= 2)
@@ -401,8 +409,9 @@ namespace wsl::random
 
         // Suite de Prüfer uniforme (n − 2 lettres), décodage linéaire.
         template <std::uniform_random_bit_generator G>
-        friend constexpr edge_list sample(uniform_tree const& T, G& g)
+        constexpr edge_list sample(G& g) const
         {
+            auto const& T = *this;
             std::size_t const n = T.n_;
             edge_list e;
             if (n < 2)
@@ -441,7 +450,7 @@ namespace wsl::random
         std::size_t n_;
     };
 
-    class uniform_binary_tree
+    class uniform_binary_tree : public law_interface
     {
     public:
         using value_type = binary_tree;
@@ -463,16 +472,18 @@ namespace wsl::random
         constexpr std::size_t nodes() const noexcept { return n_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_binary_tree const& T, binary_tree const& t) { return T.valid(t) ? -T.entropy() : -std::numeric_limits<double>::infinity(); }
-        friend constexpr double pmf(uniform_binary_tree const& T, binary_tree const& t)
+        constexpr double log_pmf(binary_tree const& t) const { auto const& T = *this; return T.valid(t) ? -T.entropy() : -std::numeric_limits<double>::infinity(); }
+        constexpr double pmf(binary_tree const& t) const
         {
+            auto const& T = *this;
             return T.valid(t) ? detail::exp_of_dd({-T.log_count_.hi, -T.log_count_.lo}) : 0.0;
         }
 
         // Rémy : arbre complet, chaque étape choisit un nœud uniforme parmi 2i − 1 et un côté.
         template <std::uniform_random_bit_generator G>
-        friend constexpr binary_tree sample(uniform_binary_tree const& T, G& g)
+        constexpr binary_tree sample(G& g) const
         {
+            auto const& T = *this;
             std::size_t const n = T.n_;
             constexpr std::size_t none = binary_tree::none;
             std::vector<std::array<std::size_t, 2>> child(2 * n + 1, {none, none});

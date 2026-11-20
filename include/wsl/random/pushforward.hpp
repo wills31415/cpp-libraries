@@ -8,7 +8,7 @@
 //                             wsl::random::increasing([](double x) { return sp::exp(x); },          // f
 //                                             [](double y) { return sp::log(y); },          // f⁻¹
 //                                             [](double y) { return 1 / y; }));             // (f⁻¹)'
-//   cdf(L, 2.0); quantile(L, 0.9); pdf(L, 1.0);       // la log-normale, par composition
+//   L.cdf(2.0); L.quantile(0.9); L.pdf(1.0);       // la log-normale, par composition
 //
 // Fonction quelconque : seul le tirage f(x) est hérité ; support : tout le type.
 // Bijection monotone déclarée (increasing ou decreasing, f, f⁻¹ et facultativement la
@@ -79,7 +79,7 @@ namespace wsl::random
     // Image par une fonction quelconque : tirage seul.
     template <probability_law L, class F>
         requires std::invocable<F const&, typename L::value_type> && std::is_arithmetic_v<std::invoke_result_t<F const&, typename L::value_type>>
-    class image
+    class image : public law_interface
     {
     public:
         using value_type = std::invoke_result_t<F const&, typename L::value_type>;
@@ -92,15 +92,17 @@ namespace wsl::random
 
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(image const& Y, G& g)
+        constexpr value_type sample(G& g) const
         {
-            return std::invoke(Y.f_, sample(Y.law_, g));
+            auto const& Y = *this;
+            return std::invoke(Y.f_, wsl::random::sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(image const& Y, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            return std::invoke(Y.f_, sample(Y.law_, g, fast));
+            auto const& Y = *this;
+            return std::invoke(Y.f_, wsl::random::sample(Y.law_, g, fast));
         }
 
     private:
@@ -111,7 +113,7 @@ namespace wsl::random
     // Image par une bijection monotone déclarée.
     template <real_law L, class M>
         requires detail::is_monotone_map<M>::value
-    class monotone_image
+    class monotone_image : public law_interface
     {
         using T = typename L::value_type;
 
@@ -132,54 +134,62 @@ namespace wsl::random
         }
         constexpr value_type median() const requires has_median<L> { return forward(law_.median()); }
 
-        friend constexpr value_type cdf(monotone_image const& Y, value_type y) requires has_cdf<L> && has_ccdf<L>
+        constexpr value_type cdf(value_type y) const requires has_cdf<L> && has_ccdf<L>
         {
+            auto const& Y = *this;
             T const x = Y.inverse(y);
-            return static_cast<value_type>(increasing ? cdf(Y.law_, x) : ccdf(Y.law_, x));
+            return static_cast<value_type>(increasing ? wsl::random::cdf(Y.law_, x) : wsl::random::ccdf(Y.law_, x));
         }
-        friend constexpr value_type ccdf(monotone_image const& Y, value_type y) requires has_cdf<L> && has_ccdf<L>
+        constexpr value_type ccdf(value_type y) const requires has_cdf<L> && has_ccdf<L>
         {
+            auto const& Y = *this;
             T const x = Y.inverse(y);
-            return static_cast<value_type>(increasing ? ccdf(Y.law_, x) : cdf(Y.law_, x));
+            return static_cast<value_type>(increasing ? wsl::random::ccdf(Y.law_, x) : wsl::random::cdf(Y.law_, x));
         }
-        friend constexpr value_type quantile(monotone_image const& Y, double p) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type quantile(double p) const requires has_quantile<L> && has_cquantile<L>
         {
-            return Y.forward(increasing ? quantile(Y.law_, p) : cquantile(Y.law_, p));
+            auto const& Y = *this;
+            return Y.forward(increasing ? wsl::random::quantile(Y.law_, p) : wsl::random::cquantile(Y.law_, p));
         }
-        friend constexpr value_type cquantile(monotone_image const& Y, double q) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type cquantile(double q) const requires has_quantile<L> && has_cquantile<L>
         {
-            return Y.forward(increasing ? cquantile(Y.law_, q) : quantile(Y.law_, q));
+            auto const& Y = *this;
+            return Y.forward(increasing ? wsl::random::cquantile(Y.law_, q) : wsl::random::quantile(Y.law_, q));
         }
         // f_X(f⁻¹(y)) |(f⁻¹)'(y)|, 0 hors de l'image du support.
-        friend constexpr value_type pdf(monotone_image const& Y, value_type y) requires M::has_derivative && has_pdf<L>
+        constexpr value_type pdf(value_type y) const requires M::has_derivative && has_pdf<L>
         {
+            auto const& Y = *this;
             auto const [lo, up] = Y.support();
             if (!(y >= lo && y <= up))
                 return y == y ? value_type(0) : y;
             double const d = std::invoke(Y.m_.inverse_derivative, y);
-            return static_cast<value_type>(detail::sd::fmul(double(pdf(Y.law_, Y.inverse(y))), d < 0 ? -d : d));
+            return static_cast<value_type>(detail::sd::fmul(double(wsl::random::pdf(Y.law_, Y.inverse(y))), d < 0 ? -d : d));
         }
-        friend constexpr value_type log_pdf(monotone_image const& Y, value_type y)
-            requires M::has_derivative && requires(L const& X, T x) { log_pdf(X, x); }
+        constexpr value_type log_pdf(value_type y) const
+            requires M::has_derivative && requires(L const& X, T x) { wsl::random::log_pdf(X, x); }
         {
+            auto const& Y = *this;
             auto const [lo, up] = Y.support();
             if (!(y >= lo && y <= up))
                 return y == y ? -std::numeric_limits<value_type>::infinity() : y;
             double const d = std::invoke(Y.m_.inverse_derivative, y);
-            return static_cast<value_type>(double(log_pdf(Y.law_, Y.inverse(y))) + wsl::special::log(d < 0 ? -d : d));
+            return static_cast<value_type>(double(wsl::random::log_pdf(Y.law_, Y.inverse(y))) + wsl::special::log(d < 0 ? -d : d));
         }
 
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(monotone_image const& Y, G& g)
+        constexpr value_type sample(G& g) const
         {
-            return Y.forward(sample(Y.law_, g));
+            auto const& Y = *this;
+            return Y.forward(wsl::random::sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(monotone_image const& Y, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            return Y.forward(sample(Y.law_, g, fast));
+            auto const& Y = *this;
+            return Y.forward(wsl::random::sample(Y.law_, g, fast));
         }
 
     private:

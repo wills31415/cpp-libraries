@@ -3,7 +3,7 @@
 // Loi logarithmique (série logarithmique) de paramètre p dans (0, 1) :
 // P(X = k) = −p^k/(k log(1 − p)), k >= 1.
 //
-//   wsl::random::logarithmic X({.p = 0.9});   pmf(X, 3); cdf(X, 3); quantile(X, 0.99); sample(X, g);
+//   wsl::random::logarithmic X({.p = 0.9});   X.pmf(3); X.cdf(3); X.quantile(0.99); X(g);
 //
 // Masse : e^{k log p}/(k L), L = −log1p(−p), en double-double, un arrondi. Répartition :
 // F(k) = Σ_{j<=k} p^j/(j L) si elle est la plus petite part, sinon la survie
@@ -28,7 +28,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class logarithmic
+    class logarithmic : public law_interface
     {
     public:
         using value_type = I;
@@ -64,8 +64,9 @@ namespace wsl::random
             return detail::rounded(detail::normalized(p_, 0.0) * detail::normalized(d.hi, d.lo) / (q * q * l * l));
         }
 
-        friend constexpr double pmf(logarithmic const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 1)
                 return 0;
             auto const l = detail::mul({double(k), 0.0}, X.log_p_);
@@ -73,8 +74,9 @@ namespace wsl::random
                 return 0;
             return detail::rounded(detail::exp_scaled(l.hi, l.lo) / (detail::normalized(double(k), 0.0) * detail::normalized(X.L_.hi, X.L_.lo)));
         }
-        friend constexpr double log_pmf(logarithmic const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 1)
                 return -std::numeric_limits<double>::infinity();
             auto l = detail::mul({double(k), 0.0}, X.log_p_);
@@ -84,15 +86,17 @@ namespace wsl::random
             l = detail::sum(l, {-lL.hi, -lL.lo});
             return l.hi + l.lo;
         }
-        friend constexpr double cdf(logarithmic const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 1)
                 return 0;
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::rounded(v) : detail::sd::one_minus(v);
         }
-        friend constexpr double ccdf(logarithmic const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 1)
                 return 1;
             auto const [v, is_f] = X.distribution(k);
@@ -100,8 +104,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u : sommes partielles Σ p^j/j comparées à u L.
-        friend constexpr I quantile(logarithmic const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0)
@@ -134,8 +139,9 @@ namespace wsl::random
         // Kemp (1981), LK : V = U₁ ; V >= p : 1 ; sinon q = 1 − e^{r U₂} (r = log(1 − p)),
         // V <= q² : ⌊1 + log V/log q⌋ ; V >= q : 1 ; sinon 2.
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(logarithmic const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             double const v = uniform_real<double>(g);
             if (v >= X.p_)

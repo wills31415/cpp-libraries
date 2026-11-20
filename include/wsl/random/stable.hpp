@@ -6,7 +6,7 @@
 // 0 < α <= 2, −1 <= β <= 1.
 //
 //   wsl::random::stable X({.alpha = 1.5, .beta = 0.5, .scale = 1, .location = 0});
-//   pdf(X, 0.3); cdf(X, -2); quantile(X, 0.99); sample(X, g);
+//   X.pdf(0.3); X.cdf(-2); X.quantile(0.99); X(g);
 //
 // Forme réduite Z : X = γZ + δ (α ≠ 1), γZ + (2/π)βγ log γ + δ (α = 1). Densité et
 // répartition de Z par les intégrales de Nolan (1997), dans la variable φ = θ + θ₀ (sans
@@ -163,7 +163,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class stable
+    class stable : public law_interface
     {
     public:
         using value_type = T;
@@ -213,42 +213,45 @@ namespace wsl::random
                 return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::rounded(detail::normalized(double(gamma_), 0.0) * detail::normalized(double(gamma_), 0.0) * detail::normalized(2.0, 0.0)));
         }
-        constexpr T median() const { return quantile(*this, 0.5); }
+        constexpr T median() const { return wsl::random::quantile(*this, 0.5); }
 
-        friend constexpr T pdf(stable const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             if (v == std::numeric_limits<double>::infinity() || v == -std::numeric_limits<double>::infinity())
                 return 0;
             auto const y = X.reduced(v);
-            detail::scaled const f = X.density(y);
+            detail::scaled const f = X.reduced_density(y);
             if (f.hi == 0)
                 return 0;
             return static_cast<T>(detail::rounded(f / double(X.gamma_)));
         }
-        friend constexpr T log_pdf(stable const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             auto const y = X.reduced(v);
-            detail::scaled const f = X.density(y);
+            detail::scaled const f = X.reduced_density(y);
             if (f.hi == 0)
                 return -std::numeric_limits<T>::infinity();
             auto const l = detail::sum(detail::log(f), detail::negated(detail::log_precise(double(X.gamma_))));
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(stable const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(stable const& X, T x) noexcept { return X.distribution(x, true); }
-        friend constexpr T quantile(stable const& X, double p) { return X.inverse(p, false); }
-        friend constexpr T cquantile(stable const& X, double q) { return X.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& X = *this; return X.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& X = *this; return X.inverse(q, true); }
 
         // Chambers–Mallows–Stuck : V uniforme sur (−π/2, π/2), W exponentielle.
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(stable const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             namespace sp = wsl::special;
             double const a = X.alpha_, b = X.beta_;
@@ -257,7 +260,7 @@ namespace wsl::random
                 u = uniform_real<double>(g);
             while (u == 0);
             double const v = sd::fmul(detail::pi_hi, u - 0.5);
-            double const w = sample(exponential<double>({.rate = 1.0}), g);
+            double const w = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             double z = 0;
             if (a == 1)
             {
@@ -340,7 +343,7 @@ namespace wsl::random
         }
 
         // densité de la forme réduite en y, à l'échelle
-        constexpr detail::scaled density(detail::sd::double_double y) const noexcept
+        constexpr detail::scaled reduced_density(detail::sd::double_double y) const noexcept
         {
             namespace sd = detail::sd;
             double const a = alpha_, b = beta_;
@@ -494,7 +497,7 @@ namespace wsl::random
             auto const evaluate = [&](sd::double_double y) {
                 detail::part_value r{reduced_part(y, upper), {0.0, 0.0, 0}, y};
                 if (r.value.hi != 0)
-                    r.slope = density(y);
+                    r.slope = reduced_density(y);
                 return r;
             };
             detail::root_bounds b{.start = 0};

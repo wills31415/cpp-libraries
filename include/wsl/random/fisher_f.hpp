@@ -4,7 +4,7 @@
 // (χ²(d₁)/d₁)/(χ²(d₂)/d₂).
 //
 //   wsl::random::fisher_f F({.d1 = 5, .d2 = 10});
-//   cdf(F, 3.3); quantile(F, 0.95); sample(F, g);
+//   F.cdf(3.3); F.quantile(0.95); F(g);
 //
 // Par la loi bêta (a = d₁/2, b = d₂/2) : u = d₁x/(d₁x + d₂), 1 − u = d₂/(d₁x + d₂) en
 // double-double ; répartition I_u(a, b) (bêta incomplète à argument double-double),
@@ -30,7 +30,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class fisher_f
+    class fisher_f : public law_interface
     {
     public:
         using value_type = T;
@@ -137,37 +137,40 @@ namespace wsl::random
             return static_cast<T>(h.hi + h.lo);
         }
 
-        friend constexpr T pdf(fisher_f const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             if (!(v > 0) || v == std::numeric_limits<double>::infinity())
                 return X.at_zero(v, false);
-            auto const l = X.log_density(v);
+            auto const l = X.log_density_dd(v);
             if (l.hi < -1500)
                 return 0;
             if (l.hi > 1400)
                 return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo)));
         }
-        friend constexpr T log_pdf(fisher_f const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             if (!(v > 0) || v == std::numeric_limits<double>::infinity())
                 return X.at_zero(v, true);
-            auto const l = X.log_density(v);
+            auto const l = X.log_density_dd(v);
             return static_cast<T>(l.hi + l.lo);
         }
 
-        friend constexpr T cdf(fisher_f const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(fisher_f const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // x = d₂ u / (d₁ (1 − u)), I_u(a, b) = p.
-        friend constexpr T quantile(fisher_f const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -179,20 +182,22 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(fisher_f const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             return X.inverse(q, true);
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(fisher_f const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             double const a = half(X.d1_), b = half(X.d2_);
             double ga = detail::marsaglia_tsang(X.d_a_, X.c_a_, g);
@@ -266,7 +271,7 @@ namespace wsl::random
         }
 
         // log f(x) = log(uᵃ (1 − u)ᵇ / B(a, b)) − log x.
-        constexpr detail::sd::double_double log_density(double x) const noexcept
+        constexpr detail::sd::double_double log_density_dd(double x) const noexcept
         {
             namespace fp = detail::sd;
             double const a = half(d1_), b = half(d2_);

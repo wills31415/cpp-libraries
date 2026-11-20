@@ -4,7 +4,7 @@
 //
 //   wsl::random::mixture M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2, .sd = 1})),
 //                  wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3, .rate = 1})));
-//   pdf(M, 0.5); cdf(M, 1.0); quantile(M, 0.9); M.mean(); M.variance(); sample(M, g);
+//   M.pdf(0.5); M.cdf(1.0); M.quantile(0.9); M.mean(); M.variance(); M(g);
 //
 // Composantes de types quelconques, de même value_type (réel ou entier) ; poids > 0
 // quelconques, normalisés par leur somme W. Densité (masse), répartition et survie
@@ -95,7 +95,7 @@ namespace wsl::random
 
     template <probability_law... L>
         requires(sizeof...(L) >= 1)
-    class mixture
+    class mixture : public law_interface
     {
         using first = std::tuple_element_t<0, std::tuple<L...>>;
         static constexpr std::size_t n = sizeof...(L);
@@ -171,27 +171,30 @@ namespace wsl::random
         }
         constexpr value_type median() const requires(has_quantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
         {
-            return quantile(*this, 0.5);
+            return wsl::random::quantile(*this, 0.5);
         }
 
-        friend constexpr value_type pdf(mixture const& M, value_type x) noexcept requires continuous && (has_pdf<L> && ...)
+        constexpr value_type pdf(value_type x) const noexcept requires continuous && (has_pdf<L> && ...)
         {
-            auto const s = M.average([x](auto const& c) { return double(pdf(c, x)); });
+            auto const& M = *this;
+            auto const s = M.average([x](auto const& c) { return double(wsl::random::pdf(c, x)); });
             return static_cast<value_type>(s.hi + s.lo);
         }
-        friend constexpr double pmf(mixture const& M, value_type k) noexcept requires(!continuous) && (has_pmf<L> && ...)
+        constexpr double pmf(value_type k) const noexcept requires(!continuous) && (has_pmf<L> && ...)
         {
-            auto const s = M.average([k](auto const& c) { return double(pmf(c, k)); });
+            auto const& M = *this;
+            auto const s = M.average([k](auto const& c) { return double(wsl::random::pmf(c, k)); });
             return s.hi + s.lo;
         }
         // log Σ wᵢ e^{lᵢ} − log W, centré sur le plus grand terme.
-        friend constexpr value_type log_pdf(mixture const& M, value_type x) noexcept
-            requires continuous && (requires(L const& c, value_type v) { log_pdf(c, v); } && ...)
+        constexpr value_type log_pdf(value_type x) const noexcept
+            requires continuous && (requires(L const& c, value_type v) { wsl::random::log_pdf(c, v); } && ...)
         {
+            auto const& M = *this;
             std::array<double, n> l{};
             std::size_t i = 0;
             M.apply_all([&](auto const& c) {
-                double const li = log_pdf(c, x);
+                double const li = wsl::random::log_pdf(c, x);
                 if (!(li > -std::numeric_limits<double>::infinity()))       // densité nulle (ou NaN) : à part
                 {
                     l[i++] = li;
@@ -218,23 +221,26 @@ namespace wsl::random
             return static_cast<value_type>(r.hi + r.lo);
         }
 
-        friend constexpr std::conditional_t<continuous, value_type, double> cdf(mixture const& M, value_type x) noexcept requires(has_cdf<L> && ...)
+        constexpr std::conditional_t<continuous, value_type, double> cdf(value_type x) const noexcept requires(has_cdf<L> && ...)
         {
+            auto const& M = *this;
             auto const s = M.cdf_dd(x);
             return static_cast<std::conditional_t<continuous, value_type, double>>(clamp01(s.hi + s.lo));
         }
-        friend constexpr std::conditional_t<continuous, value_type, double> ccdf(mixture const& M, value_type x) noexcept requires(has_ccdf<L> && ...)
+        constexpr std::conditional_t<continuous, value_type, double> ccdf(value_type x) const noexcept requires(has_ccdf<L> && ...)
         {
+            auto const& M = *this;
             auto const s = M.ccdf_dd(x);
             return static_cast<std::conditional_t<continuous, value_type, double>>(clamp01(s.hi + s.lo));
         }
 
         // Plus petit x tel que F(x) >= p, entre les quantiles extrêmes des composantes.
-        friend constexpr value_type quantile(mixture const& M, double p) requires(has_quantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
+        constexpr value_type quantile(double p) const requires(has_quantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
         {
+            auto const& M = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
-            auto const [low, high] = M.bracket([p](auto const& c) { return static_cast<value_type>(quantile(c, p)); });
+            auto const [low, high] = M.bracket([p](auto const& c) { return static_cast<value_type>(wsl::random::quantile(c, p)); });
             if (p == 0 || p == 1 || low == high)
                 return p == 0 ? low : high;
             double const q = 1.0 - p;                                       // utilisé pour p > ½ : exact
@@ -245,11 +251,12 @@ namespace wsl::random
                 return detail::smallest_true(low, low, high, ge);
         }
         // Plus petit x tel que P(X > x) <= q.
-        friend constexpr value_type cquantile(mixture const& M, double q) requires(has_cquantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
+        constexpr value_type cquantile(double q) const requires(has_cquantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
         {
+            auto const& M = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
-            auto const [low, high] = M.bracket([q](auto const& c) { return static_cast<value_type>(cquantile(c, q)); });
+            auto const [low, high] = M.bracket([q](auto const& c) { return static_cast<value_type>(wsl::random::cquantile(c, q)); });
             if (q == 0 || q == 1 || low == high)
                 return q == 1 ? low : high;
             double const p = 1.0 - q;                                       // utilisé pour q > ½ : exact
@@ -262,15 +269,17 @@ namespace wsl::random
 
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        friend constexpr value_type sample(mixture const& M, G& g)
+        constexpr value_type sample(G& g) const
         {
-            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(sample(c, g)); });
+            auto const& M = *this;
+            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(wsl::random::sample(c, g)); });
         }
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        friend constexpr value_type sample(mixture const& M, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(sample(c, g, fast)); });
+            auto const& M = *this;
+            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(wsl::random::sample(c, g, fast)); });
         }
 
         friend constexpr bool operator==(mixture const& a, mixture const& b) noexcept { return a.laws_ == b.laws_ && a.w_ == b.w_; }
@@ -324,8 +333,8 @@ namespace wsl::random
             return detail::sd::quotient_dd(s, total_weight_);
         }
 
-        constexpr detail::sd::double_double cdf_dd(value_type x) const { return average([x](auto const& c) { return double(cdf(c, x)); }); }
-        constexpr detail::sd::double_double ccdf_dd(value_type x) const { return average([x](auto const& c) { return double(ccdf(c, x)); }); }
+        constexpr detail::sd::double_double cdf_dd(value_type x) const { return average([x](auto const& c) { return double(wsl::random::cdf(c, x)); }); }
+        constexpr detail::sd::double_double ccdf_dd(value_type x) const { return average([x](auto const& c) { return double(wsl::random::ccdf(c, x)); }); }
 
         // [min, max] des quantiles des composantes.
         template <class Q>

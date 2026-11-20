@@ -4,7 +4,7 @@
 //
 //   wsl::random::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
 //   wsl::random::frechet F({.shape = 3, .scale = 2, .location = 0});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
-//   cdf(G, 1.0); quantile(F, 0.99); G.mean(); sample(F, g);
+//   G.cdf(1.0); F.quantile(0.99); G.mean(); F(g);
 //
 // Noyau commun : y = (x − μ)/β (Gumbel) ou α log((x − m)/s) (Fréchet, log du rapport par
 // log1p près de 1), en double-double ; t = e^{−y} ; répartition e^{−t}, survie −expm1(−t)
@@ -72,7 +72,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class gumbel
+    class gumbel : public law_interface
     {
     public:
         using value_type = T;
@@ -116,8 +116,9 @@ namespace wsl::random
             return static_cast<T>(h.hi + h.lo);
         }
 
-        friend constexpr T pdf(gumbel const& G, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& G = *this;
             if (!(x == x))
                 return x;
             auto const l = detail::gumbel_log_kernel(detail::standardize(x, G.mu_, G.beta_));
@@ -125,8 +126,9 @@ namespace wsl::random
                 return 0;
             return static_cast<T>(detail::rounded(detail::exp_scaled(l.hi, l.lo) / double(G.beta_)));
         }
-        friend constexpr T log_pdf(gumbel const& G, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& G = *this;
             if (!(x == x))
                 return x;
             auto const l = detail::gumbel_log_kernel(detail::standardize(x, G.mu_, G.beta_));
@@ -134,16 +136,17 @@ namespace wsl::random
             auto const r = detail::sum(l, {-lb.hi, -lb.lo});
             return static_cast<T>(r.hi + r.lo);
         }
-        friend constexpr T cdf(gumbel const& G, T x) noexcept { return x == x ? static_cast<T>(detail::gumbel_distribution(detail::standardize(x, G.mu_, G.beta_), false)) : x; }
-        friend constexpr T ccdf(gumbel const& G, T x) noexcept { return x == x ? static_cast<T>(detail::gumbel_distribution(detail::standardize(x, G.mu_, G.beta_), true)) : x; }
+        constexpr T cdf(T x) const noexcept { auto const& G = *this; return x == x ? static_cast<T>(detail::gumbel_distribution(detail::standardize(x, G.mu_, G.beta_), false)) : x; }
+        constexpr T ccdf(T x) const noexcept { auto const& G = *this; return x == x ? static_cast<T>(detail::gumbel_distribution(detail::standardize(x, G.mu_, G.beta_), true)) : x; }
 
-        friend constexpr T quantile(gumbel const& G, double p) { return G.inverse(p, false); }
-        friend constexpr T cquantile(gumbel const& G, double q) { return G.inverse(q, true); }
+        constexpr T quantile(double p) const { auto const& G = *this; return G.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& G = *this; return G.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(gumbel const& X, G& g)
+        constexpr T sample(G& g) const
         {
-            double const e = sample(exponential<double>({.rate = 1.0}), g);
+            auto const& X = *this;
+            double const e = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             auto const l = detail::log_precise(e);
             return static_cast<T>(detail::affine(X.mu_, X.beta_, -l.hi, -l.lo));
         }
@@ -167,7 +170,7 @@ namespace wsl::random
     };
 
     template <law_real T = double>
-    class frechet
+    class frechet : public law_interface
     {
     public:
         using value_type = T;
@@ -233,37 +236,40 @@ namespace wsl::random
         }
 
         // (α/(x − m)) e^{−y − t}, y = α log((x − m)/s)
-        friend constexpr T pdf(frechet const& F, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& F = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             if (!(v > double(F.m_)) || v == std::numeric_limits<double>::infinity())
                 return 0;
-            auto const l = F.log_density(v);
+            auto const l = F.log_density_dd(v);
             return static_cast<T>(detail::rounded_exp(l));
         }
-        friend constexpr T log_pdf(frechet const& F, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& F = *this;
             double const v = x;
             if (!(v == v))
                 return x;
             if (!(v > double(F.m_)) || v == std::numeric_limits<double>::infinity())
                 return -std::numeric_limits<T>::infinity();
-            auto const l = F.log_density(v);
+            auto const l = F.log_density_dd(v);
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(frechet const& F, T x) noexcept { return F.distribution(x, false); }
-        friend constexpr T ccdf(frechet const& F, T x) noexcept { return F.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& F = *this; return F.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& F = *this; return F.distribution(x, true); }
 
         // m + s e^{y/α}, y = −log(−log p)
-        friend constexpr T quantile(frechet const& F, double p) { return F.inverse(p, false); }
-        friend constexpr T cquantile(frechet const& F, double q) { return F.inverse(q, true); }
+        constexpr T quantile(double p) const { auto const& F = *this; return F.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& F = *this; return F.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(frechet const& F, G& g)
+        constexpr T sample(G& g) const
         {
-            double const e = sample(exponential<double>({.rate = 1.0}), g);
+            auto const& F = *this;
+            double const e = wsl::random::sample(exponential<double>({.rate = 1.0}), g);
             double const w = wsl::special::exp(-wsl::special::log(e) / double(F.alpha_));
             return static_cast<T>(double(F.m_) + detail::sd::fmul(double(F.s_), w));
         }
@@ -314,7 +320,7 @@ namespace wsl::random
         }
 
         // log α − log(x − m) − y − e^{−y}
-        constexpr detail::sd::double_double log_density(double x) const noexcept
+        constexpr detail::sd::double_double log_density_dd(double x) const noexcept
         {
             namespace fp = detail::sd;
             auto const y = reduced(x);

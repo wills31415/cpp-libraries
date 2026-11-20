@@ -16,8 +16,8 @@
 //     pmf / log_pmf pour le comptage), cdf, ccdf (survie, 1 − cdf calculée sans
 //     annulation), quantile, cquantile (quantile de survie : x tel que P(X > x) = q).
 //
-// Toutes s'appellent par les objets-fonctions de wsl::random — wsl::random::pdf(X, x),
-// wsl::random::mean(X), wsl::random::sample(X, g) —, qui prennent le membre de la loi
+// Toutes s'appellent par les objets-fonctions de wsl::random — X.pdf(x),
+// wsl::random::mean(X), X(g) —, qui prennent le membre de la loi
 // (X.pdf(x), X.mean(), X.sample(g)) ou, à défaut, une fonction libre trouvée par ADL (lois
 // tierces). Les lois qui héritent de law_interface ont en plus X(g), X(g, wsl::random::fast),
 // X(n, g), X.density(x).
@@ -114,12 +114,29 @@ namespace wsl::random
                     return name(law, std::forward<A>(a)...);                                         \
             }                                                                                        \
         };
-        WSL_RANDOM_OPERATION(pdf)
-        WSL_RANDOM_OPERATION(log_pdf)
-        WSL_RANDOM_OPERATION(pmf)
-        WSL_RANDOM_OPERATION(log_pmf)
-        WSL_RANDOM_OPERATION(cdf)
-        WSL_RANDOM_OPERATION(ccdf)
+// Opérations en un point de la loi : l'argument est un value_type (listes entre
+// accolades et conversions acceptées, comme pour une fonction ordinaire).
+#define WSL_RANDOM_POINT_OPERATION(name)                                                             \
+        struct name##_fn                                                                             \
+        {                                                                                            \
+            template <class L>                                                                       \
+                requires requires(L const& law, typename L::value_type const& x) { law.name(x); }    \
+                         || requires(L const& law, typename L::value_type const& x) { name(law, x); } \
+            constexpr decltype(auto) operator()(L const& law, typename L::value_type const& x) const \
+            {                                                                                        \
+                if constexpr (requires { law.name(x); })                                             \
+                    return law.name(x);                                                              \
+                else                                                                                 \
+                    return name(law, x);                                                             \
+            }                                                                                        \
+        };
+        WSL_RANDOM_POINT_OPERATION(pdf)
+        WSL_RANDOM_POINT_OPERATION(log_pdf)
+        WSL_RANDOM_POINT_OPERATION(pmf)
+        WSL_RANDOM_POINT_OPERATION(log_pmf)
+        WSL_RANDOM_POINT_OPERATION(cdf)
+        WSL_RANDOM_POINT_OPERATION(ccdf)
+#undef WSL_RANDOM_POINT_OPERATION
         WSL_RANDOM_OPERATION(quantile)
         WSL_RANDOM_OPERATION(cquantile)
         WSL_RANDOM_OPERATION(mean)
@@ -160,9 +177,11 @@ namespace wsl::random
         // densité dP/dμ : pdf (Lebesgue) ou pmf (comptage), ou le membre density de la loi.
         struct density_fn
         {
-            template <class L, class X>
-            constexpr auto operator()(L const& law, X const& x) const
-                requires requires { law.density(x); } || requires { pdf_fn{}(law, x); } || requires { pmf_fn{}(law, x); }
+            template <class L>
+                requires requires(L const& law, typename L::value_type const& x) { law.density(x); }
+                         || requires(L const& law, typename L::value_type const& x) { pdf_fn{}(law, x); }
+                         || requires(L const& law, typename L::value_type const& x) { pmf_fn{}(law, x); }
+            constexpr auto operator()(L const& law, typename L::value_type const& x) const
             {
                 if constexpr (requires { law.density(x); })
                     return law.density(x);
@@ -174,9 +193,11 @@ namespace wsl::random
         };
         struct log_density_fn
         {
-            template <class L, class X>
-            constexpr auto operator()(L const& law, X const& x) const
-                requires requires { law.log_density(x); } || requires { log_pdf_fn{}(law, x); } || requires { log_pmf_fn{}(law, x); }
+            template <class L>
+                requires requires(L const& law, typename L::value_type const& x) { law.log_density(x); }
+                         || requires(L const& law, typename L::value_type const& x) { log_pdf_fn{}(law, x); }
+                         || requires(L const& law, typename L::value_type const& x) { log_pmf_fn{}(law, x); }
+            constexpr auto operator()(L const& law, typename L::value_type const& x) const
             {
                 if constexpr (requires { law.log_density(x); })
                     return law.log_density(x);
@@ -188,7 +209,7 @@ namespace wsl::random
         };
     }
 
-    // Objets-fonctions : wsl::random::pdf(X, x), wsl::random::mean(X)… (espace inline :
+    // Objets-fonctions : X.pdf(x), wsl::random::mean(X)… (espace inline :
     // pas de conflit avec les fonctions amies des lois).
     inline namespace operations
     {

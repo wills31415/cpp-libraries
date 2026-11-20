@@ -3,7 +3,7 @@
 // Loi de Poisson de moyenne μ > 0 : P(N = k) = e^{−μ} μ^k / k!, k >= 0.
 //
 //   wsl::random::poisson N({.mean = 3.5});
-//   N.variance(); pmf(N, 2); log_pmf(N, 40); sample(N, g);
+//   N.variance(); N.pmf(2); N.log_pmf(40); N(g);
 //
 // Masse : décomposition de Loader, e^{−δ(k) − bd0(k, μ)} / √(2πk) (voir
 // detail/loader.hpp), un seul arrondi. Répartition P(N <= k) = Q(k + 1, μ) et survie
@@ -29,7 +29,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class poisson
+    class poisson : public law_interface
     {
     public:
         using value_type = I;
@@ -68,8 +68,9 @@ namespace wsl::random
         constexpr double skewness() const noexcept { return 1 / wsl::special::sqrt(mu_); }
         constexpr double excess_kurtosis() const noexcept { return 1 / mu_; }
 
-        friend constexpr double pmf(poisson const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (k == 0)
@@ -83,8 +84,9 @@ namespace wsl::random
         }
 
         // −δ(k) − bd0(k, μ) − log(2πk)/2.
-        friend constexpr double log_pmf(poisson const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (k < 0)
                 return -std::numeric_limits<double>::infinity();
@@ -99,20 +101,23 @@ namespace wsl::random
         }
 
         // P(N <= k) = Q(k + 1, μ).
-        friend constexpr double cdf(poisson const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             return k < 0 ? 0.0 : wsl::special::gamma_q(static_cast<double>(k) + 1, X.mu_);
         }
 
         // P(N > k) = P(k + 1, μ).
-        friend constexpr double ccdf(poisson const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             return k < 0 ? 1.0 : wsl::special::gamma_p(static_cast<double>(k) + 1, X.mu_);
         }
 
         // Plus petit k tel que P(N <= k) >= p.
-        friend constexpr I quantile(poisson const& X, double p)
+        constexpr I quantile(double p) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -133,8 +138,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(poisson const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             constexpr auto top = std::numeric_limits<I>::max();
             if (X.mu_ < 10)                                                 // inversion : P(N <= k) >= U

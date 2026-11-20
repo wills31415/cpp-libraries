@@ -5,7 +5,7 @@
 // correspondants sont absents, has_mean<cauchy> est faux).
 //
 //   wsl::random::cauchy C({.location = 0, .scale = 1});
-//   cdf(C, 3.0); quantile(C, 0.99); C.entropy(); sample(C, g);
+//   C.cdf(3.0); C.quantile(0.99); C.entropy(); C(g);
 //
 // z en double-double (comme pour la normale). Répartition : P(X > x) = atan(1/z)/π
 // pour z >= 1, 1/2 − atan(z)/π sinon (noyau atan de wsl::special à argument
@@ -51,7 +51,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class cauchy
+    class cauchy : public law_interface
     {
     public:
         using value_type = T;
@@ -85,8 +85,9 @@ namespace wsl::random
         }
 
         // 1/(πγ(1 + z²))
-        friend constexpr T pdf(cauchy const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(x == x))
                 return x;
@@ -97,8 +98,9 @@ namespace wsl::random
         }
 
         // −log π − log γ − log(1 + z²)
-        friend constexpr T log_pdf(cauchy const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(x == x))
                 return x;
@@ -111,12 +113,13 @@ namespace wsl::random
             return static_cast<T>(-(e.hi + e.lo));
         }
 
-        friend constexpr T cdf(cauchy const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(cauchy const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // x₀ + γ tan(π(p − ½)) : −cot(πp) pour p < ½, cot(π(1 − p)) sinon.
-        friend constexpr T quantile(cauchy const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -131,12 +134,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(cauchy const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             detail::scaled const t = detail::cot_pi(q) * detail::normalized(double(X.gamma_), 0.0);   // x₀ + γ cot(πq)
@@ -144,8 +148,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(cauchy const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             double const w = detail::uniform_positive(g);                   // |Z| = cot(πW/2)
             bool const negative = (random_bits(g) >> 63) != 0;
             detail::scaled const t = detail::cot_pi(detail::sd::fmul(w, 0.5)) * detail::normalized(double(X.gamma_), 0.0);

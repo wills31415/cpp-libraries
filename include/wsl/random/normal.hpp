@@ -4,7 +4,7 @@
 // densité e^{−z²/2} / (σ √(2π)), z = (x − μ)/σ.
 //
 //   wsl::random::normal X({.mean = 0, .sd = 1});
-//   X.variance(); pdf(X, 1.0); cdf(X, -3.0); quantile(X, 0.975); sample(X, g);
+//   X.variance(); X.pdf(1.0); X.cdf(-3.0); X.quantile(0.975); X(g);
 //
 // Tirage exact : |Z| tirée exactement (rejet exponentiel décidé en arithmétique
 // d'intervalles sur des réels paresseux, voir detail/lazy.hpp), signe uniforme,
@@ -69,7 +69,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class normal
+    class normal : public law_interface
     {
     public:
         using value_type = T;
@@ -107,8 +107,9 @@ namespace wsl::random
             return static_cast<T>(s + (s_error + (lo + detail::normal_entropy_lo)));
         }
 
-        friend constexpr T pdf(normal const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mean_, X.sd_);
             double const a = detail::magnitude(z_hi);
@@ -126,8 +127,9 @@ namespace wsl::random
         }
 
         // −z²/2 − log σ − log(2π)/2.
-        friend constexpr T log_pdf(normal const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mean_, X.sd_);
             double const a = detail::magnitude(z_hi);
@@ -147,22 +149,25 @@ namespace wsl::random
         }
 
         // Φ(z) = erfc(−z/√2)/2.
-        friend constexpr T cdf(normal const& X, T x) noexcept
+        constexpr T cdf(T x) const noexcept
         {
+            auto const& X = *this;
             auto const [w_hi, w_lo] = X.scaled_argument(x);
             return static_cast<T>(detail::half_erfc(-w_hi, -w_lo));
         }
 
         // 1 − Φ(z) = erfc(z/√2)/2, sans annulation.
-        friend constexpr T ccdf(normal const& X, T x) noexcept
+        constexpr T ccdf(T x) const noexcept
         {
+            auto const& X = *this;
             auto const [w_hi, w_lo] = X.scaled_argument(x);
             return static_cast<T>(detail::half_erfc(w_hi, w_lo));
         }
 
         // μ + σ Φ^{-1}(p).
-        friend constexpr T quantile(normal const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -176,12 +181,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(normal const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [x_hi, x_lo] = detail::standard_quantile(q);         // μ − σ Φ⁻¹(q)
@@ -189,8 +195,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(normal const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             detail::lazy_real v = detail::exact_half_normal(g);
             bool const negative = (random_bits(g) >> 63) != 0;
             return detail::round_lazy<T>(X.mean_, X.sd_, 1.0, negative, v, g);
@@ -198,8 +205,9 @@ namespace wsl::random
 
         // Ziggourat (approché, bit-exact) : μ + σ Z, deux arrondis.
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(normal const& X, G& g, fast_t)
+        constexpr T sample(G& g, fast_t) const
         {
+            auto const& X = *this;
             return static_cast<T>(double(X.mean_) + detail::sd::fmul(double(X.sd_), detail::ziggurat_normal(g)));
         }
 

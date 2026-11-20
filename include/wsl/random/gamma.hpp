@@ -5,7 +5,7 @@
 //
 //   wsl::random::gamma X({.shape = 2.5, .rate = 2.0});
 //   wsl::random::gamma Y({.shape = 2.5, .scale = 0.5});        // la même loi
-//   X.mean(); pdf(X, 1.0); log_pdf(X, 1.0); sample(X, g);
+//   X.mean(); X.pdf(1.0); X.log_pdf(1.0); X(g);
 //
 // Le paramètre donné (taux ou échelle) est gardé tel quel : les calculs
 // multiplient par λ ou divisent par θ, sans arrondir 1/θ.
@@ -89,7 +89,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class gamma
+    class gamma : public law_interface
     {
     public:
         using value_type = T;
@@ -133,8 +133,9 @@ namespace wsl::random
         constexpr T skewness() const noexcept { return static_cast<T>(2 / wsl::special::sqrt(double(shape_))); }
         constexpr T excess_kurtosis() const noexcept { return static_cast<T>(6 / double(shape_)); }
 
-        friend constexpr T pdf(gamma const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x, a = X.shape_;
             if (!(v >= 0))
                 return v == v ? T(0) : x;
@@ -169,8 +170,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(X.per_scale(detail::exp_scaled(e_hi, e_lo) * c / detail::sqrt(detail::normalized(nu, 0.0)))));
         }
 
-        friend constexpr T log_pdf(gamma const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             double const v = x, a = X.shape_;
             if (!(v >= 0))
@@ -231,11 +233,12 @@ namespace wsl::random
             return static_cast<T>(h.hi + h.lo);
         }
 
-        friend constexpr T cdf(gamma const& X, T x) noexcept { return X.tail(x, false); }
-        friend constexpr T ccdf(gamma const& X, T x) noexcept { return X.tail(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.tail(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.tail(x, true); }
 
-        friend constexpr T quantile(gamma const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -270,12 +273,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(gamma const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             namespace fp = detail::sd;
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
@@ -305,8 +309,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(gamma const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             double y = 0;
             if (X.shape_ >= 1)
                 y = detail::marsaglia_tsang(X.d_, X.c_, g);

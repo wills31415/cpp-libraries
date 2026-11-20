@@ -4,7 +4,7 @@
 // P(X = k) = C(n, k) B(k + α, n − k + β)/B(α, β), 0 <= k <= n.
 //
 //   wsl::random::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
-//   pmf(X, 6); cdf(X, 6); quantile(X, 0.9); X.variance(); sample(X, g);
+//   X.pmf(6); X.cdf(6); X.quantile(0.9); X.variance(); X(g);
 //
 // Masse : somme des huit log Γ (double-double, wsl::special), les termes −y de Stirling
 // s'annulant exactement ; erreur absolue du logarithme ~ 2^-106 n log n (0,5 ulp mesuré
@@ -33,7 +33,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t>
-    class beta_binomial
+    class beta_binomial : public law_interface
     {
     public:
         using value_type = I;
@@ -75,8 +75,9 @@ namespace wsl::random
             return detail::rounded(num / (ss * ss * detail::normalized(s1.hi, s1.lo)));
         }
 
-        friend constexpr double pmf(beta_binomial const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0 || k > X.n_)
                 return 0;
             auto const l = X.log_mass(k);
@@ -84,15 +85,17 @@ namespace wsl::random
                 return 0;
             return detail::rounded(detail::exp_scaled(l.hi, l.lo));
         }
-        friend constexpr double log_pmf(beta_binomial const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0 || k > X.n_)
                 return -std::numeric_limits<double>::infinity();
             auto const l = X.log_mass(k);
             return l.hi + l.lo;
         }
-        friend constexpr double cdf(beta_binomial const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (k >= X.n_)
@@ -100,8 +103,9 @@ namespace wsl::random
             auto const [v, is_f] = X.distribution(k);
             return is_f ? detail::rounded(v) : detail::sd::one_minus(v);
         }
-        friend constexpr double ccdf(beta_binomial const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 1;
             if (k >= X.n_)
@@ -111,8 +115,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u.
-        friend constexpr I quantile(beta_binomial const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -132,10 +137,11 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(beta_binomial const& X, G& g)
+        constexpr I sample(G& g) const
         {
-            double const p = sample(wsl::random::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
-            return sample(binomial<I>({.trials = X.n_, .p = p}), g);
+            auto const& X = *this;
+            double const p = wsl::random::sample(wsl::random::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
+            return wsl::random::sample(binomial<I>({.trials = X.n_, .p = p}), g);
         }
 
         friend constexpr bool operator==(beta_binomial const& a, beta_binomial const& b) noexcept { return a.n_ == b.n_ && a.a_ == b.a_ && a.b_ == b.b_; }

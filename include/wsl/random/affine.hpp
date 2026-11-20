@@ -6,7 +6,7 @@
 //   auto Y = 3 * N - 1;                      // wsl::random::normal<> : N(2, 6), paramètres calculés
 //   wsl::random::student_t T({.degrees_of_freedom = 4});
 //   auto Z = wsl::random::affine(T, {.scale = -2, .shift = 5});   // wsl::random::affine_image<student_t<>>
-//   cdf(Z, 1.0); quantile(Z, 0.99); Z.mean(); sample(Z, g);
+//   Z.cdf(1.0); Z.quantile(0.99); Z.mean(); Z(g);
 //
 // Identités : une famille fermée par image affine le déclare par
 //   affine_closure(X, a, b) -> L               (normale, Cauchy, Laplace, logistique, uniforme),
@@ -168,7 +168,7 @@ namespace wsl::random
     // Image affine générique.
     // -----------------------------------------------------------------------
     template <real_law L>
-    class affine_image
+    class affine_image : public law_interface
     {
     public:
         using value_type = typename L::value_type;
@@ -244,68 +244,76 @@ namespace wsl::random
             return static_cast<value_type>(h.hi + h.lo);
         }
 
-        friend constexpr value_type pdf(affine_image const& Y, value_type y) noexcept requires has_pdf<L>
+        constexpr value_type pdf(value_type y) const noexcept requires has_pdf<L>
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return pdf(*Y.family_, y);
-            double const f = pdf(Y.law_, Y.preimage(y));
+                    return wsl::random::pdf(*Y.family_, y);
+            double const f = wsl::random::pdf(Y.law_, Y.preimage(y));
             return static_cast<value_type>(f / detail::magnitude(Y.a_));
         }
-        friend constexpr value_type log_pdf(affine_image const& Y, value_type y) noexcept requires requires(L const& X, value_type x) { log_pdf(X, x); }
+        constexpr value_type log_pdf(value_type y) const noexcept requires requires(L const& X, value_type x) { wsl::random::log_pdf(X, x); }
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return log_pdf(*Y.family_, y);
+                    return wsl::random::log_pdf(*Y.family_, y);
             auto const la = detail::log_precise(detail::magnitude(Y.a_));
-            auto const l = detail::sum({double(log_pdf(Y.law_, Y.preimage(y))), 0.0}, {-la.hi, -la.lo});
+            auto const l = detail::sum({double(wsl::random::log_pdf(Y.law_, Y.preimage(y))), 0.0}, {-la.hi, -la.lo});
             return static_cast<value_type>(l.hi + l.lo);
         }
 
         // P(aX + b <= y) = P(X <= z) si a > 0, P(X >= z) sinon (loi continue).
-        friend constexpr value_type cdf(affine_image const& Y, value_type y) noexcept requires has_cdf<L> && has_ccdf<L>
+        constexpr value_type cdf(value_type y) const noexcept requires has_cdf<L> && has_ccdf<L>
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return cdf(*Y.family_, y);
+                    return wsl::random::cdf(*Y.family_, y);
             auto const z = Y.preimage(y);
-            return Y.a_ > 0 ? cdf(Y.law_, z) : ccdf(Y.law_, z);
+            return Y.a_ > 0 ? wsl::random::cdf(Y.law_, z) : wsl::random::ccdf(Y.law_, z);
         }
-        friend constexpr value_type ccdf(affine_image const& Y, value_type y) noexcept requires has_cdf<L> && has_ccdf<L>
+        constexpr value_type ccdf(value_type y) const noexcept requires has_cdf<L> && has_ccdf<L>
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return ccdf(*Y.family_, y);
+                    return wsl::random::ccdf(*Y.family_, y);
             auto const z = Y.preimage(y);
-            return Y.a_ > 0 ? ccdf(Y.law_, z) : cdf(Y.law_, z);
+            return Y.a_ > 0 ? wsl::random::ccdf(Y.law_, z) : wsl::random::cdf(Y.law_, z);
         }
 
-        friend constexpr value_type quantile(affine_image const& Y, double p) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type quantile(double p) const requires has_quantile<L> && has_cquantile<L>
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return quantile(*Y.family_, p);
-            return Y.image(Y.a_ > 0 ? quantile(Y.law_, p) : cquantile(Y.law_, p));
+                    return wsl::random::quantile(*Y.family_, p);
+            return Y.image(Y.a_ > 0 ? wsl::random::quantile(Y.law_, p) : wsl::random::cquantile(Y.law_, p));
         }
-        friend constexpr value_type cquantile(affine_image const& Y, double q) requires has_quantile<L> && has_cquantile<L>
+        constexpr value_type cquantile(double q) const requires has_quantile<L> && has_cquantile<L>
         {
+            auto const& Y = *this;
             if constexpr (scale_closed<L>)
                 if (Y.family_)
-                    return cquantile(*Y.family_, q);
-            return Y.image(Y.a_ > 0 ? cquantile(Y.law_, q) : quantile(Y.law_, q));
+                    return wsl::random::cquantile(*Y.family_, q);
+            return Y.image(Y.a_ > 0 ? wsl::random::cquantile(Y.law_, q) : wsl::random::quantile(Y.law_, q));
         }
 
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(affine_image const& Y, G& g)
+        constexpr value_type sample(G& g) const
         {
-            return Y.image(sample(Y.law_, g));
+            auto const& Y = *this;
+            return Y.image(wsl::random::sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        friend constexpr value_type sample(affine_image const& Y, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
-            return Y.image(sample(Y.law_, g, fast));
+            auto const& Y = *this;
+            return Y.image(wsl::random::sample(Y.law_, g, fast));
         }
 
         friend constexpr bool operator==(affine_image const& p, affine_image const& q) noexcept

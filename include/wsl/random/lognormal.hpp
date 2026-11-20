@@ -4,7 +4,7 @@
 // de log X) ; densité φ((log x − μ)/σ)/(σx) sur (0, +∞).
 //
 //   wsl::random::lognormal X({.mu = 0, .sigma = 0.5});
-//   X.median(); cdf(X, 2.0); quantile(X, 0.9); sample(X, g);
+//   X.median(); X.cdf(2.0); X.quantile(0.9); X(g);
 //
 // Les fonctions de la loi passent par celles de la normale : z = (log x − μ)/σ avec
 // log x en double-double, erfc corrigée au premier ordre pour la répartition ;
@@ -27,7 +27,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class lognormal
+    class lognormal : public law_interface
     {
     public:
         using value_type = T;
@@ -90,8 +90,9 @@ namespace wsl::random
             return static_cast<T>(e.hi + e.lo);
         }
 
-        friend constexpr T pdf(lognormal const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             double const v = x;
             if (!(v > 0))
@@ -113,8 +114,9 @@ namespace wsl::random
         }
 
         // −z²/2 − log σ − log x − log(2π)/2
-        friend constexpr T log_pdf(lognormal const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace fp = detail::sd;
             double const v = x;
             if (!(v > 0))
@@ -131,12 +133,13 @@ namespace wsl::random
             return static_cast<T>(e.hi + e.lo);
         }
 
-        friend constexpr T cdf(lognormal const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(lognormal const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
         // e^{μ + σ Φ⁻¹(p)}
-        friend constexpr T quantile(lognormal const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -153,12 +156,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(lognormal const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [x_hi, x_lo] = detail::standard_quantile(q);         // e^{μ − σ Φ⁻¹(q)}
@@ -171,13 +175,15 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(lognormal const& X, G& g)
+        constexpr T sample(G& g) const
         {
-            return static_cast<T>(wsl::special::exp(double(sample(normal<double>({.mean = X.mu_, .sd = X.sigma_}), g))));
+            auto const& X = *this;
+            return static_cast<T>(wsl::special::exp(double(wsl::random::sample(normal<double>({.mean = X.mu_, .sd = X.sigma_}), g))));
         }
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(lognormal const& X, G& g, fast_t)
+        constexpr T sample(G& g, fast_t) const
         {
+            auto const& X = *this;
             return static_cast<T>(wsl::special::exp(double(X.mu_) + detail::sd::fmul(double(X.sigma_), detail::ziggurat_normal(g))));
         }
 

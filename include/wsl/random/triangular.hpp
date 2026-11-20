@@ -3,7 +3,7 @@
 // Loi triangulaire sur [a, b] de mode c (a <= c <= b, a < b).
 //
 //   wsl::random::triangular T({.low = 0, .mode = 1, .high = 3});
-//   cdf(T, 2.0); quantile(T, 0.9); T.variance(); sample(T, g);
+//   T.cdf(2.0); T.quantile(0.9); T.variance(); T(g);
 //
 // Répartition (x − a)²/((b − a)(c − a)) sous c, 1 − (b − x)²/((b − a)(b − c)) au-dessus
 // (survie symétrique), différences exactes, un arrondi ; quantile a + √(p (b − a)(c − a))
@@ -26,7 +26,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class triangular
+    class triangular : public law_interface
     {
     public:
         using value_type = T;
@@ -93,8 +93,9 @@ namespace wsl::random
         }
         constexpr T excess_kurtosis() const noexcept { return static_cast<T>(-0.6); }
 
-        friend constexpr T pdf(triangular const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -109,9 +110,10 @@ namespace wsl::random
             detail::scaled const r = detail::normalized(num.hi, num.lo) / (detail::normalized(ba.hi, ba.lo) * detail::normalized(den.hi, den.lo));
             return static_cast<T>(detail::rounded(r * detail::normalized(2.0, 0.0)));
         }
-        friend constexpr T log_pdf(triangular const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
-            T const f = pdf(X, x);
+            auto const& X = *this;
+            T const f = wsl::random::pdf(X, x);
             if (!(f > 0))
                 return f == f ? -std::numeric_limits<T>::infinity() : f;
             double const v = x;
@@ -124,14 +126,15 @@ namespace wsl::random
             l = detail::sum(l, {detail::sd::ln2_hi, detail::sd::ln2_lo});
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(triangular const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(triangular const& X, T x) noexcept { return X.distribution(x, true); }
-        friend constexpr T quantile(triangular const& X, double p) { return X.inverse(p, false); }
-        friend constexpr T cquantile(triangular const& X, double q) { return X.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& X = *this; return X.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& X = *this; return X.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(triangular const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             return X.inverse(uniform_real<double>(g), false);
         }
 

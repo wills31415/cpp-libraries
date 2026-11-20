@@ -3,7 +3,7 @@
 // Loi normale asymétrique (Azzalini) : densité (2/ω) φ(z) Φ(αz), z = (x − ξ)/ω.
 //
 //   wsl::random::skew_normal X({.location = 0, .scale = 1, .shape = 4});
-//   pdf(X, 0.5); cdf(X, -1); quantile(X, 0.99); X.mean(); sample(X, g);
+//   X.pdf(0.5); X.cdf(-1); X.quantile(0.99); X.mean(); X(g);
 //
 // Densité : φ(z) et Φ(αz) à l'échelle (z en double-double, Φ par erfc de wsl::special), un
 // arrondi. Répartition : Φ(z) − 2T(z, α) (T d'Owen) se compense dans la queue (α = 1 :
@@ -113,7 +113,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class skew_normal
+    class skew_normal : public law_interface
     {
     public:
         using value_type = T;
@@ -184,8 +184,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(k));
         }
 
-        friend constexpr T pdf(skew_normal const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -196,8 +197,9 @@ namespace wsl::random
             return static_cast<T>(detail::rounded(f / double(X.omega_)));
         }
         // log 2 − z²/2 − ½ log 2π + log Φ(αz) − log ω
-        friend constexpr T log_pdf(skew_normal const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             double const v = x;
             if (!(v == v))
@@ -214,16 +216,17 @@ namespace wsl::random
             l = detail::sum(l, detail::negated(lw));
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(skew_normal const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(skew_normal const& X, T x) noexcept { return X.distribution(x, true); }
-        friend constexpr T quantile(skew_normal const& X, double p) { return X.inverse(p, false); }
-        friend constexpr T cquantile(skew_normal const& X, double q) { return X.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& X = *this; return X.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& X = *this; return X.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(skew_normal const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             normal<double> const N({.mean = 0.0, .sd = 1.0});
-            double const u = sample(N, g), v = sample(N, g);
+            double const u = wsl::random::sample(N, g), v = wsl::random::sample(N, g);
             double const z = v < detail::sd::fmul(double(X.alpha_), u) ? u : -u;
             return static_cast<T>(double(X.xi_) + detail::sd::fmul(double(X.omega_), z));
         }

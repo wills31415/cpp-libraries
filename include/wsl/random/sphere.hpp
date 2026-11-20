@@ -4,7 +4,7 @@
 //
 //   wsl::random::uniform_sphere<double, 3> S;                                  // dimension fixe
 //   wsl::random::uniform_ball<double, wsl::random::dynamic> B({.dimension = 10});      // dimension dynamique
-//   sample(S, g); pdf(B, x); S.surface_area(); B.volume();
+//   S(g); B.pdf(x); S.surface_area(); B.volume();
 //
 // Sphère : densité par rapport à la mesure de surface, 1/|Sⁿ⁻¹| = Γ(n/2)/(2π^{n/2}),
 // sur les x de norme 1 à n 2^-50 près (0 ailleurs) ; boule : 1/volume, volume
@@ -49,7 +49,7 @@ namespace wsl::random
             for (;;)
             {
                 for (auto& v : z)
-                    v = sample(standard, g);
+                    v = wsl::random::sample(standard, g);
                 auto const r2 = dot(n, [&](std::size_t k) { return std::pair{z[k], z[k]}; });
                 if (r2.hi > 0)                                              // (probabilité nulle d'échouer)
                 {
@@ -77,7 +77,7 @@ namespace wsl::random
     }
 
     template <law_real T = double, std::size_t N = dynamic>
-    class uniform_sphere
+    class uniform_sphere : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -114,23 +114,26 @@ namespace wsl::random
             return l.hi + l.lo;
         }
 
-        friend constexpr double pdf(uniform_sphere const& S, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
+            auto const& S = *this;
             if (!S.on_sphere(x))
                 return 0;
             auto const l = detail::log_sphere_area(S.n_);
             return detail::rounded(detail::exp_scaled(-l.hi, -l.lo));
         }
-        friend constexpr double log_pdf(uniform_sphere const& S, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
+            auto const& S = *this;
             if (!S.on_sphere(x))
                 return -std::numeric_limits<double>::infinity();
             return -S.entropy();
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_sphere const& S, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& S = *this;
             return detail::uniform_direction<T, N>(S.n_, g);
         }
 
@@ -154,7 +157,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class uniform_ball
+    class uniform_ball : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -192,21 +195,24 @@ namespace wsl::random
             return l.hi + l.lo;
         }
 
-        friend constexpr double pdf(uniform_ball const& B, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
+            auto const& B = *this;
             if (!B.inside(x))
                 return 0;
             auto const l = B.log_volume();
             return l.hi < -1400 ? std::numeric_limits<double>::infinity() : detail::rounded(detail::exp_scaled(-l.hi, -l.lo));
         }
-        friend constexpr double log_pdf(uniform_ball const& B, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
+            auto const& B = *this;
             return B.inside(x) ? -B.entropy() : -std::numeric_limits<double>::infinity();
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_ball const& B, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& B = *this;
             auto x = detail::uniform_direction<T, N>(B.n_, g);
             double const u = detail::uniform_positive(g);
             double const r = B.n_ == 1 ? u : wsl::special::exp(wsl::special::log(u) / double(B.n_));

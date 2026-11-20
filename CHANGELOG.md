@@ -38,6 +38,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   référence `lebesgue`, `counting`, `surface` (`reference_measure_t<L>`). Vue paresseuse
   `samples(X, g)`. Rupture : `sample(X, g, fast)` non qualifié pour une loi sans variante
   rapide ne compile plus (`wr::sample(X, g, wr::fast)`).
+- Rupture : opérations des lois en membres (`X.pdf(x)`, `X.cdf(x)`, `X.quantile(p)`,
+  `X.sample(g)`…) au lieu de fonctions amies : `pdf(X, x)` non qualifié ne compile plus,
+  `wsl::random::pdf(X, x)` (objet-fonction) le remplace. Toutes les lois héritent de
+  `law_interface` : `X(g)`, `X(g, wr::fast)`, `X(n, g)` (vecteur de n tirages, mêmes valeurs
+  et même consommation que n appels `X(g)`), `X.density(x)`, `X.log_density(x)`.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

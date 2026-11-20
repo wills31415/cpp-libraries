@@ -63,7 +63,7 @@ namespace
     template <class L, class G, class V>
     double chi_square(L const& law, G& g, std::vector<V> const& objects, int draws)
     {
-        return chi_square(law, g, objects, draws, [&](V const& o) { return pmf(law, o); });
+        return chi_square(law, g, objects, draws, [&](V const& o) { return wsl::random::pmf(law, o); });
     }
 
     template <class L, class G, class V, class P>
@@ -71,7 +71,7 @@ namespace
     {
         std::map<V, int> counts;
         for (int i = 0; i < draws; ++i)
-            ++counts[sample(law, g)];
+            ++counts[wsl::random::sample(law, g)];
         double chi = 0, total = 0;
         for (auto const& o : objects)
         {
@@ -240,27 +240,27 @@ int main()
         double te = 0, tm = 0, ce = 0, im = 0;
         for (auto const& p : s6)
         {
-            te += pmf(E, p);
-            tm += pmf(M, p);
-            ce += pmf(E, p) * double(p.cycle_count());
-            im += pmf(M, p) * double(p.inversions());
+            te += wsl::random::pmf(E, p);
+            tm += wsl::random::pmf(M, p);
+            ce += wsl::random::pmf(E, p) * double(p.cycle_count());
+            im += wsl::random::pmf(M, p) * double(p.inversions());
         }
         assert(close(te, 1, 1e-14) && close(tm, 1, 1e-14) && close(ce, E.mean_cycles(), 1e-14) && close(im, M.mean_inversions(), 1e-13));
         assert(close(wsl::random::mallows({.size = 6, .q = 2.5}).mean_inversions(), 15 - M.mean_inversions(), 1e-13));   // q ↔ 1/q : inv ↔ 15 − inv
         // Ewens θ = 1 : uniforme.
-        assert(close(pmf(wsl::random::ewens({.size = 6, .theta = 1.0}), s6[17]), 1.0 / 720, 1e-15) && close(pmf(wsl::random::uniform_permutation({.size = 6}), s6[3]), 1.0 / 720, 1e-15));
+        assert(close(wsl::random::pmf(wsl::random::ewens({.size = 6, .theta = 1.0}), s6[17]), 1.0 / 720, 1e-15) && close(wsl::random::pmf(wsl::random::uniform_permutation({.size = 6}), s6[3]), 1.0 / 720, 1e-15));
         // Grandes tailles : validité et statistiques simples.
         wsl::random::ewens const big({.size = 2000, .theta = 3.0});
         double cycles = 0;
         for (int i = 0; i < 200; ++i)
-            cycles += double(sample(big, g).cycle_count());
+            cycles += double(wsl::random::sample(big, g).cycle_count());
         assert(std::abs(cycles / 200 - big.mean_cycles()) < 0.6);
         wsl::random::mallows const near({.size = 300, .q = 1 - 1e-4});
         double inv = 0;
         for (int i = 0; i < 200; ++i)
-            inv += double(sample(near, g).inversions());
+            inv += double(wsl::random::sample(near, g).inversions());
         assert(std::abs(inv / 200 - near.mean_inversions()) / near.mean_inversions() < 0.02);
-        assert(pmf(E, wsl::permutation(5)) == 0 && log_pmf(M, wsl::permutation(7)) == -INFINITY);
+        assert(wsl::random::pmf(E, wsl::permutation(5)) == 0 && wsl::random::log_pmf(M, wsl::permutation(7)) == -INFINITY);
         assert(throws_domain_error([] { wsl::random::ewens X({.size = 3, .theta = 0.0}); }) && throws_domain_error([] { wsl::random::mallows X({.size = 3, .q = -1.0}); }));
     }
 
@@ -276,9 +276,9 @@ int main()
                     words.push_back({a, b, c});
         assert(chi_square(wsl::random::uniform_word({.length = 3, .alphabet = 3}), g, words, draws) < 4);
         wsl::random::uniform_combination const C({.size = 1000000, .count = 50});
-        auto const s = sample(C, g);
-        assert(s.size() == 50 && pmf(C, s) > 0 && close(C.entropy(), std::lgamma(1000001.0) - std::lgamma(51.0) - std::lgamma(999951.0), 1e-12));
-        assert(pmf(C, {1, 0}) == 0 && pmf(wsl::random::uniform_subset({.size = 3}), {0, 3}) == 0 && pmf(wsl::random::uniform_word({.length = 2, .alphabet = 2}), {0, 2}) == 0);
+        auto const s = wsl::random::sample(C, g);
+        assert(s.size() == 50 && wsl::random::pmf(C, s) > 0 && close(C.entropy(), std::lgamma(1000001.0) - std::lgamma(51.0) - std::lgamma(999951.0), 1e-12));
+        assert(wsl::random::pmf(C, {1, 0}) == 0 && wsl::random::pmf(wsl::random::uniform_subset({.size = 3}), {0, 3}) == 0 && wsl::random::pmf(wsl::random::uniform_word({.length = 2, .alphabet = 2}), {0, 2}) == 0);
         assert(throws_domain_error([] { wsl::random::uniform_combination X({.size = 3, .count = 4}); }));
     }
 
@@ -292,11 +292,11 @@ int main()
         assert(wsl::random::uniform_integer_partition({.n = 100}).count() == 190569292);
         assert(close(wsl::random::uniform_integer_partition({.n = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
         wsl::random::uniform_integer_partition const P({.n = 500});
-        auto const q = sample(P, g);
+        auto const q = wsl::random::sample(P, g);
         std::size_t total = 0;
         for (std::size_t v : q)
             total += v;
-        assert(total == 500 && std::is_sorted(q.rbegin(), q.rend()) && pmf(P, q) > 0 && pmf(P, {3, 4}) == 0);
+        assert(total == 500 && std::is_sorted(q.rbegin(), q.rend()) && wsl::random::pmf(P, q) > 0 && wsl::random::pmf(P, {3, 4}) == 0);
     }
 
     // ---- Graphes ------------------------------------------------------------------------
@@ -322,12 +322,12 @@ int main()
             }
         assert(chi_square(wsl::random::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::random::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4);
         wsl::random::barabasi_albert const B({.vertices = 2000, .edges = 3});
-        auto const be = sample(B, g);
+        auto const be = wsl::random::sample(B, g);
         assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::random::detail::is_edge_list(be, 2000));
-        auto const re = sample(wsl::random::random_regular_graph({.vertices = 500, .degree = 3}), g);
+        auto const re = wsl::random::sample(wsl::random::random_regular_graph({.vertices = 500, .degree = 3}), g);
         assert(std::ranges::all_of(degrees(re, 500), [](std::size_t d) { return d == 3; }) && wsl::random::detail::is_edge_list(re, 500));
-        auto const er = sample(wsl::random::erdos_renyi({.vertices = 300, .p = 0.1}), g);
-        assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && pmf(wsl::random::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
+        auto const er = wsl::random::sample(wsl::random::erdos_renyi({.vertices = 300, .p = 0.1}), g);
+        assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && wsl::random::pmf(wsl::random::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
         assert(throws_domain_error([] { wsl::random::random_regular_graph X({.vertices = 5, .degree = 3}); }) && throws_domain_error([] { wsl::random::uniform_graph X({.vertices = 4, .edges = 7}); }));
     }
 
@@ -343,12 +343,12 @@ int main()
         assert(binary.size() == 14);                                         // Catalan C₄
         assert(chi_square(wsl::random::uniform_binary_tree({.nodes = 4}), g, binary, draws) < 4);
         wsl::random::uniform_tree const T({.vertices = 1000});
-        auto const t = sample(T, g);
-        assert(wsl::random::detail::is_tree(t, 1000) && pmf(T, t) == 0 && log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
+        auto const t = wsl::random::sample(T, g);
+        assert(wsl::random::detail::is_tree(t, 1000) && wsl::random::pmf(T, t) == 0 && wsl::random::log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
         wsl::random::uniform_binary_tree const A({.nodes = 1000});
-        auto const a = sample(A, g);
-        assert(a.size() == 1000 && log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
-        assert(pmf(wsl::random::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && pmf(wsl::random::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
+        auto const a = wsl::random::sample(A, g);
+        assert(a.size() == 1000 && wsl::random::log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
+        assert(wsl::random::pmf(wsl::random::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && wsl::random::pmf(wsl::random::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
     }
 
     // ---- Partitions d'ensemble, compositions --------------------------------------------
@@ -377,8 +377,8 @@ int main()
         }
         assert(chi_square(wsl::random::uniform_composition({.n = 6}), g, comps, draws) < 4);
         assert(comps3.size() == 10 && chi_square(wsl::random::uniform_composition({.n = 6, .parts = 3}), g, comps3, draws) < 4);
-        auto const sp = sample(wsl::random::uniform_set_partition({.size = 150}), g);
-        assert(pmf(wsl::random::uniform_set_partition({.size = 150}), sp) > 0 && pmf(wsl::random::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
+        auto const sp = wsl::random::sample(wsl::random::uniform_set_partition({.size = 150}), g);
+        assert(wsl::random::pmf(wsl::random::uniform_set_partition({.size = 150}), sp) > 0 && wsl::random::pmf(wsl::random::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
     }
 
     // ---- Empreintes ----------------------------------------------------------------
@@ -387,32 +387,32 @@ int main()
         wsl::random::xoshiro256pp x(42);
         auto const add_perm = [](fnv1a& h, wsl::permutation const& p) { for (std::size_t v : p) h.add(v); };
         auto const add_vec = [](fnv1a& h, std::vector<std::size_t> const& v) { h.add(v.size()); for (std::size_t e : v) h.add(e); };
-        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
-        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
-        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
-        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
+        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, wsl::random::sample(wsl::random::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
+        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, wsl::random::sample(wsl::random::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
+        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, wsl::random::sample(wsl::random::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
+        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, wsl::random::sample(wsl::random::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
         ok &= check("subsets", fingerprint([&](fnv1a& h) {
-            add_vec(h, sample(wsl::random::uniform_subset({.size = 70}), x));
-            add_vec(h, sample(wsl::random::bernoulli_subset({.size = 30, .p = 0.2}), x));
-            add_vec(h, sample(wsl::random::uniform_combination({.size = 100, .count = 7}), x));
-            add_vec(h, sample(wsl::random::uniform_word({.length = 9, .alphabet = 26}), x));
+            add_vec(h, wsl::random::sample(wsl::random::uniform_subset({.size = 70}), x));
+            add_vec(h, wsl::random::sample(wsl::random::bernoulli_subset({.size = 30, .p = 0.2}), x));
+            add_vec(h, wsl::random::sample(wsl::random::uniform_combination({.size = 100, .count = 7}), x));
+            add_vec(h, wsl::random::sample(wsl::random::uniform_word({.length = 9, .alphabet = 26}), x));
         }), 0x0ed6bf2a62e76d9b);
         auto const add_edges = [](fnv1a& h, wsl::random::edge_list const& e) { h.add(e.size()); for (auto [u, v] : e) h.add((std::uint64_t(u) << 32) | v); };
         ok &= check("graphs", fingerprint([&](fnv1a& h) {
-            add_edges(h, sample(wsl::random::erdos_renyi({.vertices = 12, .p = 0.3}), x));
-            add_edges(h, sample(wsl::random::uniform_graph({.vertices = 12, .edges = 15}), x));
-            add_edges(h, sample(wsl::random::barabasi_albert({.vertices = 20, .edges = 2}), x));
-            add_edges(h, sample(wsl::random::random_regular_graph({.vertices = 12, .degree = 3}), x));
+            add_edges(h, wsl::random::sample(wsl::random::erdos_renyi({.vertices = 12, .p = 0.3}), x));
+            add_edges(h, wsl::random::sample(wsl::random::uniform_graph({.vertices = 12, .edges = 15}), x));
+            add_edges(h, wsl::random::sample(wsl::random::barabasi_albert({.vertices = 20, .edges = 2}), x));
+            add_edges(h, wsl::random::sample(wsl::random::random_regular_graph({.vertices = 12, .degree = 3}), x));
         }, 1 << 10), 0x553dd3266e70997e);
         ok &= check("trees", fingerprint([&](fnv1a& h) {
-            add_edges(h, sample(wsl::random::uniform_tree({.vertices = 30}), x));
-            for (auto c : sample(wsl::random::uniform_binary_tree({.nodes = 20}), x).children)
+            add_edges(h, wsl::random::sample(wsl::random::uniform_tree({.vertices = 30}), x));
+            for (auto c : wsl::random::sample(wsl::random::uniform_binary_tree({.nodes = 20}), x).children)
                 h.add((std::uint64_t(c[0]) << 32) ^ c[1]);
         }, 1 << 10), 0xd9ba05da9d874029);
         wsl::random::uniform_set_partition const SP({.size = 25});
-        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(SP, x)); add_vec(h, sample(wsl::random::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
+        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, wsl::random::sample(SP, x)); add_vec(h, wsl::random::sample(wsl::random::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
         wsl::random::uniform_integer_partition const P({.n = 60});
-        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
+        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, wsl::random::sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
     }
     assert(ok);
     std::printf("test_random_combinatorics : ok\n");

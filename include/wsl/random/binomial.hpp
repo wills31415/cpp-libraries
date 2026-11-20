@@ -4,7 +4,7 @@
 // paramètre p, P(X = k) = C(n, k) p^k (1 − p)^(n−k), 0 <= k <= n.
 //
 //   wsl::random::binomial X({.trials = 20, .p = 0.3});
-//   X.mean(); pmf(X, 6); log_pmf(X, 6); sample(X, g);
+//   X.mean(); X.pmf(6); X.log_pmf(6); X(g);
 //
 // Masse : décomposition de Loader (voir detail/loader.hpp),
 //   e^{δ(n) − δ(k) − δ(n−k) − bd0(k, np) − bd0(n−k, n(1−p))} √(n / (2π k (n−k))),
@@ -35,7 +35,7 @@ namespace wsl::random
     }
 
     template <law_integer I = std::int64_t>
-    class binomial
+    class binomial : public law_interface
     {
     public:
         using value_type = I;
@@ -104,8 +104,9 @@ namespace wsl::random
             return (1 - detail::sd::fmul(6.0, pq)) / detail::sd::fmul(static_cast<double>(n_), pq);
         }
 
-        friend constexpr double pmf(binomial const& X, I k) noexcept
+        constexpr double pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0 || k > X.n_)
                 return 0;
             if (X.p_ == 0 || X.p_ == 1 || X.n_ == 0)
@@ -119,8 +120,9 @@ namespace wsl::random
             return detail::rounded(value);
         }
 
-        friend constexpr double log_pmf(binomial const& X, I k) noexcept
+        constexpr double log_pmf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0 || k > X.n_)
                 return -std::numeric_limits<double>::infinity();
             if (X.p_ == 0 || X.p_ == 1 || X.n_ == 0)
@@ -132,8 +134,9 @@ namespace wsl::random
         }
 
         // P(X <= k) = 1 − I_p(k + 1, n − k).
-        friend constexpr double cdf(binomial const& X, I k) noexcept
+        constexpr double cdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 0;
             if (k >= X.n_ || X.p_ == 0)
@@ -144,8 +147,9 @@ namespace wsl::random
         }
 
         // P(X > k) = I_p(k + 1, n − k).
-        friend constexpr double ccdf(binomial const& X, I k) noexcept
+        constexpr double ccdf(I k) const noexcept
         {
+            auto const& X = *this;
             if (k < 0)
                 return 1;
             if (k >= X.n_ || X.p_ == 0)
@@ -156,8 +160,9 @@ namespace wsl::random
         }
 
         // Plus petit k tel que P(X <= k) >= u.
-        friend constexpr I quantile(binomial const& X, double u)
+        constexpr I quantile(double u) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
@@ -181,8 +186,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr I sample(binomial const& X, G& g)
+        constexpr I sample(G& g) const
         {
+            auto const& X = *this;
             namespace sd = detail::sd;
             if (X.n_ == 0 || X.pp_ == 0)
                 return X.mirrored_ ? X.n_ : I(0);

@@ -75,7 +75,7 @@ namespace wsl::random
         }
     }
 
-    class uniform_subset
+    class uniform_subset : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -92,12 +92,14 @@ namespace wsl::random
         constexpr double mean_size() const noexcept { return detail::sd::fmul(double(n_), 0.5); }
         constexpr double entropy() const noexcept { return detail::sd::fmul(double(n_), detail::sd::ln2_hi); }
 
-        friend constexpr double pmf(uniform_subset const& S, value_type const& s) noexcept
+        constexpr double pmf(value_type const& s) const noexcept
         {
+            auto const& S = *this;
             return detail::is_subset(s, S.n_) ? detail::sd::scale_by_power_of_two(1.0, -static_cast<int>(S.n_ > 2000 ? 2000 : S.n_)) : 0.0;
         }
-        friend constexpr double log_pmf(uniform_subset const& S, value_type const& s) noexcept
+        constexpr double log_pmf(value_type const& s) const noexcept
         {
+            auto const& S = *this;
             if (!detail::is_subset(s, S.n_))
                 return -std::numeric_limits<double>::infinity();
             auto const l = detail::mul({-double(S.n_), 0.0}, {detail::sd::ln2_hi, detail::sd::ln2_lo});
@@ -105,8 +107,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_subset const& S, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& S = *this;
             value_type s;
             std::uint64_t word = 0;
             for (std::size_t i = 0; i < S.n_; ++i)
@@ -125,7 +128,7 @@ namespace wsl::random
         std::size_t n_;
     };
 
-    class bernoulli_subset
+    class bernoulli_subset : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -148,16 +151,18 @@ namespace wsl::random
         constexpr double mean_size() const noexcept { return detail::sd::fmul(double(n_), p_); }
 
         // p^k (1 − p)^{n − k}
-        friend constexpr double log_pmf(bernoulli_subset const& B, value_type const& s) noexcept
+        constexpr double log_pmf(value_type const& s) const noexcept
         {
+            auto const& B = *this;
             auto const l = B.log_mass(s);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(bernoulli_subset const& B, value_type const& s) noexcept { return detail::exp_of_dd(B.log_mass(s)); }
+        constexpr double pmf(value_type const& s) const noexcept { auto const& B = *this; return detail::exp_of_dd(B.log_mass(s)); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(bernoulli_subset const& B, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& B = *this;
             value_type s;
             for (std::size_t i = 0; i < B.n_; ++i)
                 if (bernoulli_trial(g, B.p_))
@@ -194,7 +199,7 @@ namespace wsl::random
         double p_;
     };
 
-    class uniform_combination
+    class uniform_combination : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -216,19 +221,22 @@ namespace wsl::random
         constexpr std::size_t count() const noexcept { return k_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_combination const& C, value_type const& s) noexcept
+        constexpr double log_pmf(value_type const& s) const noexcept
         {
+            auto const& C = *this;
             return s.size() == C.k_ && detail::is_subset(s, C.n_) ? -C.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_combination const& C, value_type const& s) noexcept
+        constexpr double pmf(value_type const& s) const noexcept
         {
+            auto const& C = *this;
             return s.size() == C.k_ && detail::is_subset(s, C.n_) ? detail::exp_of_dd({-C.log_count_.hi, -C.log_count_.lo}) : 0.0;
         }
 
         // Floyd : pour j = n − k, …, n − 1, t uniforme sur [0, j] ; t s'il est neuf, sinon j.
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_combination const& C, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& C = *this;
             value_type s;
             s.reserve(C.k_);
             for (std::size_t j = C.n_ - C.k_; j < C.n_; ++j)
@@ -250,7 +258,7 @@ namespace wsl::random
         detail::sd::double_double log_count_{};
     };
 
-    class uniform_word
+    class uniform_word : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -275,12 +283,14 @@ namespace wsl::random
             return l.hi + l.lo;
         }
 
-        friend constexpr double log_pmf(uniform_word const& W, value_type const& w) noexcept
+        constexpr double log_pmf(value_type const& w) const noexcept
         {
+            auto const& W = *this;
             return W.valid(w) ? -W.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_word const& W, value_type const& w) noexcept
+        constexpr double pmf(value_type const& w) const noexcept
         {
+            auto const& W = *this;
             if (!W.valid(w))
                 return 0;
             auto const l = detail::mul({-double(W.length_), 0.0}, detail::log_precise(double(W.k_)));
@@ -288,8 +298,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_word const& W, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& W = *this;
             value_type w(W.length_);
             for (auto& c : w)
                 c = static_cast<std::size_t>(uniform_below(g, W.k_));
@@ -312,7 +323,7 @@ namespace wsl::random
         std::size_t length_, k_;
     };
 
-    class uniform_set_partition
+    class uniform_set_partition : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -344,18 +355,21 @@ namespace wsl::random
         constexpr double count() const noexcept { return detail::exp_of_dd(log_count_); }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_set_partition const& P, value_type const& a) noexcept
+        constexpr double log_pmf(value_type const& a) const noexcept
         {
+            auto const& P = *this;
             return P.valid(a) ? -P.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_set_partition const& P, value_type const& a) noexcept
+        constexpr double pmf(value_type const& a) const noexcept
         {
+            auto const& P = *this;
             return P.valid(a) ? detail::exp_of_dd({-P.log_count_.hi, -P.log_count_.lo}) : 0.0;
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_set_partition const& P, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& P = *this;
             value_type a(P.n_);
             std::size_t blocks = 0;
             for (std::size_t i = 0; i < P.n_; ++i)
@@ -399,7 +413,7 @@ namespace wsl::random
         detail::sd::double_double log_count_{};
     };
 
-    class uniform_composition
+    class uniform_composition : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -422,20 +436,23 @@ namespace wsl::random
         constexpr std::size_t parts() const noexcept { return k_; }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_composition const& C, value_type const& c) noexcept
+        constexpr double log_pmf(value_type const& c) const noexcept
         {
+            auto const& C = *this;
             return C.valid(c) ? -C.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_composition const& C, value_type const& c) noexcept
+        constexpr double pmf(value_type const& c) const noexcept
         {
+            auto const& C = *this;
             return C.valid(c) ? detail::exp_of_dd({-C.log_count_.hi, -C.log_count_.lo}) : 0.0;
         }
 
         // Points de coupure dans {1, …, n − 1} : sous-ensemble uniforme, ou combinaison de k − 1.
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_composition const& C, G& g)
+        constexpr value_type sample(G& g) const
         {
-            auto const cuts = C.k_ == 0 ? sample(uniform_subset({.size = C.n_ - 1}), g) : sample(uniform_combination({.size = C.n_ - 1, .count = C.k_ - 1}), g);
+            auto const& C = *this;
+            auto const cuts = C.k_ == 0 ? wsl::random::sample(uniform_subset({.size = C.n_ - 1}), g) : wsl::random::sample(uniform_combination({.size = C.n_ - 1, .count = C.k_ - 1}), g);
             value_type c;
             std::size_t last = 0;
             for (std::size_t x : cuts)
@@ -468,7 +485,7 @@ namespace wsl::random
         detail::sd::double_double log_count_{};
     };
 
-    class uniform_integer_partition
+    class uniform_integer_partition : public law_interface
     {
     public:
         using value_type = std::vector<std::size_t>;
@@ -507,18 +524,21 @@ namespace wsl::random
         constexpr double count() const noexcept { return detail::exp_of_dd(log_count_); }
         constexpr double entropy() const noexcept { return log_count_.hi + log_count_.lo; }
 
-        friend constexpr double log_pmf(uniform_integer_partition const& P, value_type const& parts) noexcept
+        constexpr double log_pmf(value_type const& parts) const noexcept
         {
+            auto const& P = *this;
             return P.valid(parts) ? -P.entropy() : -std::numeric_limits<double>::infinity();
         }
-        friend constexpr double pmf(uniform_integer_partition const& P, value_type const& parts) noexcept
+        constexpr double pmf(value_type const& parts) const noexcept
         {
+            auto const& P = *this;
             return P.valid(parts) ? detail::exp_of_dd({-P.log_count_.hi, -P.log_count_.lo}) : 0.0;
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(uniform_integer_partition const& P, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& P = *this;
             value_type parts;
             std::size_t m = P.n_;
             while (m > 0)

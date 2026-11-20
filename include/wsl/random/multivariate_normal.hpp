@@ -3,7 +3,7 @@
 // Loi normale multivariée N(μ, Σ), Σ symétrique définie positive.
 //
 //   wsl::random::multivariate_normal<double, 2> X({.mean = {1, 2}, .covariance = {{1, 0.5}, {0.5, 2}}});
-//   pdf(X, {1.5, 1.0}); X.entropy(); X.marginal(1); sample(X, g);
+//   X.pdf({1.5, 1.0}); X.entropy(); X.marginal(1); X(g);
 //
 // Σ = L Lᵀ (Cholesky, à la construction ; std::domain_error si Σ n'est pas symétrique
 // définie positive). Log-densité −½ |z|² − Σ log Lᵢᵢ − (n/2) log 2π, z = L⁻¹(x − μ) par
@@ -28,7 +28,7 @@
 namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
-    class multivariate_normal
+    class multivariate_normal : public law_interface
     {
     public:
         using value_type = vector_of<T, N>;
@@ -87,14 +87,16 @@ namespace wsl::random
             return q.hi + q.lo;
         }
 
-        friend constexpr double log_pdf(multivariate_normal const& X, value_type const& x) noexcept
+        constexpr double log_pdf(value_type const& x) const noexcept
         {
-            auto const l = X.log_density(x);
+            auto const& X = *this;
+            auto const l = X.log_density_dd(x);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(multivariate_normal const& X, value_type const& x) noexcept
+        constexpr double pdf(value_type const& x) const noexcept
         {
-            auto const l = X.log_density(x);
+            auto const& X = *this;
+            auto const l = X.log_density_dd(x);
             if (!(l.hi > -1500))
                 return l.hi == l.hi ? 0.0 : l.hi;
             if (l.hi > 1400)
@@ -103,17 +105,19 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(multivariate_normal const& X, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());
             normal<double> const standard({.mean = 0.0, .sd = 1.0});
             for (auto& v : z)
-                v = sample(standard, g);
+                v = wsl::random::sample(standard, g);
             return X.transform(z);
         }
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(multivariate_normal const& X, G& g, fast_t)
+        constexpr value_type sample(G& g, fast_t) const
         {
+            auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());
             for (auto& v : z)
                 v = detail::ziggurat_normal(g);
@@ -154,7 +158,7 @@ namespace wsl::random
             return detail::dot(dimension(), [&](std::size_t k) { return std::pair{z[k], z[k]}; });
         }
 
-        constexpr detail::sd::double_double log_density(value_type const& x) const noexcept
+        constexpr detail::sd::double_double log_density_dd(value_type const& x) const noexcept
         {
             if (x.size() != dimension())
                 return {-std::numeric_limits<double>::infinity(), 0.0};

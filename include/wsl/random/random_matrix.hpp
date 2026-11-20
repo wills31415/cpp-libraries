@@ -5,7 +5,7 @@
 //
 //   wsl::random::haar_orthogonal<double, 3> O;   wsl::random::haar_unitary<double> U({.dimension = 4});
 //   wsl::random::goe<double, 5> H;               wsl::random::gue<double, 5> K;
-//   auto Q = sample(O, g);  log_pdf(H, sample(H, g));
+//   auto Q = O(g);  H.log_pdf(H(g));
 //
 // Haar : Q de la factorisation QR d'une matrice gaussienne (réelle, ou complexe de
 // parties réelle et imaginaire N(0, ½)) à diagonale de R positive, par Gram–Schmidt
@@ -119,7 +119,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class haar_orthogonal
+    class haar_orthogonal : public law_interface
     {
     public:
         using value_type = square_matrix<T, N>;
@@ -134,14 +134,15 @@ namespace wsl::random
         constexpr value_type mean() const { return detail::box<T, N>(n_, T(0), T(0)).lower; }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(haar_orthogonal const& O, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& O = *this;
             std::size_t const n = O.n_;
             normal<double> const standard({.mean = 0.0, .sd = 1.0});
             std::vector<std::vector<double>> re(n, std::vector<double>(n)), im;
             for (auto& column : re)
                 for (auto& v : column)
-                    v = sample(standard, g);
+                    v = wsl::random::sample(standard, g);
             detail::orthonormalize<false>(n, re, im);
             auto q = detail::make_matrix<T, N>(n);
             for (std::size_t j = 0; j < n; ++j)
@@ -157,7 +158,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class haar_unitary
+    class haar_unitary : public law_interface
     {
     public:
         using value_type = square_matrix<std::complex<T>, N>;
@@ -171,16 +172,17 @@ namespace wsl::random
         constexpr interval<value_type> support() const { return detail::box<std::complex<T>, N>(n_, {T(-1), T(-1)}, {T(1), T(1)}); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(haar_unitary const& U, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& U = *this;
             std::size_t const n = U.n_;
             normal<double> const half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
             std::vector<std::vector<double>> re(n, std::vector<double>(n)), im(n, std::vector<double>(n));
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = 0; i < n; ++i)
                 {
-                    re[j][i] = sample(half, g);
-                    im[j][i] = sample(half, g);
+                    re[j][i] = wsl::random::sample(half, g);
+                    im[j][i] = wsl::random::sample(half, g);
                 }
             detail::orthonormalize<true>(n, re, im);
             auto q = detail::make_matrix<std::complex<T>, N>(n);
@@ -198,7 +200,7 @@ namespace wsl::random
 
     // GOE, GUE : log-densité commune, Σ des carrés en double-double.
     template <law_real T = double, std::size_t N = dynamic>
-    class goe
+    class goe : public law_interface
     {
     public:
         using value_type = square_matrix<T, N>;
@@ -212,14 +214,15 @@ namespace wsl::random
         constexpr interval<value_type> support() const { return detail::box<T, N>(n_, -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::infinity()); }
         constexpr value_type mean() const { return detail::box<T, N>(n_, T(0), T(0)).lower; }
 
-        friend constexpr double log_pdf(goe const& H, value_type const& h) noexcept
+        constexpr double log_pdf(value_type const& h) const noexcept
         {
-            auto const l = H.log_density(h);
+            auto const& H = *this;
+            auto const l = H.log_density_dd(h);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(goe const& H, value_type const& h) noexcept { return detail::rounded_exp(H.log_density(h)); }
+        constexpr double pdf(value_type const& h) const noexcept { auto const& H = *this; return detail::rounded_exp(H.log_density_dd(h)); }
 
-        constexpr detail::sd::double_double log_density(value_type const& h) const noexcept
+        constexpr detail::sd::double_double log_density_dd(value_type const& h) const noexcept
         {
             namespace fp = detail::sd;
             std::size_t const n = n_;
@@ -240,14 +243,15 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(goe const& H, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& H = *this;
             std::size_t const n = H.n_;
             normal<double> const one({.mean = 0.0, .sd = 1.0}), half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
             auto h = detail::make_matrix<T, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
-                    h(i, j) = h(j, i) = static_cast<T>(sample(i == j ? one : half, g));
+                    h(i, j) = h(j, i) = static_cast<T>(wsl::random::sample(i == j ? one : half, g));
             return h;
         }
 
@@ -268,7 +272,7 @@ namespace wsl::random
     };
 
     template <law_real T = double, std::size_t N = dynamic>
-    class gue
+    class gue : public law_interface
     {
     public:
         using value_type = square_matrix<std::complex<T>, N>;
@@ -285,14 +289,15 @@ namespace wsl::random
             return detail::box<std::complex<T>, N>(n_, {-inf, -inf}, {inf, inf});
         }
 
-        friend constexpr double log_pdf(gue const& H, value_type const& h) noexcept
+        constexpr double log_pdf(value_type const& h) const noexcept
         {
-            auto const l = H.log_density(h);
+            auto const& H = *this;
+            auto const l = H.log_density_dd(h);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(gue const& H, value_type const& h) noexcept { return detail::rounded_exp(H.log_density(h)); }
+        constexpr double pdf(value_type const& h) const noexcept { auto const& H = *this; return detail::rounded_exp(H.log_density_dd(h)); }
 
-        constexpr detail::sd::double_double log_density(value_type const& h) const noexcept
+        constexpr detail::sd::double_double log_density_dd(value_type const& h) const noexcept
         {
             namespace fp = detail::sd;
             std::size_t const n = n_;
@@ -313,8 +318,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(gue const& H, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& H = *this;
             std::size_t const n = H.n_;
             normal<double> const one({.mean = 0.0, .sd = 1.0}), half({.mean = 0.0, .sd = detail::inv_sqrt2_hi});
             auto h = detail::make_matrix<std::complex<T>, N>(n);
@@ -322,11 +328,11 @@ namespace wsl::random
                 for (std::size_t j = i; j < n; ++j)
                 {
                     if (i == j)
-                        h(i, i) = {static_cast<T>(sample(one, g)), T(0)};
+                        h(i, i) = {static_cast<T>(wsl::random::sample(one, g)), T(0)};
                     else
                     {
-                        T const a = static_cast<T>(sample(half, g));
-                        T const b = static_cast<T>(sample(half, g));
+                        T const a = static_cast<T>(wsl::random::sample(half, g));
+                        T const b = static_cast<T>(wsl::random::sample(half, g));
                         h(i, j) = {a, b};
                         h(j, i) = {a, -b};
                     }

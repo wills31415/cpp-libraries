@@ -4,7 +4,7 @@
 // (K >= 2, Σ pᵢ = 1 à 2^-40 près) ; Nᵢ le nombre d'issues i.
 //
 //   wsl::random::multinomial<std::int64_t, 3> M({.trials = 10, .p = {0.2, 0.3, 0.5}});
-//   pmf(M, {2, 3, 5}); M.mean(); M.covariance(); M.marginal(2); sample(M, g);
+//   M.pmf({2, 3, 5}); M.mean(); M.covariance(); M.marginal(2); M(g);
 //
 // Masse n!/Π kᵢ! Π pᵢ^{kᵢ} en logarithme double-double (lgamma, log pᵢ), un arrondi ;
 // moyenne n pᵢ, covariance n pᵢ (δᵢⱼ − pⱼ) ; marginale i : binomiale(n, pᵢ).
@@ -30,7 +30,7 @@
 namespace wsl::random
 {
     template <law_integer I = std::int64_t, std::size_t N = dynamic>
-    class multinomial
+    class multinomial : public law_interface
     {
     public:
         using value_type = vector_of<I, N>;
@@ -108,13 +108,15 @@ namespace wsl::random
         }
         constexpr binomial<I> marginal(std::size_t i) const { return binomial<I>({.trials = n_, .p = p_[i]}); }
 
-        friend constexpr double log_pmf(multinomial const& M, value_type const& k) noexcept
+        constexpr double log_pmf(value_type const& k) const noexcept
         {
+            auto const& M = *this;
             auto const l = M.log_mass(k);
             return l.hi + l.lo;
         }
-        friend constexpr double pmf(multinomial const& M, value_type const& k) noexcept
+        constexpr double pmf(value_type const& k) const noexcept
         {
+            auto const& M = *this;
             auto const l = M.log_mass(k);
             if (!(l.hi > -1500))
                 return 0;
@@ -122,8 +124,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr value_type sample(multinomial const& M, G& g)
+        constexpr value_type sample(G& g) const
         {
+            auto const& M = *this;
             value_type k = detail::make_vector<I, N>(M.dimension(), I(0));
             I rest = M.n_;
             std::size_t const last = M.dimension() - 1;
@@ -132,7 +135,7 @@ namespace wsl::random
                 if (rest == 0)
                     break;
                 double const c = M.conditional_[i];
-                I const v = c >= 1 ? rest : c <= 0 ? I(0) : sample(binomial<I>({.trials = rest, .p = c}), g);
+                I const v = c >= 1 ? rest : c <= 0 ? I(0) : wsl::random::sample(binomial<I>({.trials = rest, .p = c}), g);
                 k[i] = v;
                 rest = static_cast<I>(rest - v);
             }

@@ -4,7 +4,7 @@
 // z = (x − μ)/s.
 //
 //   wsl::random::logistic L({.location = 0, .scale = 1});
-//   cdf(L, 2.0); quantile(L, 0.9); sample(L, g);
+//   L.cdf(2.0); L.quantile(0.9); L(g);
 //
 // z en double-double ; queue e^{−|z|}/(1 + e^{−|z|}), densité e^{−|z|}/(s (1 + e^{−|z|})²) ;
 // quantile μ + s logit(p), logit(p) = log1p((2p − 1)/(1 − p)) près de ½ (sans
@@ -46,7 +46,7 @@ namespace wsl::random
     }
 
     template <law_real T = double>
-    class logistic
+    class logistic : public law_interface
     {
     public:
         using value_type = T;
@@ -88,8 +88,9 @@ namespace wsl::random
         }
 
         // e^{−|z|} / (s (1 + e^{−|z|})²)
-        friend constexpr T pdf(logistic const& X, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             auto const [e, one_plus] = X.parts(x);
@@ -97,8 +98,9 @@ namespace wsl::random
                 return 0;
             return static_cast<T>(detail::rounded(e / (one_plus * one_plus) / double(X.s_)));
         }
-        friend constexpr T log_pdf(logistic const& X, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& X = *this;
             if (!(x == x))
                 return x;
             auto const [z_hi, z_lo] = detail::standardize(x, X.mu_, X.s_);
@@ -117,11 +119,12 @@ namespace wsl::random
             return static_cast<T>(l.hi + l.lo);
         }
 
-        friend constexpr T cdf(logistic const& X, T x) noexcept { return X.distribution(x, false); }
-        friend constexpr T ccdf(logistic const& X, T x) noexcept { return X.distribution(x, true); }
+        constexpr T cdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& X = *this; return X.distribution(x, true); }
 
-        friend constexpr T quantile(logistic const& X, double p)
+        constexpr T quantile(double p) const
         {
+            auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
@@ -135,12 +138,13 @@ namespace wsl::random
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
-        friend constexpr T cquantile(logistic const& X, double q)
+        constexpr T cquantile(double q) const
         {
+            auto const& X = *this;
             if (!(q >= 0 && q <= 1))
                 throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
-                return quantile(X, 1.0 - q);                                // 1 − q exact
+                return wsl::random::quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [l_hi, l_lo] = detail::logit(q);                     // μ − s logit(q)
@@ -148,8 +152,9 @@ namespace wsl::random
         }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(logistic const& X, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& X = *this;
             double const u = detail::uniform_positive(g);
             if (u == 0.5)
                 return X.mu_;

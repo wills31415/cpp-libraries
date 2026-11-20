@@ -2,7 +2,7 @@
 
 // Loi de l'arcsinus sur [a, b] : densité 1/(π √((x − a)(b − x))).
 //
-//   wsl::random::arcsine A({.low = 0, .high = 1});   cdf(A, 0.1); quantile(A, 0.9); sample(A, g);
+//   wsl::random::arcsine A({.low = 0, .high = 1});   A.cdf(0.1); A.quantile(0.9); A(g);
 //
 // u = (x − a)/(b − a) et 1 − u = (b − x)/(b − a) en double-double ; répartition
 // (2/π) atan √(u/(1 − u)) (u <= ½), 1 − (2/π) atan √((1 − u)/u) sinon, noyau atan à argument
@@ -27,7 +27,7 @@
 namespace wsl::random
 {
     template <law_real T = double>
-    class arcsine
+    class arcsine : public law_interface
     {
     public:
         using value_type = T;
@@ -71,8 +71,9 @@ namespace wsl::random
         }
 
         // 1/(π (b − a) √(u (1 − u)))
-        friend constexpr T pdf(arcsine const& A, T x) noexcept
+        constexpr T pdf(T x) const noexcept
         {
+            auto const& A = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -83,8 +84,9 @@ namespace wsl::random
             detail::scaled const d = detail::sqrt(u * w) * detail::normalized(ba.hi, ba.lo);
             return static_cast<T>(detail::rounded(detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo) / d));
         }
-        friend constexpr T log_pdf(arcsine const& A, T x) noexcept
+        constexpr T log_pdf(T x) const noexcept
         {
+            auto const& A = *this;
             double const v = x;
             if (!(v == v))
                 return x;
@@ -99,14 +101,15 @@ namespace wsl::random
             l = detail::sum(l, {-detail::sd::log_pi_hi, -detail::sd::log_pi_lo});
             return static_cast<T>(l.hi + l.lo);
         }
-        friend constexpr T cdf(arcsine const& A, T x) noexcept { return A.distribution(x, false); }
-        friend constexpr T ccdf(arcsine const& A, T x) noexcept { return A.distribution(x, true); }
-        friend constexpr T quantile(arcsine const& A, double p) { return A.inverse(p, false); }
-        friend constexpr T cquantile(arcsine const& A, double q) { return A.inverse(q, true); }
+        constexpr T cdf(T x) const noexcept { auto const& A = *this; return A.distribution(x, false); }
+        constexpr T ccdf(T x) const noexcept { auto const& A = *this; return A.distribution(x, true); }
+        constexpr T quantile(double p) const { auto const& A = *this; return A.inverse(p, false); }
+        constexpr T cquantile(double q) const { auto const& A = *this; return A.inverse(q, true); }
 
         template <std::uniform_random_bit_generator G>
-        friend constexpr T sample(arcsine const& A, G& g)
+        constexpr T sample(G& g) const
         {
+            auto const& A = *this;
             return A.inverse(uniform_real<double>(g), false);
         }
 
