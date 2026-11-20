@@ -205,14 +205,14 @@ namespace wsl
             if (x == n)
                 return detail::mul({n, 0.0}, detail::log(detail::normalized(m.hi, m.lo) / n));
             auto e = detail::stirling_error(n);
-            e = detail::add(e, detail::negated(detail::stirling_error(x)));
-            e = detail::add(e, detail::negated(detail::stirling_error(n - x)));
-            e = detail::add(e, detail::negated(detail::deviance(x, m.hi, m.lo)));
-            e = detail::add(e, detail::negated(detail::deviance(n - x, rest.hi, rest.lo)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(x)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(n - x)));
+            e = detail::sum(e, detail::negated(detail::deviance(x, m.hi, m.lo)));
+            e = detail::sum(e, detail::negated(detail::deviance(n - x, rest.hi, rest.lo)));
             detail::scaled const r = detail::normalized(n, 0.0) / (detail::normalized(x, 0.0) * detail::normalized(n - x, 0.0));
             auto const l = detail::log(r);                                  // ½ log(n/(2π x (n − x)))
-            e = detail::add(e, {sd::fmul(l.hi, 0.5), sd::fmul(l.lo, 0.5)});
-            return detail::add(e, {-detail::half_log_2pi_hi, -detail::half_log_2pi_lo});
+            e = detail::sum(e, {sd::fmul(l.hi, 0.5), sd::fmul(l.lo, 0.5)});
+            return detail::sum(e, {-detail::half_log_2pi_hi, -detail::half_log_2pi_lo});
         }
 
         // log P(X = k) = log b(k; K, π) + log b(n − k; N − K, π) − log b(n; N, π), π = n/N.
@@ -225,9 +225,9 @@ namespace wsl
             auto const [k1, k2] = frac(K_);
             auto const [j1, j2] = frac(N_ - K_);
             auto e = binomial_log(x, K, k1, k2);
-            e = detail::add(e, binomial_log(n - x, N - K, j1, j2));
+            e = detail::sum(e, binomial_log(n - x, N - K, j1, j2));
             auto const total = binomial_log(n, N, {n, 0.0}, {N - n, 0.0});
-            return detail::add(e, detail::negated(total));
+            return detail::sum(e, detail::negated(total));
         }
 
         // P(k − 1)/P(k) = k (N − K − n + k)/((K − k + 1)(n − k + 1))

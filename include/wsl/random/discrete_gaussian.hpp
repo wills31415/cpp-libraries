@@ -18,11 +18,11 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/geometric.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/random/von_mises.hpp>
 #include <wsl/special.hpp>
 
 #include <cstdint>
@@ -34,12 +34,6 @@ namespace wsl
 {
     namespace detail
     {
-        // ⌊x⌋, |x| < 2^52 (exact)
-        constexpr double floor_small(double x) noexcept
-        {
-            double const t = static_cast<double>(static_cast<std::int64_t>(x));
-            return t > x ? t - 1 : t;
-        }
     }
 
     template <law_integer I = std::int64_t>
@@ -206,7 +200,7 @@ namespace wsl
             }
             auto const m1 = sd::quotient_dd(first, z);
             auto const m2 = sd::quotient_dd(second, z);
-            auto const var = detail::sum(m2, detail::neg_dd(detail::mul(m1, m1)));
+            auto const var = detail::sum(m2, detail::negated(detail::mul(m1, m1)));
             auto const mean = detail::sum({mu_, 0.0}, m1);
             return {detail::normalized(z.hi, z.lo), mean.hi + mean.lo, var.hi + var.lo};
         }

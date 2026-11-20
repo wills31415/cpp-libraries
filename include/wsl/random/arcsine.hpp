@@ -13,11 +13,11 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/random/von_mises.hpp>
 #include <wsl/special.hpp>
 
 #include <limits>

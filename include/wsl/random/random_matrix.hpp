@@ -217,7 +217,7 @@ namespace wsl
             auto const l = H.log_density(h);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(goe const& H, value_type const& h) noexcept { return exp_of(H.log_density(h)); }
+        friend constexpr double pdf(goe const& H, value_type const& h) noexcept { return detail::rounded_exp(H.log_density(h)); }
 
         constexpr detail::sd::double_double log_density(value_type const& h) const noexcept
         {
@@ -262,12 +262,6 @@ namespace wsl
             return detail::sum(l, k);
         }
         // e^{l}, un arrondi.
-        static constexpr double exp_of(detail::sd::double_double l) noexcept
-        {
-            if (!(l.hi > -1500))
-                return l.hi == l.hi ? 0.0 : l.hi;
-            return l.hi > 1400 ? std::numeric_limits<double>::infinity() : detail::rounded(detail::exp_scaled(l.hi, l.lo));
-        }
 
     private:
         std::size_t n_;
@@ -296,7 +290,7 @@ namespace wsl
             auto const l = H.log_density(h);
             return l.hi + l.lo;
         }
-        friend constexpr double pdf(gue const& H, value_type const& h) noexcept { return goe<T, N>::exp_of(H.log_density(h)); }
+        friend constexpr double pdf(gue const& H, value_type const& h) noexcept { return detail::rounded_exp(H.log_density(h)); }
 
         constexpr detail::sd::double_double log_density(value_type const& h) const noexcept
         {

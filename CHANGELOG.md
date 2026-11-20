@@ -129,6 +129,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - `stable<T>` (`{.alpha, .beta, .scale, .location}`, paramétrisation S1) : densité,
   répartition et survie sous 0,5 ulp (intégrales de Nolan en double-double, toujours en
   sommes positives), quantiles par Newton ; tirage de Chambers–Mallows–Stuck, bit-exact.
+- Interne : aides regroupées dans `detail/arithmetic.hpp` (compléments à l'échelle et en
+  double-double), `detail/trigonometry.hpp`, `detail/quadrature.hpp` (Gauss–Legendre) et
+  `detail/gaussian.hpp` ; doublons supprimés (trois opposés, deux sommes et deux différences
+  à l'échelle, trois `exp_of`…) ; stable.hpp n'inclut plus skew_normal.hpp ni von_mises.hpp.
+  Aucun résultat ne change (empreintes identiques).
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 

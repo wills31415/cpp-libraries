@@ -69,14 +69,6 @@ namespace wsl
             return {-ll.hi, -ll.lo};
         }
 
-        constexpr double exp_of(sd::double_double l) noexcept
-        {
-            if (!(l.hi > -1500))
-                return l.hi == l.hi ? 0.0 : l.hi;
-            if (l.hi > 1400)
-                return std::numeric_limits<double>::infinity();
-            return rounded(exp_scaled(l.hi, l.lo));
-        }
     }
 
     template <law_real T = double>
@@ -249,7 +241,7 @@ namespace wsl
             if (!(v > double(F.m_)) || v == std::numeric_limits<double>::infinity())
                 return 0;
             auto const l = F.log_density(v);
-            return static_cast<T>(detail::exp_of(l));
+            return static_cast<T>(detail::rounded_exp(l));
         }
         friend constexpr T log_pdf(frechet const& F, T x) noexcept
         {

@@ -28,6 +28,8 @@
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/beta.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/random/law.hpp>
@@ -45,24 +47,6 @@ namespace wsl
 {
     namespace detail
     {
-        inline constexpr double pi_hi = 0x1.921fb54442d18p+1, pi_lo = 0x1.1a62633145c07p-53;
-
-        constexpr sd::double_double neg_dd(sd::double_double v) noexcept { return {-v.hi, -v.lo}; }
-
-        // sin(h), |h| <= π/2 + ε, h en double-double (à 2^-70 près).
-        constexpr sd::double_double sine_dd(double h_hi, double h_lo) noexcept
-        {
-            namespace fp = sd;
-            double const a = magnitude(h_hi);
-            if (a == 0)
-                return {h_hi, h_lo};
-            if (a <= 0x1.921fb54442d18p-1)                                  // |h| <= π/4
-                return fp::sin_of(fp::sincos_prepare(h_hi, h_lo));
-            bool const negative = h_hi < 0;                                 // sin|h| = cos(π/2 − |h|)
-            auto const r = sum({fp::fmul(pi_hi, 0.5), fp::fmul(pi_lo, 0.5)}, {-a, negative ? h_lo : -h_lo});
-            auto const c = fp::cos_of(fp::sincos_prepare(r.hi, r.lo));
-            return negative ? fp::double_double{-c.hi, -c.lo} : c;
-        }
 
         // log(e^{−κ} I_ν(κ)), κ > 0, en double-double.
         constexpr sd::double_double log_scaled_bessel(double nu, double kappa) noexcept
@@ -84,59 +68,6 @@ namespace wsl
                 a = unscaled(exp_scaled(l.hi, l.lo));
             return {a, sum({1.0, 0.0}, {-a.hi, -a.lo})};
         }
-
-        // a + b, a, b >= 0 à l'échelle (zéro : hi = 0).
-        constexpr scaled add_scaled(scaled const& a, scaled const& b) noexcept
-        {
-            if (a.hi == 0)
-                return b;
-            if (b.hi == 0)
-                return a;
-            scaled const& big = a.e >= b.e ? a : b;
-            scaled const& small = a.e >= b.e ? b : a;
-            if (big.e - small.e > 120)
-                return big;
-            int const shift = small.e - big.e;
-            auto const t = sum({big.hi, big.lo}, {sd::scale_by_power_of_two(small.hi, shift), sd::scale_by_power_of_two(small.lo, shift)});
-            return normalized(t.hi, t.lo, big.e);
-        }
-
-        // Gauss–Legendre à 12 nœuds sur [−1, 1] (6 nœuds positifs et leurs poids), en
-        // double-double : Newton sur P₁₂ (récurrence de Bonnet), à la compilation.
-        inline constexpr int legendre_order = 12;
-        struct legendre_rule
-        {
-            sd::double_double node[legendre_order / 2], weight[legendre_order / 2];
-        };
-        constexpr legendre_rule make_legendre_rule() noexcept
-        {
-            legendre_rule r{};
-            constexpr int m = legendre_order;
-            for (int i = 0; i < m / 2; ++i)
-            {
-                double const guess = wsl::special::cos(pi_hi * (static_cast<double>(i) + 0.75) / (static_cast<double>(m) + 0.5));
-                sd::double_double x{guess, 0.0}, derivative{1.0, 0.0};
-                for (int iteration = 0; iteration < 8; ++iteration)
-                {
-                    sd::double_double p0{1.0, 0.0}, p1 = x;                 // P_{k−1}, P_k
-                    for (int k = 1; k < m; ++k)
-                    {
-                        auto const next = sd::quotient_dd(sum(mul({static_cast<double>(2 * k + 1), 0.0}, mul(x, p1)), neg_dd(mul({static_cast<double>(k), 0.0}, p0))),
-                                                          {static_cast<double>(k + 1), 0.0});
-                        p0 = p1;
-                        p1 = next;
-                    }
-                    auto const one_minus_x2 = sum({1.0, 0.0}, neg_dd(mul(x, x)));
-                    derivative = sd::quotient_dd(mul({static_cast<double>(m), 0.0}, sum(p0, neg_dd(mul(x, p1)))), one_minus_x2);   // P′ = m (P_{m−1} − x P_m)/(1 − x²)
-                    x = sum(x, neg_dd(sd::quotient_dd(p1, derivative)));
-                }
-                r.node[i] = x;
-                auto const one_minus_x2 = sum({1.0, 0.0}, neg_dd(mul(x, x)));
-                r.weight[i] = sd::quotient_dd({2.0, 0.0}, mul(one_minus_x2, mul(derivative, derivative)));
-            }
-            return r;
-        }
-        inline constexpr legendre_rule legendre = make_legendre_rule();
 
         // κ (cos t − 1) = −2κ sin²(t/2), 0 <= t <= π en double-double.
         constexpr sd::double_double von_mises_exponent(double kappa, sd::double_double t) noexcept
@@ -193,8 +124,8 @@ namespace wsl
                     sd::double_double value{0.0, 0.0};
                     for (int side = 0; side < 2; ++side)
                     {
-                        auto const t = sum(middle, side == 0 ? offset : neg_dd(offset));
-                        auto const e = sum(von_mises_exponent(kappa, t), neg_dd(h0));     // κ (cos t − cos t₀)
+                        auto const t = sum(middle, side == 0 ? offset : negated(offset));
+                        auto const e = sum(von_mises_exponent(kappa, t), negated(h0));     // κ (cos t − cos t₀)
                         if (e.hi > -1500)
                             value = sum(value, unscaled(exp_scaled(e.hi, e.lo)));
                     }
@@ -405,7 +336,7 @@ namespace wsl
                 auto const r = detail::unscaled(value / density);                         // V/g
                 s.dphi = detail::mul(h, r);                                                 // G : φ + h V/g ; D : φ − h V/g
                 if (head)
-                    s.dphi = detail::neg_dd(s.dphi);
+                    s.dphi = detail::negated(s.dphi);
                 s.residual = detail::magnitude(h.hi);
                 s.finite = detail::is_finite(s.dphi.hi);
                 return s;
@@ -417,7 +348,7 @@ namespace wsl
                 {
                     detail::scaled const g_pi = detail::exp_scaled(fp::fmul(double(kappa_), -2.0), 0.0) * inv_norm;
                     auto const d = detail::unscaled(detail::normalized(target, 0.0) / g_pi);
-                    return detail::sum({detail::pi_hi, detail::pi_lo}, detail::neg_dd(d));
+                    return detail::sum({detail::pi_hi, detail::pi_lo}, detail::negated(d));
                 }
             }
             double lo = 0, hi = detail::pi_hi;
@@ -476,7 +407,7 @@ namespace wsl
             fp::double_double phi{detail::pi_hi, detail::pi_lo};
             if (small > 0)
                 phi = solve(small);
-            fp::double_double const x = detail::sum({double(mu_), 0.0}, from_low ? detail::neg_dd(phi) : phi);
+            fp::double_double const x = detail::sum({double(mu_), 0.0}, from_low ? detail::negated(phi) : phi);
             return static_cast<T>(x.hi + x.lo);
         }
 

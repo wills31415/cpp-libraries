@@ -1,8 +1,12 @@
 #pragma once
 
-// Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp).
+// Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp), et ses
+// compléments communs (opposé, somme, différence et complément à l'échelle, e^l arrondi…).
 
 #include <wsl/special/detail/extended.hpp>
+
+#include <cstdint>
+#include <limits>
 
 namespace wsl::detail
 {
@@ -70,4 +74,75 @@ namespace wsl::detail
     using xd::sum;
     using xd::times;
     using xd::unscaled;
+
+    // -----------------------------------------------------------------------
+    // Compléments communs aux lois (double-double, nombres à l'échelle)
+    // -----------------------------------------------------------------------
+
+    // −v.
+    constexpr sd::double_double negated(sd::double_double v) noexcept { return {-v.hi, -v.lo}; }
+
+    // v d, d double.
+    constexpr sd::double_double times_double(sd::double_double v, double d) noexcept { return mul(v, {d, 0.0}); }
+
+    // log v, v > 0 en double-double.
+    constexpr sd::double_double log_positive(sd::double_double v) noexcept { return log(normalized(v.hi, v.lo)); }
+
+    // e^l arrondi une fois (0 sous e^-1500, +∞ au-delà de e^1400, NaN conservé).
+    constexpr double rounded_exp(sd::double_double l) noexcept
+    {
+        if (!(l.hi > -1500))
+            return l.hi == l.hi ? 0.0 : l.hi;
+        if (l.hi > 1400)
+            return std::numeric_limits<double>::infinity();
+        return rounded(exp_scaled(l.hi, l.lo));
+    }
+
+    // a + b, a, b >= 0 à l'échelle (zéro : hi = 0).
+    constexpr scaled add_scaled(scaled const& a, scaled const& b) noexcept
+    {
+        if (a.hi == 0)
+            return b;
+        if (b.hi == 0)
+            return a;
+        scaled const& big = a.e >= b.e ? a : b;
+        scaled const& small = a.e >= b.e ? b : a;
+        if (big.e - small.e > 120)
+            return big;
+        int const shift = small.e - big.e;
+        auto const t = sum({big.hi, big.lo}, {sd::scale_by_power_of_two(small.hi, shift), sd::scale_by_power_of_two(small.lo, shift)});
+        return normalized(t.hi, t.lo, big.e);
+    }
+
+    // a − b, a > b >= 0 à l'échelle.
+    constexpr scaled scaled_difference(scaled const& a, scaled const& b) noexcept
+    {
+        if (b.hi == 0 || a.e - b.e > 120)
+            return a;
+        int const shift = b.e - a.e;
+        auto const s = sum({a.hi, a.lo}, {-sd::scale_by_power_of_two(b.hi, shift), -sd::scale_by_power_of_two(b.lo, shift)});
+        if (!(s.hi > 0))
+            return {0.0, 0.0, 0};
+        return normalized(s.hi, s.lo, a.e);
+    }
+
+    // 1 − v, 0 <= v <= 1 à l'échelle (v <= 0,7 en pratique : résultat normal).
+    constexpr scaled scaled_complement(scaled const& v) noexcept
+    {
+        if (v.hi == 0)
+            return {1.0, 0.0, 0};
+        auto const [w_hi, w_lo] = unscaled(v);
+        auto const [s, s_error] = sd::two_sum(1.0, -w_hi);
+        auto const [hi, lo] = sd::fast_two_sum(s, s_error - w_lo);
+        if (!(hi > 0))
+            return {0.0, 0.0, 0};
+        return normalized(hi, lo);
+    }
+
+    // ⌊x⌋, |x| < 2^52 (exact)
+    constexpr double floor_small(double x) noexcept
+    {
+        double const t = static_cast<double>(static_cast<std::int64_t>(x));
+        return t > x ? t - 1 : t;
+    }
 }

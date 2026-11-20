@@ -54,7 +54,7 @@ namespace wsl
         constexpr T mean() const noexcept
         {
             auto const lg = lgamma_1p(1.0 / double(k_), inv_k_lo());
-            return static_cast<T>(exp_of(detail::sum(lg, detail::log_precise(double(lambda_)))));
+            return static_cast<T>(detail::rounded_exp(detail::sum(lg, detail::log_precise(double(lambda_)))));
         }
         // λ² [Γ(1 + 2/k) − Γ(1 + 1/k)²]
         constexpr T variance() const noexcept
@@ -66,7 +66,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             auto const l2 = detail::log(detail::normalized(fp::ln2_hi, fp::ln2_lo));   // log log 2
-            return static_cast<T>(exp_of(detail::sum(fp::quotient_dd(l2, {double(k_), 0.0}), detail::log_precise(double(lambda_)))));
+            return static_cast<T>(detail::rounded_exp(detail::sum(fp::quotient_dd(l2, {double(k_), 0.0}), detail::log_precise(double(lambda_)))));
         }
         // λ ((k − 1)/k)^{1/k} si k > 1, 0 sinon
         constexpr T mode() const noexcept
@@ -77,7 +77,7 @@ namespace wsl
                 return 0;
             double const r = 1.0 / k;
             auto const l = detail::log1p_dd(-r);                            // log((k − 1)/k), au premier ordre en 1/k
-            return static_cast<T>(exp_of(detail::sum(fp::quotient_dd({l.hi, l.lo - inv_k_lo() / (1 - r)}, {k, 0.0}), detail::log_precise(double(lambda_)))));
+            return static_cast<T>(detail::rounded_exp(detail::sum(fp::quotient_dd({l.hi, l.lo - inv_k_lo() / (1 - r)}, {k, 0.0}), detail::log_precise(double(lambda_)))));
         }
         constexpr T skewness() const noexcept
         {
@@ -144,7 +144,7 @@ namespace wsl
                 return std::numeric_limits<T>::infinity();
             auto const [l_hi, l_lo] = detail::log1p_dd(-p);                  // < 0
             auto const ll = detail::log(detail::normalized(-l_hi, -l_lo));   // log(−log(1 − p))
-            return static_cast<T>(exp_of(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
+            return static_cast<T>(detail::rounded_exp(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
@@ -159,7 +159,7 @@ namespace wsl
                 return std::numeric_limits<T>::infinity();
             auto const [l_hi, l_lo] = detail::log_precise(q);               // λ (−log q)^{1/k}
             auto const ll = detail::log(detail::normalized(-l_hi, -l_lo));
-            return static_cast<T>(exp_of(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
+            return static_cast<T>(detail::rounded_exp(detail::sum(fp::quotient_dd(ll, {double(X.k_), 0.0}), detail::log_precise(double(X.lambda_)))));
         }
 
         template <std::uniform_random_bit_generator G>
@@ -185,14 +185,6 @@ namespace wsl
         // lgamma(1 + ε), ε = e + e_lo, en double-double.
         static constexpr detail::sd::double_double lgamma_1p(double e, double e_lo) noexcept { return detail::lgamma_one_plus(e, e_lo); }
 
-        static constexpr double exp_of(detail::sd::double_double l) noexcept
-        {
-            if (l.hi > 1400)
-                return std::numeric_limits<double>::infinity();
-            if (l.hi < -1500)
-                return 0;
-            return detail::rounded(detail::exp_scaled(l.hi, l.lo));
-        }
 
         // y = k log(x/λ) = log t, en double-double : log du rapport r = x/λ (en double-double),
         // par log1p(r − 1) près de 1 — précis relativement, car k l'amplifie.

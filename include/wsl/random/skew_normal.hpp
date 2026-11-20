@@ -21,10 +21,12 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
+#include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/gaussian.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>
-#include <wsl/random/von_mises.hpp>
 #include <wsl/special.hpp>
 
 #include <limits>
@@ -35,49 +37,6 @@ namespace wsl
 {
     namespace detail
     {
-        // Φ(w), w en double-double, à l'échelle (0 sous 2^-1100 environ).
-        constexpr scaled normal_lower_scaled(sd::double_double w) noexcept
-        {
-            auto const [x_hi, x_error] = sd::two_product(w.hi, inv_sqrt2_hi);   // erfc(−w/√2)/2
-            double const x_lo = x_error + (sd::fmul(w.lo, inv_sqrt2_hi) + sd::fmul(w.hi, inv_sqrt2_lo));
-            auto const [y_hi, y_lo] = sd::fast_two_sum(-x_hi, -x_lo);      // y = −w/√2
-            if (y_hi >= 27.0)                                              // erfc(27) < 2^-1060
-                return {0.0, 0.0, 0};
-            double const ay = magnitude(y_hi);
-            if (ay < 0.25)
-            {
-                if (ay < 0x1p-900)
-                    return {1.0, 0.0, -1};
-                auto const [e_hi, e_lo] = sd::erf_small(y_hi);
-                double const derivative = sd::fmul(sd::fmul(y_lo, sd::two_over_sqrt_pi_hi), 1.0 - sd::fmul(y_hi, y_hi));
-                auto const [s, s_error] = sd::two_sum(0.5, -sd::fmul(e_hi, 0.5));
-                auto const [h, l] = sd::fast_two_sum(s, s_error - sd::fmul(e_lo + derivative, 0.5));
-                return normalized(h, l);
-            }
-            if (y_hi <= -6.5)                                              // 1 − erfc(6,5)/2, erfc(6,5) < 2^-64
-            {
-                if (y_hi <= -27.0)
-                    return {1.0, 0.0, 0};
-                auto const [hi, lo, e] = sd::erfc_scaled(ay);
-                scaled const half{hi, lo, e - 1};
-                auto const [c_hi, c_lo] = unscaled(half);
-                auto const [s, s_error] = sd::two_sum(1.0, -c_hi);
-                auto const [h, l] = sd::fast_two_sum(s, s_error - c_lo);
-                return normalized(h, l);
-            }
-            double const shift = y_hi > 0 ? y_lo : -y_lo;
-            auto const [hi, lo, e] = sd::erfc_scaled(ay);
-            auto const [f_hi, f_lo] = sd::erfc_factor(ay);
-            (void)f_lo;
-            double const correction = sd::fmul(shift, sd::two_over_sqrt_pi_hi) / f_hi;
-            scaled const half = normalized(hi, lo - sd::fmul(hi + lo, correction), e - 1);
-            if (y_hi > 0)
-                return half;
-            auto const [c_hi, c_lo] = unscaled(half);
-            auto const [s, s_error] = sd::two_sum(1.0, -c_hi);
-            auto const [h, l] = sd::fast_two_sum(s, s_error - c_lo);
-            return normalized(h, l);
-        }
 
         // f(t) = 2 φ(t) Φ(αt), t en double-double, à l'échelle.
         constexpr scaled skew_normal_density(double alpha, sd::double_double t) noexcept
@@ -155,7 +114,7 @@ namespace wsl
                     auto const offset = mul(half, legendre.node[i]);
                     for (int side = 0; side < 2; ++side)
                     {
-                        scaled const v = skew_normal_density(alpha, sum(middle, side == 0 ? offset : neg_dd(offset)));
+                        scaled const v = skew_normal_density(alpha, sum(middle, side == 0 ? offset : negated(offset)));
                         if (v.hi != 0)
                             piece_sum = add_scaled(piece_sum, v * normalized(legendre.weight[i].hi, legendre.weight[i].lo));
                     }
@@ -195,13 +154,13 @@ namespace wsl
                 auto const one_a2 = detail::sum({1.0, 0.0}, a2);
                 detail::scaled const root = detail::sqrt(detail::normalized(one_a2.hi, one_a2.lo));
                 auto const d = detail::unscaled(detail::normalized(detail::magnitude(a), 0.0) / root);
-                delta_ = a < 0 ? detail::neg_dd(d) : d;
+                delta_ = a < 0 ? detail::negated(d) : d;
             }
             // √(2/π) = 2 · (1/√(2π))
             auto const m = detail::mul(delta_, {sd::fmul(detail::inv_sqrt_2pi_hi, 2.0), sd::fmul(detail::inv_sqrt_2pi_lo, 2.0)});
             mu_z_ = m;
             // 1 − 2δ²/π = 1 − μ_z²
-            variance_z_ = detail::sum({1.0, 0.0}, detail::neg_dd(detail::mul(m, m)));
+            variance_z_ = detail::sum({1.0, 0.0}, detail::negated(detail::mul(m, m)));
         }
 
         constexpr T location() const noexcept { return xi_; }
@@ -269,7 +228,7 @@ namespace wsl
             l = detail::sum(l, {-detail::half_log_2pi_hi, -detail::half_log_2pi_lo});
             l = detail::sum(l, detail::log(phi));
             auto const lw = detail::log_precise(double(X.omega_));
-            l = detail::sum(l, detail::neg_dd(lw));
+            l = detail::sum(l, detail::negated(lw));
             return static_cast<T>(l.hi + l.lo);
         }
         friend constexpr T cdf(skew_normal const& X, T x) noexcept { return X.distribution(x, false); }
@@ -344,10 +303,10 @@ namespace wsl
                 detail::scaled const f = detail::skew_normal_density(a, z);
                 if (value.hi == 0 || f.hi == 0)
                     return s;
-                auto const h = detail::sum(detail::log(value), detail::neg_dd(log_t));
+                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
                 auto const r = detail::unscaled(value / f);
                 auto const d = detail::mul(h, r);                           // F : z − h F/f ; S : z + h S/f
-                s.dz = upper ? d : detail::neg_dd(d);
+                s.dz = upper ? d : detail::negated(d);
                 s.residual = detail::magnitude(h.hi);
                 s.finite = detail::is_finite(s.dz.hi);
                 return s;

@@ -103,7 +103,7 @@ namespace wsl
                 return k == 0 ? 0.0 : -std::numeric_limits<double>::infinity();
             auto e = X.log_mass(k);
             if (k != 0)
-                e = detail::add(e, detail::log(X.prefactor(k)));
+                e = detail::sum(e, detail::log(X.prefactor(k)));
             return e.hi + e.lo;
         }
 
@@ -187,10 +187,10 @@ namespace wsl
             auto const np = detail::mul({n_hi, n_lo}, {p_, 0.0});
             auto const nq = detail::mul({n_hi, n_lo}, {q, q_error});
             auto e = detail::stirling_error(n_hi, n_lo);
-            e = detail::add(e, detail::negated(detail::stirling_error(r_)));
-            e = detail::add(e, detail::negated(detail::stirling_error(x)));
-            e = detail::add(e, detail::negated(detail::deviance(r_, np.hi, np.lo)));
-            e = detail::add(e, detail::negated(detail::deviance(x, nq.hi, nq.lo)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(r_)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(x)));
+            e = detail::sum(e, detail::negated(detail::deviance(r_, np.hi, np.lo)));
+            e = detail::sum(e, detail::negated(detail::deviance(x, nq.hi, nq.lo)));
             return e;
         }
 

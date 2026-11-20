@@ -41,50 +41,6 @@ namespace wsl
     {
         inline constexpr int mills_order = 90;                              // départ de Miller
 
-        constexpr sd::double_double neg(sd::double_double v) noexcept { return {-v.hi, -v.lo}; }
-        constexpr sd::double_double times_double(sd::double_double v, double d) noexcept { return mul(v, {d, 0.0}); }
-
-        // a + b, a, b >= 0 à l'échelle (zéro : hi = 0).
-        constexpr scaled scaled_sum(scaled const& a, scaled const& b) noexcept
-        {
-            if (a.hi == 0)
-                return b;
-            if (b.hi == 0)
-                return a;
-            scaled const& big = a.e >= b.e ? a : b;
-            scaled const& small = a.e >= b.e ? b : a;
-            if (big.e - small.e > 120)
-                return big;
-            int const shift = small.e - big.e;
-            auto const s = sum({big.hi, big.lo}, {sd::scale_by_power_of_two(small.hi, shift), sd::scale_by_power_of_two(small.lo, shift)});
-            return normalized(s.hi, s.lo, big.e);
-        }
-
-        // a − b, a > b >= 0 à l'échelle.
-        constexpr scaled scaled_difference(scaled const& a, scaled const& b) noexcept
-        {
-            if (b.hi == 0 || a.e - b.e > 120)
-                return a;
-            int const shift = b.e - a.e;
-            auto const s = sum({a.hi, a.lo}, {-sd::scale_by_power_of_two(b.hi, shift), -sd::scale_by_power_of_two(b.lo, shift)});
-            if (!(s.hi > 0))
-                return {0.0, 0.0, 0};
-            return normalized(s.hi, s.lo, a.e);
-        }
-
-        // 1 − v, 0 <= v <= 1 à l'échelle (v <= 0,7 en pratique : résultat normal).
-        constexpr scaled complement(scaled const& v) noexcept
-        {
-            if (v.hi == 0)
-                return {1.0, 0.0, 0};
-            auto const [w_hi, w_lo] = unscaled(v);
-            auto const [s, s_error] = sd::two_sum(1.0, -w_hi);
-            auto const [hi, lo] = sd::fast_two_sum(s, s_error - w_lo);
-            if (!(hi > 0))
-                return {0.0, 0.0, 0};
-            return normalized(hi, lo);
-        }
-
         // R(s) = e^{s²/2} Φ(−s) pour |s| < 4,5 : ½ Σ (s²/2)ⁿ/n! − (1/√(2π)) Σ s^{2n+1}/(2n+1)!!,
         // termes positifs en double-double (perte de 2²² au plus, à 4,5).
         constexpr sd::double_double mills_near_zero(sd::double_double s) noexcept
@@ -102,7 +58,7 @@ namespace wsl
                     break;
             }
             auto const odd = mul(o, {inv_sqrt_2pi_hi, inv_sqrt_2pi_lo});
-            return sum(times_double(e, 0.5), neg(odd));
+            return sum(times_double(e, 0.5), negated(odd));
         }
 
         // Coefficients de Taylor r_0 … r_{n−1} de R en a, 4,5 <= a < 2048 : récurrence
@@ -114,12 +70,12 @@ namespace wsl
             y[mills_order] = {1.0, 0.0};
             for (int k = mills_order; k >= 1; --k)
             {
-                y[k - 1] = sum(times_double(y[k + 1], static_cast<double>(k + 1)), neg(mul(a, y[k])));
+                y[k - 1] = sum(times_double(y[k + 1], static_cast<double>(k + 1)), negated(mul(a, y[k])));
                 if (magnitude(y[k - 1].hi) > 0x1p300)                       // reste sous 2^995 (produits de Dekker)
                     for (int j = k - 1; j <= mills_order; ++j)
                         y[j] = {sd::scale_by_power_of_two(y[j].hi, -300), sd::scale_by_power_of_two(y[j].lo, -300)};
             }
-            auto const norm = sd::quotient_dd({inv_sqrt_2pi_hi, inv_sqrt_2pi_lo}, sum(mul(a, y[0]), neg(y[1])));
+            auto const norm = sd::quotient_dd({inv_sqrt_2pi_hi, inv_sqrt_2pi_lo}, sum(mul(a, y[0]), negated(y[1])));
             for (int k = 0; k < n; ++k)
                 r[k] = mul(y[k], norm);
         }
@@ -173,7 +129,7 @@ namespace wsl
             else
                 mills_miller(a, r, count);
             // −Σ r_k δ^{k−1}, puis le facteur δ à l'échelle (δ minuscule : r_1 seul)
-            sd::double_double t = neg(r[1]);
+            sd::double_double t = negated(r[1]);
             if (delta.e > -500)
             {
                 auto const d = unscaled(delta);
@@ -181,7 +137,7 @@ namespace wsl
                 for (int k = 2; k < count; ++k)
                 {
                     power = mul(power, d);
-                    auto const term = neg(mul(r[k], power));
+                    auto const term = negated(mul(r[k], power));
                     t = sum(t, term);
                     if (magnitude(term.hi) < sd::fmul(magnitude(t.hi), 0x1p-82))
                         break;
@@ -224,7 +180,7 @@ namespace wsl
             if (a_mag.hi != 0)
             {
                 auto const u = unscaled(a_mag);
-                a = negative ? neg(u) : u;
+                a = negative ? negated(u) : u;
             }
             out.half_a2 = times_double(mul(a, a), 0.5);
             scaled const e = exp_scaled(-out.half_a2.hi, -out.half_a2.lo);
@@ -242,12 +198,12 @@ namespace wsl
             {
                 scaled const d = by_series ? mills_difference(a, delta) : scaled_difference(mills(a), r_b());
                 out.upper = d.hi == 0 ? d : e * d;
-                out.lower = complement(out.upper);
+                out.lower = scaled_complement(out.upper);
             }
             else
             {
-                out.lower = e * scaled_sum(mills(neg(a)), r_b());
-                out.upper = by_series ? e * mills_difference(a, delta) : complement(out.lower);
+                out.lower = e * add_scaled(mills(negated(a)), r_b());
+                out.upper = by_series ? e * mills_difference(a, delta) : scaled_complement(out.lower);
             }
             return out;
         }
@@ -302,7 +258,7 @@ namespace wsl
             {
                 auto const td = detail::unscaled(t);
                 auto const one_plus = detail::sum({1.0, 0.0}, detail::mul(td, td));
-                w = detail::scaled_sum(detail::sqrt(detail::normalized(one_plus.hi, one_plus.lo)), t);
+                w = detail::add_scaled(detail::sqrt(detail::normalized(one_plus.hi, one_plus.lo)), t);
             }
             return static_cast<T>(detail::rounded(detail::normalized(double(mu_), 0.0) / w));
         }
@@ -331,7 +287,7 @@ namespace wsl
                 return -std::numeric_limits<T>::infinity();
             auto const p = detail::inverse_gaussian_at(v, double(W.mu_), double(W.lambda_));
             auto l = detail::sum(detail::log(p.c_over_x), {-detail::half_log_2pi_hi, -detail::half_log_2pi_lo});
-            l = detail::sum(l, detail::neg(p.half_a2));
+            l = detail::sum(l, detail::negated(p.half_a2));
             return static_cast<T>(l.hi + l.lo);
         }
         friend constexpr T cdf(inverse_gaussian const& W, T x) noexcept { return W.distribution(x, false); }
@@ -390,7 +346,7 @@ namespace wsl
                 step s{upper ? -c : c, 0.0, false};
                 if (value.hi == 0 || !(p.half_a2.hi < 1500))
                     return s;
-                auto const h = detail::sum(detail::log(value), detail::neg(log_t));
+                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
                 detail::scaled const f = p.c_over_x * detail::exp_scaled(-p.half_a2.hi, -p.half_a2.lo)
                                        * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
                 double const slope = detail::rounded(f * detail::normalized(x, 0.0) / value);   // x f/V
@@ -445,7 +401,7 @@ namespace wsl
             detail::scaled const& value = upper ? p.upper : p.lower;
             if (value.hi == 0 || !(p.half_a2.hi < 1500))
                 return x;
-            auto const h = detail::sum(detail::log(value), detail::neg(log_t));
+            auto const h = detail::sum(detail::log(value), detail::negated(log_t));
             detail::scaled const f = p.c_over_x * detail::exp_scaled(-p.half_a2.hi, -p.half_a2.lo)
                                    * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
             double const slope = detail::rounded(f * detail::normalized(x, 0.0) / value);

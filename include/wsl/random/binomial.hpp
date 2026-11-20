@@ -32,13 +32,6 @@ namespace wsl
 {
     namespace detail
     {
-        constexpr sd::double_double add(sd::double_double a, sd::double_double b) noexcept
-        {
-            auto const [s, s_error] = sd::two_sum(a.hi, b.hi);
-            auto const [hi, lo] = sd::fast_two_sum(s, s_error + (a.lo + b.lo));
-            return {hi, lo};
-        }
-        constexpr sd::double_double negated(sd::double_double a) noexcept { return {-a.hi, -a.lo}; }
     }
 
     template <law_integer I = std::int64_t>
@@ -134,7 +127,7 @@ namespace wsl
                 return k == (X.p_ == 1 ? X.n_ : I(0)) ? 0.0 : -std::numeric_limits<double>::infinity();
             auto e = X.log_mass(k);
             if (k != 0 && k != X.n_)
-                e = detail::add(e, detail::log(X.prefactor(k)));
+                e = detail::sum(e, detail::log(X.prefactor(k)));
             return e.hi + e.lo;
         }
 
@@ -256,10 +249,10 @@ namespace wsl
             auto const [nq1, nq1_error] = detail::product(n, q);
             auto const [nq_hi, nq_lo] = sd::fast_two_sum(nq1, nq1_error + sd::fmul(n, q_error));
             auto e = detail::stirling_error(n);
-            e = detail::add(e, detail::negated(detail::stirling_error(x)));
-            e = detail::add(e, detail::negated(detail::stirling_error(y)));
-            e = detail::add(e, detail::negated(detail::deviance(x, np.hi, np.lo)));
-            e = detail::add(e, detail::negated(detail::deviance(y, nq_hi, nq_lo)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(x)));
+            e = detail::sum(e, detail::negated(detail::stirling_error(y)));
+            e = detail::sum(e, detail::negated(detail::deviance(x, np.hi, np.lo)));
+            e = detail::sum(e, detail::negated(detail::deviance(y, nq_hi, nq_lo)));
             return e;
         }
 

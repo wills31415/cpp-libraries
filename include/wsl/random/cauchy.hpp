@@ -17,6 +17,7 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>

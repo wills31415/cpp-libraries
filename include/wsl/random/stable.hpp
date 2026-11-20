@@ -27,14 +27,15 @@
 
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
+#include <wsl/random/detail/trigonometry.hpp>
+#include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/gaussian.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/loader.hpp>
 #include <wsl/random/exponential.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>
-#include <wsl/random/skew_normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/random/von_mises.hpp>
 #include <wsl/special.hpp>
 
 #include <limits>
@@ -45,38 +46,6 @@ namespace wsl
 {
     namespace detail
     {
-        inline constexpr sd::double_double half_pi_dd{0x1.921fb54442d18p+0, 0x1.1a62633145c07p-54};
-
-        // sin u, 0 <= u <= π (+ε), en double-double.
-        constexpr sd::double_double sin_any(sd::double_double u) noexcept
-        {
-            if (u.hi <= half_pi_dd.hi)
-                return sine_dd(u.hi, u.lo);
-            auto const r = sum({pi_hi, pi_lo}, neg_dd(u));
-            return sine_dd(r.hi, r.lo);
-        }
-
-        // atan v, en double-double.
-        constexpr sd::double_double atan_dd(sd::double_double v) noexcept
-        {
-            bool const negative = v.hi < 0;
-            if (negative)
-                v = neg_dd(v);
-            sd::double_double r{};
-            if (v.hi < 0x1p-27)
-                r = {v.hi, v.lo - sd::fmul(sd::fmul(v.hi, v.hi), v.hi) / 3};
-            else if (v.hi <= 1)
-                r = sd::atan_kernel(v.hi, v.lo);
-            else
-            {
-                auto const w = sd::quotient_dd({1.0, 0.0}, v);
-                sd::double_double const a = w.hi < 0x1p-27 ? sd::double_double{w.hi, w.lo - sd::fmul(sd::fmul(w.hi, w.hi), w.hi) / 3} : sd::atan_kernel(w.hi, w.lo);
-                r = sum(half_pi_dd, neg_dd(a));
-            }
-            return negative ? neg_dd(r) : r;
-        }
-
-        constexpr sd::double_double log_dd_positive(sd::double_double v) noexcept { return log(normalized(v.hi, v.lo)); }
 
         // Noyau de Nolan pour la forme réduite, β fixé (déjà réfléchi si y < 0).
         struct stable_kernel
@@ -98,23 +67,23 @@ namespace wsl
                 }
                 auto const u = mul({sd::fmul(pi_hi, 0.5), sd::fmul(pi_lo, 0.5)}, {a, 0.0});   // πα/2 dans (0, π)
                 auto const s = sin_any(u);
-                auto const cu = sum(half_pi_dd, neg_dd(u));
+                auto const cu = sum(half_pi_dd, negated(u));
                 auto const co = sine_dd(cu.hi, cu.lo);                     // cos(πα/2)
                 auto const t = mul({b, 0.0}, sd::quotient_dd(s, co));      // β tan(πα/2)
                 auto const at = atan_dd(t);                                 // αθ₀
                 theta0 = sd::quotient_dd(at, {a, 0.0});
                 top = sum(half_pi_dd, theta0);
-                c = mul(sum(half_pi_dd, neg_dd(theta0)), {inv_pi_hi, inv_pi_lo});
+                c = mul(sum(half_pi_dd, negated(theta0)), {inv_pi_hi, inv_pi_lo});
                 // log cos(αθ₀) = −½ log(1 + t²)
                 double const mt = magnitude(t.hi);
                 sd::double_double l{};
                 if (mt == 0)
                     l = {0.0, 0.0};
                 else if (mt < 0x1p500)
-                    l = log_dd_positive(sum({1.0, 0.0}, mul(t, t)));
+                    l = log_positive(sum({1.0, 0.0}, mul(t, t)));
                 else
                 {
-                    auto const lt = log_dd_positive(t.hi > 0 ? t : neg_dd(t));
+                    auto const lt = log_positive(t.hi > 0 ? t : negated(t));
                     l = {sd::fmul(lt.hi, 2.0), sd::fmul(lt.lo, 2.0)};
                 }
                 log_cos_a0 = {sd::fmul(l.hi, -0.5), sd::fmul(l.lo, -0.5)};
@@ -129,24 +98,24 @@ namespace wsl
                 if (one)
                 {
                     auto const sp = sin_any(phi);                           // cos θ = sin φ
-                    auto const hc = sum(half_pi_dd, neg_dd(phi));
+                    auto const hc = sum(half_pi_dd, negated(phi));
                     auto const cp = sine_dd(hc.hi, hc.lo);                  // cos φ ; tan θ = −cos φ/sin φ
                     auto const lin = sum(mul(sum({1.0, 0.0}, {-beta, 0.0}), half_pi_dd), mul({beta, 0.0}, phi));   // π/2 + βθ = (1 − β)π/2 + βφ
-                    auto l = sum(sum({sd::ln2_hi, sd::ln2_lo}, {-sd::log_pi_hi, -sd::log_pi_lo}), log_dd_positive(lin));   // log(2/π) + log(π/2 + βθ)
-                    l = sum(l, neg_dd(log_dd_positive(sp)));
-                    auto const tan_t = neg_dd(sd::quotient_dd(cp, sp));
+                    auto l = sum(sum({sd::ln2_hi, sd::ln2_lo}, {-sd::log_pi_hi, -sd::log_pi_lo}), log_positive(lin));   // log(2/π) + log(π/2 + βθ)
+                    l = sum(l, negated(log_positive(sp)));
+                    auto const tan_t = negated(sd::quotient_dd(cp, sp));
                     l = sum(l, sd::quotient_dd(mul(lin, tan_t), {beta, 0.0}));
                     return sum(l, shift);
                 }
                 auto const sa = sin_any(mul({alpha, 0.0}, phi));           // sin αφ
-                auto const ct = sin_any(sum(top, neg_dd(phi)));            // cos θ = sin(Φ − φ)
-                auto const arg = sum(sum(half_pi_dd, neg_dd(theta0)), neg_dd(mul(am1, phi)));   // π/2 − θ₀ − (α − 1)φ
+                auto const ct = sin_any(sum(top, negated(phi)));            // cos θ = sin(Φ − φ)
+                auto const arg = sum(sum(half_pi_dd, negated(theta0)), negated(mul(am1, phi)));   // π/2 − θ₀ − (α − 1)φ
                 auto const cm = sin_any(arg);                               // cos(θ₀ + (α − 1)φ)
-                auto const lct = log_dd_positive(ct);
+                auto const lct = log_positive(ct);
                 auto l = mul(a2, log_cos_a0);
-                l = sum(l, mul(a1, sum(lct, neg_dd(log_dd_positive(sa)))));
-                l = sum(l, log_dd_positive(cm));
-                l = sum(l, neg_dd(lct));
+                l = sum(l, mul(a1, sum(lct, negated(log_positive(sa)))));
+                l = sum(l, log_positive(cm));
+                l = sum(l, negated(lct));
                 return sum(l, shift);
             }
         };
@@ -175,7 +144,7 @@ namespace wsl
                     return normalized(-e.hi, -e.lo);
                 }
                 auto const e = unscaled(exp_scaled(-g.hi, -g.lo));
-                auto const r = sum({1.0, 0.0}, neg_dd(e));
+                auto const r = sum({1.0, 0.0}, negated(e));
                 return normalized(r.hi, r.lo);
             }
             if (lg.hi > 7.3)                                                // g > 1480
@@ -190,92 +159,6 @@ namespace wsl
             return kind == stable_integrand::survival_like ? e : gs * e;
         }
 
-        // ∫_a^b, Gauss–Legendre à 12 nœuds sur [a, b] (à l'échelle).
-        template <class F>
-        constexpr scaled legendre12(F const& f, sd::double_double a, sd::double_double b) noexcept
-        {
-            auto const width = sum(b, neg_dd(a));
-            sd::double_double const half{sd::fmul(width.hi, 0.5), sd::fmul(width.lo, 0.5)};
-            if (!(half.hi > 0))
-                return {0.0, 0.0, 0};
-            auto const middle = sum(a, half);
-            scaled total{0.0, 0.0, 0};
-            for (int i = 0; i < legendre_order / 2; ++i)
-            {
-                auto const offset = mul(half, legendre.node[i]);
-                scaled const w = normalized(legendre.weight[i].hi, legendre.weight[i].lo);
-                scaled const v1 = f(sum(middle, offset)), v2 = f(sum(middle, neg_dd(offset)));
-                if (v1.hi != 0)
-                    total = add_scaled(total, v1 * w);
-                if (v2.hi != 0)
-                    total = add_scaled(total, v2 * w);
-            }
-            return total.hi == 0 ? total : total * normalized(half.hi, half.lo);
-        }
-
-        // a − b, a >= b >= 0 à l'échelle.
-        constexpr scaled scaled_difference_any(scaled const& a, scaled const& b) noexcept
-        {
-            if (b.hi == 0 || a.e - b.e > 120)
-                return a;
-            int const shift = b.e - a.e;
-            auto const s = sum({a.hi, a.lo}, {-sd::scale_by_power_of_two(b.hi, shift), -sd::scale_by_power_of_two(b.lo, shift)});
-            if (!(s.hi > 0))
-                return {0.0, 0.0, 0};
-            return normalized(s.hi, s.lo, a.e);
-        }
-
-        // |a − b| <= 2^-k max(|a|, |b|) (à l'échelle, positifs) ?
-        constexpr bool scaled_close(scaled const& a, scaled const& b, scaled const& reference, int k) noexcept
-        {
-            if (a.hi == 0 && b.hi == 0)
-                return true;
-            scaled const& big = a.hi == 0 ? b : b.hi == 0 ? a : (a.e > b.e || (a.e == b.e && a.hi >= b.hi) ? a : b);
-            scaled const& small = &big == &a ? b : a;
-            if (small.hi == 0)
-                return reference.hi != 0 && big.e < reference.e - k;
-            scaled const d = scaled_difference_any(big, small);
-            if (d.hi == 0)
-                return true;
-            scaled const& ref = reference.hi == 0 ? big : reference;
-            return d.e < ref.e - k;
-        }
-
-        // ∫_a^b f adaptatif : un intervalle est accepté quand Q(a, b) et Q(a, m) + Q(m, b) concordent à
-        // 2^-82 près de max(leur valeur, reference) (reference : la masse déjà intégrée ailleurs).
-        template <class F>
-        constexpr scaled adaptive_integral(F const& f, sd::double_double a, sd::double_double b, scaled const& reference) noexcept
-        {
-            struct interval
-            {
-                sd::double_double a, b;
-                scaled q;
-                int depth;
-            };
-            interval stack[128]{};
-            int top = 0;
-            stack[top++] = {a, b, legendre12(f, a, b), 0};
-            scaled total{0.0, 0.0, 0};
-            int evaluations = 0;
-            while (top > 0)
-            {
-                interval const it = stack[--top];
-                auto const width = sum(it.b, neg_dd(it.a));
-                auto const m = sum(it.a, {sd::fmul(width.hi, 0.5), sd::fmul(width.lo, 0.5)});
-                scaled const left = legendre12(f, it.a, m), right = legendre12(f, m, it.b);
-                scaled const both = add_scaled(left, right);
-                ++evaluations;
-                scaled const ref = add_scaled(reference, add_scaled(total, both));
-                if (scaled_close(it.q, both, ref, 82) || it.depth >= 50 || top + 2 > 128 || evaluations > 2000)
-                {
-                    total = add_scaled(total, both);
-                    continue;
-                }
-                stack[top++] = {m, it.b, right, it.depth + 1};
-                stack[top++] = {it.a, m, left, it.depth + 1};
-            }
-            return total;
-        }
     }
 
     template <law_real T = double>
@@ -353,7 +236,7 @@ namespace wsl
             detail::scaled const f = X.density(y);
             if (f.hi == 0)
                 return -std::numeric_limits<T>::infinity();
-            auto const l = detail::sum(detail::log(f), detail::neg_dd(detail::log_precise(double(X.gamma_))));
+            auto const l = detail::sum(detail::log(f), detail::negated(detail::log_precise(double(X.gamma_))));
             return static_cast<T>(l.hi + l.lo);
         }
         friend constexpr T cdf(stable const& X, T x) noexcept { return X.distribution(x, false); }
@@ -403,7 +286,7 @@ namespace wsl
         {
             auto y = detail::standardize(x, double(delta_), double(gamma_));
             if (alpha_ == 1 && beta_ != 0)
-                y = detail::sum(y, detail::neg_dd(log_shift_));
+                y = detail::sum(y, detail::negated(log_shift_));
             return y;
         }
 
@@ -415,32 +298,25 @@ namespace wsl
             if (!(y.hi == y.hi))
                 return {0.0, 0.0, 0};
             detail::scaled const inv_pi = detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo);
-            auto const complement = [](detail::scaled const& v) {
-                if (v.hi == 0)
-                    return detail::scaled{1.0, 0.0, 0};
-                auto const [v_hi, v_lo] = detail::unscaled(v);
-                auto const r = detail::sum({1.0, 0.0}, {-v_hi, -v_lo});
-                return r.hi > 0 ? detail::normalized(r.hi, r.lo) : detail::scaled{0.0, 0.0, 0};
-            };
             if (a == 2)                                                     // normale de variance 2 : Φ(±y/√2)
             {
                 auto const w = detail::mul(y, {detail::inv_sqrt2_hi, detail::inv_sqrt2_lo});
-                return detail::normal_lower_scaled(upper ? detail::neg_dd(w) : w);
+                return detail::normal_lower_scaled(upper ? detail::negated(w) : w);
             }
             if (a == 1 && b == 0)                                           // Cauchy : (1/π) atan(1/|y|) pour la queue
             {
                 bool const negative = y.hi < 0;
                 if (y.hi == 0)
                     return {1.0, 0.0, -1};
-                auto const ay = negative ? detail::neg_dd(y) : y;
+                auto const ay = negative ? detail::negated(y) : y;
                 auto const tail = detail::mul(detail::atan_dd(sd::quotient_dd({1.0, 0.0}, ay)), {detail::inv_pi_hi, detail::inv_pi_lo});
                 detail::scaled const t = tail.hi > 0 ? detail::normalized(tail.hi, tail.lo) : detail::scaled{0.0, 0.0, 0};
-                return negative != upper ? t : complement(t);
+                return negative != upper ? t : detail::scaled_complement(t);
             }
             if (a == 1)                                                     // β > 0 après réflexion : F = A, S = B
             {
                 bool const reflect = b < 0;
-                auto const yy = reflect ? detail::neg_dd(y) : y;
+                auto const yy = reflect ? detail::negated(y) : y;
                 bool const want_upper = upper != reflect;
                 auto const shift = sd::quotient_dd(detail::mul(yy, {detail::pi_hi, detail::pi_lo}), {-sd::fmul(2.0, positive_.beta), 0.0});   // −πy/(2β)
                 detail::scaled const I = integral(positive_, want_upper ? detail::stable_integrand::complement_like : detail::stable_integrand::survival_like, shift);
@@ -448,12 +324,12 @@ namespace wsl
             }
             bool const negative = y.hi < 0;
             auto const& k = negative ? negative_ : positive_;
-            auto const yy = negative ? detail::neg_dd(y) : y;
+            auto const yy = negative ? detail::negated(y) : y;
             bool const want_upper = upper != negative;                      // part voulue pour yy >= 0
             detail::scaled const c = k.c.hi > 0 ? detail::normalized(k.c.hi, k.c.lo) : detail::scaled{0.0, 0.0, 0};
             if (yy.hi == 0)
-                return want_upper ? complement(c) : c;
-            auto const shift = detail::mul(k.a1, detail::log_dd_positive(yy));
+                return want_upper ? detail::scaled_complement(c) : c;
+            auto const shift = detail::mul(k.a1, detail::log_positive(yy));
             // α < 1 : F = c + A, S = B ; α > 1 : F = c + B, S = A
             bool const use_a = (a < 1) != want_upper;
             detail::scaled I = integral(k, use_a ? detail::stable_integrand::survival_like : detail::stable_integrand::complement_like, shift);
@@ -489,7 +365,7 @@ namespace wsl
             if (a == 1)
             {
                 bool const reflect = b < 0;
-                auto const yy = reflect ? detail::neg_dd(y) : y;
+                auto const yy = reflect ? detail::negated(y) : y;
                 double const bk = positive_.beta;
                 auto const shift = sd::quotient_dd(detail::mul(yy, {detail::pi_hi, detail::pi_lo}), {-sd::fmul(2.0, bk), 0.0});
                 detail::scaled const I = integral(positive_, detail::stable_integrand::density, shift);
@@ -497,19 +373,19 @@ namespace wsl
             }
             bool const negative = y.hi < 0;
             auto const& k = negative ? negative_ : positive_;
-            auto const yy = negative ? detail::neg_dd(y) : y;
+            auto const yy = negative ? detail::negated(y) : y;
             if (yy.hi == 0)                                                 // Γ(1 + 1/α) cos θ₀ cos(αθ₀)^{1/α}/π
             {
                 if (!(k.top.hi > 0) || !(k.c.hi > 0))                       // α < 1, |β| = 1 : bord du support, densité nulle
                     return {0.0, 0.0, 0};
                 auto const arg = detail::sum({1.0, 0.0}, sd::quotient_dd({1.0, 0.0}, {a, 0.0}));   // 1 + 1/α en double-double
                 auto const lg = detail::log_gamma(arg.hi, arg.lo);
-                auto const ct = detail::sin_any(detail::sum(detail::half_pi_dd, detail::neg_dd(k.theta0)));
-                auto l = detail::sum(lg, detail::log_dd_positive(ct));
+                auto const ct = detail::sin_any(detail::sum(detail::half_pi_dd, detail::negated(k.theta0)));
+                auto l = detail::sum(lg, detail::log_positive(ct));
                 l = detail::sum(l, sd::quotient_dd(k.log_cos_a0, {a, 0.0}));
                 return detail::exp_scaled(l.hi, l.lo) * detail::normalized(detail::inv_pi_hi, detail::inv_pi_lo);
             }
-            auto const shift = detail::mul(k.a1, detail::log_dd_positive(yy));
+            auto const shift = detail::mul(k.a1, detail::log_positive(yy));
             detail::scaled const I = integral(k, detail::stable_integrand::density, shift);
             if (I.hi == 0)
                 return I;
@@ -528,7 +404,7 @@ namespace wsl
             auto const f = [&](sd::double_double phi) { return detail::stable_value(kind, k.log_g(phi, shift)); };
             // bornes ouvertes : on reste à 2^-60 Φ des extrémités pour la recherche du pic
             sd::double_double const eps{sd::fmul(k.top.hi, 0x1p-60), 0.0};
-            auto const lo_end = eps, hi_end = detail::sum(k.top, detail::neg_dd(eps));
+            auto const lo_end = eps, hi_end = detail::sum(k.top, detail::negated(eps));
             double const l0 = k.log_g(lo_end, shift).hi, l1 = k.log_g(hi_end, shift).hi;
             if ((l0 > 0) == (l1 > 0) || !(l0 == l0) || !(l1 == l1))
                 return detail::adaptive_integral(f, {0.0, 0.0}, k.top, {0.0, 0.0, 0});
@@ -536,7 +412,7 @@ namespace wsl
             bool const increasing = l1 > l0;
             for (int i = 0; i < 80; ++i)
             {
-                auto const w = detail::sum(b, detail::neg_dd(a));
+                auto const w = detail::sum(b, detail::negated(a));
                 auto const m = detail::sum(a, {sd::fmul(w.hi, 0.5), sd::fmul(w.lo, 0.5)});
                 double const lm = k.log_g(m, shift).hi;
                 if ((lm > 0) == increasing)
@@ -566,7 +442,7 @@ namespace wsl
             }
             detail::scaled outer{0.0, 0.0, 0};                             // masse déjà intégrée (référence des tolérances)
             auto const side = [&](sd::double_double end) {
-                auto const span = detail::sum(end, detail::neg_dd(a));
+                auto const span = detail::sum(end, detail::negated(a));
                 bool const forward = span.hi > 0;
                 double const full = detail::magnitude(span.hi);
                 detail::scaled total{0.0, 0.0, 0};
@@ -625,9 +501,9 @@ namespace wsl
                 detail::scaled const f = density(y);
                 if (value.hi == 0 || f.hi == 0)
                     return s;
-                auto const h = detail::sum(detail::log(value), detail::neg_dd(log_t));
+                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
                 auto const d = detail::mul(h, detail::unscaled(value / f));
-                s.dy = upper ? d : detail::neg_dd(d);
+                s.dy = upper ? d : detail::negated(d);
                 s.residual = detail::magnitude(h.hi);
                 s.finite = detail::is_finite(s.dy.hi);
                 return s;
