@@ -31,7 +31,7 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 - Publication : `tools/release.sh X.Y.Z` (voir README). Ne publier, pousser ou
   taguer qu'à la demande de l'utilisateur.
 - CI (`.github/workflows/ci.yml`) : GCC 14 et Clang 18 (Ubuntu 24.04) et Apple Clang
-  (macOS), Debug (-O1, ASan + UBSan) + Release, configurations FMA en Release seulement, ccache, `-DWSL_LIBRARIES_WERROR=ON`, plus `tests/package/`.
+  (macOS), Debug (-O1, ASan + UBSan) + Release, configurations FMA en Release seulement, `-DWSL_LIBRARIES_WERROR=ON`, plus `tests/package/`.
   Reproduire la partie Linux en local : conteneur `ubuntu:24.04` avec
   `cmake make g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
   Y compiler les tests **optimisés** (`-O2`, comme les jobs release) : certains
