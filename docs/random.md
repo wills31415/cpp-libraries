@@ -191,11 +191,11 @@ Quand aucun n'est connu, le meilleur algorithme est utilisé et marqué `approxi
 
 | Construction | Écriture | Ce qui est hérité |
 |---|---|---|
-| Image affine | `2 * X + 1`, `-X`, `X / 4`, `wsl::random::affine(X, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
-| Troncature, conditionnement | `wsl::random::truncate(X, a, b)` | densité, répartition, quantiles renormalisés |
+| Image affine (mesure image par x ↦ ax + b) | `wsl::random::affine(P, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
+| Troncature, conditionnement | `wsl::random::truncate(P, {.lower, .upper})` (bornes facultatives) | densité, répartition, quantiles renormalisés |
 | Mélange | `wsl::random::mixture(wsl::random::weighted(w1, X1), wsl::random::weighted(w2, X2), …)` | densité ou masse, répartition, quantiles, moments |
-| Somme indépendante | `X + Y`, `X - Y` | identités (normale, Cauchy, Poisson, χ² ; gamma de même intensité, binomiales de même p) ; sinon moments par les cumulants, et pour les lois discrètes masse, répartition, quantile par convolution exacte |
-| Loi jointe (produit) | `wsl::random::independent(X, Y, …)` | densité ou masse, répartition et survie jointes, entropie, moyennes |
+| Convolution (loi de X + Y, X ⫫ Y) | `wsl::random::convolution(P, Q)` ; différence : `convolution(P, affine(Q, {.scale = -1}))` | identités (normale, Cauchy, Poisson, χ² ; gamma de même intensité, binomiales de même p) ; sinon moments par les cumulants, et pour les lois discrètes masse, répartition, quantile par convolution exacte |
+| Mesure produit (loi jointe de X ⫫ Y) | `wsl::random::product_measure(P, Q, …)` | densité ou masse, répartition et survie jointes, entropie, moyennes |
 | Image par une fonction | `wsl::random::pushforward(X, f)` | tirage ; avec `wsl::random::increasing(f, f⁻¹ [, (f⁻¹)'])` ou `decreasing` : répartition, quantiles, médiane, densité |
 
 Les identités connues sont résolues **à la compilation** : `2 * normal + 1` a pour type
@@ -505,7 +505,7 @@ perdraient tout pour q minuscule.
 
 | Famille | aX + b |
 |---|---|
-| normale, Cauchy, Laplace, logistique, uniforme | même famille (`affine_closure`), type conservé ; paramètres arrondis une fois par opération (`wsl::random::affine(X, {a, b})` : une fois en tout) |
+| normale, Cauchy, Laplace, logistique, uniforme | même famille (`affine_closure`), type conservé ; paramètres arrondis une fois par appel de `affine` |
 | exponentielle, gamma, Weibull, Pareto, log-normale | `affine_image<L>`, mais pour a > 0, b = 0 toutes les fonctions sont celles de la loi de la famille (`scale_closure`) : mêmes bits |
 | autres | `affine_image<L>` : z = (y − b)/a arrondi une fois, cdf/ccdf échangées si a < 0, quantile a·Q(p) + b ou a·cQ(p) + b en un arrondi, moments a·m + b, a²v, ±asymétrie, H + log a |
 
@@ -514,7 +514,7 @@ des fonctions libres trouvées par ADL : une loi de l'utilisateur peut les fourn
 
 ### Troncature
 
-`truncate(X, a, b)`, loi de X sachant a <= X <= b. Masse, répartition et survie sont des
+`truncate(P, {.lower = a, .upper = b})`, loi de X sachant a <= X <= b (bornes absentes : ∓∞). Masse, répartition et survie sont des
 différences de F ou de S de X choisies point par point (deux termes <= ½ dès que
 possible) ; les cibles des quantiles sont des sommes de positifs, F(a) + p·m ou
 S(b) + (1 − p)·m, résolues par `quantile` ou `cquantile` de X : N | N >= 10 (masse
@@ -559,8 +559,10 @@ sous-normaux (N tronquée au-delà de |x| = 38) perd ses bits.
 
 ### Sommes indépendantes
 
-`X + Y` est la loi de X + Y, X et Y **indépendantes** (`X + X` : deux copies
-indépendantes). `X - Y` = `X + (-Y)` pour des lois réelles. Identités par
+`convolution(P, Q)` est la loi de X + Y, X ~ P et Y ~ Q **indépendantes** (`convolution(P, P)` :
+deux copies indépendantes). Différence : `convolution(P, affine(Q, {.scale = -1}))`. Les
+lois n'ont pas d'opérateurs arithmétiques : `X + Y` est réservé aux variables aléatoires
+(chantier à venir), où `X + X` vaut 2X. Identités par
 `sum_closure(X, Y)` (ADL) :
 
 | Somme | Résultat |
@@ -568,8 +570,8 @@ indépendantes). `X - Y` = `X + (-Y)` pour des lois réelles. Identités par
 | normale + normale | `normal`, μ₁ + μ₂, √(σ₁² + σ₂²) par `hypot` (un arrondi chacun) |
 | Cauchy + Cauchy | `cauchy`, x₁ + x₂, γ₁ + γ₂ |
 | Poisson + Poisson, χ² + χ² | `poisson`, `chi_squared` |
-| gamma + gamma (même intensité, paramétrisations mêlées comprises), exponentielle + exponentielle ou gamma | `independent_sum`, fonctions de la gamma de forme a + b |
-| binomiale + binomiale (même p) | `independent_sum`, fonctions de la binomiale n₁ + n₂ |
+| gamma + gamma (même intensité, paramétrisations mêlées comprises), exponentielle + exponentielle ou gamma | `convolution_law`, fonctions de la gamma de forme a + b |
+| binomiale + binomiale (même p) | `convolution_law`, fonctions de la binomiale n₁ + n₂ |
 
 L'identité conditionnelle est testée à la construction (`S.family()`) : intensités
 **exactement** égales (θλ = 1 exactement entre échelle et intensité). Sans identité :
@@ -587,7 +589,7 @@ paramètres).
 
 ### Loi jointe
 
-`wsl::random::independent(X₁, …, Xₙ)`, `value_type` = `std::tuple` : densité (toutes continues)
+`wsl::random::product_measure(P₁, …, Pₙ)` (type et CTAD), `value_type` = `std::tuple` : densité (toutes continues)
 ou masse (toutes discrètes) produit en un arrondi, log-densité somme, répartition et
 survie jointes produits, entropie somme ; tirage des composantes dans l'ordre, exact si
 chacune l'est.

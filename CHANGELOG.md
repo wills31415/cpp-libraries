@@ -47,6 +47,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `uniform_below(n, g)`, `uniform_int(a, b, g)`, `bernoulli_trial(p, g)`,
   `bernoulli_trial(num, den, g)` (`random_bits(g)`, `uniform_real<T>(g)` et `shuffle(range, g)`
   inchangés). Mêmes tirages.
+- Rupture : plus d'opérateurs arithmétiques sur les lois (réservés aux futures variables
+  aléatoires) ; noms de la théorie de la mesure : `affine(P, {.scale, .shift})` remplace
+  `a * X + b`, `-X`, `X / a` ; `convolution(P, Q)` remplace `X + Y` (type
+  `convolution_law`, ex-`independent_sum` ; différence par `convolution(P, affine(Q,
+  {.scale = -1}))`) ; `product_measure(P, Q, …)` remplace `independent` ;
+  `truncate(P, {.lower, .upper})`, bornes nommées et facultatives, remplace
+  `truncate(X, a, b)`. En-têtes `convolution.hpp` et `product_measure.hpp` (ex-`sum.hpp`,
+  `independent.hpp`). Mêmes résultats.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

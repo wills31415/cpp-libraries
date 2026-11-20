@@ -32,7 +32,7 @@
 #include <wsl/random/multivariate.hpp>
 #include <wsl/random/permutations.hpp>
 #include <wsl/random/process.hpp>
-#include <wsl/random/sum.hpp>
+#include <wsl/random/convolution.hpp>
 #include <wsl/random/uniform.hpp>
 #include <wsl/special.hpp>
 

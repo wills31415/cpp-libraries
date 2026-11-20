@@ -1,21 +1,22 @@
 #pragma once
 
-// Algèbre des lois : somme de deux variables indépendantes (voir docs/random.md §4.6).
+// Algèbre des lois : convolution P ∗ Q, loi de X + Y pour X ~ P et Y ~ Q indépendantes
+// (voir docs/random.md §4.6).
 //
-//   auto S = wsl::random::normal({.mean = 1, .sd = 3}) + wsl::random::normal({.mean = 2, .sd = 4});   // wsl::random::normal : N(3, 5)
-//   auto P = wsl::random::poisson({.mean = 2.0}) + wsl::random::binomial({.trials = 10, .p = 0.3});  // convolution
+//   auto S = wsl::random::convolution(wsl::random::normal({.mean = 1, .sd = 3}), wsl::random::normal({.mean = 2, .sd = 4}));   // normal : N(3, 5)
+//   auto P = wsl::random::convolution(wsl::random::poisson({.mean = 2.0}), wsl::random::binomial({.trials = 10, .p = 0.3}));  // convolution_law
 //   P.pmf(4); P.cdf(6); P.quantile(0.9); P.mean(); P(g);
 //
-// X + Y est la loi de X + Y, X et Y indépendantes : X + X est donc la somme de deux
-// copies indépendantes (de loi celle de 2X seulement pour une loi stable).
+// convolution(P, P) est la loi de la somme de deux copies indépendantes (celle de 2X
+// seulement pour une loi stable). Différence : convolution(P, affine(Q, {.scale = -1})).
 //
 // Identités, par la fonction sum_closure(X, Y) trouvée par ADL :
-//   - rendant une loi : toujours vraie, X + Y est de ce type (normale + normale,
+//   - rendant une loi : toujours vraie, la convolution est de ce type (normale + normale,
 //     Cauchy + Cauchy, Poisson + Poisson, χ² + χ²), paramètres arrondis une fois ;
 //   - rendant std::optional<R> : vraie sous condition (gamma + gamma de même
-//     intensité, exponentielles, binomiales de même p) ; X + Y est independent_sum,
+//     intensité, exponentielles, binomiales de même p) ; la convolution est convolution_law,
 //     dont les fonctions sont celles de R quand la condition tient.
-// Sinon independent_sum compose : moments par les cumulants (κ₁, κ₂, κ₃, κ₄
+// Sinon convolution_law compose : moments par les cumulants (κ₁, κ₂, κ₃, κ₄
 // s'ajoutent) ; lois discrètes : masse, répartition et survie par convolution exacte
 // (sommes finies de termes positifs, en double-double, O(longueur du support utile)),
 // quantile exact de cette répartition. Une somme continue sans identité n'a ni
@@ -138,7 +139,7 @@ namespace wsl::random
     template <class L1, class L2>
     using sum_closure_t = decltype(sum_closure(std::declval<L1 const&>(), std::declval<L2 const&>()));
 
-    // Identité toujours vraie : X + Y est de ce type.
+    // Identité toujours vraie : la convolution est de ce type.
     template <class L1, class L2>
     concept sum_closed = has_sum_closure<L1, L2> && probability_law<sum_closure_t<L1, L2>>;
 
@@ -147,7 +148,7 @@ namespace wsl::random
     // -----------------------------------------------------------------------
     template <probability_law L1, probability_law L2>
         requires std::same_as<typename L1::value_type, typename L2::value_type>
-    class independent_sum
+    class convolution_law
     {
         template <class A, class B>
         struct family_of
@@ -170,7 +171,7 @@ namespace wsl::random
         static constexpr exactness sampling =
             !continuous && L1::sampling == exactness::exact && L2::sampling == exactness::exact ? exactness::exact : exactness::approximate;
 
-        constexpr independent_sum(L1 const& x, L2 const& y) : x_(x), y_(y)
+        constexpr convolution_law(L1 const& x, L2 const& y) : x_(x), y_(y)
         {
             if constexpr (has_family)
                 family_ = sum_closure(x_, y_);
@@ -342,7 +343,7 @@ namespace wsl::random
             return add(a, b);
         }
 
-        friend constexpr bool operator==(independent_sum const& a, independent_sum const& b) noexcept { return a.x_ == b.x_ && a.y_ == b.y_; }
+        friend constexpr bool operator==(convolution_law const& a, convolution_law const& b) noexcept { return a.x_ == b.x_ && a.y_ == b.y_; }
 
     private:
         static constexpr double clamp01(double v) noexcept { return v < 0 ? 0.0 : v > 1 ? 1.0 : v; }
@@ -408,21 +409,16 @@ namespace wsl::random
         [[no_unique_address]] std::conditional_t<has_family, std::optional<std::conditional_t<has_family, family_type, int>>, no_family> family_{};
     };
 
-    // X + Y, X et Y indépendantes : la loi de la famille si l'identité est toujours vraie.
+    // Loi de X + Y, X et Y indépendantes : la convolution P ∗ Q des lois ; la loi de la famille
+    // si l'identité est toujours vraie (normale ∗ normale…), convolution_law sinon. La loi de
+    // X − Y : convolution(P, affine(Q, {.scale = -1})).
     template <probability_law L1, probability_law L2>
         requires std::same_as<typename L1::value_type, typename L2::value_type>
-    constexpr auto operator+(L1 const& X, L2 const& Y)
+    constexpr auto convolution(L1 const& P, L2 const& Q)
     {
         if constexpr (sum_closed<L1, L2>)
-            return sum_closure(X, Y);
+            return sum_closure(P, Q);
         else
-            return independent_sum<L1, L2>(X, Y);
-    }
-    // X − Y = X + (−Y), lois réelles.
-    template <real_law L1, real_law L2>
-        requires std::same_as<typename L1::value_type, typename L2::value_type>
-    constexpr auto operator-(L1 const& X, L2 const& Y)
-    {
-        return X + (-Y);
+            return convolution_law<L1, L2>(P, Q);
     }
 }

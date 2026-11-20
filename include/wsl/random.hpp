@@ -25,7 +25,7 @@
 #include <wsl/random/exponential.hpp>
 #include <wsl/random/fisher_f.hpp>
 #include <wsl/random/gamma.hpp>
-#include <wsl/random/independent.hpp>
+#include <wsl/random/product_measure.hpp>
 #include <wsl/random/geometric.hpp>
 #include <wsl/random/laplace.hpp>
 #include <wsl/random/law.hpp>
@@ -37,7 +37,7 @@
 #include <wsl/random/poisson.hpp>
 #include <wsl/random/pushforward.hpp>
 #include <wsl/random/student_t.hpp>
-#include <wsl/random/sum.hpp>
+#include <wsl/random/convolution.hpp>
 #include <wsl/random/truncated.hpp>
 #include <wsl/random/uniform.hpp>
 #include <wsl/random/weibull.hpp>

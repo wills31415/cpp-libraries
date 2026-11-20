@@ -324,7 +324,7 @@ int main()
     {
         // Lois construites : erreur de composition (docs/random.md), bornes mesurées.
         auto const Z = [](double nu) { return wsl::random::affine(wsl::random::student_t({.degrees_of_freedom = nu}), {.scale = -2, .shift = 5}); };
-        auto const N = [](double a, double b) { return wsl::random::truncate(wsl::random::normal({.mean = 0.0, .sd = 1.0}), a, b); };
+        auto const N = [](double a, double b) { return wsl::random::truncate(wsl::random::normal({.mean = 0.0, .sd = 1.0}), {.lower = a, .upper = b}); };
         wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .sd = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3.0, .rate = 1.0})));
         // Bornes : mesures arrondies au-dessus ; le quantile tronqué près d'un zéro du résultat.
         check<double>("affine student pdf", d::affine_student_pdf_double, [&](double a, double, double y) { return wsl::random::pdf(Z(a), y); }, 0.51);
@@ -334,7 +334,7 @@ int main()
         check<double>("truncated normal cdf", d::truncated_normal_cdf_double, [&](double a, double b, double x) { return wsl::random::cdf(N(a, b), x); }, 3.0);
         check<double>("truncated normal ccdf", d::truncated_normal_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(N(a, b), x); }, 6.0);
         check<double>("truncated normal quantile", d::truncated_normal_quantile_double, [&](double a, double b, double p) { return wsl::random::quantile(N(a, b), p); }, 64.0);
-        auto const PB = [](double mu, double p) { return wsl::random::poisson({.mean = mu}) + wsl::random::binomial({.trials = 20, .p = p}); };
+        auto const PB = [](double mu, double p) { return wsl::random::convolution(wsl::random::poisson({.mean = mu}), wsl::random::binomial({.trials = 20, .p = p})); };
         check<double>("sum poisson+binomial pmf", d::sum_poisson_binomial_pmf_double, [&](double a, double b, double k) { return wsl::random::pmf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.5);
         check<double>("sum poisson+binomial cdf", d::sum_poisson_binomial_cdf_double, [&](double a, double b, double k) { return wsl::random::cdf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.0);
         check<double>("sum poisson+binomial ccdf", d::sum_poisson_binomial_ccdf_double, [&](double a, double b, double k) { return wsl::random::ccdf(PB(a, b), static_cast<std::int64_t>(k)); }, 1.0);

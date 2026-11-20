@@ -3,7 +3,7 @@
 // Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir docs/random.md §4.6).
 //
 //   wsl::random::normal N({.mean = 0, .sd = 1});
-//   auto T = wsl::random::truncate(N, 10.0, INFINITY);   // N | N >= 10, masse ~ 7,6·10⁻²⁴
+//   auto T = wsl::random::truncate(N, {.lower = 10});   // N | N >= 10, masse ~ 7,6·10⁻²⁴
 //   T.cdf(10.5); T.quantile(0.5); T(g);
 //
 // Masse m = P(a <= X <= b), F_T(x) = P(a <= X <= x)/m et S_T(x) = P(x < X <= b)/m sont
@@ -190,11 +190,18 @@ namespace wsl::random
         double fa_ = 0, sa_ = 1, fb_ = 1, sb_ = 0, mass_ = 1;                // F(a), S(a), F(b), S(b), m
     };
 
-    // Loi de X sachant a <= X <= b.
+    // Bornes d'une troncature, chacune facultative : truncate(P, {.lower = 0}).
+    struct truncation_bounds
+    {
+        double lower = -std::numeric_limits<double>::infinity(), upper = std::numeric_limits<double>::infinity();
+    };
+
+    // Loi de X sachant lower <= X <= upper : P conditionnée à [lower, upper].
     template <real_law L>
         requires has_cdf<L> && has_ccdf<L>
-    constexpr truncated<L> truncate(L const& X, typename L::value_type lower, typename L::value_type upper)
+    constexpr truncated<L> truncate(L const& P, truncation_bounds b)
     {
-        return truncated<L>(X, lower, upper);
+        using T = typename L::value_type;
+        return truncated<L>(P, static_cast<T>(b.lower), static_cast<T>(b.upper));
     }
 }

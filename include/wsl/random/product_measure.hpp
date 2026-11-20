@@ -3,7 +3,7 @@
 // Algèbre des lois : loi jointe de variables indépendantes (loi produit, voir
 // docs/random.md §4.6).
 //
-//   wsl::random::independent J(wsl::random::normal({.mean = 0, .sd = 1}), wsl::random::exponential({.rate = 2}));
+//   wsl::random::product_measure J(wsl::random::normal({.mean = 0, .sd = 1}), wsl::random::exponential({.rate = 2}));
 //   auto [x, y] = J(g);                       // tirés dans cet ordre
 //   J.pdf({0.5, 1.0}); J.cdf({0.0, 1.0}); J.mean(); J.entropy();
 //
@@ -26,7 +26,7 @@ namespace wsl::random
 {
     template <probability_law... L>
         requires(sizeof...(L) >= 1)
-    class independent : public law_interface
+    class product_measure : public law_interface
     {
         static constexpr bool all_continuous = (std::is_floating_point_v<typename L::value_type> && ...);
         static constexpr bool all_discrete = (std::is_integral_v<typename L::value_type> && ...);
@@ -35,7 +35,7 @@ namespace wsl::random
         using value_type = std::tuple<typename L::value_type...>;
         static constexpr exactness sampling = ((L::sampling == exactness::exact) && ...) ? exactness::exact : exactness::approximate;
 
-        constexpr explicit independent(L const&... laws) : laws_(laws...) {}
+        constexpr explicit product_measure(L const&... laws) : laws_(laws...) {}
 
         static constexpr std::size_t size() noexcept { return sizeof...(L); }
         template <std::size_t I>
@@ -112,7 +112,7 @@ namespace wsl::random
             return std::apply([&g](auto const&... c) { return value_type{wsl::random::sample(c, g, fast)...}; }, J.laws_);
         }
 
-        friend constexpr bool operator==(independent const& a, independent const& b) noexcept { return a.laws_ == b.laws_; }
+        friend constexpr bool operator==(product_measure const& a, product_measure const& b) noexcept { return a.laws_ == b.laws_; }
 
     private:
         // Π f(Xᵢ, xᵢ), à l'échelle, arrondi une fois (0 si un facteur est nul).
@@ -166,5 +166,5 @@ namespace wsl::random
     };
 
     template <class... L>
-    independent(L...) -> independent<L...>;
+    product_measure(L...) -> product_measure<L...>;
 }

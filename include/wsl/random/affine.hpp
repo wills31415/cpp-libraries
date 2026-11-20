@@ -3,7 +3,7 @@
 // Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir docs/random.md §4.6).
 //
 //   wsl::random::normal N({.mean = 1, .sd = 2});
-//   auto Y = 3 * N - 1;                      // wsl::random::normal<> : N(2, 6), paramètres calculés
+//   auto Y = wsl::random::affine(N, {.scale = 3, .shift = -1});   // wsl::random::normal<> : N(2, 6), paramètres calculés
 //   wsl::random::student_t T({.degrees_of_freedom = 4});
 //   auto Z = wsl::random::affine(T, {.scale = -2, .shift = 5});   // wsl::random::affine_image<student_t<>>
 //   Z.cdf(1.0); Z.quantile(0.99); Z.mean(); Z(g);
@@ -351,25 +351,4 @@ namespace wsl::random
             throw std::domain_error("wsl::random::affine : il faut scale non nul et shift fini");
         return affine_image<L>(Y.law(), {.scale = detail::sd::fmul(m.scale, Y.scale()), .shift = detail::linear(m.scale, Y.shift(), m.shift)});
     }
-
-    // Opérateurs : scalaires arithmétiques (bool exclu) et lois réelles.
-    template <class S>
-    concept law_scalar = std::is_arithmetic_v<S> && !std::same_as<S, bool>;
-
-    template <law_scalar S, real_law L>
-    constexpr auto operator*(S a, L const& X) { return affine(X, {.scale = static_cast<double>(a)}); }
-    template <real_law L, law_scalar S>
-    constexpr auto operator*(L const& X, S a) { return affine(X, {.scale = static_cast<double>(a)}); }
-    template <real_law L, law_scalar S>
-    constexpr auto operator/(L const& X, S a) { return affine(X, {.scale = 1.0 / static_cast<double>(a)}); }
-    template <real_law L, law_scalar S>
-    constexpr auto operator+(L const& X, S b) { return affine(X, {.shift = static_cast<double>(b)}); }
-    template <law_scalar S, real_law L>
-    constexpr auto operator+(S b, L const& X) { return affine(X, {.shift = static_cast<double>(b)}); }
-    template <real_law L, law_scalar S>
-    constexpr auto operator-(L const& X, S b) { return affine(X, {.shift = -static_cast<double>(b)}); }
-    template <law_scalar S, real_law L>
-    constexpr auto operator-(S b, L const& X) { return affine(X, {.scale = -1.0, .shift = static_cast<double>(b)}); }
-    template <real_law L>
-    constexpr auto operator-(L const& X) { return affine(X, {.scale = -1.0}); }
 }
