@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <random>
 #include <span>
+#include <iomanip>
+#include <sstream>
+#include <string>
 
 namespace v = engine_vectors;
 
@@ -40,6 +43,47 @@ constexpr std::uint64_t first_output(auto g) { return g(); }
 static_assert(first_output(wsl::random::splitmix64(0)) == 0xe220a8397b1dcdaf);
 static_assert(first_output(wsl::random::xoshiro256pp({1, 2, 3, 4})) == 41943041);   // rotl(1 + 4, 23) + 1
 static_assert(first_output(wsl::random::philox4x64(7)) == first_output(wsl::random::philox4x64(7)));
+
+// RandomNumberEngine : E(), E(s), E(q), seed(), seed(s), seed(q), ==, <<, >>.
+template <class E>
+void check_engine(std::uint64_t expected_from_seq)
+{
+    static_assert(std::uniform_random_bit_generator<E> && std::is_nothrow_default_constructible_v<E>);
+    E const d = {};                                                         // E() non explicite
+    assert(d == E(0));
+    std::seed_seq q1{1, 2, 3}, q2{1, 2, 3};
+    E a(q1);                                                                // valeur portable : seed_seq est spécifiée
+    E b;
+    b.seed(q2);
+    assert(a == b && a() == expected_from_seq && b() == expected_from_seq);
+    b.seed();
+    assert(b == E());
+    b.seed(7);
+    assert(b == E(7));
+    // aller-retour par un flux, en tout point d'un bloc (philox)
+    for (int k = 0; k < 6; ++k)
+    {
+        std::stringstream ss;
+        ss << std::hex << std::setfill('#') << a;                           // format du flux rétabli
+        assert((ss.flags() & std::ios::basefield) == std::ios::hex && ss.fill() == '#');
+        E c;
+        ss >> c;
+        assert(!ss.fail() && c == a);
+        for (int i = 0; i < 5; ++i)
+            assert(c() == a());
+        a.discard(static_cast<unsigned long long>(k));
+    }
+    std::wstringstream ws;
+    ws << a;
+    E w;
+    ws >> w;
+    assert(w == a);
+    // lecture invalide : moteur intact, failbit
+    std::stringstream bad("abc");
+    E e = a;
+    bad >> e;
+    assert(bad.fail() && e == a);
+}
 
 int main()
 {
@@ -119,5 +163,33 @@ int main()
     std::uniform_int_distribution<int> die(1, 6);
     int const roll = die(g);
     assert(roll >= 1 && roll <= 6);
+
+    // ---- RandomNumberEngine complets -------------------------------------------------
+    {
+        check_engine<wsl::random::splitmix64>(0x7f48bd39a96b09ab);
+        check_engine<wsl::random::xoshiro256pp>(0x7adf7674778b678d);
+        check_engine<wsl::random::pcg64>(0x93e5d4564e9e31fb);
+        check_engine<wsl::random::philox4x64>(0x02accfa08a6e1d7e);
+        // états invalides refusés : xoshiro nul, incrément pcg pair, position philox > 4
+        std::stringstream z("0 0 0 0"), even("1 2 3 4"), position("1 2 3 4 5 6 7");
+        wsl::random::xoshiro256pp x(5);
+        wsl::random::pcg64 c(5);
+        wsl::random::philox4x64 f(5);
+        z >> x;
+        even >> c;
+        position >> f;
+        assert(z.fail() && x == wsl::random::xoshiro256pp(5) && even.fail() && c == wsl::random::pcg64(5) && position.fail() && f == wsl::random::philox4x64(5));
+        // philox : discard en O(1), retenue sur les quatre mots du compteur
+        wsl::random::philox4x64 s1(9), s2(9);
+        s1();
+        s2();
+        s1.discard(4003);
+        for (int i = 0; i < 4003; ++i)
+            s2();
+        assert(s1 == s2 && s1() == s2());
+        wsl::random::philox4x64 h({1, 2}, {~0ull, ~0ull, 5, 0}), k({1, 2}, {3, 0, 6, 0});
+        h.discard(16);                                                      // 2^128 − 1 + 4 blocs
+        assert(h == k && h() == k());
+    }
     return 0;
 }

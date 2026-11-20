@@ -86,6 +86,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Types des constantes (décision 3a) : entropie en T pour von Mises et les lois continues
   multivariées (double avant) ; `product_measure` : type commun des composantes. Médianes
   `noexcept` (géométrique, inverse gaussienne, stable).
+- Moteurs complets au sens de *RandomNumberEngine* : `E()` (non explicite), `E(q)` et
+  `seed(q)` depuis une *SeedSequence* (mots de 32 bits assemblés deux à deux, poids faible
+  d'abord, comme `mt19937_64` ; xoshiro : état nul remplacé par celui de `seed(0)`),
+  `seed()`, `os << e` et `is >> e` (décimal ; lecture invalide : moteur intact, `failbit`).
+  `philox4x64::discard` en O(1) (compteur + n/4 ; il avançait bloc par bloc).
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par
