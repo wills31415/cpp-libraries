@@ -29,6 +29,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/root.hpp>
 #include <wsl/random/detail/gaussian.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/loader.hpp>
@@ -442,29 +443,31 @@ namespace wsl
             }
             detail::scaled outer{0.0, 0.0, 0};                             // masse déjà intégrée (référence des tolérances)
             auto const side = [&](sd::double_double end) {
-                auto const span = detail::sum(end, detail::negated(a));
-                bool const forward = span.hi > 0;
-                double const full = detail::magnitude(span.hi);
-                detail::scaled total{0.0, 0.0, 0};
-                sd::double_double from = a;
-                detail::scaled previous = f(a);
-                double w = width / 8;                                       // puis ×4 jusqu'à l'extrémité
-                for (int piece_index = 0; piece_index < 80; ++piece_index)
-                {
-                    bool const last = !(w < full);
-                    sd::double_double const to = last ? end : detail::sum(a, {forward ? w : -w, 0.0});
-                    detail::scaled const piece = detail::adaptive_integral(f, forward ? from : to, forward ? to : from, detail::add_scaled(outer, total));
-                    total = detail::add_scaled(total, piece);
-                    if (last)
-                        break;
-                    detail::scaled const at_end = f(to);
-                    bool const decreasing = at_end.hi == 0 || (previous.hi != 0 && (at_end.e < previous.e || (at_end.e == previous.e && at_end.hi < previous.hi)));
-                    if (decreasing && total.hi != 0 && (piece.hi == 0 || piece.e < total.e - 100) && (at_end.hi == 0 || at_end.e < total.e - 100))
-                        break;
-                    previous = at_end;
-                    from = to;
-                    w = sd::fmul(w, 4.0);
-                }
+                bool const forward = detail::sum(end, detail::negated(a)).hi > 0;
+                // largeurs : 1/8 de celle du pic, puis bornes à 4× la distance au pic
+                auto const piece_width = [&](sd::double_double t) {
+                    double const d = detail::magnitude(detail::sum(t, detail::negated(a)).hi);
+                    return d == 0 ? width / 8 : sd::fmul(3.0, d);
+                };
+                detail::scaled previous = f(a), last_piece{0.0, 0.0, 0};
+                bool first = true;
+                auto const piece = [&](sd::double_double lo, sd::double_double hi, detail::scaled const& total) {
+                    last_piece = detail::adaptive_integral(f, lo, hi, detail::add_scaled(outer, total));
+                    return last_piece;
+                };
+                // arrêt quand l'intégrande décroît et que le dernier morceau et f(t) sont négligeables
+                auto const stop = [&](sd::double_double t, detail::scaled const& total, sd::double_double) {
+                    if (first)
+                    {
+                        first = false;
+                        return false;
+                    }
+                    detail::scaled const at = f(t);
+                    bool const decreasing = at.hi == 0 || (previous.hi != 0 && (at.e < previous.e || (at.e == previous.e && at.hi < previous.hi)));
+                    previous = at;
+                    return decreasing && total.hi != 0 && (last_piece.hi == 0 || last_piece.e < total.e - 100) && (at.hi == 0 || at.e < total.e - 100);
+                };
+                detail::scaled const total = detail::march_integral(a, end, forward, piece_width, piece, stop, 80);
                 outer = detail::add_scaled(outer, total);
                 return total;
             };
@@ -482,79 +485,33 @@ namespace wsl
             return static_cast<T>(detail::rounded(reduced_part(reduced(v), upper)));
         }
 
-        // y tel que F(y) = t (ou S(y) = t), t <= ½ : Newton sur log V, encadré.
+        // y tel que F(y) = t (ou S(y) = t), t <= ½ : solveur commun (detail/root.hpp) ; hors
+        // encadrement, y ± 2 max(1, |y|) ; bissection géométrique sur un encadrement large d'un
+        // seul signe (queues lourdes) ; demi-droite pour α < 1, |β| = 1.
         constexpr detail::sd::double_double solve(double t, bool upper) const
         {
             namespace sd = detail::sd;
-            auto const log_t = detail::log_precise(t);
-            struct step
-            {
-                int side;
-                sd::double_double dy;
-                double residual;
-                bool finite;
-            };
             auto const evaluate = [&](sd::double_double y) {
-                detail::scaled const value = reduced_part(y, upper);
-                int const c = value.hi == 0 ? -1 : detail::compare(value, {t, 0.0});
-                step s{upper ? -c : c, {0.0, 0.0}, 0.0, false};
-                detail::scaled const f = density(y);
-                if (value.hi == 0 || f.hi == 0)
-                    return s;
-                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
-                auto const d = detail::mul(h, detail::unscaled(value / f));
-                s.dy = upper ? d : detail::negated(d);
-                s.residual = detail::magnitude(h.hi);
-                s.finite = detail::is_finite(s.dy.hi);
-                return s;
+                detail::part_value r{reduced_part(y, upper), {0.0, 0.0, 0}, y};
+                if (r.value.hi != 0)
+                    r.slope = density(y);
+                return r;
             };
-            constexpr double infinity = std::numeric_limits<double>::infinity();
-            double lo = -infinity, hi = infinity;
-            auto const sup = support();
-            if (alpha_ < 1 && (beta_ == 1 || beta_ == -1))                 // demi-droite : y de signe fixé
-            {
-                if (beta_ == 1)
-                    lo = 0;
-                else
-                    hi = 0;
-            }
-            (void)sup;
-            double y = lo == 0 ? 1.0 : hi == 0 ? -1.0 : 0.0;
-            for (int iteration = 0; iteration < 400; ++iteration)
-            {
-                step const s = evaluate({y, 0.0});
-                if (s.side == 0)
-                    return {y, 0.0};
-                if (s.side > 0)
-                    hi = y < hi ? y : hi;
-                else
-                    lo = y > lo ? y : lo;
-                double next = y + s.dy.hi;
-                if (s.finite && (0x1p-36 > s.residual || next == y))
-                {
-                    sd::double_double r = detail::sum({y, 0.0}, s.dy);
-                    step const s2 = evaluate(r);
-                    if (s2.finite)
-                        r = detail::sum(r, s2.dy);
-                    return r;
-                }
-                if (!s.finite || !(next > lo && next < hi))
-                {
-                    if (lo > -infinity && hi < infinity)
-                        next = (lo == 0 || hi == 0 || (lo < 0) != (hi < 0) || hi - lo < 1)
-                             ? sd::fmul(lo, 0.5) + sd::fmul(hi, 0.5)
-                             : (lo > 0 ? wsl::special::sqrt(lo) * wsl::special::sqrt(hi) : -(wsl::special::sqrt(-lo) * wsl::special::sqrt(-hi)));
-                    else
-                    {
-                        double const mag = detail::magnitude(y) < 1 ? 1.0 : detail::magnitude(y);
-                        next = s.side > 0 ? y - sd::fmul(2.0, mag) : y + sd::fmul(2.0, mag);
-                    }
-                }
-                if (next == y)
-                    return {y, 0.0};
-                y = next;
-            }
-            return {y, 0.0};
+            detail::root_bounds b{.start = 0};
+            if (alpha_ < 1 && beta_ == 1)
+                b = {.start = 1, .lo = 0};
+            else if (alpha_ < 1 && beta_ == -1)
+                b = {.start = -1, .hi = 0};
+            auto const outward = [](double y, int side) {
+                double const mag = detail::magnitude(y) < 1 ? 1.0 : detail::magnitude(y);
+                return side > 0 ? y - sd::fmul(2.0, mag) : y + sd::fmul(2.0, mag);
+            };
+            auto const midpoint = [](double lo, double hi) {
+                if (lo == 0 || hi == 0 || (lo < 0) != (hi < 0) || hi - lo < 1)
+                    return sd::fmul(lo, 0.5) + sd::fmul(hi, 0.5);
+                return lo > 0 ? wsl::special::sqrt(lo) * wsl::special::sqrt(hi) : -(wsl::special::sqrt(-lo) * wsl::special::sqrt(-hi));
+            };
+            return detail::solve_part(evaluate, !upper, t, b, outward, midpoint);
         }
 
         constexpr T inverse(double t, bool upper) const

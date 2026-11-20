@@ -123,4 +123,32 @@ namespace wsl::detail
         }
         return total;
     }
+
+    // ∫ par morceaux depuis start vers end (forward : end > start) : avant chaque morceau,
+    // stop(t, total, reste) peut arrêter la marche ; sinon le morceau [t, t ± width(t)], tronqué
+    // à end, est intégré par piece(bas, haut, total). Intégrandes et résultat à l'échelle.
+    template <class Width, class Piece, class Stop>
+    constexpr scaled march_integral(sd::double_double start, sd::double_double end, bool forward, Width const& width,
+                                    Piece const& piece, Stop const& stop, int max_pieces = 1000000) noexcept
+    {
+        scaled total{0.0, 0.0, 0};
+        sd::double_double t = start;
+        for (int k = 0; k < max_pieces; ++k)
+        {
+            auto const rest = forward ? sum(end, negated(t)) : sum(t, negated(end));
+            if (!(rest.hi > 0) || stop(t, total, rest))
+                break;
+            double const w = width(t);
+            bool const last = !(w < rest.hi);
+            sd::double_double const h = last ? rest : sd::double_double{w, 0.0};
+            auto const next = last ? end : forward ? sum(t, h) : sum(t, negated(h));
+            scaled const p = forward ? piece(t, next, total) : piece(next, t, total);
+            if (p.hi != 0)
+                total = add_scaled(total, p);
+            if (last)
+                break;
+            t = next;
+        }
+        return total;
+    }
 }

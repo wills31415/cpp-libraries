@@ -134,6 +134,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `detail/gaussian.hpp` ; doublons supprimés (trois opposés, deux sommes et deux différences
   à l'échelle, trois `exp_of`…) ; stable.hpp n'inclut plus skew_normal.hpp ni von_mises.hpp.
   Aucun résultat ne change (empreintes identiques).
+- Interne : un seul solveur de quantiles (`detail/root.hpp` : Newton sur log de la plus
+  petite part, encadré, deux pas à résidu précis) pour inverse_gaussian, von_mises,
+  skew_normal et stable, et une seule marche d'intégration par morceaux
+  (`march_integral`, detail/quadrature.hpp) pour von_mises, skew_normal et stable ; environ
+  210 lignes de moins. Précision inchangée (sous 0,5 ulp), empreintes identiques.
 - Variance de Weibull et lgamma(1 + ε) mis en commun (`detail/gamma_moments.hpp`, ε
   négatif accepté pour Fréchet) : mêmes bits.
 

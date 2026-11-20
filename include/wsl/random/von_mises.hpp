@@ -29,6 +29,7 @@
 #include <wsl/random/beta.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/root.hpp>
 #include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/detail/lazy.hpp>
@@ -76,69 +77,39 @@ namespace wsl
             return mul({sd::fmul(kappa, -2.0), 0.0}, mul(s, s));
         }
 
-        // ∫_a^b e^{κ (cos t − 1)} dt, 0 <= a <= b <= π en double-double, à l'échelle : par morceaux
-        // [t₀, t₀ + H], Gauss–Legendre à 12 nœuds sur e^{κ (cos t − cos t₀)} (erreur relative
-        // sous 2^-100 pour κ H sin t₀ <= 2 et κ H² |cos t₀| <= ½ ; nœuds à 2^-70, ceux de
-        // exp_scaled), le facteur e^{κ (cos t₀ − 1)} à l'échelle. L'intégrande décroît sur
-        // [0, π] : arrêt quand e^{κ (cos t₀ − 1)} (b − t₀) devient négligeable.
+        // ∫_a^b e^{κ (cos t − 1)} dt, 0 <= a <= b <= π en double-double, à l'échelle : marche
+        // commune (detail/quadrature.hpp), morceaux [t₀, t₀ + H] et Gauss–Legendre à 12 nœuds
+        // (erreur relative sous 2^-100 pour κ H sin t₀ <= 2 et κ H² |cos t₀| <= ½ ; intégrande à
+        // 2^-70, celle de exp_scaled). L'intégrande décroît sur [0, π] : arrêt quand
+        // e^{κ (cos t₀ − 1)} (b − t₀) devient négligeable.
         constexpr scaled von_mises_integral(double kappa, sd::double_double a, sd::double_double b) noexcept
         {
             namespace fp = sd;
-            scaled total{0.0, 0.0, 0};
-            sd::double_double t0 = a;
-            for (int piece = 0; piece < 1000000; ++piece)
-            {
-                auto const rem = sum(b, {-t0.hi, -t0.lo});
-                if (!(rem.hi > 0))
-                    break;
+            auto const f = [kappa](sd::double_double t) {                   // e^{κ (cos t − 1)}
+                auto const e = von_mises_exponent(kappa, t);
+                return e.hi > -1500 ? exp_scaled(e.hi, e.lo) : scaled{0.0, 0.0, 0};
+            };
+            auto const width = [kappa](sd::double_double t0) {             // ½, 2/(κ |sin t₀|), √(½/(κ |cos t₀|))
                 auto const s = sine_dd(fp::fmul(t0.hi, 0.5), fp::fmul(t0.lo, 0.5));                  // sin(t₀/2)
-                auto const half_rem = sum({fp::fmul(pi_hi, 0.5), fp::fmul(pi_lo, 0.5)}, {-fp::fmul(t0.hi, 0.5), -fp::fmul(t0.lo, 0.5)});
-                auto const c = sine_dd(half_rem.hi, half_rem.lo);                                    // cos(t₀/2)
-                auto const s2 = mul(s, s);
-                double const sin_t = fp::fmul(2.0, fp::fmul(s.hi, c.hi));
-                double const cos_t = fp::fmul(c.hi, c.hi) - fp::fmul(s.hi, s.hi);
-                auto const h0 = mul({fp::fmul(kappa, -2.0), 0.0}, s2);                              // κ (cos t₀ − 1)
-                if (!(h0.hi > -1500))
-                    break;
-                scaled const level = exp_scaled(h0.hi, h0.lo);
-                if (total.hi != 0)                                          // reste <= e^{h₀} (b − t₀)
-                {
-                    scaled const bound = level * normalized(rem.hi, rem.lo);
-                    if (bound.e < total.e - 80)
-                        break;
-                }
-                double width = rem.hi > 0.5 ? 0.5 : rem.hi;
-                double const ks = fp::fmul(kappa, magnitude(sin_t)), kc = fp::fmul(kappa, magnitude(cos_t));
-                if (fp::fmul(ks, width) > 2.0)
-                    width = 2.0 / ks;
-                if (fp::fmul(kc, fp::fmul(width, width)) > 0.5)
-                    width = wsl::special::sqrt(0.5 / kc);
-                bool const last = width >= rem.hi;
-                sd::double_double const h = last ? rem : sd::double_double{width, 0.0};
-                sd::double_double const half{fp::fmul(h.hi, 0.5), fp::fmul(h.lo, 0.5)};
-                auto const middle = sum(t0, half);
-                sd::double_double integral{0.0, 0.0};
-                for (int i = 0; i < legendre_order / 2; ++i)
-                {
-                    auto const offset = mul(half, legendre.node[i]);
-                    sd::double_double value{0.0, 0.0};
-                    for (int side = 0; side < 2; ++side)
-                    {
-                        auto const t = sum(middle, side == 0 ? offset : negated(offset));
-                        auto const e = sum(von_mises_exponent(kappa, t), negated(h0));     // κ (cos t − cos t₀)
-                        if (e.hi > -1500)
-                            value = sum(value, unscaled(exp_scaled(e.hi, e.lo)));
-                    }
-                    integral = sum(integral, mul(legendre.weight[i], value));
-                }
-                integral = mul(integral, half);
-                if (integral.hi > 0)
-                    total = add_scaled(total, level * normalized(integral.hi, integral.lo));
-                if (last)
-                    break;
-                t0 = sum(t0, h);
-            }
-            return total;
+                auto const half_rest = sum({fp::fmul(pi_hi, 0.5), fp::fmul(pi_lo, 0.5)}, {-fp::fmul(t0.hi, 0.5), -fp::fmul(t0.lo, 0.5)});
+                auto const c = sine_dd(half_rest.hi, half_rest.lo);                                  // cos(t₀/2)
+                double const ks = fp::fmul(kappa, magnitude(fp::fmul(2.0, fp::fmul(s.hi, c.hi))));
+                double const kc = fp::fmul(kappa, magnitude(fp::fmul(c.hi, c.hi) - fp::fmul(s.hi, s.hi)));
+                double w = 0.5;
+                if (fp::fmul(ks, w) > 2.0)
+                    w = 2.0 / ks;
+                if (fp::fmul(kc, fp::fmul(w, w)) > 0.5)
+                    w = wsl::special::sqrt(0.5 / kc);
+                return w;
+            };
+            auto const stop = [&](sd::double_double t0, scaled const& total, sd::double_double rest) {
+                scaled const level = f(t0);                                 // l'intégrande décroît : reste <= f(t₀) (b − t₀)
+                if (level.hi == 0)
+                    return true;
+                return total.hi != 0 && (level * normalized(rest.hi, rest.lo)).e < total.e - 80;
+            };
+            auto const piece = [&](sd::double_double lo, sd::double_double hi, scaled const&) { return legendre12(f, lo, hi); };
+            return march_integral(a, b, true, width, piece, stop);
         }
 
         constexpr scaled von_mises_tail(double kappa, sd::double_double phi) noexcept
@@ -310,36 +281,19 @@ namespace wsl
             double const target = head ? 0.5 - t : t;                       // exact (Sterbenz)
             if (target == 0)
                 return {0.0, 0.0};
-            auto const log_t = detail::log_precise(target);
             detail::scaled const inv_norm = detail::exp_scaled(-log_norm_.hi, -log_norm_.lo);
             auto const value_at = [&](fp::double_double phi) {
                 detail::scaled v = head ? detail::von_mises_integral(double(kappa_), {0.0, 0.0}, phi) : detail::von_mises_tail(double(kappa_), phi);
                 return v.hi == 0 ? v : v * inv_norm;
             };
-            struct step
-            {
-                int side;                                                   // > 0 : φ trop petit
-                fp::double_double dphi;
-                double residual;                                            // |log(V/t)|
-                bool finite;
-            };
+            // G décroissante, D croissante ; densité g(φ) ; dans [0, fl(π)]
             auto const evaluate = [&](fp::double_double phi) {
-                detail::scaled const value = value_at(phi);
-                int const c = value.hi == 0 ? -1 : detail::compare(value, {target, 0.0});
-                step s{head ? -c : c, {0.0, 0.0}, 0.0, false};
+                detail::part_value r{value_at(phi), {0.0, 0.0, 0}, phi};
                 auto const sh = detail::sine_dd(fp::fmul(phi.hi, 0.5), fp::fmul(phi.lo, 0.5));
                 auto const e = detail::mul({fp::fmul(double(kappa_), -2.0), 0.0}, detail::mul(sh, sh));
-                if (value.hi == 0 || !(e.hi > -1500))
-                    return s;
-                detail::scaled const density = detail::exp_scaled(e.hi, e.lo) * inv_norm;
-                auto const h = detail::sum(detail::log(value), {-log_t.hi, -log_t.lo});   // log(V/t)
-                auto const r = detail::unscaled(value / density);                         // V/g
-                s.dphi = detail::mul(h, r);                                                 // G : φ + h V/g ; D : φ − h V/g
-                if (head)
-                    s.dphi = detail::negated(s.dphi);
-                s.residual = detail::magnitude(h.hi);
-                s.finite = detail::is_finite(s.dphi.hi);
-                return s;
+                if (r.value.hi != 0 && e.hi > -1500)
+                    r.slope = detail::exp_scaled(e.hi, e.lo) * inv_norm;
+                return r;
             };
             if (!head)                                                      // solution au-delà de fl(π) : G(φ) = (π − φ) g(π)
             {
@@ -351,7 +305,6 @@ namespace wsl
                     return detail::sum({detail::pi_hi, detail::pi_lo}, detail::negated(d));
                 }
             }
-            double lo = 0, hi = detail::pi_hi;
             double phi = 0;
             if (kappa_ > 0)                                                 // départ : loi normale d'écart type 1/√κ
             {
@@ -364,32 +317,8 @@ namespace wsl
                 phi = fp::fmul(detail::pi_hi, 1.0 - fp::fmul(2.0, t));
             if (!(phi > 0))
                 phi = 0x1p-30;
-            for (int iteration = 0; iteration < 200; ++iteration)
-            {
-                step const s = evaluate({phi, 0.0});
-                if (s.side == 0)
-                    return {phi, 0.0};
-                if (s.side > 0)
-                    lo = phi > lo ? phi : lo;
-                else
-                    hi = phi < hi ? phi : hi;
-                double next = phi + s.dphi.hi;
-                // résidu relatif sous 2^-36, ou pas plus fin que les doubles (près de π) : deux pas en double-double
-                if (s.finite && (0x1p-36 > s.residual || next == phi))
-                {
-                    fp::double_double r = detail::sum({phi, 0.0}, s.dphi);
-                    step const s2 = evaluate(r);
-                    if (s2.finite)
-                        r = detail::sum(r, s2.dphi);
-                    return r;
-                }
-                if (!s.finite || !(next > lo && next < hi))
-                    next = fp::fmul(lo, 0.5) + fp::fmul(hi, 0.5);
-                if (next == phi)
-                    return {phi, 0.0};
-                phi = next;
-            }
-            return {phi, 0.0};
+            return detail::solve_part(evaluate, head, target, {.start = phi, .lo = 0, .hi = detail::pi_hi},
+                                      [](double u, int) { return u; }, detail::arithmetic_midpoint, 200);
         }
 
         constexpr T inverse(double t, bool upper) const

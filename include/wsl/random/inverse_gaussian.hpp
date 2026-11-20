@@ -26,6 +26,7 @@
 #include <wsl/random/basic_laws.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/discrete.hpp>
+#include <wsl/random/detail/root.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/normal.hpp>
 #include <wsl/random/uniform.hpp>
@@ -326,93 +327,30 @@ namespace wsl
             return static_cast<T>(detail::rounded(upper ? p.upper : p.lower));
         }
 
-        // Plus petit côté : F(x) = t (upper = false) ou S(x) = t, t <= ½.
+        // Plus petit côté : F(x) = t (upper = false) ou S(x) = t, t <= ½ ; solveur commun
+        // (detail/root.hpp) dans la variable u = log x (dV/du = x f), pas d'au plus 16.
         constexpr double solve(double t, bool upper) const
         {
-            namespace fp = detail::sd;
             double const mu = mu_, lambda = lambda_;
-            auto const log_t = detail::log_precise(t);
-            // h(x) = log(V/t), V = F ou S ; dh/d log x = ± x f/V.
-            struct step
-            {
-                int side;                                                   // > 0 : x trop grand
-                double dt;                                                  // pas de Newton en log x
-                bool finite;
-            };
-            auto const evaluate = [&](double x) {
+            auto const evaluate = [&](detail::sd::double_double u) {
+                double x = detail::rounded(detail::exp_scaled(u.hi, u.lo));
+                if (!(x > 0))
+                    x = std::numeric_limits<double>::denorm_min();
+                if (!(x < std::numeric_limits<double>::infinity()))
+                    x = std::numeric_limits<double>::max();
                 auto const p = detail::inverse_gaussian_at(x, mu, lambda);
-                detail::scaled const& value = upper ? p.upper : p.lower;
-                int const c = detail::compare(value, {t, 0.0});
-                step s{upper ? -c : c, 0.0, false};
-                if (value.hi == 0 || !(p.half_a2.hi < 1500))
-                    return s;
-                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
-                detail::scaled const f = p.c_over_x * detail::exp_scaled(-p.half_a2.hi, -p.half_a2.lo)
-                                       * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
-                double const slope = detail::rounded(f * detail::normalized(x, 0.0) / value);   // x f/V
-                if (!(slope > 0) || !(slope < std::numeric_limits<double>::infinity()))
-                    return s;
-                double const dt = (h.hi + h.lo) / slope;
-                s.dt = upper ? dt : -dt;
-                s.finite = true;
-                return s;
+                detail::part_value r{upper ? p.upper : p.lower, {0.0, 0.0, 0}, detail::log_precise(x)};
+                if (r.value.hi != 0 && p.half_a2.hi < 1500)
+                    r.slope = p.c_over_x * detail::exp_scaled(-p.half_a2.hi, -p.half_a2.lo)
+                            * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo) * detail::normalized(x, 0.0);
+                return r;
             };
-            constexpr double infinity = std::numeric_limits<double>::infinity();
-            double lo = -infinity, hi = infinity;                           // encadrement en log x
-            double t_log = wsl::special::log(mu);
-            double x = mu;
-            for (int iteration = 0; iteration < 400; ++iteration)
-            {
-                step const s = evaluate(x);
-                if (s.side == 0)
-                    return x;
-                if (s.side > 0)
-                    hi = t_log < hi ? t_log : hi;
-                else
-                    lo = t_log > lo ? t_log : lo;
-                if (s.finite && 0x1p-40 > s.dt && s.dt > -0x1p-40)       // convergé : deux pas à résidu précis
-                    return polish(polish(x, upper, log_t), upper, log_t);
-                double next = t_log + s.dt;
-                bool const newton = s.finite && next > lo && next < hi && !(s.dt > 16) && !(-16 > s.dt);
-                if (!newton)
-                {
-                    if (lo > -infinity && hi < infinity)
-                        next = fp::fmul(lo, 0.5) + fp::fmul(hi, 0.5);
-                    else
-                        next = s.side > 0 ? t_log - 16 : t_log + 16;
-                }
-                if (!(next > -745.0))
-                    next = -745.0;
-                if (!(next < 709.7))
-                    next = 709.7;
-                double const x_next = wsl::special::exp(next);
-                if (x_next == x)
-                    return polish(x, upper, log_t);
-                x = x_next;
-                t_log = next;
-            }
-            return x;
-        }
-
-        // x (1 − h/(± x f/V)), h = log(V(x)/t) à résidu précis, arrondi une fois.
-        constexpr double polish(double x, bool upper, detail::sd::double_double log_t) const
-        {
-            auto const p = detail::inverse_gaussian_at(x, double(mu_), double(lambda_));
-            detail::scaled const& value = upper ? p.upper : p.lower;
-            if (value.hi == 0 || !(p.half_a2.hi < 1500))
-                return x;
-            auto const h = detail::sum(detail::log(value), detail::negated(log_t));
-            detail::scaled const f = p.c_over_x * detail::exp_scaled(-p.half_a2.hi, -p.half_a2.lo)
-                                   * detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
-            double const slope = detail::rounded(f * detail::normalized(x, 0.0) / value);
-            if (!(slope > 0) || !(slope < std::numeric_limits<double>::infinity()))
-                return x;
-            double const dt = (h.hi + h.lo) / slope;
-            double const step = upper ? dt : -dt;                           // x e^{step} ≈ x (1 + step)
-            if (!(step < 0x1p-20 && step > -0x1p-20))
-                return x;
-            auto const [o_hi, o_lo] = detail::sd::two_sum(1.0, step);
-            return detail::rounded(detail::normalized(x, 0.0) * detail::normalized(o_hi, o_lo + detail::sd::fmul(step, detail::sd::fmul(step, 0.5))));
+            auto const outward = [](double u, int side) {
+                double const next = side > 0 ? u - 16 : u + 16;
+                return next < -745.0 ? -745.0 : next > 709.7 ? 709.7 : next;
+            };
+            auto const u = detail::solve_part(evaluate, !upper, t, {.start = wsl::special::log(mu), .max_step = 16}, outward, detail::arithmetic_midpoint);
+            return detail::rounded(detail::exp_scaled(u.hi, u.lo));
         }
 
         constexpr T inverse(double t, bool upper) const

@@ -23,6 +23,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/random/detail/quadrature.hpp>
+#include <wsl/random/detail/root.hpp>
 #include <wsl/random/detail/gaussian.hpp>
 #include <wsl/random/detail/discrete.hpp>
 #include <wsl/random/law.hpp>
@@ -78,54 +79,36 @@ namespace wsl
         constexpr scaled skew_normal_tail(double alpha, sd::double_double z, bool lower) noexcept
         {
             namespace fp = sd;
-            scaled total{0.0, 0.0, 0};
-            sd::double_double t0 = z;
-            for (int piece = 0; piece < 1000000; ++piece)
-            {
+            auto const f = [alpha](sd::double_double t) { return skew_normal_density(alpha, t); };
+            auto const width = [alpha](sd::double_double t0) {
                 auto const [first, second] = skew_normal_slope(alpha, t0.hi);
-                double const outward = lower ? first : -first;              // > 0 : f décroît vers l'extérieur
-                scaled const level = skew_normal_density(alpha, t0);
-                if (level.hi == 0 && total.hi != 0)
-                    break;
-                if (total.hi != 0 && outward > 0)                           // reste <= f(t₀)/|(log f)′(t₀)|
-                {
-                    scaled const bound = level / outward;
-                    if (bound.e < total.e - 80)
-                        break;
-                }
-                double width = 1.0;
-                if (fp::fmul(magnitude(first), width) > 4.0)
-                    width = 4.0 / magnitude(first);
-                if (fp::fmul(magnitude(second), fp::fmul(width, width)) > 1.0)
-                    width = 1.0 / wsl::special::sqrt(magnitude(second));
+                double w = 1.0;
+                if (fp::fmul(magnitude(first), w) > 4.0)
+                    w = 4.0 / magnitude(first);
+                if (fp::fmul(magnitude(second), fp::fmul(w, w)) > 1.0)
+                    w = 1.0 / wsl::special::sqrt(magnitude(second));
                 if (alpha != 0)                                             // Φ(αt) bascule sur 1/|α| autour de 0
                 {
                     double const near = 1.0 / magnitude(alpha), half_distance = fp::fmul(magnitude(t0.hi), 0.5);
                     double const limit = near > half_distance ? near : half_distance;
-                    if (width > limit)
-                        width = limit;
+                    if (w > limit)
+                        w = limit;
                 }
-                double const signed_width = lower ? -width : width;
-                sd::double_double const half{fp::fmul(signed_width, 0.5), 0.0};
-                auto const middle = sum(t0, half);
-                scaled piece_sum{0.0, 0.0, 0};
-                for (int i = 0; i < legendre_order / 2; ++i)
-                {
-                    auto const offset = mul(half, legendre.node[i]);
-                    for (int side = 0; side < 2; ++side)
-                    {
-                        scaled const v = skew_normal_density(alpha, sum(middle, side == 0 ? offset : negated(offset)));
-                        if (v.hi != 0)
-                            piece_sum = add_scaled(piece_sum, v * normalized(legendre.weight[i].hi, legendre.weight[i].lo));
-                    }
-                }
-                if (piece_sum.hi != 0)
-                    total = add_scaled(total, piece_sum * normalized(fp::fmul(width, 0.5), 0.0));
-                t0 = sum(t0, {signed_width, 0.0});
-                if (!(magnitude(t0.hi) < 60))                               // e^{−t²/2} < 2^-2500
-                    break;
-            }
-            return total;
+                return w;
+            };
+            auto const stop = [&](sd::double_double t0, scaled const& total, sd::double_double) {
+                if (total.hi == 0)
+                    return false;
+                scaled const level = f(t0);
+                if (level.hi == 0)
+                    return true;
+                double const first = skew_normal_slope(alpha, t0.hi).first;
+                double const outward = lower ? first : -first;              // > 0 : f décroît vers l'extérieur
+                return outward > 0 && (level / outward).e < total.e - 80;   // reste <= f(t₀)/|(log f)′(t₀)|
+            };
+            auto const piece = [&](sd::double_double lo, sd::double_double hi, scaled const&) { return legendre12(f, lo, hi); };
+            sd::double_double const end{lower ? -60.0 : 60.0, 0.0};        // e^{−t²/2} < 2^-2500 au-delà
+            return march_integral(z, end, !lower, width, piece, stop);
         }
     }
 
@@ -282,69 +265,24 @@ namespace wsl
             return static_cast<T>(detail::rounded(upper ? p.upper : p.lower));
         }
 
-        // z tel que F(z) = t (upper = false) ou S(z) = t, t <= ½.
+        // z tel que F(z) = t (upper = false) ou S(z) = t, t <= ½ : solveur commun
+        // (detail/root.hpp), départ μ_z + σ_z Φ⁻¹, pas d'au plus 8, ±4 hors encadrement.
         constexpr detail::sd::double_double solve(double t, bool upper) const
         {
             namespace sd = detail::sd;
-            auto const log_t = detail::log_precise(t);
             double const a = alpha_;
-            struct step
-            {
-                int side;                                                   // > 0 : z trop grand
-                sd::double_double dz;
-                double residual;
-                bool finite;
-            };
             auto const evaluate = [&](sd::double_double z) {
                 auto const p = both(z);
-                detail::scaled const& value = upper ? p.upper : p.lower;
-                int const c = value.hi == 0 ? -1 : detail::compare(value, {t, 0.0});
-                step s{upper ? -c : c, {0.0, 0.0}, 0.0, false};
-                detail::scaled const f = detail::skew_normal_density(a, z);
-                if (value.hi == 0 || f.hi == 0)
-                    return s;
-                auto const h = detail::sum(detail::log(value), detail::negated(log_t));
-                auto const r = detail::unscaled(value / f);
-                auto const d = detail::mul(h, r);                           // F : z − h F/f ; S : z + h S/f
-                s.dz = upper ? d : detail::negated(d);
-                s.residual = detail::magnitude(h.hi);
-                s.finite = detail::is_finite(s.dz.hi);
-                return s;
+                detail::part_value r{upper ? p.upper : p.lower, {0.0, 0.0, 0}, z};
+                if (r.value.hi != 0)
+                    r.slope = detail::skew_normal_density(a, z);
+                return r;
             };
             double const sigma = wsl::special::sqrt(variance_z_.hi);
-            double z = mu_z_.hi + sd::fmul(sigma, upper ? -detail::standard_quantile(t).hi : detail::standard_quantile(t).hi);
-            constexpr double infinity = std::numeric_limits<double>::infinity();
-            double lo = -infinity, hi = infinity;
-            for (int iteration = 0; iteration < 300; ++iteration)
-            {
-                step const s = evaluate({z, 0.0});
-                if (s.side == 0)
-                    return {z, 0.0};
-                if (s.side > 0)
-                    hi = z < hi ? z : hi;
-                else
-                    lo = z > lo ? z : lo;
-                double next = z + s.dz.hi;
-                if (s.finite && (0x1p-36 > s.residual || next == z))
-                {
-                    sd::double_double r = detail::sum({z, 0.0}, s.dz);
-                    step const s2 = evaluate(r);
-                    if (s2.finite)
-                        r = detail::sum(r, s2.dz);
-                    return r;
-                }
-                if (!s.finite || !(next > lo && next < hi) || !(next - z < 8 && z - next < 8))
-                {
-                    if (lo > -infinity && hi < infinity)
-                        next = sd::fmul(lo, 0.5) + sd::fmul(hi, 0.5);
-                    else
-                        next = s.side > 0 ? z - 4 : z + 4;
-                }
-                if (next == z)
-                    return {z, 0.0};
-                z = next;
-            }
-            return {z, 0.0};
+            double const q = detail::standard_quantile(t).hi;
+            double const start = mu_z_.hi + sd::fmul(sigma, upper ? -q : q);
+            return detail::solve_part(evaluate, !upper, t, {.start = start, .max_step = 8},
+                                      [](double z, int side) { return side > 0 ? z - 4 : z + 4; }, detail::arithmetic_midpoint, 300);
         }
 
         constexpr T inverse(double t, bool upper) const
