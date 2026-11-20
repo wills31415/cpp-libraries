@@ -233,8 +233,18 @@ Un seul exemple (`examples/dlist_demo.cpp`) pour neuf bibliothèques.
 | 5 | Lois à plusieurs paramétrisations | Forme interne commune en double-double (gamma : intensité (r, 0) ou 1/s à 2⁻¹⁰⁶ ; normale : écart type, ou √v) ; `==` compare cette forme : égalité en loi exacte, et deux objets égaux identiques au bit près (tirages compris) (2026-11-20) |
 | 6 | Matrices, arithmétique étendue | Pas de fusion pendant ce chantier : `square_matrix` (random) et `array2d` alignés sur des conventions communes (`extent(i)` au lieu de `size()`, `m[i, j]`) ; elo inchangé. Chantier futur `mdarray` (sémantique de P1684, étendues fixes ou dynamiques par dimension, couche d'expressions paresseuses, intégration de cpp-tensors), dont `graded` devient le type d'indice (arité exacte : rang fixe ; bornée : broadcasting). Arithmétique étendue rassemblée en un composant interne documenté (2026-11-20) |
 | 7 | Standard du dépôt | C++23 partout ; C++20 seulement sur décision explicite, pour un besoin de compatibilité identifié (exception possible, non appliquée) ; tests compilés une seule fois (2026-11-20) |
+| 8a | Appel des opérations | Opérations en membres (`X.pdf(x)`, `X.cdf(x)`, `X.quantile(p)`…) et objets-fonctions qualifiés dans `wsl::random` (`wr::pdf(X, x)`, passables en argument ; second recours par ADL pour les lois tierces) ; plus d'amies cachées. Constantes en membres, avec `wr::mean(X)`… pour le code générique (2026-11-20) |
+| 8b | Tirages | `X(g)` (la variable aléatoire évaluée en ω, comme `d(g)` de `<random>`) et `wr::sample(X, g)` ; `X(n, g)` → `std::vector`, mêmes valeurs et même consommation que n appels `X(g)` ; vue paresseuse `wr::samples(X, g)` ; `wr::fast` en dernier argument ; moteur en dernier partout, primitives comprises (`uniform_below(n, g)`, `bernoulli_trial(p, g)`) ; pas de `X()` ni de moteur par défaut (2026-11-20) |
+| 8c | Opérations sur les lois | Plus d'opérateurs arithmétiques sur les lois (réservés aux variables aléatoires) ; noms de la théorie de la mesure : `wr::affine(P, {.scale, .shift})`, `wr::convolution(P, Q)` (type `convolution<L1, L2>` ; différence par `affine`), `wr::truncate(P, {.lower, .upper})` (bornes facultatives), `wr::mixture(wr::weighted(w, P), …)`, `wr::pushforward(P, f)` (avec `increasing`/`decreasing`), `wr::product_measure(P, Q, …)` (2026-11-20) |
 
 ### Pistes en réserve (pour une refonte ultérieure)
+
+- **Variables aléatoires** (chantier futur, souhaité) : `wr::variable(P)`, feuilles munies
+  d'une identité, expressions paresseuses (`2 * X + Y`), tirage couplé (`(X - X)(g) == 0`),
+  loi exacte quand l'algèbre des lois la connaît (formes affines de feuilles indépendantes,
+  identités), moments par linéarité.
+- Opérations sur les lois à venir : `maximum`/`minimum` (F_P F_Q), sommes aléatoires
+  `compound(N, P)`, marges `marginal<k>(J)`, conditionnement sur un événement.
 
 - Construction : constructeurs positionnels (comme `<random>`), fabriques nommées
   (`gamma::with_rate(2, 1)`), types forts (`gamma(shape{2}, rate{1})`, ordre libre), ou
