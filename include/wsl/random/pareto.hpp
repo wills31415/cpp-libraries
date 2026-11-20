@@ -3,7 +3,7 @@
 // Loi de Pareto (type I) d'échelle x_m > 0 et de forme α > 0 : P(X > x) = (x_m/x)^α,
 // x >= x_m.
 //
-//   wsl::pareto P({.scale = 1, .shape = 2.5});
+//   wsl::random::pareto P({.scale = 1, .shape = 2.5});
 //   P.mean(); cdf(P, 3.0); quantile(P, 0.99); sample(P, g);
 //
 // L = α log(x/x_m) en double-double (log du rapport, par log1p près de 1) ; survie
@@ -22,7 +22,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class pareto
@@ -39,7 +39,7 @@ namespace wsl
         constexpr pareto(parameters p) : xm_(p.scale), alpha_(p.shape)
         {
             if (!(xm_ > 0) || !detail::is_finite(xm_) || !(alpha_ > 0) || !detail::is_finite(alpha_))
-                throw std::domain_error("wsl::pareto : il faut scale > 0 et shape > 0, finis");
+                throw std::domain_error("wsl::random::pareto : il faut scale > 0 et shape > 0, finis");
         }
 
         constexpr T scale() const noexcept { return xm_; }
@@ -134,7 +134,7 @@ namespace wsl
         friend constexpr T quantile(pareto const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return X.xm_;
             if (p == 1)
@@ -147,7 +147,7 @@ namespace wsl
         friend constexpr T cquantile(pareto const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)

@@ -10,7 +10,7 @@
 
 #include <limits>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // lgamma(1 + ε), ε = e + e_lo > −1, en double-double.
     constexpr sd::double_double lgamma_one_plus(double e, double e_lo) noexcept

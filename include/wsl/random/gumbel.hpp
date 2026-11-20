@@ -2,8 +2,8 @@
 
 // Lois de Gumbel (valeurs extrêmes de type I, maximum) et de Fréchet (type II).
 //
-//   wsl::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
-//   wsl::frechet F({.shape = 3, .scale = 2, .location = 0});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
+//   wsl::random::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
+//   wsl::random::frechet F({.shape = 3, .scale = 2, .location = 0});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
 //   cdf(G, 1.0); quantile(F, 0.99); G.mean(); sample(F, g);
 //
 // Noyau commun : y = (x − μ)/β (Gumbel) ou α log((x − m)/s) (Fréchet, log du rapport par
@@ -28,7 +28,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -86,7 +86,7 @@ namespace wsl
         constexpr gumbel(parameters p) : mu_(p.location), beta_(p.scale)
         {
             if (!detail::is_finite(mu_) || !(beta_ > 0) || !detail::is_finite(beta_))
-                throw std::domain_error("wsl::gumbel : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::random::gumbel : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return mu_; }
@@ -154,7 +154,7 @@ namespace wsl
         constexpr T inverse(double t, bool upper) const
         {
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? std::numeric_limits<T>::infinity() : -std::numeric_limits<T>::infinity();
             if (t == 1)
@@ -181,7 +181,7 @@ namespace wsl
         constexpr frechet(parameters p) : alpha_(p.shape), s_(p.scale), m_(p.location)
         {
             if (!(alpha_ > 0) || !detail::is_finite(alpha_) || !(s_ > 0) || !detail::is_finite(s_) || !detail::is_finite(m_))
-                throw std::domain_error("wsl::frechet : il faut shape > 0 et scale > 0, finis, location fini");
+                throw std::domain_error("wsl::random::frechet : il faut shape > 0 et scale > 0, finis, location fini");
         }
 
         constexpr T shape() const noexcept { return alpha_; }
@@ -343,7 +343,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? std::numeric_limits<T>::infinity() : m_;
             if (t == 1)

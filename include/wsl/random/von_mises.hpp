@@ -2,8 +2,8 @@
 
 // Lois de von Mises (sur le cercle) et de von Mises–Fisher (sur la sphère Sᵖ⁻¹).
 //
-//   wsl::von_mises V({.mu = 0.5, .kappa = 4});                   // angles dans [μ − π, μ + π]
-//   wsl::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .kappa = 10});
+//   wsl::random::von_mises V({.mu = 0.5, .kappa = 4});                   // angles dans [μ − π, μ + π]
+//   wsl::random::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .kappa = 10});
 //   pdf(V, 1.0); V.circular_variance(); sample(V, g); pdf(F, x); F.mean(); sample(F, g);
 //
 // von Mises : densité e^{κ cos(x − μ)}/(2π I₀(κ)) sur [μ − π, μ + π], calculée comme
@@ -44,7 +44,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -133,7 +133,7 @@ namespace wsl
         constexpr von_mises(parameters p) : mu_(p.mu), kappa_(p.kappa)
         {
             if (!detail::is_finite(mu_) || !(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::von_mises : il faut mu fini et kappa >= 0, fini");
+                throw std::domain_error("wsl::random::von_mises : il faut mu fini et kappa >= 0, fini");
             namespace fp = detail::sd;
             double const k = kappa_;
             log_norm_ = {fp::fmul(detail::half_log_2pi_hi, 2.0), fp::fmul(detail::half_log_2pi_lo, 2.0)};   // log 2π
@@ -325,7 +325,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             bool from_low = !upper;                                         // x = μ − φ (côté bas) ou μ + φ
             double small = t;
             if (t > 0.5)
@@ -363,12 +363,12 @@ namespace wsl
             namespace fp = detail::sd;
             std::size_t const n = mu_.size();
             if (n < 2)
-                throw std::domain_error("wsl::von_mises_fisher : il faut une dimension >= 2");
+                throw std::domain_error("wsl::random::von_mises_fisher : il faut une dimension >= 2");
             if (!(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::von_mises_fisher : il faut kappa >= 0, fini");
+                throw std::domain_error("wsl::random::von_mises_fisher : il faut kappa >= 0, fini");
             auto const r2 = detail::dot(n, [&](std::size_t k) { return std::pair{double(mu_[k]), double(mu_[k])}; });
             if (!(r2.hi > 0) || !detail::is_finite(r2.hi))
-                throw std::domain_error("wsl::von_mises_fisher : direction moyenne nulle ou non finie");
+                throw std::domain_error("wsl::random::von_mises_fisher : direction moyenne nulle ou non finie");
             detail::scaled const r = detail::sqrt(detail::normalized(r2.hi, r2.lo));
             for (auto& v : mu_)                                             // μ/|μ|
             {

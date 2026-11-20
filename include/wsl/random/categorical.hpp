@@ -4,7 +4,7 @@
 // normalisés exactement par leur somme ; des probabilités dont la somme flottante n'est
 // pas exactement 1 conviennent donc).
 //
-//   wsl::categorical C({.p = {0.2, 0.5, 0.3}});
+//   wsl::random::categorical C({.p = {0.2, 0.5, 0.3}});
 //   sample(C, g); pmf(C, 1); cdf(C, 1); quantile(C, 0.9); C.mean(); C.entropy();
 //
 // Tirage exact en O(1) : les poids sont des entiers Nᵢ à une même puissance de 2 près ;
@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::size_t>
     class categorical
@@ -49,14 +49,14 @@ namespace wsl
         {
             std::size_t const k = w_.size();
             if (k < 1)
-                throw std::domain_error("wsl::categorical : il faut au moins une issue");
+                throw std::domain_error("wsl::random::categorical : il faut au moins une issue");
             for (double const v : w_)
                 if (!(v >= 0) || !detail::is_finite(v))
-                    throw std::domain_error("wsl::categorical : il faut des poids >= 0, finis");
+                    throw std::domain_error("wsl::random::categorical : il faut des poids >= 0, finis");
             for (double const v : w_)
                 total_ = detail::sum(total_, {v, 0.0});
             if (!(total_.hi > 0))
-                throw std::domain_error("wsl::categorical : poids tous nuls");
+                throw std::domain_error("wsl::random::categorical : poids tous nuls");
             integer_weights();
         }
 
@@ -133,7 +133,7 @@ namespace wsl
         friend constexpr I quantile(categorical const& C, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return static_cast<I>(C.first_positive());
             auto const [m, e] = detail::dyadic_of(p);                       // p = m 2^e

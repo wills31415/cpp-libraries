@@ -2,7 +2,7 @@
 
 // Processus aléatoires : trajectoires paresseuses (voir docs/random.md §14).
 //
-//   for (auto x : wsl::trajectory(P, g) | std::views::take(100)) …
+//   for (auto x : wsl::random::trajectory(P, g) | std::views::take(100)) …
 //
 // Un processus P fournit un « marcheur » (P.walker()), objet qui tire l'état initial
 // (first(g)) puis chaque état suivant (next(g)). trajectory(P, g) en fait une vue
@@ -26,7 +26,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::random
 {
     template <class W, std::uniform_random_bit_generator G>
     class process_view : public std::ranges::view_interface<process_view<W, G>>

@@ -10,7 +10,7 @@
 
 #include <limits>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // signe de v − d, v >= 0 à l'échelle, d >= 0 en double-double.
     constexpr int compare(scaled const& v, sd::double_double d) noexcept

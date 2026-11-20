@@ -25,6 +25,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Correction : le calcul des tranches de 5 % débordait pour `done` > 2⁵⁹.
 
 ### random (nouvelle)
+- Rupture : tout wsl::random passe dans l'espace de noms `wsl::random` (lois, processus,
+  objets combinatoires, moteurs, primitives : `wsl::random::normal`, `wsl::random::xoshiro256pp`…),
+  ses internes dans `wsl::random::detail` (plus de `wsl::detail` partagé avec graded). Les
+  appels non qualifiés (`pdf(X, x)`, `sample(X, g)`) restent trouvés par ADL. Alias conseillé :
+  `namespace wr = wsl::random;`.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

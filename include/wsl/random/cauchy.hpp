@@ -4,7 +4,7 @@
 // z = (x − x₀)/γ. Ni moyenne ni variance (elles n'existent pas : les membres
 // correspondants sont absents, has_mean<cauchy> est faux).
 //
-//   wsl::cauchy C({.location = 0, .scale = 1});
+//   wsl::random::cauchy C({.location = 0, .scale = 1});
 //   cdf(C, 3.0); quantile(C, 0.99); C.entropy(); sample(C, g);
 //
 // z en double-double (comme pour la normale). Répartition : P(X > x) = atan(1/z)/π
@@ -27,7 +27,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -65,7 +65,7 @@ namespace wsl
         constexpr cauchy(parameters p) : x0_(p.location), gamma_(p.scale)
         {
             if (!detail::is_finite(x0_) || !(gamma_ > 0) || !detail::is_finite(gamma_))
-                throw std::domain_error("wsl::cauchy : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::random::cauchy : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return x0_; }
@@ -118,7 +118,7 @@ namespace wsl
         friend constexpr T quantile(cauchy const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return -std::numeric_limits<T>::infinity();
             if (p == 1)
@@ -134,7 +134,7 @@ namespace wsl
         friend constexpr T cquantile(cauchy const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)

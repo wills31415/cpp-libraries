@@ -2,9 +2,9 @@
 
 // Lois sur les permutations de {0, …, n − 1} (valeurs wsl::permutation).
 //
-//   wsl::uniform_permutation U({.size = 10});
-//   wsl::ewens E({.size = 10, .theta = 2.5});      // P(σ) = θ^{cycles(σ)} / θ(θ + 1)…(θ + n − 1)
-//   wsl::mallows M({.size = 10, .q = 0.7});        // P(σ) = q^{inversions(σ)} / Π [i]_q
+//   wsl::random::uniform_permutation U({.size = 10});
+//   wsl::random::ewens E({.size = 10, .theta = 2.5});      // P(σ) = θ^{cycles(σ)} / θ(θ + 1)…(θ + n − 1)
+//   wsl::random::mallows M({.size = 10, .q = 0.7});        // P(σ) = q^{inversions(σ)} / Π [i]_q
 //   sample(U, g); pmf(E, sigma); log_pmf(M, sigma); E.mean_cycles(); M.mean_inversions();
 //
 // Tirages exacts (la permutation tirée a exactement la probabilité annoncée) :
@@ -33,7 +33,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -142,7 +142,7 @@ namespace wsl
         constexpr explicit ewens(parameters p) : n_(p.size), theta_(p.theta)
         {
             if (!(theta_ > 0) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::ewens : il faut theta > 0, fini");
+                throw std::domain_error("wsl::random::ewens : il faut theta > 0, fini");
             // log θ(θ + 1)…(θ + n − 1) = log Γ(θ + n) − log Γ(θ)
             if (n_ > 0)
             {
@@ -224,7 +224,7 @@ namespace wsl
         constexpr explicit mallows(parameters p) : n_(p.size), q_(p.q)
         {
             if (!(q_ > 0) || !detail::is_finite(q_))
-                throw std::domain_error("wsl::mallows : il faut q > 0, fini");
+                throw std::domain_error("wsl::random::mallows : il faut q > 0, fini");
             log_q_ = detail::log_precise(q_);
             // log Z = Σ_{i=1}^{n} log [i]_q
             for (std::size_t i = 1; i <= n_; ++i)

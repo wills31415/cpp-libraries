@@ -39,7 +39,7 @@ peu. Une loi déclare ce que l'on sait d'elle ; la bibliothèque en déduit le r
 | Exactitude | **Exact par défaut** quand un algorithme exact est connu ; variante rapide sur demande explicite | ✅ |
 | Types flottants | `float` et `double` ; `long double` refusé à la compilation | ✅ |
 | Moteurs | Tout moteur standard, plus xoshiro256++, PCG64, Philox | ✅ |
-| Dimension (multivarié) | Fixe ou dynamique, sur le modèle de `std::span` (`dirichlet<double, 3>`, `dirichlet<double, wsl::dynamic>`) ; vecteurs `std::array` ou `std::vector`, matrices `wsl::square_matrix` (§12) | ✅ |
+| Dimension (multivarié) | Fixe ou dynamique, sur le modèle de `std::span` (`dirichlet<double, 3>`, `dirichlet<double, wsl::random::dynamic>`) ; vecteurs `std::array` ou `std::vector`, matrices `wsl::random::square_matrix` (§12) | ✅ |
 | Processus | Vues paresseuses (`std::ranges`) | ◻︎ |
 
 ## 3. Reproductibilité ✅
@@ -139,17 +139,17 @@ implémenté** est absent de la même façon, et la documentation de la loi le d
 Exemple d'utilisation :
 
 ```cpp
-wsl::gamma X({.shape = 2.5, .rate = 2.0});
-wsl::gamma Y({.shape = 2.5, .scale = 0.5});   // la même loi, autre paramétrisation
-wsl::normal Z({.mean = 0, .variance = 4});    // N(μ, σ²) des manuels
+wsl::random::gamma X({.shape = 2.5, .rate = 2.0});
+wsl::random::gamma Y({.shape = 2.5, .scale = 0.5});   // la même loi, autre paramétrisation
+wsl::random::normal Z({.mean = 0, .variance = 4});    // N(μ, σ²) des manuels
 
 X.mean();                // 1.25
 cdf(X, 1.0);             // P(X ≤ 1)
 quantile(Z, 0.975);      // 3.919…
 auto x = sample(X, gen); // tirage exact si la loi le permet
 
-wsl::gamma({.shape = 2.5});              // erreur de compilation : paramétrisation ambiguë
-wsl::gamma({.shape = -1, .rate = 1});    // std::domain_error : shape doit être > 0
+wsl::random::gamma({.shape = 2.5});              // erreur de compilation : paramétrisation ambiguë
+wsl::random::gamma({.shape = -1, .rate = 1});    // std::domain_error : shape doit être > 0
 ```
 
 Pourquoi des paramètres nommés : `gamma(2.5, 2.0)` a pour espérance 5 en C++ et en
@@ -184,19 +184,19 @@ gaussienne discrète (Canonne–Kamath–Steinke 2020), binomiale et Poisson par
 méthodes exactes, mélange de Fisher–Yates.
 
 Quand un algorithme exact existe, il est utilisé par défaut ; la variante rapide se
-demande explicitement (`sample(X, gen, wsl::fast)`) et porte sa borne d'erreur.
+demande explicitement (`sample(X, gen, wsl::random::fast)`) et porte sa borne d'erreur.
 Quand aucun n'est connu, le meilleur algorithme est utilisé et marqué `approximate`.
 
 ### 4.6 Algèbre des lois ✅ (phase 5)
 
 | Construction | Écriture | Ce qui est hérité |
 |---|---|---|
-| Image affine | `2 * X + 1`, `-X`, `X / 4`, `wsl::affine(X, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
-| Troncature, conditionnement | `wsl::truncate(X, a, b)` | densité, répartition, quantiles renormalisés |
-| Mélange | `wsl::mixture(wsl::weighted(w1, X1), wsl::weighted(w2, X2), …)` | densité ou masse, répartition, quantiles, moments |
+| Image affine | `2 * X + 1`, `-X`, `X / 4`, `wsl::random::affine(X, {.scale, .shift})` | densité, répartition, quantiles, moments, entropie transformés |
+| Troncature, conditionnement | `wsl::random::truncate(X, a, b)` | densité, répartition, quantiles renormalisés |
+| Mélange | `wsl::random::mixture(wsl::random::weighted(w1, X1), wsl::random::weighted(w2, X2), …)` | densité ou masse, répartition, quantiles, moments |
 | Somme indépendante | `X + Y`, `X - Y` | identités (normale, Cauchy, Poisson, χ² ; gamma de même intensité, binomiales de même p) ; sinon moments par les cumulants, et pour les lois discrètes masse, répartition, quantile par convolution exacte |
-| Loi jointe (produit) | `wsl::independent(X, Y, …)` | densité ou masse, répartition et survie jointes, entropie, moyennes |
-| Image par une fonction | `wsl::pushforward(X, f)` | tirage ; avec `wsl::increasing(f, f⁻¹ [, (f⁻¹)'])` ou `decreasing` : répartition, quantiles, médiane, densité |
+| Loi jointe (produit) | `wsl::random::independent(X, Y, …)` | densité ou masse, répartition et survie jointes, entropie, moyennes |
+| Image par une fonction | `wsl::random::pushforward(X, f)` | tirage ; avec `wsl::random::increasing(f, f⁻¹ [, (f⁻¹)'])` ou `decreasing` : répartition, quantiles, médiane, densité |
 
 Les identités connues sont résolues **à la compilation** : `2 * normal + 1` a pour type
 `normal`, avec ses paramètres calculés (voir §10). Sans identité, le résultat est une loi
@@ -204,7 +204,7 @@ générique qui compose.
 
 ### 4.7 Adaptateur vers `<random>` ✅
 
-`wsl::as_distribution(X)` satisfait l'exigence *RandomNumberDistribution* de la norme
+`wsl::random::as_distribution(X)` satisfait l'exigence *RandomNumberDistribution* de la norme
 (`result_type`, `param_type`, `operator()(g)`, `operator()(g, p)`, `min`, `max`,
 `reset`, `==`, `<<`, `>>`) : utilisable partout où la norme attend une distribution.
 La norme exige un `result_type` arithmétique : l'adaptateur est donc réservé aux lois
@@ -298,10 +298,10 @@ le justifie.
 `approximate`), `support()` ; constantes en membres quand elles existent (`mean`,
 `variance`, `skewness`, `excess_kurtosis`, `entropy`, `median`, `mode`) ; opérations en
 fonctions libres trouvées par ADL — à appeler **sans qualification**, comme `swap` :
-`sample(X, g)`, `sample(X, g, wsl::fast)`, `pdf`/`pmf`, `log_pdf`/`log_pmf`, `cdf`,
+`sample(X, g)`, `sample(X, g, wsl::random::fast)`, `pdf`/`pmf`, `log_pdf`/`log_pmf`, `cdf`,
 `ccdf`, `quantile`. Concepts `has_mean`, `has_cdf`… pour tester leur présence. Lois
-templates sur le type des valeurs, `double` par défaut (`wsl::normal X({…})`,
-`wsl::normal<float>`). `wsl::as_distribution(X)` : adaptateur *RandomNumberDistribution*.
+templates sur le type des valeurs, `double` par défaut (`wsl::random::normal X({…})`,
+`wsl::random::normal<float>`). `wsl::random::as_distribution(X)` : adaptateur *RandomNumberDistribution*.
 
 **Lois de l'étape A** (`<wsl/random/basic_laws.hpp>`) :
 
@@ -325,7 +325,7 @@ laisser le nom à la loi.
 
 ### Étape B : exponentielle et normale
 
-| Loi | Paramètres | Tirage (exact) | `wsl::fast` |
+| Loi | Paramètres | Tirage (exact) | `wsl::random::fast` |
 |---|---|---|---|
 | `exponential<T>` | `{.rate}` | exponentielle de von Neumann sur réels paresseux, arrondi correct de E/λ | inversion −log(U)/λ |
 | `normal<T>` | `{.mean, .sd}` | demi-normale par rejet exponentiel exact, signe uniforme, arrondi correct de μ + σZ | ziggourat (256 couches) |
@@ -349,7 +349,7 @@ une comparaison ou un arrondi l'exige.
   2⁻³⁰) décide 99,5 % des cas ; elle ne rend un résultat que s'il est certain, si bien
   que résultat **et nombre de mots tirés** sont ceux de la voie exacte.
 - Coût mesuré (i7-9750H, xoshiro256++) : exponentielle 79 ns, normale 136 ns ; en
-  `wsl::fast` 13 ns et 8 ns (`std::exponential_distribution` 15 ns,
+  `wsl::random::fast` 13 ns et 8 ns (`std::exponential_distribution` 15 ns,
   `std::normal_distribution` 18 ns, avec mt19937_64).
 
 **Fonctions de la loi** : z ou λx en double-double (produits exacts, facteurs
@@ -454,7 +454,7 @@ close ; séries à venir), médianes de gamma, bêta, Poisson, binomiale (quanti
 |---|---|---|---|
 | `chi_squared<T>` | `{.degrees_of_freedom}` | délégué à `gamma` (forme k/2, échelle 2, exactes) | gamma |
 | `student_t<T>` | `{.degrees_of_freedom}` | queue I_x(ν/2, ½)/2, x et 1 − x en double-double, bêta incomplète à argument double-double (premier ordre) ; quantile par l'inverse de la bêta en (x, 1 − x) double-double, t² = ν(1 − x)/x ; densité sans compensation (lgamma((ν+1)/2) − lgamma(ν/2) par récurrence et Stirling) ; moments NaN ou ∞ là où ils n'existent pas | Z/√(V/ν) |
-| `lognormal<T>` | `{.mu, .sigma}` (de log X) | z = (log x − μ)/σ, log x en double-double, puis la normale ; quantile e^{μ+σΦ⁻¹(p)}, un arrondi ; moments en double-double | e^Y, Y exacte ; `wsl::fast` : ziggourat |
+| `lognormal<T>` | `{.mu, .sigma}` (de log X) | z = (log x − μ)/σ, log x en double-double, puis la normale ; quantile e^{μ+σΦ⁻¹(p)}, un arrondi ; moments en double-double | e^Y, Y exacte ; `wsl::random::fast` : ziggourat |
 | `cauchy<T>` | `{.location, .scale}` | queue atan(1/z)/π (z >= 1) ou ½ − atan(z)/π, noyau atan à argument double-double ; quantile x₀ − γ cot(πp) ; pas de moyenne ni de variance (membres absents) | x₀ ± γ cot(πW/2) |
 
 Précision mesurée : tout sous 0,5 ulp, arrondi correct à 100 % (double et float).
@@ -505,7 +505,7 @@ perdraient tout pour q minuscule.
 
 | Famille | aX + b |
 |---|---|
-| normale, Cauchy, Laplace, logistique, uniforme | même famille (`affine_closure`), type conservé ; paramètres arrondis une fois par opération (`wsl::affine(X, {a, b})` : une fois en tout) |
+| normale, Cauchy, Laplace, logistique, uniforme | même famille (`affine_closure`), type conservé ; paramètres arrondis une fois par opération (`wsl::random::affine(X, {a, b})` : une fois en tout) |
 | exponentielle, gamma, Weibull, Pareto, log-normale | `affine_image<L>`, mais pour a > 0, b = 0 toutes les fonctions sont celles de la loi de la famille (`scale_closure`) : mêmes bits |
 | autres | `affine_image<L>` : z = (y − b)/a arrondi une fois, cdf/ccdf échangées si a < 0, quantile a·Q(p) + b ou a·cQ(p) + b en un arrondi, moments a·m + b, a²v, ±asymétrie, H + log a |
 
@@ -587,16 +587,16 @@ paramètres).
 
 ### Loi jointe
 
-`wsl::independent(X₁, …, Xₙ)`, `value_type` = `std::tuple` : densité (toutes continues)
+`wsl::random::independent(X₁, …, Xₙ)`, `value_type` = `std::tuple` : densité (toutes continues)
 ou masse (toutes discrètes) produit en un arrondi, log-densité somme, répartition et
 survie jointes produits, entropie somme ; tirage des composantes dans l'ordre, exact si
 chacune l'est.
 
 ### Image par une fonction
 
-`wsl::pushforward(X, f)` : tirage f(x) seul pour une fonction quelconque (à valeurs
+`wsl::random::pushforward(X, f)` : tirage f(x) seul pour une fonction quelconque (à valeurs
 arithmétiques). Une bijection monotone se déclare avec sa réciproque (et la dérivée de
-celle-ci pour la densité) : `wsl::increasing(f, g[, g'])`, `wsl::decreasing(f, g[, g'])`.
+celle-ci pour la densité) : `wsl::random::increasing(f, g[, g'])`, `wsl::random::decreasing(f, g[, g'])`.
 La précision et la reproductibilité au bit près sont celles de f et g : avec
 `wsl::special::exp` et `log`, exp(N) redonne les bits de la log-normale.
 
@@ -613,9 +613,9 @@ du quantile.)
 
 ### Socle (`multivariate.hpp`)
 
-Dimension N fixe ou `wsl::dynamic` (= `std::dynamic_extent`) : valeurs `std::array<T, N>`
+Dimension N fixe ou `wsl::random::dynamic` (= `std::dynamic_extent`) : valeurs `std::array<T, N>`
 ou `std::vector<T>`, la dimension dynamique donnée par les paramètres. Matrices :
-`wsl::square_matrix<T, N>`, ligne par ligne, construite par accolades imbriquées
+`wsl::random::square_matrix<T, N>`, ligne par ligne, construite par accolades imbriquées
 (`.covariance = {{1, 0.5}, {0.5, 2}}`, dimension vérifiée). Le support d'une loi
 multivariée est le pavé qui contient ses valeurs (le concept de loi est inchangé).
 Calcul : produits scalaires en double-double, produits par `fmul`, Cholesky et
@@ -625,7 +625,7 @@ substitution triangulaire bit-exactes.
 |---|---|---|---|
 | `dirichlet<T, N>` | `{.alpha}` | densité en logarithme double-double (log B(α) = Σ lgamma − lgamma(α₀)), x dans le simplexe à K·2⁻⁵⁰ près ; moyenne, variances, covariance, mode, entropie, marginale bêta | Gᵢ/Σ G, gammas tirées dans l'ordre |
 | `multinomial<I, N>` | `{.trials, .p}` (Σ p = 1 à 2⁻⁴⁰ près) | masse n!/Π kᵢ! Π pᵢ^kᵢ en logarithme double-double, un arrondi ; moyenne, covariance, marginale binomiale | binomiales conditionnelles, restes en double-double |
-| `multivariate_normal<T, N>` | `{.mean, .covariance}` | Cholesky à la construction (`std::domain_error` sinon) ; log-densité −½\|L⁻¹(x − μ)\|² − Σ log Lᵢᵢ − (n/2) log 2π ; entropie, Mahalanobis, marginale normale | μ + L z, z normales exactes ; `wsl::fast` : ziggourat |
+| `multivariate_normal<T, N>` | `{.mean, .covariance}` | Cholesky à la construction (`std::domain_error` sinon) ; log-densité −½\|L⁻¹(x − μ)\|² − Σ log Lᵢᵢ − (n/2) log 2π ; entropie, Mahalanobis, marginale normale | μ + L z, z normales exactes ; `wsl::random::fast` : ziggourat |
 | `uniform_sphere<T, N>`, `uniform_ball<T, N>` | dimension (N, ou `{.dimension}`) | densité 1/aire (mesure de surface), 1/volume ; aire, volume, entropie | z/\|z\| ; boule : × U^{1/n} |
 
 Vérifications : valeurs contre mpmath à 2 ulp (densités, masses, entropies),
@@ -697,7 +697,7 @@ masses sommant à 1 sur S₆, espérances (cycles, inversions) exactes, p(100) e
 
 ### Lot 2 : graphes, arbres, partitions d'ensemble, compositions
 
-Valeurs : `wsl::edge_list` (arêtes (u, v), u < v, triées) ; `wsl::binary_tree` (enfants
+Valeurs : `wsl::random::edge_list` (arêtes (u, v), u < v, triées) ; `wsl::random::binary_tree` (enfants
 {gauche, droit} numérotés en préordre, racine 0, `binary_tree::none`) ; partition
 d'ensemble : mot à croissance restreinte ; composition : liste des parts.
 
@@ -742,50 +742,50 @@ de Pólya, restaurant chinois), puis temps continu.
 ### Temps discret
 
 ```cpp
-wsl::random_walk W({.start = 0, .step = wsl::normal({.mean = 0, .sd = 1})});
+wsl::random::random_walk W({.start = 0, .step = wsl::random::normal({.mean = 0, .sd = 1})});
 W.at(10);                                   // normal(0, √10) : identités de sommes
-for (double x : wsl::trajectory(W, g) | std::views::take(100)) …
+for (double x : wsl::random::trajectory(W, g) | std::views::take(100)) …
 
-wsl::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .initial = 0});
-C.at(5);                                    // wsl::categorical, π₀ P⁵
-C.stationary();                             // wsl::categorical
+wsl::random::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .initial = 0});
+C.at(5);                                    // wsl::random::categorical, π₀ P⁵
+C.stationary();                             // wsl::random::categorical
 auto path = sample(C.steps(100), g);        // std::vector<std::size_t>, 101 états
 pmf(C.steps(100), path);                    // produit des transitions
 ```
 
-Brique nécessaire, en tête de phase : `wsl::categorical({.p = {…}})` (tirer i avec
+Brique nécessaire, en tête de phase : `wsl::random::categorical({.p = {…}})` (tirer i avec
 probabilité pᵢ), **exacte** (poids entiers à une puissance de 2 près, table d'alias de
 Walker–Vose pour l'O(1)).
 
 ### Temps continu
 
 ```cpp
-wsl::poisson_process N({.rate = 2.0});
+wsl::random::poisson_process N({.rate = 2.0});
 N.at(3.0);                                  // poisson({.mean = 6})
 for (double t : wsl::events(N, g) | std::views::take_while([](double t) { return t < 10; })) …
 auto times = sample(N.on(10.0), g);         // instants dans [0, 10]
 
-wsl::poisson_process M({.intensity = f, .bound = 5.0});        // inhomogène (amincissement)
-wsl::compound_poisson S({.rate = 2.0, .jump = wsl::exponential({.rate = 1.0})});
+wsl::random::poisson_process M({.intensity = f, .bound = 5.0});        // inhomogène (amincissement)
+wsl::random::compound_poisson S({.rate = 2.0, .jump = wsl::random::exponential({.rate = 1.0})});
 
-wsl::brownian_motion B({.drift = 0, .volatility = 1});
+wsl::random::brownian_motion B({.drift = 0, .volatility = 1});
 B.at(2.0);                                  // normal(0, √2)
 auto x = sample(B.on_grid(ts), g);          // accroissements N(μΔt, σ²Δt) exacts, cumulés
-for (auto [t, v] : wsl::trajectory(B, g, {.step = 0.01})) …
-wsl::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});        // grilles seulement (regard en avant)
-wsl::geometric_brownian_motion, wsl::ornstein_uhlenbeck        // transitions exactes (gaussiennes)
-wsl::continuous_markov_chain({.generator = Q, .initial = 0})   // instants et états des sauts
+for (auto [t, v] : wsl::random::trajectory(B, g, {.step = 0.01})) …
+wsl::random::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});        // grilles seulement (regard en avant)
+wsl::random::geometric_brownian_motion, wsl::random::ornstein_uhlenbeck        // transitions exactes (gaussiennes)
+wsl::random::continuous_markov_chain({.generator = Q, .initial = 0})   // instants et états des sauts
 ```
 
 ### Modèles bayésiens non paramétriques, urnes
 
 ```cpp
-wsl::chinese_restaurant R({.theta = 1.5});
-for (std::size_t table : wsl::trajectory(R, g) | std::views::take(100)) …   // table de chaque client
+wsl::random::chinese_restaurant R({.theta = 1.5});
+for (std::size_t table : wsl::random::trajectory(R, g) | std::views::take(100)) …   // table de chaque client
 R.at(100);                                  // loi de la partition (formule d'Ewens)
-wsl::polya_urn U({.balls = {1, 2}, .added = 1});              // couleurs tirées ; U.at(n) : bêta-binomiale…
-wsl::dirichlet_process P({.concentration = 2, .base = wsl::normal({.mean = 0, .sd = 1})});
-for (auto [weight, atom] : wsl::trajectory(P, g)) …          // bâton brisé (stick-breaking)
+wsl::random::polya_urn U({.balls = {1, 2}, .added = 1});              // couleurs tirées ; U.at(n) : bêta-binomiale…
+wsl::dirichlet_process P({.concentration = 2, .base = wsl::random::normal({.mean = 0, .sd = 1})});
+for (auto [weight, atom] : wsl::random::trajectory(P, g)) …          // bâton brisé (stick-breaking)
 ```
 
 ### Exactitude ✅ (2026-11-18 : option B)
@@ -794,7 +794,7 @@ Les choix discrets sont exacts (chaînes de Markov, restaurant, urnes : poids fl
 décidés exactement). En temps continu et pour les marches à pas réels, **exact point par
 point par défaut** : chaque position est l'arrondi correct d'une trajectoire tirée
 exactement (somme de réels paresseux, affinés à la demande), la loi étant celle des
-paramètres arrondis une fois (√Δt, e^{−θΔt}…) ; `wsl::fast` : accroissements approchés
+paramètres arrondis une fois (√Δt, e^{−θΔt}…) ; `wsl::random::fast` : accroissements approchés
 (ziggourat), sommes en double-double. Brique nouvelle : réels paresseux additionnables
 et multipliables par un double (lot 2).
 
@@ -838,15 +838,15 @@ par `fmul` (vérifié par le scan de contraction, qui tire désormais des trajec
 Contrôle : 1 500 sommes aléatoires (compensations, poids α, β, diviseurs) et 300 valeurs
 visées au milieu de deux doubles, toutes confirmées par raffinement de deux mots de plus.
 Coût mesuré : environ 2 µs par point de brownien, constant jusqu'à 10⁵ points (voie rapide
-`wsl::fast` : quelques dizaines de ns) ; mémoire linéaire en la longueur.
+`wsl::random::fast` : quelques dizaines de ns) ; mémoire linéaire en la longueur.
 
 | Processus | Paramètres | Usage | Construction exacte |
 |---|---|---|---|
-| `brownian_motion` | `{.drift, .volatility, .start}` | `at(t)`, `on_grid(ts)`, `trajectory(B, g, {.step})`, `wsl::fast` | x₀ + μt (exact) + σ Σ √Δt Z, √Δt arrondi une fois |
+| `brownian_motion` | `{.drift, .volatility, .start}` | `at(t)`, `on_grid(ts)`, `trajectory(B, g, {.step})`, `wsl::random::fast` | x₀ + μt (exact) + σ Σ √Δt Z, √Δt arrondi une fois |
 | `brownian_bridge` | `{.from, .to, .volatility}` | `at(t)`, `on_grid(ts)` | a + r(b − a) + σ(W(t) − r W(T)), r arrondi ; extrémités exactes |
 | `ornstein_uhlenbeck` | `{.theta, .mean, .volatility, .start}` | `at(t)`, `stationary()`, `on_grid`, `trajectory(…, {.step})` | changement de temps μ + a(x₀ − μ) + r W(u), a, r, u arrondis par instant ; θt <= 350 |
 | `geometric_brownian_motion` | `{.drift, .volatility, .start}` | `at(t)` (log-normale), `on_grid` | logarithme exact, exponentielle approchée (wsl::special::exp) |
-| `poisson_process` | `{.rate}` | `at(t)`, `on(T)`, `trajectory` (instants), `wsl::fast` | Tₖ = Σ Eⱼ/λ |
+| `poisson_process` | `{.rate}` | `at(t)`, `on(T)`, `trajectory` (instants), `wsl::random::fast` | Tₖ = Σ Eⱼ/λ |
 | `inhomogeneous_poisson_process` | `(f, borne)` | `on(T)`, `trajectory` | amincissement, f(t)/Λ exact, f à l'instant arrondi (approché) |
 | `compound_poisson` | `(taux, loi des sauts)` | `mean(t)`, `variance(t)`, `trajectory` (instant, valeur) | sauts paresseux (normale, exponentielle, Laplace, uniforme) ou arrondis sommés exactement |
 | `continuous_markov_chain` | `{.generator, .start}` | `at(t)` (π₀ e^{Qt}), `trajectory` (instant, état) | séjours E/q_x exacts, sauts catégoriels ; +∞ après absorption |
@@ -866,9 +866,9 @@ ne diminuent pas en raffinant : désormais séparées des largeurs), et poids qu
 Le chantier futur (§7) partira de cette liste (relevé complet du dépôt :
 [interfaces.md](interfaces.md)) :
 
-- types des valeurs : `wsl::permutation`, `wsl::edge_list`, `wsl::binary_tree` (types
+- types des valeurs : `wsl::permutation`, `wsl::random::edge_list`, `wsl::random::binary_tree` (types
   propres) mais `std::vector<std::size_t>` pour sous-ensembles, mots, partitions et
-  compositions ; `wsl::square_matrix` pour les matrices, `std::array`/`std::vector` pour
+  compositions ; `wsl::random::square_matrix` pour les matrices, `std::array`/`std::vector` pour
   les vecteurs ;
 - noms des paramètres de taille : `.size`, `.n`, `.vertices`, `.nodes`, `.length`,
   `.dimension` ; `.mu`/`.sigma` (log-normale, von Mises) contre `.mean`/`.sd` (normale) ;
@@ -877,7 +877,7 @@ Le chantier futur (§7) partira de cette liste (relevé complet du dépôt :
   multivariées ;
 - constantes propres à certaines lois hors du vocabulaire commun : `mean_cycles()`,
   `mean_inversions()`, `mean_size()`, `count()`, `mean_resultant_length()` ;
-- noms des constructions : `wsl::affine` (fonction) et `affine_image` (type),
+- noms des constructions : `wsl::random::affine` (fonction) et `affine_image` (type),
   `independent` (type, CTAD) et `independent_sum`, `truncate`/`truncated`,
   `pushforward`/`image`/`monotone_image` ;
 - erreurs : `std::domain_error` à la construction et pour `quantile` hors de [0, 1],

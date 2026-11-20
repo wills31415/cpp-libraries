@@ -116,16 +116,16 @@ namespace
     }
 
     // Graphes sur n sommets, arêtes parmi les C(n, 2) paires (ordre lexicographique).
-    std::vector<wsl::edge_list> all_graphs(std::size_t n, std::size_t edges = SIZE_MAX)
+    std::vector<wsl::random::edge_list> all_graphs(std::size_t n, std::size_t edges = SIZE_MAX)
     {
-        wsl::edge_list pairs;
+        wsl::random::edge_list pairs;
         for (std::size_t u = 0; u < n; ++u)
             for (std::size_t v = u + 1; v < n; ++v)
                 pairs.emplace_back(u, v);
-        std::vector<wsl::edge_list> r;
+        std::vector<wsl::random::edge_list> r;
         for (std::uint64_t m = 0; m < (std::uint64_t{1} << pairs.size()); ++m)
         {
-            wsl::edge_list e;
+            wsl::random::edge_list e;
             for (std::size_t i = 0; i < pairs.size(); ++i)
                 if ((m >> i) & 1)
                     e.push_back(pairs[i]);
@@ -135,7 +135,7 @@ namespace
         return r;
     }
 
-    std::vector<std::size_t> degrees(wsl::edge_list const& e, std::size_t n)
+    std::vector<std::size_t> degrees(wsl::random::edge_list const& e, std::size_t n)
     {
         std::vector<std::size_t> d(n, 0);
         for (auto const& [u, v] : e)
@@ -147,17 +147,17 @@ namespace
     }
 
     // Arbres binaires à n nœuds, numérotés en préordre.
-    std::vector<wsl::binary_tree> all_binary_trees(std::size_t n)
+    std::vector<wsl::random::binary_tree> all_binary_trees(std::size_t n)
     {
-        constexpr std::size_t none = wsl::binary_tree::none;
+        constexpr std::size_t none = wsl::random::binary_tree::none;
         if (n == 0)
-            return {wsl::binary_tree{}};
-        std::vector<wsl::binary_tree> r;
+            return {wsl::random::binary_tree{}};
+        std::vector<wsl::random::binary_tree> r;
         for (std::size_t l = 0; l < n; ++l)
             for (auto const& left : all_binary_trees(l))
                 for (auto const& right : all_binary_trees(n - 1 - l))
                 {
-                    wsl::binary_tree t;
+                    wsl::random::binary_tree t;
                     t.children.push_back({l > 0 ? 1 : none, n - 1 - l > 0 ? 1 + l : none});
                     for (auto c : left.children)
                         t.children.push_back({c[0] == none ? none : c[0] + 1, c[1] == none ? none : c[1] + 1});
@@ -200,43 +200,43 @@ namespace
     }
 }
 
-static_assert(wsl::probability_law<wsl::ewens> && !wsl::has_support<wsl::ewens> && wsl::has_pmf<wsl::mallows>);
-static_assert(wsl::uniform_permutation::sampling == wsl::exactness::exact && wsl::mallows::sampling == wsl::exactness::exact);
-static_assert(wsl::has_support<wsl::normal<>> && wsl::has_pmf<wsl::uniform_integer_partition>);
+static_assert(wsl::random::probability_law<wsl::random::ewens> && !wsl::random::has_support<wsl::random::ewens> && wsl::random::has_pmf<wsl::random::mallows>);
+static_assert(wsl::random::uniform_permutation::sampling == wsl::random::exactness::exact && wsl::random::mallows::sampling == wsl::random::exactness::exact);
+static_assert(wsl::random::has_support<wsl::random::normal<>> && wsl::random::has_pmf<wsl::random::uniform_integer_partition>);
 
 int main()
 {
-    wsl::xoshiro256pp g(20261118);
+    wsl::random::xoshiro256pp g(20261118);
     constexpr int draws = 60000;
 
     // ---- Choix exacts à poids flottants ---------------------------------------------
     {
         int hits = 0;                                                        // 128 bits : 0,1/(0,1 + 3)
         for (int i = 0; i < draws; ++i)
-            hits += wsl::detail::choose(g, 0.1, 3.0);
+            hits += wsl::random::detail::choose(g, 0.1, 3.0);
         assert(std::abs(hits / double(draws) - 0.1 / 3.1) < 0.003);
         hits = 0;                                                            // grands entiers : 2^-600 contre 2^600
         for (int i = 0; i < 2000; ++i)
-            hits += wsl::detail::choose(g, 0x1p-600, 0x1p600);
+            hits += wsl::random::detail::choose(g, 0x1p-600, 0x1p600);
         assert(hits == 0);
         hits = 0;                                                            // a/b, b non dyadique
         for (int i = 0; i < draws; ++i)
-            hits += wsl::detail::fraction(g, 1.0, 2.5);
+            hits += wsl::random::detail::fraction(g, 1.0, 2.5);
         assert(std::abs(hits / double(draws) - 0.4) < 0.006);
-        assert(wsl::detail::choose(g, 1.0, 0.0) && !wsl::detail::choose(g, 0.0, 1.0) && wsl::detail::fraction(g, 2.0, 2.0));
+        assert(wsl::random::detail::choose(g, 1.0, 0.0) && !wsl::random::detail::choose(g, 0.0, 1.0) && wsl::random::detail::fraction(g, 2.0, 2.0));
     }
 
     // ---- Permutations ----------------------------------------------------------------
     {
         auto const s4 = all_permutations(4);
-        assert(chi_square(wsl::uniform_permutation({.size = 4}), g, s4, draws) < 4);
+        assert(chi_square(wsl::random::uniform_permutation({.size = 4}), g, s4, draws) < 4);
         for (double theta : {0.3, 2.5, 40.0})
-            assert(chi_square(wsl::ewens({.size = 4, .theta = theta}), g, s4, draws) < 4);
+            assert(chi_square(wsl::random::ewens({.size = 4, .theta = theta}), g, s4, draws) < 4);
         for (double q : {0.01, 0.4, 0.999, 1.0, 2.5, 300.0})                // 0,999 : uniforme acceptée ; sinon géométrique
-            assert(chi_square(wsl::mallows({.size = 4, .q = q}), g, s4, draws) < 4);
+            assert(chi_square(wsl::random::mallows({.size = 4, .q = q}), g, s4, draws) < 4);
         auto const s6 = all_permutations(6);
-        wsl::ewens const E({.size = 6, .theta = 2.5});
-        wsl::mallows const M({.size = 6, .q = 0.4});
+        wsl::random::ewens const E({.size = 6, .theta = 2.5});
+        wsl::random::mallows const M({.size = 6, .q = 0.4});
         double te = 0, tm = 0, ce = 0, im = 0;
         for (auto const& p : s6)
         {
@@ -246,40 +246,40 @@ int main()
             im += pmf(M, p) * double(p.inversions());
         }
         assert(close(te, 1, 1e-14) && close(tm, 1, 1e-14) && close(ce, E.mean_cycles(), 1e-14) && close(im, M.mean_inversions(), 1e-13));
-        assert(close(wsl::mallows({.size = 6, .q = 2.5}).mean_inversions(), 15 - M.mean_inversions(), 1e-13));   // q ↔ 1/q : inv ↔ 15 − inv
+        assert(close(wsl::random::mallows({.size = 6, .q = 2.5}).mean_inversions(), 15 - M.mean_inversions(), 1e-13));   // q ↔ 1/q : inv ↔ 15 − inv
         // Ewens θ = 1 : uniforme.
-        assert(close(pmf(wsl::ewens({.size = 6, .theta = 1.0}), s6[17]), 1.0 / 720, 1e-15) && close(pmf(wsl::uniform_permutation({.size = 6}), s6[3]), 1.0 / 720, 1e-15));
+        assert(close(pmf(wsl::random::ewens({.size = 6, .theta = 1.0}), s6[17]), 1.0 / 720, 1e-15) && close(pmf(wsl::random::uniform_permutation({.size = 6}), s6[3]), 1.0 / 720, 1e-15));
         // Grandes tailles : validité et statistiques simples.
-        wsl::ewens const big({.size = 2000, .theta = 3.0});
+        wsl::random::ewens const big({.size = 2000, .theta = 3.0});
         double cycles = 0;
         for (int i = 0; i < 200; ++i)
             cycles += double(sample(big, g).cycle_count());
         assert(std::abs(cycles / 200 - big.mean_cycles()) < 0.6);
-        wsl::mallows const near({.size = 300, .q = 1 - 1e-4});
+        wsl::random::mallows const near({.size = 300, .q = 1 - 1e-4});
         double inv = 0;
         for (int i = 0; i < 200; ++i)
             inv += double(sample(near, g).inversions());
         assert(std::abs(inv / 200 - near.mean_inversions()) / near.mean_inversions() < 0.02);
         assert(pmf(E, wsl::permutation(5)) == 0 && log_pmf(M, wsl::permutation(7)) == -INFINITY);
-        assert(throws_domain_error([] { wsl::ewens X({.size = 3, .theta = 0.0}); }) && throws_domain_error([] { wsl::mallows X({.size = 3, .q = -1.0}); }));
+        assert(throws_domain_error([] { wsl::random::ewens X({.size = 3, .theta = 0.0}); }) && throws_domain_error([] { wsl::random::mallows X({.size = 3, .q = -1.0}); }));
     }
 
     // ---- Sous-ensembles, combinaisons, mots -------------------------------------------
     {
-        assert(chi_square(wsl::uniform_subset({.size = 4}), g, all_subsets(4), draws) < 4);
-        assert(chi_square(wsl::bernoulli_subset({.size = 4, .p = 0.3}), g, all_subsets(4), draws) < 4);
-        assert(chi_square(wsl::uniform_combination({.size = 6, .count = 3}), g, all_subsets(6, 3), draws) < 4);
+        assert(chi_square(wsl::random::uniform_subset({.size = 4}), g, all_subsets(4), draws) < 4);
+        assert(chi_square(wsl::random::bernoulli_subset({.size = 4, .p = 0.3}), g, all_subsets(4), draws) < 4);
+        assert(chi_square(wsl::random::uniform_combination({.size = 6, .count = 3}), g, all_subsets(6, 3), draws) < 4);
         std::vector<std::vector<std::size_t>> words;
         for (std::size_t a = 0; a < 3; ++a)
             for (std::size_t b = 0; b < 3; ++b)
                 for (std::size_t c = 0; c < 3; ++c)
                     words.push_back({a, b, c});
-        assert(chi_square(wsl::uniform_word({.length = 3, .alphabet = 3}), g, words, draws) < 4);
-        wsl::uniform_combination const C({.size = 1000000, .count = 50});
+        assert(chi_square(wsl::random::uniform_word({.length = 3, .alphabet = 3}), g, words, draws) < 4);
+        wsl::random::uniform_combination const C({.size = 1000000, .count = 50});
         auto const s = sample(C, g);
         assert(s.size() == 50 && pmf(C, s) > 0 && close(C.entropy(), std::lgamma(1000001.0) - std::lgamma(51.0) - std::lgamma(999951.0), 1e-12));
-        assert(pmf(C, {1, 0}) == 0 && pmf(wsl::uniform_subset({.size = 3}), {0, 3}) == 0 && pmf(wsl::uniform_word({.length = 2, .alphabet = 2}), {0, 2}) == 0);
-        assert(throws_domain_error([] { wsl::uniform_combination X({.size = 3, .count = 4}); }));
+        assert(pmf(C, {1, 0}) == 0 && pmf(wsl::random::uniform_subset({.size = 3}), {0, 3}) == 0 && pmf(wsl::random::uniform_word({.length = 2, .alphabet = 2}), {0, 2}) == 0);
+        assert(throws_domain_error([] { wsl::random::uniform_combination X({.size = 3, .count = 4}); }));
     }
 
     // ---- Partitions d'entiers ------------------------------------------------------------
@@ -288,10 +288,10 @@ int main()
         std::vector<std::size_t> current;
         partitions(8, 8, current, p8);
         assert(p8.size() == 22);
-        assert(chi_square(wsl::uniform_integer_partition({.n = 8}), g, p8, draws) < 4);
-        assert(wsl::uniform_integer_partition({.n = 100}).count() == 190569292);
-        assert(close(wsl::uniform_integer_partition({.n = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
-        wsl::uniform_integer_partition const P({.n = 500});
+        assert(chi_square(wsl::random::uniform_integer_partition({.n = 8}), g, p8, draws) < 4);
+        assert(wsl::random::uniform_integer_partition({.n = 100}).count() == 190569292);
+        assert(close(wsl::random::uniform_integer_partition({.n = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
+        wsl::random::uniform_integer_partition const P({.n = 500});
         auto const q = sample(P, g);
         std::size_t total = 0;
         for (std::size_t v : q)
@@ -301,54 +301,54 @@ int main()
 
     // ---- Graphes ------------------------------------------------------------------------
     {
-        assert(chi_square(wsl::erdos_renyi({.vertices = 4, .p = 0.35}), g, all_graphs(4), draws) < 4);
-        assert(chi_square(wsl::uniform_graph({.vertices = 5, .edges = 3}), g, all_graphs(5, 3), draws) < 4);
-        std::vector<wsl::edge_list> regular;                                 // 2-réguliers sur 6 sommets : 70
+        assert(chi_square(wsl::random::erdos_renyi({.vertices = 4, .p = 0.35}), g, all_graphs(4), draws) < 4);
+        assert(chi_square(wsl::random::uniform_graph({.vertices = 5, .edges = 3}), g, all_graphs(5, 3), draws) < 4);
+        std::vector<wsl::random::edge_list> regular;                                 // 2-réguliers sur 6 sommets : 70
         for (auto const& e : all_graphs(6, 6))
             if (std::ranges::all_of(degrees(e, 6), [](std::size_t d) { return d == 2; }))
                 regular.push_back(e);
         assert(regular.size() == 70);
-        assert(chi_square(wsl::random_regular_graph({.vertices = 6, .degree = 2}), g, regular, draws, [](wsl::edge_list const&) { return 1.0 / 70; }) < 4);
+        assert(chi_square(wsl::random::random_regular_graph({.vertices = 6, .degree = 2}), g, regular, draws, [](wsl::random::edge_list const&) { return 1.0 / 70; }) < 4);
         // Barabási–Albert, n = 4, m = 1 : {01, x2, y3}, P(x) = ½, P(y = x) = ½, sinon ¼.
-        std::vector<wsl::edge_list> ba;
+        std::vector<wsl::random::edge_list> ba;
         std::vector<double> pr;
         for (std::size_t x : {0, 1})
             for (std::size_t y : {0, 1, 2})
             {
-                wsl::edge_list e{{0, 1}, {x, 2}, {y, 3}};
+                wsl::random::edge_list e{{0, 1}, {x, 2}, {y, 3}};
                 std::ranges::sort(e);
                 ba.push_back(e);
                 pr.push_back(0.5 * (y == x ? 0.5 : 0.25));
             }
-        assert(chi_square(wsl::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4);
-        wsl::barabasi_albert const B({.vertices = 2000, .edges = 3});
+        assert(chi_square(wsl::random::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::random::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4);
+        wsl::random::barabasi_albert const B({.vertices = 2000, .edges = 3});
         auto const be = sample(B, g);
-        assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::detail::is_edge_list(be, 2000));
-        auto const re = sample(wsl::random_regular_graph({.vertices = 500, .degree = 3}), g);
-        assert(std::ranges::all_of(degrees(re, 500), [](std::size_t d) { return d == 3; }) && wsl::detail::is_edge_list(re, 500));
-        auto const er = sample(wsl::erdos_renyi({.vertices = 300, .p = 0.1}), g);
-        assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && pmf(wsl::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
-        assert(throws_domain_error([] { wsl::random_regular_graph X({.vertices = 5, .degree = 3}); }) && throws_domain_error([] { wsl::uniform_graph X({.vertices = 4, .edges = 7}); }));
+        assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::random::detail::is_edge_list(be, 2000));
+        auto const re = sample(wsl::random::random_regular_graph({.vertices = 500, .degree = 3}), g);
+        assert(std::ranges::all_of(degrees(re, 500), [](std::size_t d) { return d == 3; }) && wsl::random::detail::is_edge_list(re, 500));
+        auto const er = sample(wsl::random::erdos_renyi({.vertices = 300, .p = 0.1}), g);
+        assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && pmf(wsl::random::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
+        assert(throws_domain_error([] { wsl::random::random_regular_graph X({.vertices = 5, .degree = 3}); }) && throws_domain_error([] { wsl::random::uniform_graph X({.vertices = 4, .edges = 7}); }));
     }
 
     // ---- Arbres ------------------------------------------------------------------------
     {
-        std::vector<wsl::edge_list> trees;
+        std::vector<wsl::random::edge_list> trees;
         for (auto const& e : all_graphs(4, 3))
-            if (wsl::detail::is_tree(e, 4))
+            if (wsl::random::detail::is_tree(e, 4))
                 trees.push_back(e);
         assert(trees.size() == 16);                                          // Cayley : 4²
-        assert(chi_square(wsl::uniform_tree({.vertices = 4}), g, trees, draws) < 4);
+        assert(chi_square(wsl::random::uniform_tree({.vertices = 4}), g, trees, draws) < 4);
         auto const binary = all_binary_trees(4);
         assert(binary.size() == 14);                                         // Catalan C₄
-        assert(chi_square(wsl::uniform_binary_tree({.nodes = 4}), g, binary, draws) < 4);
-        wsl::uniform_tree const T({.vertices = 1000});
+        assert(chi_square(wsl::random::uniform_binary_tree({.nodes = 4}), g, binary, draws) < 4);
+        wsl::random::uniform_tree const T({.vertices = 1000});
         auto const t = sample(T, g);
-        assert(wsl::detail::is_tree(t, 1000) && pmf(T, t) == 0 && log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
-        wsl::uniform_binary_tree const A({.nodes = 1000});
+        assert(wsl::random::detail::is_tree(t, 1000) && pmf(T, t) == 0 && log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
+        wsl::random::uniform_binary_tree const A({.nodes = 1000});
         auto const a = sample(A, g);
         assert(a.size() == 1000 && log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
-        assert(pmf(wsl::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && pmf(wsl::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
+        assert(pmf(wsl::random::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && pmf(wsl::random::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
     }
 
     // ---- Partitions d'ensemble, compositions --------------------------------------------
@@ -357,8 +357,8 @@ int main()
         std::vector<std::size_t> a;
         restricted_growth(5, 0, a, rgs);
         assert(rgs.size() == 52);                                            // Bell B₅
-        assert(chi_square(wsl::uniform_set_partition({.size = 5}), g, rgs, draws) < 4);
-        assert(wsl::uniform_set_partition({.size = 20}).count() == 51724158235372.0);
+        assert(chi_square(wsl::random::uniform_set_partition({.size = 5}), g, rgs, draws) < 4);
+        assert(wsl::random::uniform_set_partition({.size = 20}).count() == 51724158235372.0);
         std::vector<std::vector<std::size_t>> comps, comps3;
         for (std::uint64_t m = 0; m < 32; ++m)                               // coupures parmi 1 … 5
         {
@@ -375,43 +375,43 @@ int main()
             if (c.size() == 3)
                 comps3.push_back(c);
         }
-        assert(chi_square(wsl::uniform_composition({.n = 6}), g, comps, draws) < 4);
-        assert(comps3.size() == 10 && chi_square(wsl::uniform_composition({.n = 6, .parts = 3}), g, comps3, draws) < 4);
-        auto const sp = sample(wsl::uniform_set_partition({.size = 150}), g);
-        assert(pmf(wsl::uniform_set_partition({.size = 150}), sp) > 0 && pmf(wsl::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
+        assert(chi_square(wsl::random::uniform_composition({.n = 6}), g, comps, draws) < 4);
+        assert(comps3.size() == 10 && chi_square(wsl::random::uniform_composition({.n = 6, .parts = 3}), g, comps3, draws) < 4);
+        auto const sp = sample(wsl::random::uniform_set_partition({.size = 150}), g);
+        assert(pmf(wsl::random::uniform_set_partition({.size = 150}), sp) > 0 && pmf(wsl::random::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
     }
 
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
-        wsl::xoshiro256pp x(42);
+        wsl::random::xoshiro256pp x(42);
         auto const add_perm = [](fnv1a& h, wsl::permutation const& p) { for (std::size_t v : p) h.add(v); };
         auto const add_vec = [](fnv1a& h, std::vector<std::size_t> const& v) { h.add(v.size()); for (std::size_t e : v) h.add(e); };
-        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
-        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
-        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
-        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
+        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
+        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
+        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
+        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, sample(wsl::random::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
         ok &= check("subsets", fingerprint([&](fnv1a& h) {
-            add_vec(h, sample(wsl::uniform_subset({.size = 70}), x));
-            add_vec(h, sample(wsl::bernoulli_subset({.size = 30, .p = 0.2}), x));
-            add_vec(h, sample(wsl::uniform_combination({.size = 100, .count = 7}), x));
-            add_vec(h, sample(wsl::uniform_word({.length = 9, .alphabet = 26}), x));
+            add_vec(h, sample(wsl::random::uniform_subset({.size = 70}), x));
+            add_vec(h, sample(wsl::random::bernoulli_subset({.size = 30, .p = 0.2}), x));
+            add_vec(h, sample(wsl::random::uniform_combination({.size = 100, .count = 7}), x));
+            add_vec(h, sample(wsl::random::uniform_word({.length = 9, .alphabet = 26}), x));
         }), 0x0ed6bf2a62e76d9b);
-        auto const add_edges = [](fnv1a& h, wsl::edge_list const& e) { h.add(e.size()); for (auto [u, v] : e) h.add((std::uint64_t(u) << 32) | v); };
+        auto const add_edges = [](fnv1a& h, wsl::random::edge_list const& e) { h.add(e.size()); for (auto [u, v] : e) h.add((std::uint64_t(u) << 32) | v); };
         ok &= check("graphs", fingerprint([&](fnv1a& h) {
-            add_edges(h, sample(wsl::erdos_renyi({.vertices = 12, .p = 0.3}), x));
-            add_edges(h, sample(wsl::uniform_graph({.vertices = 12, .edges = 15}), x));
-            add_edges(h, sample(wsl::barabasi_albert({.vertices = 20, .edges = 2}), x));
-            add_edges(h, sample(wsl::random_regular_graph({.vertices = 12, .degree = 3}), x));
+            add_edges(h, sample(wsl::random::erdos_renyi({.vertices = 12, .p = 0.3}), x));
+            add_edges(h, sample(wsl::random::uniform_graph({.vertices = 12, .edges = 15}), x));
+            add_edges(h, sample(wsl::random::barabasi_albert({.vertices = 20, .edges = 2}), x));
+            add_edges(h, sample(wsl::random::random_regular_graph({.vertices = 12, .degree = 3}), x));
         }, 1 << 10), 0x553dd3266e70997e);
         ok &= check("trees", fingerprint([&](fnv1a& h) {
-            add_edges(h, sample(wsl::uniform_tree({.vertices = 30}), x));
-            for (auto c : sample(wsl::uniform_binary_tree({.nodes = 20}), x).children)
+            add_edges(h, sample(wsl::random::uniform_tree({.vertices = 30}), x));
+            for (auto c : sample(wsl::random::uniform_binary_tree({.nodes = 20}), x).children)
                 h.add((std::uint64_t(c[0]) << 32) ^ c[1]);
         }, 1 << 10), 0xd9ba05da9d874029);
-        wsl::uniform_set_partition const SP({.size = 25});
-        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(SP, x)); add_vec(h, sample(wsl::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
-        wsl::uniform_integer_partition const P({.n = 60});
+        wsl::random::uniform_set_partition const SP({.size = 25});
+        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(SP, x)); add_vec(h, sample(wsl::random::uniform_composition({.n = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
+        wsl::random::uniform_integer_partition const P({.n = 60});
         ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
     }
     assert(ok);

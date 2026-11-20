@@ -2,8 +2,8 @@
 
 // Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir docs/random.md §4.6).
 //
-//   wsl::normal N({.mean = 0, .sd = 1});
-//   auto T = wsl::truncate(N, 10.0, INFINITY);   // N | N >= 10, masse ~ 7,6·10⁻²⁴
+//   wsl::random::normal N({.mean = 0, .sd = 1});
+//   auto T = wsl::random::truncate(N, 10.0, INFINITY);   // N | N >= 10, masse ~ 7,6·10⁻²⁴
 //   cdf(T, 10.5); quantile(T, 0.5); sample(T, g);
 //
 // Masse m = P(a <= X <= b), F_T(x) = P(a <= X <= x)/m et S_T(x) = P(x < X <= b)/m sont
@@ -28,7 +28,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <real_law L>
         requires has_cdf<L> && has_ccdf<L>
@@ -42,7 +42,7 @@ namespace wsl
         constexpr truncated(L const& law, value_type lower, value_type upper) : law_(law)
         {
             if (!(lower < upper))
-                throw std::domain_error("wsl::truncate : il faut lower < upper");
+                throw std::domain_error("wsl::random::truncate : il faut lower < upper");
             auto const [lo, up] = law_.support();
             low_ = lower > lo ? lower : lo;
             high_ = upper < up ? upper : up;
@@ -57,7 +57,7 @@ namespace wsl
             else
                 mass_ = 1.0 - (fa_ + sb_);                                  // à cheval sur la médiane : la plus grande part
             if (!(low_ <= high_) || !(mass_ > 0))
-                throw std::domain_error("wsl::truncate : l'intervalle doit avoir une probabilité non nulle");
+                throw std::domain_error("wsl::random::truncate : l'intervalle doit avoir une probabilité non nulle");
         }
 
         constexpr L const& law() const noexcept { return law_; }
@@ -115,13 +115,13 @@ namespace wsl
         friend constexpr value_type quantile(truncated const& Y, double p) requires has_quantile<L> && has_cquantile<L>
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             return Y.solve(p, false);
         }
         friend constexpr value_type cquantile(truncated const& Y, double q) requires has_quantile<L> && has_cquantile<L>
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             return Y.solve(q, true);
         }
 

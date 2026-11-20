@@ -2,12 +2,12 @@
 
 // Loi exponentielle de paramètre λ > 0 (rate) : densité λ e^{−λx} sur [0, +∞).
 //
-//   wsl::exponential X({.rate = 2});
-//   X.mean(); cdf(X, 1.0); quantile(X, 0.5); sample(X, g); sample(X, g, wsl::fast);
+//   wsl::random::exponential X({.rate = 2});
+//   X.mean(); cdf(X, 1.0); quantile(X, 0.5); sample(X, g); sample(X, g, wsl::random::fast);
 //
 // Tirage exact : E exponentielle de paramètre 1 tirée exactement (von Neumann,
 // réel paresseux), puis l'arrondi correct de E/λ — la valeur tirée suit donc la
-// loi exacte arrondie au flottant le plus proche. Tirage rapide (wsl::fast) :
+// loi exacte arrondie au flottant le plus proche. Tirage rapide (wsl::random::fast) :
 // inversion, −log(U)/λ, deux arrondis.
 //
 // Densité, répartition, survie, quantile : λx en double-double (produit exact),
@@ -25,7 +25,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class exponential
@@ -42,7 +42,7 @@ namespace wsl
         constexpr exponential(parameters p) : rate_(p.rate)
         {
             if (!(rate_ > 0) || !detail::is_finite(rate_))
-                throw std::domain_error("wsl::exponential : il faut rate > 0, fini");
+                throw std::domain_error("wsl::random::exponential : il faut rate > 0, fini");
         }
 
         constexpr T rate() const noexcept { return rate_; }
@@ -133,7 +133,7 @@ namespace wsl
         friend constexpr T quantile(exponential const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return 0;
             if (p == 1)
@@ -146,7 +146,7 @@ namespace wsl
         friend constexpr T cquantile(exponential const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)

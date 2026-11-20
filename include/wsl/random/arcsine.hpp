@@ -2,7 +2,7 @@
 
 // Loi de l'arcsinus sur [a, b] : densité 1/(π √((x − a)(b − x))).
 //
-//   wsl::arcsine A({.low = 0, .high = 1});   cdf(A, 0.1); quantile(A, 0.9); sample(A, g);
+//   wsl::random::arcsine A({.low = 0, .high = 1});   cdf(A, 0.1); quantile(A, 0.9); sample(A, g);
 //
 // u = (x − a)/(b − a) et 1 − u = (b − x)/(b − a) en double-double ; répartition
 // (2/π) atan √(u/(1 − u)) (u <= ½), 1 − (2/π) atan √((1 − u)/u) sinon, noyau atan à argument
@@ -24,7 +24,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class arcsine
@@ -41,7 +41,7 @@ namespace wsl
         constexpr arcsine(parameters p) : a_(p.low), b_(p.high)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_))
-                throw std::domain_error("wsl::arcsine : il faut low < high, finis");
+                throw std::domain_error("wsl::random::arcsine : il faut low < high, finis");
         }
 
         constexpr T low() const noexcept { return a_; }
@@ -165,7 +165,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? b_ : a_;
             if (t == 1)

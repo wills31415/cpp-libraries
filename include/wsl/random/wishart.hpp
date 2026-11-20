@@ -3,8 +3,8 @@
 // Lois de Wishart W_p(V, n) et inverse-Wishart W⁻¹_p(Ψ, ν) sur les matrices p × p
 // symétriques définies positives (n, ν > p − 1).
 //
-//   wsl::wishart<double, 2> W({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
-//   wsl::inverse_wishart<double, 2> I({.degrees_of_freedom = 6, .scale = {{1, 0.2}, {0.2, 2}}});
+//   wsl::random::wishart<double, 2> W({.degrees_of_freedom = 5, .scale = {{1, 0.2}, {0.2, 2}}});
+//   wsl::random::inverse_wishart<double, 2> I({.degrees_of_freedom = 6, .scale = {{1, 0.2}, {0.2, 2}}});
 //   W.mean(); log_pdf(W, X); W.entropy(); sample(W, g);
 //
 // Wishart : log-densité ((n − p − 1)/2) log det X − ½ tr(V⁻¹X) − (np/2) log 2
@@ -35,7 +35,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -72,9 +72,9 @@ namespace wsl
                 if (p < 1)
                     throw std::domain_error(name);
                 if (!(double(n) > double(p) - 1) || !is_finite(n))
-                    throw std::domain_error("wsl::wishart : il faut degrees_of_freedom > dimension − 1, fini");
+                    throw std::domain_error("wsl::random::wishart : il faut degrees_of_freedom > dimension − 1, fini");
                 if (!cholesky(v, l))
-                    throw std::domain_error("wsl::wishart : échelle non symétrique définie positive");
+                    throw std::domain_error("wsl::random::wishart : échelle non symétrique définie positive");
                 for (std::size_t i = 0; i < p; ++i)
                     chi.push_back(gamma<double>(typename gamma<double>::shape_scale{sd::fmul(double(n) - double(i), 0.5), 2.0}));
                 log_det_half = half_log_determinant(l);
@@ -131,7 +131,7 @@ namespace wsl
             square_matrix<T, N> scale;
         };
 
-        constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::wishart : dimension nulle") {}
+        constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::wishart : dimension nulle") {}
 
         constexpr std::size_t dimension() const noexcept { return b_.dimension(); }
         constexpr T degrees_of_freedom() const noexcept { return b_.n; }
@@ -230,7 +230,7 @@ namespace wsl
             square_matrix<T, N> scale;
         };
 
-        constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::inverse_wishart : dimension nulle") {}
+        constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::inverse_wishart : dimension nulle") {}
 
         constexpr std::size_t dimension() const noexcept { return b_.dimension(); }
         constexpr T degrees_of_freedom() const noexcept { return b_.n; }

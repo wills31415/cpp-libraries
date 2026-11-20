@@ -5,7 +5,7 @@
 // x[i] : bord droit de la couche i (x[0] = V/f(R), x[1] = R, x[N] = 0) ;
 // f[i] = e^{−x[i]²/2} (f[0] = f(R)).
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     inline constexpr double ziggurat_r = 0x1.d3bb48209ad33p+1;
     inline constexpr double ziggurat_inv_r = 0x1.183aa6c20e8c1p-2;

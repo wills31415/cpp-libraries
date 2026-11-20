@@ -10,7 +10,7 @@
 //   - ses constantes, en membres, quand elles existent : mean(), variance(),
 //     skewness(), excess_kurtosis(), entropy(), median(), mode() ;
 //   - ses opérations, en fonctions libres trouvées par ADL (appel sans
-//     qualification, comme swap) : sample(X, g), sample(X, g, wsl::fast),
+//     qualification, comme swap) : sample(X, g), sample(X, g, wsl::random::fast),
 //     pdf / pmf (densité, fonction de masse), log_pdf / log_pmf, cdf, ccdf
 //     (survie, 1 − cdf calculée sans annulation), quantile, cquantile (quantile de
 //     survie : x tel que P(X > x) = q, sans passer par 1 − q).
@@ -25,7 +25,7 @@
 #include <random>
 #include <type_traits>
 
-namespace wsl
+namespace wsl::random
 {
     enum class exactness
     {
@@ -33,7 +33,7 @@ namespace wsl
         approximate     // algorithme classique, erreur documentée ; toujours bit-exact
     };
 
-    // Demande explicite du tirage rapide : sample(X, g, wsl::fast).
+    // Demande explicite du tirage rapide : sample(X, g, wsl::random::fast).
     struct fast_t
     {
         explicit fast_t() = default;

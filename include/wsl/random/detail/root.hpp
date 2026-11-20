@@ -14,7 +14,7 @@
 
 #include <limits>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // Ce que la loi rend en un point : V(u), |dV/du| (0 : pas de pas de Newton), et le point
     // effectivement évalué (u arrondi par la loi, par exemple x = e^u en double).

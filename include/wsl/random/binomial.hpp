@@ -3,7 +3,7 @@
 // Loi binomiale : nombre de succès en n épreuves de Bernoulli indépendantes de
 // paramètre p, P(X = k) = C(n, k) p^k (1 − p)^(n−k), 0 <= k <= n.
 //
-//   wsl::binomial X({.trials = 20, .p = 0.3});
+//   wsl::random::binomial X({.trials = 20, .p = 0.3});
 //   X.mean(); pmf(X, 6); log_pmf(X, 6); sample(X, g);
 //
 // Masse : décomposition de Loader (voir detail/loader.hpp),
@@ -28,7 +28,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -51,7 +51,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(n_ >= 0) || !(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::binomial : il faut trials >= 0 et 0 <= p <= 1");
+                throw std::domain_error("wsl::random::binomial : il faut trials >= 0 et 0 <= p <= 1");
             // Tirage : p' = min(p, 1 − p).
             mirrored_ = p_ > 0.5;
             double const pp = mirrored_ ? 1 - p_ : p_, qq = 1 - pp, n = static_cast<double>(n_);
@@ -160,7 +160,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.p_ == 0 || X.n_ == 0)
                 return 0;
             if (u == 1 || X.p_ == 1)

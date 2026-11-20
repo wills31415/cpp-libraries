@@ -2,7 +2,7 @@
 
 // Loi de Rayleigh de paramètre σ > 0 : densité (x/σ²) e^{−x²/(2σ²)}, x >= 0.
 //
-//   wsl::rayleigh R({.scale = 2});   cdf(R, 1.0); quantile(R, 0.5); R.mean(); sample(R, g);
+//   wsl::random::rayleigh R({.scale = 2});   cdf(R, 1.0); quantile(R, 0.5); R.mean(); sample(R, g);
 //
 // h = z²/2, z = x/σ en double-double ; répartition −expm1(−h), survie e^{−h}, densité
 // (z/σ) e^{−h} ; quantile σ √(−2 log1p(−p)) (cquantile : σ √(−2 log q)) ; un arrondi.
@@ -21,7 +21,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class rayleigh
@@ -38,7 +38,7 @@ namespace wsl
         constexpr rayleigh(parameters p) : sigma_(p.scale)
         {
             if (!(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::rayleigh : il faut scale > 0, fini");
+                throw std::domain_error("wsl::random::rayleigh : il faut scale > 0, fini");
         }
 
         constexpr T scale() const noexcept { return sigma_; }
@@ -154,7 +154,7 @@ namespace wsl
         constexpr T inverse(double t, bool upper) const
         {
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? std::numeric_limits<T>::infinity() : T(0);
             if (t == 1)

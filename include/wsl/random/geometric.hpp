@@ -5,7 +5,7 @@
 // (la convention de std::geometric_distribution et de R ; le nombre d'essais
 // est X + 1).
 //
-//   wsl::geometric X({.p = 0.2});
+//   wsl::random::geometric X({.p = 0.2});
 //   X.mean(); pmf(X, 3); cdf(X, 3); quantile(X, 0.5); sample(X, g);
 //
 // Masse, répartition, survie : (1 − p)^k = e^{k log1p(−p)}, k log1p(−p) en
@@ -26,7 +26,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class geometric
@@ -43,7 +43,7 @@ namespace wsl
         constexpr geometric(probability q) : p_(q.p)
         {
             if (!(p_ > 0 && p_ <= 1))
-                throw std::domain_error("wsl::geometric : il faut 0 < p <= 1");
+                throw std::domain_error("wsl::random::geometric : il faut 0 < p <= 1");
             if (p_ < 1)
                 log_q_ = detail::log1p_dd(-p_);
         }
@@ -149,7 +149,7 @@ namespace wsl
         friend constexpr I quantile(geometric const& X, double u)
         {
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.p_ == 1)
                 return 0;
             if (u == 1)

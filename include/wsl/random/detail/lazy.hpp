@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // Le premier mot est rangé sur place (sans allocation) : presque tous les
     // réels paresseux s'en contentent.

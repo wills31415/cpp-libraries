@@ -7,7 +7,7 @@
 #include <wsl/special.hpp>
 #include <algorithm>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // z = (x − μ)/σ en double-double. ±∞ si |z| > 2^600, 0 si |z| < 2^-600
     // (sans effet sur aucune des fonctions de la loi).

@@ -4,18 +4,18 @@
 // chaque valeur rendue est l'arrondi correct d'une trajectoire tirée exactement selon la
 // loi dont les paramètres irrationnels (√Δt, e^{−θt}…) sont arrondis une fois.
 //
-//   wsl::brownian_motion B({.drift = 0, .volatility = 1});
+//   wsl::random::brownian_motion B({.drift = 0, .volatility = 1});
 //   B.at(2.0);                                             // normal(0, √2)
 //   auto x = sample(B.on_grid({0.5, 1.0, 2.0}), g);        // B aux instants donnés
-//   for (auto [t, v] : wsl::trajectory(B, g, {.step = 0.01}) | std::views::take(100)) …
-//   wsl::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  sample(D.on_grid(ts), g);
-//   wsl::ornstein_uhlenbeck O({.theta = 1, .mean = 0, .volatility = 1, .start = 2});
-//   wsl::geometric_brownian_motion S({.drift = 0.05, .volatility = 0.2, .start = 100});
-//   wsl::poisson_process N({.rate = 2});    N.at(3.0);   sample(N.on(10.0), g);
-//   for (double t : wsl::trajectory(N, g) | std::views::take(10)) …   // instants des sauts
-//   wsl::inhomogeneous_poisson_process M(f, /* borne */ 5.0);
-//   wsl::compound_poisson C(2.0, wsl::exponential({.rate = 1.0}));     // (instant, valeur)
-//   wsl::continuous_markov_chain Q({.generator = {{-1, 1}, {2, -2}}, .start = 0});
+//   for (auto [t, v] : wsl::random::trajectory(B, g, {.step = 0.01}) | std::views::take(100)) …
+//   wsl::random::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  sample(D.on_grid(ts), g);
+//   wsl::random::ornstein_uhlenbeck O({.theta = 1, .mean = 0, .volatility = 1, .start = 2});
+//   wsl::random::geometric_brownian_motion S({.drift = 0.05, .volatility = 0.2, .start = 100});
+//   wsl::random::poisson_process N({.rate = 2});    N.at(3.0);   sample(N.on(10.0), g);
+//   for (double t : wsl::random::trajectory(N, g) | std::views::take(10)) …   // instants des sauts
+//   wsl::random::inhomogeneous_poisson_process M(f, /* borne */ 5.0);
+//   wsl::random::compound_poisson C(2.0, wsl::random::exponential({.rate = 1.0}));     // (instant, valeur)
+//   wsl::random::continuous_markov_chain Q({.generator = {{-1, 1}, {2, -2}}, .start = 0});
 //
 // Construction (detail/lazy_sum.hpp) :
 // - brownien : X(t) = x₀ + μ t + σ Σ √Δt_j Z_j, Z_j normales exactes ; μ t exact
@@ -55,7 +55,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     struct grid_step
     {
@@ -126,7 +126,7 @@ namespace wsl
         constexpr explicit brownian_motion(parameters p) : mu_(p.drift), sigma_(p.volatility), x0_(p.start)
         {
             if (!detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_) || !detail::is_finite(x0_))
-                throw std::domain_error("wsl::brownian_motion : dérive et départ finis, volatilité > 0 finie");
+                throw std::domain_error("wsl::random::brownian_motion : dérive et départ finis, volatilité > 0 finie");
         }
 
         constexpr double drift() const noexcept { return mu_; }
@@ -136,7 +136,7 @@ namespace wsl
         constexpr normal<> at(double t) const
         {
             if (!(t > 0))
-                throw std::domain_error("wsl::brownian_motion::at : il faut t > 0");
+                throw std::domain_error("wsl::random::brownian_motion::at : il faut t > 0");
             double const m = detail::linear(mu_, t, x0_);
             return normal<>({.mean = m, .sd = detail::sd::fmul(sigma_, wsl::special::sqrt(t))});
         }
@@ -192,11 +192,11 @@ namespace wsl
         constexpr walker_type walker(grid_step s) const
         {
             if (!(s.step > 0) || !detail::is_finite(s.step))
-                throw std::domain_error("wsl::brownian_motion : pas > 0 fini");
+                throw std::domain_error("wsl::random::brownian_motion : pas > 0 fini");
             return {parameters{mu_, sigma_, x0_}, detail::to_dyadic(s.step), s.step};
         }
 
-        // Variante rapide (wsl::fast) : accroissements par la ziggourat, somme double-double.
+        // Variante rapide (wsl::random::fast) : accroissements par la ziggourat, somme double-double.
         struct fast_walker_type
         {
             double mu, sigma, h, c;
@@ -262,14 +262,14 @@ namespace wsl
         {
             if (!(to_.time > from_.time) || !detail::is_finite(from_.time) || !detail::is_finite(to_.time) || !detail::is_finite(from_.value)
                 || !detail::is_finite(to_.value) || !(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::brownian_bridge : il faut t₀ < T, valeurs finies, volatilité > 0");
+                throw std::domain_error("wsl::random::brownian_bridge : il faut t₀ < T, valeurs finies, volatilité > 0");
         }
 
         // X(t) ~ N(a + r (b − a), σ √((t − t₀)(T − t)/(T − t₀)))
         constexpr normal<> at(double t) const
         {
             if (!(t > from_.time && t < to_.time))
-                throw std::domain_error("wsl::brownian_bridge::at : il faut t₀ < t < T");
+                throw std::domain_error("wsl::random::brownian_bridge::at : il faut t₀ < t < T");
             double const r = (t - from_.time) / (to_.time - from_.time);
             double const v = detail::sd::fmul(detail::sd::fmul(t - from_.time, to_.time - t) / (to_.time - from_.time), detail::sd::fmul(sigma_, sigma_));
             return normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .sd = wsl::special::sqrt(v)});
@@ -285,7 +285,7 @@ namespace wsl
             {
                 for (std::size_t i = 0; i < times_.size(); ++i)
                     if (!(times_[i] >= b_.from.time && times_[i] <= b_.to.time) || (i > 0 && times_[i] < times_[i - 1]))
-                        throw std::domain_error("wsl::brownian_bridge : instants croissants dans [t₀, T]");
+                        throw std::domain_error("wsl::random::brownian_bridge : instants croissants dans [t₀, T]");
             }
 
             // W(tᵢ − t₀) pour tous les instants, puis W(T − t₀) ; X(tᵢ) = a + rᵢ (b − a) + σ (Wᵢ − rᵢ W_T).
@@ -340,7 +340,7 @@ namespace wsl
         constexpr explicit ornstein_uhlenbeck(parameters p) : theta_(p.theta), mu_(p.mean), sigma_(p.volatility), x0_(p.start)
         {
             if (!(theta_ > 0) || !detail::is_finite(theta_) || !detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_) || !detail::is_finite(x0_))
-                throw std::domain_error("wsl::ornstein_uhlenbeck : θ > 0, σ > 0, moyenne et départ finis");
+                throw std::domain_error("wsl::random::ornstein_uhlenbeck : θ > 0, σ > 0, moyenne et départ finis");
         }
 
         // X(t) ~ N(μ + e^{−θt}(x₀ − μ), σ √(−expm1(−2θt)/(2θ)))
@@ -348,7 +348,7 @@ namespace wsl
         {
             namespace sp = wsl::special;
             if (!(t > 0))
-                throw std::domain_error("wsl::ornstein_uhlenbeck::at : il faut t > 0");
+                throw std::domain_error("wsl::random::ornstein_uhlenbeck::at : il faut t > 0");
             double const a = sp::exp(-detail::sd::fmul(theta_, t));
             double const v = -sp::expm1(-detail::sd::fmul(detail::sd::fmul(2.0, theta_), t)) / detail::sd::fmul(2.0, theta_);
             return normal<>({.mean = detail::linear(a, x0_ - mu_, mu_), .sd = detail::sd::fmul(sigma_, sp::sqrt(v))});
@@ -403,7 +403,7 @@ namespace wsl
         constexpr walker_type walker(grid_step s) const
         {
             if (!(s.step > 0) || !detail::is_finite(s.step))
-                throw std::domain_error("wsl::ornstein_uhlenbeck : pas > 0 fini");
+                throw std::domain_error("wsl::random::ornstein_uhlenbeck : pas > 0 fini");
             return {parameters{theta_, mu_, sigma_, x0_}, s.step};
         }
 
@@ -416,7 +416,7 @@ namespace wsl
             namespace d = detail;
             double const theta_t = d::sd::fmul(theta_, t);
             if (!(theta_t <= 350))
-                throw std::domain_error("wsl::ornstein_uhlenbeck : θ t > 350 (changement de temps hors des doubles)");
+                throw std::domain_error("wsl::random::ornstein_uhlenbeck : θ t > 350 (changement de temps hors des doubles)");
             if (t == 0)
                 return x0_;
             double const u = sp::expm1(d::sd::fmul(2.0, theta_t)), a = sp::exp(-theta_t);
@@ -453,7 +453,7 @@ namespace wsl
             : log_(brownian_motion::parameters{.drift = p.drift - detail::sd::fmul(0.5, detail::sd::fmul(p.volatility, p.volatility)), .volatility = p.volatility, .start = 0}), s0_(p.start)
         {
             if (!(s0_ > 0) || !detail::is_finite(s0_))
-                throw std::domain_error("wsl::geometric_brownian_motion : départ > 0 fini");
+                throw std::domain_error("wsl::random::geometric_brownian_motion : départ > 0 fini");
         }
 
         constexpr brownian_motion const& logarithm() const noexcept { return log_; }   // log(S/s₀), exact
@@ -509,7 +509,7 @@ namespace wsl
         constexpr explicit poisson_process(parameters p) : lambda_(p.rate)
         {
             if (!(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::poisson_process : taux > 0 fini");
+                throw std::domain_error("wsl::random::poisson_process : taux > 0 fini");
         }
 
         constexpr double rate() const noexcept { return lambda_; }
@@ -557,7 +557,7 @@ namespace wsl
             constexpr window_law(double rate, double horizon) : lambda_(rate), horizon_(horizon)
             {
                 if (!(horizon_ >= 0) || !detail::is_finite(horizon_))
-                    throw std::domain_error("wsl::poisson_process::on : horizon >= 0 fini");
+                    throw std::domain_error("wsl::random::poisson_process::on : horizon >= 0 fini");
             }
 
             template <std::uniform_random_bit_generator G>
@@ -602,7 +602,7 @@ namespace wsl
         constexpr inhomogeneous_poisson_process(F intensity, double bound) : f_(std::move(intensity)), bound_(bound)
         {
             if (!(bound_ > 0) || !detail::is_finite(bound_))
-                throw std::domain_error("wsl::inhomogeneous_poisson_process : borne > 0 finie");
+                throw std::domain_error("wsl::random::inhomogeneous_poisson_process : borne > 0 finie");
         }
 
         struct walker_type
@@ -619,7 +619,7 @@ namespace wsl
                     double const t = candidates.next(g);
                     double const f = p->f_(t);
                     if (!(f >= 0 && f <= p->bound_))
-                        throw std::domain_error("wsl::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
+                        throw std::domain_error("wsl::random::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
                     if (detail::fraction(g, f, p->bound_))
                         return t;
                 }
@@ -647,7 +647,7 @@ namespace wsl
                         return times;
                     double const f = W.p_.f_(t);
                     if (!(f >= 0 && f <= W.p_.bound_))
-                        throw std::domain_error("wsl::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
+                        throw std::domain_error("wsl::random::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
                     if (detail::fraction(g, f, W.p_.bound_))
                         times.push_back(t);
                 }
@@ -678,7 +678,7 @@ namespace wsl
         constexpr compound_poisson(double rate, L jump) : lambda_(rate), jump_(std::move(jump))
         {
             if (!(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::compound_poisson : taux > 0 fini");
+                throw std::domain_error("wsl::random::compound_poisson : taux > 0 fini");
         }
 
         constexpr double rate() const noexcept { return lambda_; }
@@ -734,7 +734,7 @@ namespace wsl
         {
             std::size_t const k = q_.size();
             if (k < 1 || start_ >= k)
-                throw std::domain_error("wsl::continuous_markov_chain : au moins un état, départ valide");
+                throw std::domain_error("wsl::random::continuous_markov_chain : au moins un état, départ valide");
             for (std::size_t i = 0; i < k; ++i)
             {
                 std::vector<double> row(k, 0.0);
@@ -744,13 +744,13 @@ namespace wsl
                     if (j == i)
                         continue;
                     if (!(q_(i, j) >= 0) || !detail::is_finite(q_(i, j)))
-                        throw std::domain_error("wsl::continuous_markov_chain : taux hors diagonale >= 0, finis");
+                        throw std::domain_error("wsl::random::continuous_markov_chain : taux hors diagonale >= 0, finis");
                     row[j] = q_(i, j);
                     out = detail::sum(out, {q_(i, j), 0.0});
                 }
                 auto const d = detail::sum(out, {q_(i, i), 0.0});
                 if (!(detail::magnitude(d.hi) <= detail::sd::fmul(out.hi + 0x1p-1000, 0x1p-40)))
-                    throw std::domain_error("wsl::continuous_markov_chain : chaque ligne du générateur doit sommer à 0");
+                    throw std::domain_error("wsl::random::continuous_markov_chain : chaque ligne du générateur doit sommer à 0");
                 rates_.push_back(-q_(i, i));
                 if (out.hi > 0)
                     jumps_.push_back(categorical<>({.p = row}));

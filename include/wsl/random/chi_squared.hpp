@@ -3,10 +3,10 @@
 // Loi du χ² à k > 0 degrés de liberté : la loi gamma de forme k/2 et d'échelle 2
 // (somme des carrés de k normales centrées réduites, pour k entier).
 //
-//   wsl::chi_squared X({.degrees_of_freedom = 3});
+//   wsl::random::chi_squared X({.degrees_of_freedom = 3});
 //   X.mean(); cdf(X, 7.81); quantile(X, 0.95); sample(X, g);
 //
-// Tout est délégué à wsl::gamma (k/2 et l'échelle 2 sont exacts) : mêmes méthodes,
+// Tout est délégué à wsl::random::gamma (k/2 et l'échelle 2 sont exacts) : mêmes méthodes,
 // même précision.
 
 #include <wsl/random/gamma.hpp>
@@ -15,7 +15,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class chi_squared
@@ -59,7 +59,7 @@ namespace wsl
         static constexpr gamma<T> make(T k)
         {
             if (!(k > 0) || !detail::is_finite(k))
-                throw std::domain_error("wsl::chi_squared : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::random::chi_squared : il faut degrees_of_freedom > 0, fini");
             return gamma<T>({.shape = static_cast<T>(double(k) / 2), .scale = T(2)});
         }
 

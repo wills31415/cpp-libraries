@@ -4,7 +4,7 @@
 // N éléments dont K succès : P(X = k) = C(K, k) C(N − K, n − k)/C(N, n),
 // max(0, n − (N − K)) <= k <= min(n, K).
 //
-//   wsl::hypergeometric X({.population = 50, .successes = 20, .draws = 10});
+//   wsl::random::hypergeometric X({.population = 50, .successes = 20, .draws = 10});
 //   pmf(X, 4); cdf(X, 4); quantile(X, 0.5); sample(X, g);
 //
 // Masse (Loader, comme dhyper de R) : avec π = n/N en double-double, le produit de deux
@@ -31,7 +31,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class hypergeometric
@@ -48,7 +48,7 @@ namespace wsl
         constexpr hypergeometric(parameters q) : N_(q.population), K_(q.successes), n_(q.draws)
         {
             if (N_ < 0 || K_ < 0 || n_ < 0 || K_ > N_ || n_ > N_ || static_cast<std::uint64_t>(N_) > (std::uint64_t{1} << 53))
-                throw std::domain_error("wsl::hypergeometric : il faut 0 <= successes, draws <= population <= 2^53");
+                throw std::domain_error("wsl::random::hypergeometric : il faut 0 <= successes, draws <= population <= 2^53");
         }
 
         constexpr I population() const noexcept { return N_; }
@@ -134,7 +134,7 @@ namespace wsl
         friend constexpr I quantile(hypergeometric const& X, double u)
         {
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.low() == X.high())
                 return X.low();
             if (u == 1)

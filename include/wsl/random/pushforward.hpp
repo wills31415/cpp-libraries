@@ -3,9 +3,9 @@
 // Algèbre des lois : image d'une loi par une fonction, Y = f(X) (voir docs/random.md §4.6).
 //
 //   namespace sp = wsl::special;
-//   auto Q = wsl::pushforward(wsl::normal({.mean = 0, .sd = 1}), [](double x) { return x * x; });   // tirage seul
-//   auto L = wsl::pushforward(wsl::normal({.mean = 0, .sd = 1}),
-//                             wsl::increasing([](double x) { return sp::exp(x); },          // f
+//   auto Q = wsl::random::pushforward(wsl::random::normal({.mean = 0, .sd = 1}), [](double x) { return x * x; });   // tirage seul
+//   auto L = wsl::random::pushforward(wsl::random::normal({.mean = 0, .sd = 1}),
+//                             wsl::random::increasing([](double x) { return sp::exp(x); },          // f
 //                                             [](double y) { return sp::log(y); },          // f⁻¹
 //                                             [](double y) { return 1 / y; }));             // (f⁻¹)'
 //   cdf(L, 2.0); quantile(L, 0.9); pdf(L, 1.0);       // la log-normale, par composition
@@ -29,7 +29,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::random
 {
     struct no_derivative
     {
@@ -117,7 +117,7 @@ namespace wsl
 
     public:
         using value_type = std::invoke_result_t<decltype(M::forward) const&, T>;
-        static_assert(std::is_floating_point_v<value_type>, "wsl::pushforward : f doit être à valeurs réelles");
+        static_assert(std::is_floating_point_v<value_type>, "wsl::random::pushforward : f doit être à valeurs réelles");
         static constexpr exactness sampling = exactness::approximate;
         static constexpr bool increasing = M::increasing;
 

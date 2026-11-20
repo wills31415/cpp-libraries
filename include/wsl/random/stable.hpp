@@ -5,7 +5,7 @@
 //             exp(−γ |t| (1 + iβ (2/π) sign(t) log|t|) + iδt)        (α = 1),
 // 0 < α <= 2, −1 <= β <= 1.
 //
-//   wsl::stable X({.alpha = 1.5, .beta = 0.5, .scale = 1, .location = 0});
+//   wsl::random::stable X({.alpha = 1.5, .beta = 0.5, .scale = 1, .location = 0});
 //   pdf(X, 0.3); cdf(X, -2); quantile(X, 0.99); sample(X, g);
 //
 // Forme réduite Z : X = γZ + δ (α ≠ 1), γZ + (2/π)βγ log γ + δ (α = 1). Densité et
@@ -43,7 +43,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -177,7 +177,7 @@ namespace wsl
         constexpr stable(parameters p) : alpha_(p.alpha), beta_(p.beta), gamma_(p.scale), delta_(p.location)
         {
             if (!(alpha_ > 0 && alpha_ <= 2) || !(beta_ >= -1 && beta_ <= 1) || !(gamma_ > 0) || !detail::is_finite(gamma_) || !detail::is_finite(delta_))
-                throw std::domain_error("wsl::stable : il faut 0 < alpha <= 2, −1 <= beta <= 1, scale > 0 fini, location fini");
+                throw std::domain_error("wsl::random::stable : il faut 0 < alpha <= 2, −1 <= beta <= 1, scale > 0 fini, location fini");
             double const a = alpha_, b = beta_;
             if (a < 2 && !(a == 1 && b == 0))
             {
@@ -517,7 +517,7 @@ namespace wsl
         constexpr T inverse(double t, bool upper) const
         {
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             auto const sup = support();
             if (t == 0)
                 return upper ? sup.upper : sup.lower;

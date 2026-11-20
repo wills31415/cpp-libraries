@@ -2,10 +2,10 @@
 
 // Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir docs/random.md §4.6).
 //
-//   wsl::normal N({.mean = 1, .sd = 2});
-//   auto Y = 3 * N - 1;                      // wsl::normal<> : N(2, 6), paramètres calculés
-//   wsl::student_t T({.degrees_of_freedom = 4});
-//   auto Z = wsl::affine(T, {.scale = -2, .shift = 5});   // wsl::affine_image<student_t<>>
+//   wsl::random::normal N({.mean = 1, .sd = 2});
+//   auto Y = 3 * N - 1;                      // wsl::random::normal<> : N(2, 6), paramètres calculés
+//   wsl::random::student_t T({.degrees_of_freedom = 4});
+//   auto Z = wsl::random::affine(T, {.scale = -2, .shift = 5});   // wsl::random::affine_image<student_t<>>
 //   cdf(Z, 1.0); quantile(Z, 0.99); Z.mean(); sample(Z, g);
 //
 // Identités : une famille fermée par image affine le déclare par
@@ -14,7 +14,7 @@
 //   scale_closure(X, c) -> std::optional<L>    (exponentielle, gamma, Weibull, Pareto, log-normale) ;
 // fonctions libres trouvées par ADL, que toute loi peut fournir. Avec affine_closure,
 // a·X + b est une loi de la famille, dont les paramètres sont arrondis une fois (à
-// chaque opération : 3 * N - 1 arrondit 3μ puis 3μ − 1 ; wsl::affine(N, {3, -1}), une
+// chaque opération : 3 * N - 1 arrondit 3μ puis 3μ − 1 ; wsl::random::affine(N, {3, -1}), une
 // fois). Avec scale_closure, aX (a > 0, b = 0) reste de type affine_image<L> mais
 // toutes ses fonctions sont celles de la loi de la famille : même précision.
 //
@@ -45,7 +45,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -178,7 +178,7 @@ namespace wsl
         constexpr affine_image(L const& law, affine_map m) : law_(law), a_(m.scale), b_(m.shift)
         {
             if (!(a_ != 0) || !detail::is_finite(a_) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::affine : il faut scale non nul et shift fini");
+                throw std::domain_error("wsl::random::affine : il faut scale non nul et shift fini");
             if constexpr (scale_closed<L>)
                 if (b_ == 0 && a_ > 0)
                     family_ = scale_closure(law_, a_);
@@ -330,7 +330,7 @@ namespace wsl
         if constexpr (affine_closed<L>)
         {
             if (!(m.scale != 0) || !detail::is_finite(m.scale) || !detail::is_finite(m.shift))
-                throw std::domain_error("wsl::affine : il faut scale non nul et shift fini");
+                throw std::domain_error("wsl::random::affine : il faut scale non nul et shift fini");
             return affine_closure(X, m.scale, m.shift);
         }
         else
@@ -340,7 +340,7 @@ namespace wsl
     constexpr affine_image<L> affine(affine_image<L> const& Y, affine_map m)
     {
         if (!(m.scale != 0) || !detail::is_finite(m.scale) || !detail::is_finite(m.shift))
-            throw std::domain_error("wsl::affine : il faut scale non nul et shift fini");
+            throw std::domain_error("wsl::random::affine : il faut scale non nul et shift fini");
         return affine_image<L>(Y.law(), {.scale = detail::sd::fmul(m.scale, Y.scale()), .shift = detail::linear(m.scale, Y.shift(), m.shift)});
     }
 

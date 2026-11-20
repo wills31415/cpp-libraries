@@ -3,8 +3,8 @@
 // Loi gamma de forme a > 0, de taux λ > 0 ou d'échelle θ = 1/λ :
 // densité λ^a x^{a−1} e^{−λx} / Γ(a) sur [0, +∞).
 //
-//   wsl::gamma X({.shape = 2.5, .rate = 2.0});
-//   wsl::gamma Y({.shape = 2.5, .scale = 0.5});        // la même loi
+//   wsl::random::gamma X({.shape = 2.5, .rate = 2.0});
+//   wsl::random::gamma Y({.shape = 2.5, .scale = 0.5});        // la même loi
 //   X.mean(); pdf(X, 1.0); log_pdf(X, 1.0); sample(X, g);
 //
 // Le paramètre donné (taux ou échelle) est gardé tel quel : les calculs
@@ -36,7 +36,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -238,7 +238,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return 0;
             if (p == 1)
@@ -273,7 +273,7 @@ namespace wsl
         friend constexpr T cquantile(gamma const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             namespace fp = detail::sd;
@@ -352,7 +352,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(shape_ > 0) || !detail::is_finite(shape_) || !(parameter_ > 0) || !detail::is_finite(parameter_))
-                throw std::domain_error("wsl::gamma : il faut shape > 0 et rate (ou scale) > 0, finis");
+                throw std::domain_error("wsl::random::gamma : il faut shape > 0 et rate (ou scale) > 0, finis");
             double const a = shape_ >= 1 ? double(shape_) : double(shape_) + 1;
             d_ = a - 1.0 / 3;
             c_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_));

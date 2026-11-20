@@ -37,7 +37,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // ±m 2^e exactement.
     struct dyadic_value

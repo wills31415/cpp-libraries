@@ -3,7 +3,7 @@
 // Loi de Laplace (double exponentielle) de position μ et d'échelle b > 0 :
 // densité e^{−|x − μ|/b}/(2b).
 //
-//   wsl::laplace L({.location = 0, .scale = 1});
+//   wsl::random::laplace L({.location = 0, .scale = 1});
 //   cdf(L, 1.5); quantile(L, 0.9); sample(L, g);
 //
 // z = (x − μ)/b en double-double ; répartition e^{z}/2 (z < 0), 1 − e^{−z}/2 sinon ;
@@ -23,7 +23,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class laplace
@@ -40,7 +40,7 @@ namespace wsl
         constexpr laplace(parameters p) : mu_(p.location), b_(p.scale)
         {
             if (!detail::is_finite(mu_) || !(b_ > 0) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::laplace : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::random::laplace : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return mu_; }
@@ -96,7 +96,7 @@ namespace wsl
         friend constexpr T quantile(laplace const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return -std::numeric_limits<T>::infinity();
             if (p == 1)
@@ -114,7 +114,7 @@ namespace wsl
         friend constexpr T cquantile(laplace const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)

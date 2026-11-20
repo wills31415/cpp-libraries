@@ -3,7 +3,7 @@
 // Loi bêta-binomiale : binomiale de n épreuves dont le paramètre suit une loi bêta(α, β),
 // P(X = k) = C(n, k) B(k + α, n − k + β)/B(α, β), 0 <= k <= n.
 //
-//   wsl::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
+//   wsl::random::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
 //   pmf(X, 6); cdf(X, 6); quantile(X, 0.9); X.variance(); sample(X, g);
 //
 // Masse : somme des huit log Γ (double-double, wsl::special), les termes −y de Stirling
@@ -30,7 +30,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class beta_binomial
@@ -48,7 +48,7 @@ namespace wsl
         constexpr beta_binomial(parameters q) : n_(q.trials), a_(q.alpha), b_(q.beta)
         {
             if (n_ < 0 || static_cast<std::uint64_t>(n_) > (std::uint64_t{1} << 53) || !(a_ > 0) || !(b_ > 0) || !detail::is_finite(a_) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::beta_binomial : il faut 0 <= trials <= 2^53, alpha > 0 et beta > 0 finis");
+                throw std::domain_error("wsl::random::beta_binomial : il faut 0 <= trials <= 2^53, alpha > 0 et beta > 0 finis");
         }
 
         constexpr I trials() const noexcept { return n_; }
@@ -115,7 +115,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.n_ == 0)
                 return 0;
             if (u == 1)
@@ -134,7 +134,7 @@ namespace wsl
         template <std::uniform_random_bit_generator G>
         friend constexpr I sample(beta_binomial const& X, G& g)
         {
-            double const p = sample(wsl::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
+            double const p = sample(wsl::random::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
             return sample(binomial<I>({.trials = X.n_, .p = p}), g);
         }
 

@@ -2,7 +2,7 @@
 
 // Loi normale multivariée N(μ, Σ), Σ symétrique définie positive.
 //
-//   wsl::multivariate_normal<double, 2> X({.mean = {1, 2}, .covariance = {{1, 0.5}, {0.5, 2}}});
+//   wsl::random::multivariate_normal<double, 2> X({.mean = {1, 2}, .covariance = {{1, 0.5}, {0.5, 2}}});
 //   pdf(X, {1.5, 1.0}); X.entropy(); X.marginal(1); sample(X, g);
 //
 // Σ = L Lᵀ (Cholesky, à la construction ; std::domain_error si Σ n'est pas symétrique
@@ -11,7 +11,7 @@
 // Entropie (n/2)(1 + log 2π) + Σ log Lᵢᵢ ; marginale i : N(μᵢ, √Σᵢᵢ).
 //
 // Tirage (approché, bit-exact) : μ + L z, z de composantes normales centrées réduites
-// tirées exactement (wsl::fast : ziggourat), dans l'ordre ; chaque composante arrondie
+// tirées exactement (wsl::random::fast : ziggourat), dans l'ordre ; chaque composante arrondie
 // une fois.
 
 #include <wsl/random/detail/arithmetic.hpp>
@@ -25,7 +25,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
     class multivariate_normal
@@ -43,12 +43,12 @@ namespace wsl
         constexpr multivariate_normal(parameters p) : mu_(p.mean), sigma_(p.covariance), l_(make_matrix(p.mean.size()))
         {
             if (mu_.size() < 1 || sigma_.size() != mu_.size())
-                throw std::domain_error("wsl::multivariate_normal : moyenne et covariance de dimensions différentes");
+                throw std::domain_error("wsl::random::multivariate_normal : moyenne et covariance de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
-                    throw std::domain_error("wsl::multivariate_normal : moyenne non finie");
+                    throw std::domain_error("wsl::random::multivariate_normal : moyenne non finie");
             if (!detail::cholesky(sigma_, l_))
-                throw std::domain_error("wsl::multivariate_normal : covariance non symétrique définie positive");
+                throw std::domain_error("wsl::random::multivariate_normal : covariance non symétrique définie positive");
             detail::sd::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < dimension(); ++i)
                 s = detail::sum(s, detail::log_precise(l_(i, i)));

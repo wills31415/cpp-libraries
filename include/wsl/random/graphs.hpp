@@ -2,16 +2,16 @@
 
 // Graphes et arbres aléatoires, sur les sommets {0, …, n − 1}.
 //
-//   wsl::erdos_renyi G({.vertices = 100, .p = 0.05});           // G(n, p)
-//   wsl::uniform_graph H({.vertices = 100, .edges = 250});       // G(n, m)
-//   wsl::barabasi_albert B({.vertices = 1000, .edges = 3});      // attachement préférentiel
-//   wsl::random_regular_graph R({.vertices = 20, .degree = 3});  // uniforme parmi les d-réguliers
-//   wsl::uniform_tree T({.vertices = 50});                       // arbres de Cayley : n^{n−2}
-//   wsl::uniform_binary_tree A({.nodes = 30});                   // arbres binaires : Catalan
+//   wsl::random::erdos_renyi G({.vertices = 100, .p = 0.05});           // G(n, p)
+//   wsl::random::uniform_graph H({.vertices = 100, .edges = 250});       // G(n, m)
+//   wsl::random::barabasi_albert B({.vertices = 1000, .edges = 3});      // attachement préférentiel
+//   wsl::random::random_regular_graph R({.vertices = 20, .degree = 3});  // uniforme parmi les d-réguliers
+//   wsl::random::uniform_tree T({.vertices = 50});                       // arbres de Cayley : n^{n−2}
+//   wsl::random::uniform_binary_tree A({.nodes = 30});                   // arbres binaires : Catalan
 //
-// Valeurs : liste d'arêtes (u, v), u < v, triée (wsl::edge_list) ; arbre binaire : enfants
-// {gauche, droit} de chaque nœud, numérotés en préordre (racine 0), wsl::binary_tree::none
-// pour l'absence d'enfant (wsl::binary_tree).
+// Valeurs : liste d'arêtes (u, v), u < v, triée (wsl::random::edge_list) ; arbre binaire : enfants
+// {gauche, droit} de chaque nœud, numérotés en préordre (racine 0), wsl::random::binary_tree::none
+// pour l'absence d'enfant (wsl::random::binary_tree).
 //
 // Tirages exacts :
 // - G(n, p) : une épreuve de Bernoulli exacte par paire, dans l'ordre lexicographique
@@ -44,7 +44,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     using edge_list = std::vector<std::pair<std::size_t, std::size_t>>;
 
@@ -132,7 +132,7 @@ namespace wsl
         constexpr explicit erdos_renyi(parameters q) : n_(q.vertices), p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::erdos_renyi : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::random::erdos_renyi : il faut p dans [0, 1]");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -200,7 +200,7 @@ namespace wsl
         constexpr explicit uniform_graph(parameters q) : n_(q.vertices), m_(q.edges)
         {
             if (m_ > detail::pair_count(n_))
-                throw std::domain_error("wsl::uniform_graph : plus d'arêtes que de paires");
+                throw std::domain_error("wsl::random::uniform_graph : plus d'arêtes que de paires");
             log_count_ = detail::log_binomial(detail::pair_count(n_), m_);
         }
 
@@ -261,7 +261,7 @@ namespace wsl
         constexpr explicit barabasi_albert(parameters q) : n_(q.vertices), m_(q.edges)
         {
             if (m_ < 1 || n_ < m_ + 1)
-                throw std::domain_error("wsl::barabasi_albert : il faut edges >= 1 et vertices >= edges + 1");
+                throw std::domain_error("wsl::random::barabasi_albert : il faut edges >= 1 et vertices >= edges + 1");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -322,7 +322,7 @@ namespace wsl
         constexpr explicit random_regular_graph(parameters q) : n_(q.vertices), d_(q.degree)
         {
             if (d_ >= n_ || (n_ * d_) % 2 != 0)
-                throw std::domain_error("wsl::random_regular_graph : il faut degree < vertices et vertices · degree pair");
+                throw std::domain_error("wsl::random::random_regular_graph : il faut degree < vertices et vertices · degree pair");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -376,7 +376,7 @@ namespace wsl
         constexpr explicit uniform_tree(parameters q) : n_(q.vertices)
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::uniform_tree : il faut au moins un sommet");
+                throw std::domain_error("wsl::random::uniform_tree : il faut au moins un sommet");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }

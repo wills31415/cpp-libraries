@@ -5,7 +5,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/special.hpp>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     inline constexpr double pi_hi = 0x1.921fb54442d18p+1, pi_lo = 0x1.1a62633145c07p-53;
 

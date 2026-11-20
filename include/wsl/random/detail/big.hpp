@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     class big
     {

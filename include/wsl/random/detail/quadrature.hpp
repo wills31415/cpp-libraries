@@ -7,7 +7,7 @@
 #include <wsl/random/detail/trigonometry.hpp>
 #include <wsl/special.hpp>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // Gauss–Legendre à 12 nœuds sur [−1, 1] (6 nœuds positifs et leurs poids), en
     // double-double : Newton sur P₁₂ (récurrence de Bonnet), à la compilation.

@@ -3,7 +3,7 @@
 // Loi binomiale négative : nombre d'échecs avant le r-ième succès d'épreuves de Bernoulli
 // de paramètre p, r > 0 réel : P(X = k) = Γ(k + r)/(k! Γ(r)) p^r (1 − p)^k, k >= 0.
 //
-//   wsl::negative_binomial X({.successes = 3.5, .p = 0.4});
+//   wsl::random::negative_binomial X({.successes = 3.5, .p = 0.4});
 //   X.mean(); pmf(X, 6); cdf(X, 6); quantile(X, 0.99); sample(X, g);
 //
 // Masse : r/(k + r) fois la masse binomiale de r succès en n = k + r épreuves (Loader,
@@ -29,7 +29,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class negative_binomial
@@ -46,7 +46,7 @@ namespace wsl
         constexpr negative_binomial(parameters q) : r_(q.successes), p_(q.p)
         {
             if (!(r_ > 0) || !detail::is_finite(r_) || !(p_ > 0 && p_ <= 1))
-                throw std::domain_error("wsl::negative_binomial : il faut successes > 0 fini et p dans (0, 1]");
+                throw std::domain_error("wsl::random::negative_binomial : il faut successes > 0 fini et p dans (0, 1]");
         }
 
         constexpr double successes() const noexcept { return r_; }
@@ -132,7 +132,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0 || X.p_ == 1)
                 return 0;
             constexpr I top = std::numeric_limits<I>::max() < (I(1) << 62) ? std::numeric_limits<I>::max() : (I(1) << 62);

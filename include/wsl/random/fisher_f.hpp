@@ -3,7 +3,7 @@
 // Loi de Fisher (F de Snedecor) à d₁ > 0 et d₂ > 0 degrés de liberté : quotient
 // (χ²(d₁)/d₁)/(χ²(d₂)/d₂).
 //
-//   wsl::fisher_f F({.d1 = 5, .d2 = 10});
+//   wsl::random::fisher_f F({.d1 = 5, .d2 = 10});
 //   cdf(F, 3.3); quantile(F, 0.95); sample(F, g);
 //
 // Par la loi bêta (a = d₁/2, b = d₂/2) : u = d₁x/(d₁x + d₂), 1 − u = d₂/(d₁x + d₂) en
@@ -27,7 +27,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class fisher_f
@@ -45,7 +45,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(d1_ > 0) || !detail::is_finite(d1_) || !(d2_ > 0) || !detail::is_finite(d2_))
-                throw std::domain_error("wsl::fisher_f : il faut d1 > 0 et d2 > 0, finis");
+                throw std::domain_error("wsl::random::fisher_f : il faut d1 > 0 et d2 > 0, finis");
             double const a = half(d1_), b = half(d2_);
             double const sa = a >= 1 ? a : a + 1, sb = b >= 1 ? b : b + 1;
             d_a_ = sa - 1.0 / 3;
@@ -170,7 +170,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return 0;
             if (p == 1)
@@ -182,7 +182,7 @@ namespace wsl
         friend constexpr T cquantile(fisher_f const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)

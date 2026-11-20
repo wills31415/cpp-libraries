@@ -2,8 +2,8 @@
 
 // Lois uniformes sur la sphère unité Sⁿ⁻¹ = {x ∈ Rⁿ : |x| = 1} et sur la boule unité.
 //
-//   wsl::uniform_sphere<double, 3> S;                                  // dimension fixe
-//   wsl::uniform_ball<double, wsl::dynamic> B({.dimension = 10});      // dimension dynamique
+//   wsl::random::uniform_sphere<double, 3> S;                                  // dimension fixe
+//   wsl::random::uniform_ball<double, wsl::random::dynamic> B({.dimension = 10});      // dimension dynamique
 //   sample(S, g); pdf(B, x); S.surface_area(); B.volume();
 //
 // Sphère : densité par rapport à la mesure de surface, 1/|Sⁿ⁻¹| = Γ(n/2)/(2π^{n/2}),
@@ -27,7 +27,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -92,7 +92,7 @@ namespace wsl
         constexpr uniform_sphere(parameters p) : n_(p.dimension)
         {
             if (N != dynamic && n_ != N)
-                throw std::domain_error("wsl::uniform_sphere : dimension différente de N");
+                throw std::domain_error("wsl::random::uniform_sphere : dimension différente de N");
             check();
         }
 
@@ -140,7 +140,7 @@ namespace wsl
         constexpr void check() const
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::uniform_sphere : il faut une dimension >= 1");
+                throw std::domain_error("wsl::random::uniform_sphere : il faut une dimension >= 1");
         }
         constexpr bool on_sphere(value_type const& x) const noexcept
         {
@@ -169,7 +169,7 @@ namespace wsl
         constexpr uniform_ball(parameters p) : n_(p.dimension)
         {
             if (N != dynamic && n_ != N)
-                throw std::domain_error("wsl::uniform_ball : dimension différente de N");
+                throw std::domain_error("wsl::random::uniform_ball : dimension différente de N");
             check();
         }
 
@@ -221,7 +221,7 @@ namespace wsl
         constexpr void check() const
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::uniform_ball : il faut une dimension >= 1");
+                throw std::domain_error("wsl::random::uniform_ball : il faut une dimension >= 1");
         }
         constexpr detail::sd::double_double log_volume() const noexcept
         {

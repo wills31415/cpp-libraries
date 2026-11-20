@@ -3,8 +3,8 @@
 // Loi de Dirichlet de paramètres α₁, …, α_K > 0 (K >= 2), sur le simplexe
 // {x : xᵢ > 0, Σ xᵢ = 1}.
 //
-//   wsl::dirichlet<double, 3> D({.alpha = {1.0, 2.0, 3.0}});
-//   wsl::dirichlet<double, wsl::dynamic> E({.alpha = std::vector<double>(10, 0.5)});
+//   wsl::random::dirichlet<double, 3> D({.alpha = {1.0, 2.0, 3.0}});
+//   wsl::random::dirichlet<double, wsl::random::dynamic> E({.alpha = std::vector<double>(10, 0.5)});
 //   D.mean(); D.covariance(); pdf(D, {0.2, 0.3, 0.5}); D.marginal(0); sample(D, g);
 //
 // Densité Γ(α₀)/Π Γ(αᵢ) Π xᵢ^{αᵢ − 1}, α₀ = Σ αᵢ, calculée en logarithme double-double
@@ -29,7 +29,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
     class dirichlet
@@ -46,10 +46,10 @@ namespace wsl
         constexpr dirichlet(parameters p) : alpha_(p.alpha)
         {
             if (alpha_.size() < 2)
-                throw std::domain_error("wsl::dirichlet : il faut au moins deux paramètres");
+                throw std::domain_error("wsl::random::dirichlet : il faut au moins deux paramètres");
             for (T const a : alpha_)
                 if (!(a > 0) || !detail::is_finite(a))
-                    throw std::domain_error("wsl::dirichlet : il faut alpha > 0, fini");
+                    throw std::domain_error("wsl::random::dirichlet : il faut alpha > 0, fini");
             detail::sd::double_double s{0.0, 0.0}, lb{0.0, 0.0};
             for (T const a : alpha_)
             {

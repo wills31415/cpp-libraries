@@ -20,7 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {

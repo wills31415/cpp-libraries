@@ -3,7 +3,7 @@
 // Loi de Student à ν > 0 degrés de liberté : densité
 //   Γ((ν + 1)/2) / (√(νπ) Γ(ν/2)) · (1 + t²/ν)^{−(ν+1)/2}.
 //
-//   wsl::student_t T({.degrees_of_freedom = 5});
+//   wsl::random::student_t T({.degrees_of_freedom = 5});
 //   cdf(T, 2.0); quantile(T, 0.975); sample(T, g);
 //
 // Répartition : P(T > |t|) = I_x(ν/2, 1/2)/2, x = ν/(ν + t²) et 1 − x = t²/(ν + t²)
@@ -29,7 +29,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class student_t
@@ -47,7 +47,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(nu_ > 0) || !detail::is_finite(nu_))
-                throw std::domain_error("wsl::student_t : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::random::student_t : il faut degrees_of_freedom > 0, fini");
             double const h = detail::sd::fmul(double(nu_), 0.5);
             double const a = h >= 1 ? h : h + 1;                            // Marsaglia–Tsang pour V/2 ~ Γ(ν/2)
             d_ = a - 1.0 / 3;
@@ -133,7 +133,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return -std::numeric_limits<T>::infinity();
             if (p == 1)
@@ -166,7 +166,7 @@ namespace wsl
         friend constexpr T cquantile(student_t const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             return -quantile(X, q);                                         // loi symétrique

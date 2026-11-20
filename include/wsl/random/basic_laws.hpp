@@ -2,10 +2,10 @@
 
 // Premières lois : uniforme continue, uniforme discrète, Bernoulli.
 //
-//   wsl::uniform X({.low = 2, .high = 6});              // [2, 6), double par défaut
-//   wsl::uniform<float> Y({.low = 0, .high = 1});
-//   wsl::discrete_uniform D({.low = 1, .high = 6});     // un dé : {1, …, 6}
-//   wsl::bernoulli B({.p = 0.3});
+//   wsl::random::uniform X({.low = 2, .high = 6});              // [2, 6), double par défaut
+//   wsl::random::uniform<float> Y({.low = 0, .high = 1});
+//   wsl::random::discrete_uniform D({.low = 1, .high = 6});     // un dé : {1, …, 6}
+//   wsl::random::bernoulli B({.p = 0.3});
 //
 //   X.mean(); X.variance(); cdf(X, 3.0); quantile(X, 0.25); sample(X, g);
 //
@@ -23,7 +23,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace wsl
+namespace wsl::random
 {
     template <class T>
     concept law_real = std::same_as<T, float> || std::same_as<T, double>;
@@ -53,7 +53,7 @@ namespace wsl
         constexpr uniform(bounds b) : low_(b.low), high_(b.high)
         {
             if (!(low_ < high_) || !detail::is_finite(low_) || !detail::is_finite(high_))
-                throw std::domain_error("wsl::uniform : il faut low < high, finis");
+                throw std::domain_error("wsl::random::uniform : il faut low < high, finis");
         }
 
         constexpr T low() const noexcept { return low_; }
@@ -120,7 +120,7 @@ namespace wsl
         friend constexpr T quantile(uniform const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 1)
                 return X.high_;
             return X.clamp(detail::interpolate(X.low_, X.high_, p));
@@ -130,7 +130,7 @@ namespace wsl
         friend constexpr T cquantile(uniform const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             if (q == 0)
@@ -193,7 +193,7 @@ namespace wsl
         constexpr discrete_uniform(bounds b) : low_(b.low), high_(b.high)
         {
             if (high_ < low_)
-                throw std::domain_error("wsl::discrete_uniform : il faut low <= high");
+                throw std::domain_error("wsl::random::discrete_uniform : il faut low <= high");
         }
 
         constexpr I low() const noexcept { return low_; }
@@ -270,7 +270,7 @@ namespace wsl
         friend constexpr I quantile(discrete_uniform const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (p == 0)
                 return X.low_;
             if (p == 1)
@@ -347,7 +347,7 @@ namespace wsl
         constexpr bernoulli(probability parameter) : p_(parameter.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::bernoulli : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::bernoulli : p doit être dans [0, 1]");
         }
 
         constexpr double p() const noexcept { return p_; }

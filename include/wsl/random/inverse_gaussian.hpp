@@ -3,7 +3,7 @@
 // Loi inverse-gaussienne (de Wald) de moyenne μ et de forme λ :
 // densité √(λ/(2πx³)) e^{−λ(x − μ)²/(2μ²x)}, x > 0.
 //
-//   wsl::inverse_gaussian W({.mean = 1, .shape = 3});
+//   wsl::random::inverse_gaussian W({.mean = 1, .shape = 3});
 //   cdf(W, 2.0); ccdf(W, 50.0); quantile(W, 0.99); W.variance(); sample(W, g);
 //
 // Avec c = √(λ/x), a = c (x − μ)/μ, δ = 2c et R(s) = e^{s²/2} Φ(−s) (rapport de Mills) :
@@ -36,7 +36,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -225,7 +225,7 @@ namespace wsl
         constexpr inverse_gaussian(parameters p) : mu_(p.mean), lambda_(p.shape)
         {
             if (!(mu_ > 0) || !detail::is_finite(mu_) || !(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::inverse_gaussian : il faut mean > 0 et shape > 0, finis");
+                throw std::domain_error("wsl::random::inverse_gaussian : il faut mean > 0 et shape > 0, finis");
         }
 
         constexpr T mean() const noexcept { return mu_; }
@@ -356,7 +356,7 @@ namespace wsl
         constexpr T inverse(double t, bool upper) const
         {
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? std::numeric_limits<T>::infinity() : T(0);
             if (t == 1)

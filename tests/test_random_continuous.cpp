@@ -18,7 +18,7 @@
 
 namespace
 {
-    namespace d = wsl::detail;
+    namespace d = wsl::random::detail;
 
     struct fnv1a
     {
@@ -79,7 +79,7 @@ namespace
 
 int main()
 {
-    wsl::xoshiro256pp g(20261118);
+    wsl::random::xoshiro256pp g(20261118);
     constexpr int n = 20000;
 
     // ---- Sommes paresseuses : arrondi correct, contrôlé par raffinement ---------------------
@@ -88,14 +88,14 @@ int main()
         for (int trial = 0; trial < 1500; ++trial)
         {
             d::lazy_sum s;
-            int const m = 1 + int(wsl::uniform_below(g, 30));
+            int const m = 1 + int(wsl::random::uniform_below(g, 30));
             for (int i = 0; i < m; ++i)
-                switch (wsl::uniform_below(g, 4))
+                switch (wsl::random::uniform_below(g, 4))
                 {
-                case 0: s.add(d::lazy_sample(wsl::normal({.mean = 0.3, .sd = 1e-3 * (i + 1)}), g), g); break;
-                case 1: s.add(d::lazy_sample(wsl::exponential({.rate = 2.5}), g), g); break;
-                case 2: s.add(d::lazy_sample(wsl::laplace({.location = -1.0, .scale = 0.7}), g), g); break;
-                default: s.add(d::lazy_sample(wsl::uniform({.low = -2.0, .high = 3.0}), g), g); break;
+                case 0: s.add(d::lazy_sample(wsl::random::normal({.mean = 0.3, .sd = 1e-3 * (i + 1)}), g), g); break;
+                case 1: s.add(d::lazy_sample(wsl::random::exponential({.rate = 2.5}), g), g); break;
+                case 2: s.add(d::lazy_sample(wsl::random::laplace({.location = -1.0, .scale = 0.7}), g), g); break;
+                default: s.add(d::lazy_sample(wsl::random::uniform({.low = -2.0, .high = 3.0}), g), g); break;
                 }
             d::dyadic_value const offset = d::to_dyadic(trial % 3 == 0 ? 0.0 : -0.3 * m);   // compensations
             d::dyadic_value const alpha = d::to_dyadic(trial % 2 ? 0.5 : 0.0), beta = d::to_dyadic(trial % 5 == 0 ? -1.0 / 3 : 1.0);
@@ -110,7 +110,7 @@ int main()
         {
             d::lazy_sum s;
             for (int i = 0; i < 5; ++i)
-                s.add(d::lazy_sample(wsl::normal({.mean = 0.0, .sd = 1.0}), g), g);
+                s.add(d::lazy_sample(wsl::random::normal({.mean = 0.0, .sd = 1.0}), g), g);
             double const v = s.rounded(g);
             d::dyadic_value const half = d::to_dyadic((std::nextafter(v, INFINITY) - v) / 2);
             double const r = s.rounded<double>(g, half, {}, 0, d::to_dyadic(1.0));
@@ -121,17 +121,17 @@ int main()
 
     // ---- Mouvement brownien --------------------------------------------------------------
     {
-        wsl::brownian_motion const B({.drift = 0.5, .volatility = 2.0, .start = 1.0});
+        wsl::random::brownian_motion const B({.drift = 0.5, .volatility = 2.0, .start = 1.0});
         // Contrat de préfixe : trajectoire à pas 1/4 = grille {0, 1/4, …}.
         for (std::size_t k : {1, 5, 40})
         {
-            wsl::xoshiro256pp a(7), b(7);
+            wsl::random::xoshiro256pp a(7), b(7);
             std::vector<double> times;
             for (std::size_t i = 0; i < k; ++i)
                 times.push_back(0.25 * double(i));
             auto const grid = sample(B.on_grid(times), a);
             std::vector<double> lazy;
-            for (auto [t, v] : wsl::trajectory(B, b, {.step = 0.25}) | std::views::take(k))
+            for (auto [t, v] : wsl::random::trajectory(B, b, {.step = 0.25}) | std::views::take(k))
                 lazy.push_back(v);
             assert(grid == lazy && a() == b());
         }
@@ -143,23 +143,23 @@ int main()
             increments.push_back(x[1] - x[0]);
         }
         assert(ks_against(at1, B.at(1.0)) < 1.95);
-        assert(ks_against(increments, wsl::normal({.mean = 1.0, .sd = 2.0 * std::sqrt(2.0)})) < 1.95);   // accroissement indépendant
+        assert(ks_against(increments, wsl::random::normal({.mean = 1.0, .sd = 2.0 * std::sqrt(2.0)})) < 1.95);   // accroissement indépendant
         assert(sample(B.on_grid({0.0}), g)[0] == 1.0);
         std::vector<double> fast;
         for (int i = 0; i < n; ++i)
         {
             double last = 0;
-            for (auto [t, v] : wsl::trajectory(B, g, {.step = 0.5}, wsl::fast) | std::views::take(3))
+            for (auto [t, v] : wsl::random::trajectory(B, g, {.step = 0.5}, wsl::random::fast) | std::views::take(3))
                 last = v;
             fast.push_back(last);
         }
         assert(ks_against(fast, B.at(1.0)) < 1.95);
-        assert(throws_domain_error([] { wsl::brownian_motion X({.volatility = 0.0}); }) && throws_domain_error([&] { (void)B.on_grid({1.0, 0.5}); }));
+        assert(throws_domain_error([] { wsl::random::brownian_motion X({.volatility = 0.0}); }) && throws_domain_error([&] { (void)B.on_grid({1.0, 0.5}); }));
     }
 
     // ---- Pont brownien, Ornstein–Uhlenbeck, brownien géométrique -------------------------------
     {
-        wsl::brownian_bridge const D({.from = {0, 1}, .to = {2, -1}, .volatility = 1.5});
+        wsl::random::brownian_bridge const D({.from = {0, 1}, .to = {2, -1}, .volatility = 1.5});
         std::vector<double> mid;
         for (int i = 0; i < n; ++i)
         {
@@ -168,7 +168,7 @@ int main()
             mid.push_back(x[1]);
         }
         assert(ks_against(mid, D.at(0.5)) < 1.95);
-        wsl::ornstein_uhlenbeck const O({.theta = 1.5, .mean = 1.0, .volatility = 0.8, .start = -2.0});
+        wsl::random::ornstein_uhlenbeck const O({.theta = 1.5, .mean = 1.0, .volatility = 0.8, .start = -2.0});
         std::vector<double> o1, o5;
         for (int i = 0; i < n; ++i)
         {
@@ -178,12 +178,12 @@ int main()
         }
         assert(ks_against(o1, O.at(0.4)) < 1.95 && ks_against(o5, O.at(5.0)) < 1.95 && ks_against(o5, O.stationary()) < 1.95);
         std::vector<double> lazy;
-        wsl::xoshiro256pp a(3), b(3);
-        for (auto [t, v] : wsl::trajectory(O, a, {.step = 0.5}) | std::views::take(4))
+        wsl::random::xoshiro256pp a(3), b(3);
+        for (auto [t, v] : wsl::random::trajectory(O, a, {.step = 0.5}) | std::views::take(4))
             lazy.push_back(v);
         assert(lazy == sample(O.on_grid({0.0, 0.5, 1.0, 1.5}), b));
         assert(throws_domain_error([&] { (void)sample(O.on_grid({300.0}), g); }));   // θ t > 350
-        wsl::geometric_brownian_motion const S({.drift = 0.05, .volatility = 0.2, .start = 100});
+        wsl::random::geometric_brownian_motion const S({.drift = 0.05, .volatility = 0.2, .start = 100});
         std::vector<double> s1;
         for (int i = 0; i < n; ++i)
             s1.push_back(sample(S.on_grid({1.0}), g)[0]);
@@ -192,7 +192,7 @@ int main()
 
     // ---- Processus de Poisson -----------------------------------------------------------------
     {
-        wsl::poisson_process const N({.rate = 2.0});
+        wsl::random::poisson_process const N({.rate = 2.0});
         std::vector<double> gaps;
         std::vector<int> counts(40, 0);
         for (int i = 0; i < n; ++i)
@@ -216,37 +216,37 @@ int main()
         assert((chi - (classes - 1)) / std::sqrt(2.0 * (classes - 1)) < 4);
         std::vector<double> first;
         for (int i = 0; i < n; ++i)
-            for (double t : wsl::trajectory(N, g) | std::views::take(1))
+            for (double t : wsl::random::trajectory(N, g) | std::views::take(1))
                 first.push_back(t);
-        assert(ks_against(first, wsl::exponential({.rate = 2.0})) < 1.95);
-        wsl::inhomogeneous_poisson_process const M([](double t) { return 1 + std::sin(t); }, 2.0);
+        assert(ks_against(first, wsl::random::exponential({.rate = 2.0})) < 1.95);
+        wsl::random::inhomogeneous_poisson_process const M([](double t) { return 1 + std::sin(t); }, 2.0);
         double total = 0;
         for (int i = 0; i < 4000; ++i)
             total += double(sample(M.on(5.0), g).size());
         double const expected = 5 + (1 - std::cos(5.0));                    // ∫₀⁵ (1 + sin t) dt
         assert(std::abs(total / 4000 - expected) < 0.15);
-        wsl::compound_poisson const C(2.0, wsl::exponential({.rate = 0.5}));
+        wsl::random::compound_poisson const C(2.0, wsl::random::exponential({.rate = 0.5}));
         double s = 0;
         for (int i = 0; i < 4000; ++i)
         {
             double value = 0;
-            for (auto [t, v] : wsl::trajectory(C, g) | std::views::take_while([](auto p) { return p.first <= 3.0; }))
+            for (auto [t, v] : wsl::random::trajectory(C, g) | std::views::take_while([](auto p) { return p.first <= 3.0; }))
                 value = v;
             s += value;
         }
         assert(std::abs(s / 4000 - C.mean(3.0)) < 0.35 && C.mean(3.0) == 12 && C.variance(3.0) == 48);
-        wsl::compound_poisson const A(1.0, wsl::gamma({.shape = 2.0, .rate = 1.0}));   // sauts non paresseux
-        static_assert(decltype(A)::sampling == wsl::exactness::approximate && wsl::compound_poisson<wsl::normal<>>::sampling == wsl::exactness::exact);
+        wsl::random::compound_poisson const A(1.0, wsl::random::gamma({.shape = 2.0, .rate = 1.0}));   // sauts non paresseux
+        static_assert(decltype(A)::sampling == wsl::random::exactness::approximate && wsl::random::compound_poisson<wsl::random::normal<>>::sampling == wsl::random::exactness::exact);
     }
 
     // ---- Chaîne de Markov en temps continu ------------------------------------------------------
     {
-        wsl::continuous_markov_chain const Q({.generator = {{-1, 1, 0}, {2, -3, 1}, {0, 0.5, -0.5}}, .start = 0});
+        wsl::random::continuous_markov_chain const Q({.generator = {{-1, 1, 0}, {2, -3, 1}, {0, 0.5, -0.5}}, .start = 0});
         std::vector<int> counts(3, 0);
         for (int i = 0; i < n; ++i)
         {
             std::size_t state = 0;
-            for (auto [t, x] : wsl::trajectory(Q, g) | std::views::take_while([](auto p) { return p.first <= 1.5; }))
+            for (auto [t, x] : wsl::random::trajectory(Q, g) | std::views::take_while([](auto p) { return p.first <= 1.5; }))
                 state = x;
             ++counts[state];
         }
@@ -258,26 +258,26 @@ int main()
             chi += (counts[k] - e) * (counts[k] - e) / e;
         }
         assert(chi < 13.8);                                                  // 2 ddl, 0,1 %
-        wsl::continuous_markov_chain const T({.generator = {{-1, 1}, {0, 0}}, .start = 0});   // absorbant
+        wsl::random::continuous_markov_chain const T({.generator = {{-1, 1}, {0, 0}}, .start = 0});   // absorbant
         std::vector<std::pair<double, std::size_t>> path;
-        for (auto p : wsl::trajectory(T, g) | std::views::take(4))
+        for (auto p : wsl::random::trajectory(T, g) | std::views::take(4))
             path.push_back(p);
         assert(path[1].second == 1 && path[2].first == INFINITY && path[3].second == 1);
-        assert(throws_domain_error([] { wsl::continuous_markov_chain X({.generator = {{-1, 2}, {1, -1}}, .start = 0}); }));
+        assert(throws_domain_error([] { wsl::random::continuous_markov_chain X({.generator = {{-1, 2}, {1, -1}}, .start = 0}); }));
     }
 
     // ---- Marches à pas réels ------------------------------------------------------------------
     {
-        wsl::random_walk const W(wsl::normal({.mean = 0.0, .sd = 1.0}));
+        wsl::random::random_walk const W(wsl::random::normal({.mean = 0.0, .sd = 1.0}));
         std::vector<double> x10, e5;
         for (int i = 0; i < n; ++i)
             x10.push_back(sample(W.steps(10), g).back());
-        assert(ks_against(x10, wsl::normal({.mean = 0.0, .sd = std::sqrt(10.0)})) < 1.95);
-        wsl::random_walk const E(wsl::exponential({.rate = 2.0}));
+        assert(ks_against(x10, wsl::random::normal({.mean = 0.0, .sd = std::sqrt(10.0)})) < 1.95);
+        wsl::random::random_walk const E(wsl::random::exponential({.rate = 2.0}));
         for (int i = 0; i < n; ++i)
             e5.push_back(sample(E.steps(5), g).back());
-        assert(ks_against(e5, wsl::gamma({.shape = 5.0, .rate = 2.0})) < 1.95);   // somme exacte d'exponentielles
-        wsl::random_walk const G(wsl::gamma({.shape = 2.0, .rate = 1.0}), {.start = 1.0});   // pas non paresseux
+        assert(ks_against(e5, wsl::random::gamma({.shape = 5.0, .rate = 2.0})) < 1.95);   // somme exacte d'exponentielles
+        wsl::random::random_walk const G(wsl::random::gamma({.shape = 2.0, .rate = 1.0}), {.start = 1.0});   // pas non paresseux
         double s = 0;
         for (int i = 0; i < 4000; ++i)
             s += sample(G.steps(4), g).back();
@@ -287,18 +287,18 @@ int main()
     // ---- Empreintes ----------------------------------------------------------------
     bool ok = true;
     {
-        wsl::xoshiro256pp x(42);
+        wsl::random::xoshiro256pp x(42);
         auto const take = [&](fnv1a& h, auto&& view) { for (auto v : view) { if constexpr (requires { v.first; }) { h.add(bits(double(v.first))); h.add(bits(double(v.second))); } else h.add(bits(double(v))); } };
-        wsl::brownian_motion const B({.drift = 0.1, .volatility = 1.3});
-        wsl::ornstein_uhlenbeck const O({.theta = 0.7, .mean = 1.0, .volatility = 0.5, .start = 0.0});
-        ok &= check("brownian", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(B, x, {.step = 0.1}) | std::views::take(20)); }), 0x74f897663e90c36e);
-        ok &= check("bridge", fingerprint([&](fnv1a& h) { for (double v : sample(wsl::brownian_bridge({.from = {0, 0}, .to = {1, 1}}).on_grid({0.1, 0.4, 0.9}), x)) h.add(bits(v)); }), 0x637ed1f3e7bb1e29);
-        ok &= check("ornstein_uhlenbeck", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(O, x, {.step = 0.25}) | std::views::take(20)); }), 0xc1712e764addec70);
-        ok &= check("poisson", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(wsl::poisson_process({.rate = 3.0}), x) | std::views::take(20)); }), 0x05e3b438010ccb3a);
-        ok &= check("compound_poisson", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(wsl::compound_poisson(1.5, wsl::laplace({.location = 0.0, .scale = 1.0})), x) | std::views::take(10)); }), 0x20e17e9986f507f7);
-        wsl::continuous_markov_chain const Q({.generator = {{-1, 1, 0}, {2, -3, 1}, {0, 0.5, -0.5}}, .start = 0});
-        ok &= check("continuous_markov", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(Q, x) | std::views::take(10)); }), 0xa46709f22568617a);
-        ok &= check("real_walk", fingerprint([&](fnv1a& h) { take(h, wsl::trajectory(wsl::random_walk(wsl::uniform({.low = -1.0, .high = 2.0})), x) | std::views::take(20)); }), 0x96f2cfeff63723cb);
+        wsl::random::brownian_motion const B({.drift = 0.1, .volatility = 1.3});
+        wsl::random::ornstein_uhlenbeck const O({.theta = 0.7, .mean = 1.0, .volatility = 0.5, .start = 0.0});
+        ok &= check("brownian", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(B, x, {.step = 0.1}) | std::views::take(20)); }), 0x74f897663e90c36e);
+        ok &= check("bridge", fingerprint([&](fnv1a& h) { for (double v : sample(wsl::random::brownian_bridge({.from = {0, 0}, .to = {1, 1}}).on_grid({0.1, 0.4, 0.9}), x)) h.add(bits(v)); }), 0x637ed1f3e7bb1e29);
+        ok &= check("ornstein_uhlenbeck", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(O, x, {.step = 0.25}) | std::views::take(20)); }), 0xc1712e764addec70);
+        ok &= check("poisson", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::poisson_process({.rate = 3.0}), x) | std::views::take(20)); }), 0x05e3b438010ccb3a);
+        ok &= check("compound_poisson", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::compound_poisson(1.5, wsl::random::laplace({.location = 0.0, .scale = 1.0})), x) | std::views::take(10)); }), 0x20e17e9986f507f7);
+        wsl::random::continuous_markov_chain const Q({.generator = {{-1, 1, 0}, {2, -3, 1}, {0, 0.5, -0.5}}, .start = 0});
+        ok &= check("continuous_markov", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(Q, x) | std::views::take(10)); }), 0xa46709f22568617a);
+        ok &= check("real_walk", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::random_walk(wsl::random::uniform({.low = -1.0, .high = 2.0})), x) | std::views::take(20)); }), 0x96f2cfeff63723cb);
     }
     assert(ok);
     std::printf("test_random_continuous : ok\n");

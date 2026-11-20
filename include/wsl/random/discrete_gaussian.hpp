@@ -3,7 +3,7 @@
 // Loi gaussienne discrète sur ℤ : P(X = k) = e^{−(k − μ)²/(2σ²)}/Z, Z = Σ_j e^{−(j − μ)²/(2σ²)},
 // μ réel, σ > 0.
 //
-//   wsl::discrete_gaussian X({.mu = 0.3, .sigma = 2.5});
+//   wsl::random::discrete_gaussian X({.mu = 0.3, .sigma = 2.5});
 //   pmf(X, 1); cdf(X, -2); quantile(X, 0.9); X.mean(); sample(X, g);
 //
 // Z : σ >= 1, sommation de Poisson, σ√(2π) (1 + 2 Σ_{m>=1} e^{−2π²σ²m²} cos 2πmμ) (deux
@@ -30,7 +30,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -51,7 +51,7 @@ namespace wsl
         constexpr discrete_gaussian(parameters q) : mu_(q.mu), sigma_(q.sigma)
         {
             if (!detail::is_finite(mu_) || !(detail::magnitude(mu_) < 0x1p52) || !(sigma_ > 0) || !(sigma_ < 0x1p40))
-                throw std::domain_error("wsl::discrete_gaussian : il faut |mu| < 2^52 et 0 < sigma < 2^40");
+                throw std::domain_error("wsl::random::discrete_gaussian : il faut |mu| < 2^52 et 0 < sigma < 2^40");
             namespace sd = detail::sd;
             auto const [s2, s2_error] = sd::two_product(sigma_, sigma_);
             two_s2_ = {sd::fmul(s2, 2.0), sd::fmul(s2_error, 2.0)};
@@ -97,7 +97,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             constexpr I low = std::numeric_limits<I>::min(), high = std::numeric_limits<I>::max();
             if (u == 0)
                 return low;

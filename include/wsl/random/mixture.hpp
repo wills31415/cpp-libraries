@@ -2,8 +2,8 @@
 
 // Algèbre des lois : mélange fini de lois (voir docs/random.md §4.6).
 //
-//   wsl::mixture M(wsl::weighted(0.3, wsl::normal({.mean = -2, .sd = 1})),
-//                  wsl::weighted(0.7, wsl::gamma({.shape = 3, .rate = 1})));
+//   wsl::random::mixture M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2, .sd = 1})),
+//                  wsl::random::weighted(0.7, wsl::random::gamma({.shape = 3, .rate = 1})));
 //   pdf(M, 0.5); cdf(M, 1.0); quantile(M, 0.9); M.mean(); M.variance(); sample(M, g);
 //
 // Composantes de types quelconques, de même value_type (réel ou entier) ; poids > 0
@@ -41,7 +41,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     // Composante pondérée d'un mélange.
     template <probability_law L>
@@ -102,7 +102,7 @@ namespace wsl
 
     public:
         using value_type = typename first::value_type;
-        static_assert((std::is_same_v<typename L::value_type, value_type> && ...), "wsl::mixture : composantes de même value_type");
+        static_assert((std::is_same_v<typename L::value_type, value_type> && ...), "wsl::random::mixture : composantes de même value_type");
         static constexpr bool continuous = std::is_floating_point_v<value_type>;
         using moment_type = std::conditional_t<continuous, value_type, double>;   // comme les lois de base
         static constexpr exactness sampling = ((L::sampling == exactness::exact) && ...) ? exactness::exact : exactness::approximate;
@@ -111,7 +111,7 @@ namespace wsl
         {
             for (double const w : w_)
                 if (!(w > 0) || !detail::is_finite(w))
-                    throw std::domain_error("wsl::mixture : les poids doivent être > 0, finis");
+                    throw std::domain_error("wsl::random::mixture : les poids doivent être > 0, finis");
             total_weight_ = {0.0, 0.0};
             for (double const w : w_)
                 total_weight_ = detail::sum(total_weight_, {w, 0.0});
@@ -233,7 +233,7 @@ namespace wsl
         friend constexpr value_type quantile(mixture const& M, double p) requires(has_quantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             auto const [low, high] = M.bracket([p](auto const& c) { return static_cast<value_type>(quantile(c, p)); });
             if (p == 0 || p == 1 || low == high)
                 return p == 0 ? low : high;
@@ -248,7 +248,7 @@ namespace wsl
         friend constexpr value_type cquantile(mixture const& M, double q) requires(has_cquantile<L> && ...) && (has_cdf<L> && ...) && (has_ccdf<L> && ...)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             auto const [low, high] = M.bracket([q](auto const& c) { return static_cast<value_type>(cquantile(c, q)); });
             if (q == 0 || q == 1 || low == high)
                 return q == 1 ? low : high;

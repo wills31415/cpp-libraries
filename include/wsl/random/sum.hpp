@@ -2,8 +2,8 @@
 
 // Algèbre des lois : somme de deux variables indépendantes (voir docs/random.md §4.6).
 //
-//   auto S = wsl::normal({.mean = 1, .sd = 3}) + wsl::normal({.mean = 2, .sd = 4});   // wsl::normal : N(3, 5)
-//   auto P = wsl::poisson({.mean = 2.0}) + wsl::binomial({.trials = 10, .p = 0.3});  // convolution
+//   auto S = wsl::random::normal({.mean = 1, .sd = 3}) + wsl::random::normal({.mean = 2, .sd = 4});   // wsl::random::normal : N(3, 5)
+//   auto P = wsl::random::poisson({.mean = 2.0}) + wsl::random::binomial({.trials = 10, .p = 0.3});  // convolution
 //   pmf(P, 4); cdf(P, 6); quantile(P, 0.9); P.mean(); sample(P, g);
 //
 // X + Y est la loi de X + Y, X et Y indépendantes : X + X est donc la somme de deux
@@ -47,7 +47,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::random
 {
     // -----------------------------------------------------------------------
     // Identités.
@@ -245,13 +245,13 @@ namespace wsl
         friend constexpr value_type quantile(independent_sum const& S, double p) requires continuous && has_family && has_quantile<family_type>
         {
             if (!S.family_)
-                throw std::domain_error("wsl::quantile : somme indépendante sans forme connue");
+                throw std::domain_error("wsl::random::quantile : somme indépendante sans forme connue");
             return quantile(*S.family_, p);
         }
         friend constexpr value_type cquantile(independent_sum const& S, double q) requires continuous && has_family && has_cquantile<family_type>
         {
             if (!S.family_)
-                throw std::domain_error("wsl::cquantile : somme indépendante sans forme connue");
+                throw std::domain_error("wsl::random::cquantile : somme indépendante sans forme connue");
             return cquantile(*S.family_, q);
         }
 
@@ -296,7 +296,7 @@ namespace wsl
         friend constexpr value_type quantile(independent_sum const& S, double p) requires convolvable
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if constexpr (has_family && has_quantile<family_type>)
                 if (S.family_)
                     return quantile(*S.family_, p);

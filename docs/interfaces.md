@@ -113,7 +113,7 @@ Piste : compléter ce qui a une forme close ou un calcul sûr ; sinon l'absence 
 
 ### 2.4 Tirage
 
-- `sampling` (exact / approché) est déclaré par chaque loi ; `sample(law, g, wsl::fast)`
+- `sampling` (exact / approché) est déclaré par chaque loi ; `sample(law, g, wsl::random::fast)`
   existe pour une partie seulement (le défaut sinon).
 - Primitives : `uniform_real(g)`, `uniform_below(g, n)`, `bernoulli_trial(g, p)`,
   `shuffle(range, g)` (générateur en premier ou en dernier selon la fonction) ; lois
@@ -198,7 +198,7 @@ Un seul exemple (`examples/dlist_demo.cpp`) pour neuf bibliothèques.
 
 | Document | Dit | Code |
 |---|---|---|
-| random.md §4.3 | `wsl::normal Z({.mean = 0, .variance = 4})` | `.sd` |
+| random.md §4.3 | `wsl::random::normal Z({.mean = 0, .variance = 4})` | `.sd` |
 | random.md §4.3 | `X.kurtosis()` | `excess_kurtosis()` |
 | random.md §4.3 | `characteristic(X, t)`, `mgf(X, t)` | absents |
 | random.md §4.4 | tirage générique (inversion, rejet, ARS, alias) | absent (alias seulement dans `categorical`) |
@@ -236,6 +236,7 @@ Un seul exemple (`examples/dlist_demo.cpp`) pour neuf bibliothèques.
 | 8a | Appel des opérations | Opérations en membres (`X.pdf(x)`, `X.cdf(x)`, `X.quantile(p)`…) et objets-fonctions qualifiés dans `wsl::random` (`wr::pdf(X, x)`, passables en argument ; second recours par ADL pour les lois tierces) ; plus d'amies cachées. Constantes en membres, avec `wr::mean(X)`… pour le code générique (2026-11-20) |
 | 8b | Tirages | `X(g)` (la variable aléatoire évaluée en ω, comme `d(g)` de `<random>`) et `wr::sample(X, g)` ; `X(n, g)` → `std::vector`, mêmes valeurs et même consommation que n appels `X(g)` ; vue paresseuse `wr::samples(X, g)` ; `wr::fast` en dernier argument ; moteur en dernier partout, primitives comprises (`uniform_below(n, g)`, `bernoulli_trial(p, g)`) ; pas de `X()` ni de moteur par défaut (2026-11-20) |
 | 8c | Opérations sur les lois | Plus d'opérateurs arithmétiques sur les lois (réservés aux variables aléatoires) ; noms de la théorie de la mesure : `wr::affine(P, {.scale, .shift})`, `wr::convolution(P, Q)` (type `convolution<L1, L2>` ; différence par `affine`), `wr::truncate(P, {.lower, .upper})` (bornes facultatives), `wr::mixture(wr::weighted(w, P), …)`, `wr::pushforward(P, f)` (avec `increasing`/`decreasing`), `wr::product_measure(P, Q, …)` (2026-11-20) |
+| 8d | Densité | Une seule notion, la dérivée de Radon–Nikodym dP/dμ : `X.density(x)`, `X.log_density(x)`, `wr::density(X, x)` pour toutes les lois ; chaque loi déclare sa mesure de référence (`reference_measure` : `wr::lebesgue`, `wr::counting`, `wr::surface` pour les sphères…, combinaisons pour `product_measure` et `mixture`) ; `pdf` (Lebesgue) et `pmf` (comptage) restent comme noms usuels (2026-11-20) |
 
 ### Pistes en réserve (pour une refonte ultérieure)
 

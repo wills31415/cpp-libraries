@@ -3,7 +3,7 @@
 // Loi logarithmique (série logarithmique) de paramètre p dans (0, 1) :
 // P(X = k) = −p^k/(k log(1 − p)), k >= 1.
 //
-//   wsl::logarithmic X({.p = 0.9});   pmf(X, 3); cdf(X, 3); quantile(X, 0.99); sample(X, g);
+//   wsl::random::logarithmic X({.p = 0.9});   pmf(X, 3); cdf(X, 3); quantile(X, 0.99); sample(X, g);
 //
 // Masse : e^{k log p}/(k L), L = −log1p(−p), en double-double, un arrondi. Répartition :
 // F(k) = Σ_{j<=k} p^j/(j L) si elle est la plus petite part, sinon la survie
@@ -25,7 +25,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class logarithmic
@@ -42,7 +42,7 @@ namespace wsl
         constexpr logarithmic(parameters q) : p_(q.p)
         {
             if (!(p_ > 0 && p_ < 1))
-                throw std::domain_error("wsl::logarithmic : il faut p dans (0, 1)");
+                throw std::domain_error("wsl::random::logarithmic : il faut p dans (0, 1)");
             auto const l = detail::log1p_dd(-p_);
             L_ = {-l.hi, -l.lo};
             log_p_ = detail::log_precise(p_);
@@ -103,7 +103,7 @@ namespace wsl
         friend constexpr I quantile(logarithmic const& X, double u)
         {
             if (!(u >= 0 && u <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             if (u == 0)
                 return 1;
             constexpr I top = std::numeric_limits<I>::max() < (I(1) << 62) ? std::numeric_limits<I>::max() : (I(1) << 62);

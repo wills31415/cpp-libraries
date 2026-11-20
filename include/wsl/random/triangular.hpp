@@ -2,7 +2,7 @@
 
 // Loi triangulaire sur [a, b] de mode c (a <= c <= b, a < b).
 //
-//   wsl::triangular T({.low = 0, .mode = 1, .high = 3});
+//   wsl::random::triangular T({.low = 0, .mode = 1, .high = 3});
 //   cdf(T, 2.0); quantile(T, 0.9); T.variance(); sample(T, g);
 //
 // Répartition (x − a)²/((b − a)(c − a)) sous c, 1 − (b − x)²/((b − a)(b − c)) au-dessus
@@ -23,7 +23,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class triangular
@@ -40,7 +40,7 @@ namespace wsl
         constexpr triangular(parameters p) : a_(p.low), c_(p.mode), b_(p.high)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_) || !(a_ <= c_ && c_ <= b_))
-                throw std::domain_error("wsl::triangular : il faut low <= mode <= high, low < high, finis");
+                throw std::domain_error("wsl::random::triangular : il faut low <= mode <= high, low < high, finis");
         }
 
         constexpr T low() const noexcept { return a_; }
@@ -169,7 +169,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? b_ : a_;
             if (t == 1)

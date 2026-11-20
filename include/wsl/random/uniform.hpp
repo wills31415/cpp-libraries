@@ -33,7 +33,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace wsl
+namespace wsl::random
 {
     // -----------------------------------------------------------------------
     // 64 bits uniformes. Générateur de plage 2^64 : une valeur. Plage 2^w :
@@ -46,7 +46,7 @@ namespace wsl
     {
         constexpr auto low = static_cast<std::uint64_t>(G::min());
         constexpr std::uint64_t span = static_cast<std::uint64_t>(G::max()) - low;   // plage − 1
-        static_assert(span != 0, "wsl::random_bits : générateur à une seule valeur");
+        static_assert(span != 0, "wsl::random::random_bits : générateur à une seule valeur");
         if constexpr (span == ~std::uint64_t{0})
             return static_cast<std::uint64_t>(g()) - low;
         else
@@ -77,7 +77,7 @@ namespace wsl
     constexpr std::uint64_t uniform_below(G& g, std::uint64_t n)
     {
         if (n == 0)
-            throw std::domain_error("wsl::uniform_below : n doit être > 0");
+            throw std::domain_error("wsl::random::uniform_below : n doit être > 0");
         detail::uint128 m = detail::uint128{random_bits(g)} * n;
         auto low = static_cast<std::uint64_t>(m);
         if (low < n)
@@ -98,7 +98,7 @@ namespace wsl
     constexpr T uniform_int(G& g, T a, T b)
     {
         if (b < a)
-            throw std::domain_error("wsl::uniform_int : a doit être <= b");
+            throw std::domain_error("wsl::random::uniform_int : a doit être <= b");
         using U = std::make_unsigned_t<T>;
         auto const span = static_cast<std::uint64_t>(static_cast<U>(static_cast<U>(b) - static_cast<U>(a)));
         std::uint64_t const offset = span == ~std::uint64_t{0} ? random_bits(g) : uniform_below(g, span + 1);
@@ -174,7 +174,7 @@ namespace wsl
     constexpr bool bernoulli_trial(G& g, double p)
     {
         if (!(p == p) || p < 0 || p > 1)
-            throw std::domain_error("wsl::bernoulli_trial : p doit être dans [0, 1]");
+            throw std::domain_error("wsl::random::bernoulli_trial : p doit être dans [0, 1]");
         if (p == 0)
             return false;
         if (p == 1)
@@ -202,7 +202,7 @@ namespace wsl
     constexpr bool bernoulli_trial(G& g, std::uint64_t num, std::uint64_t den)
     {
         if (den == 0 || num > den)
-            throw std::domain_error("wsl::bernoulli_trial : il faut 0 <= num <= den, den > 0");
+            throw std::domain_error("wsl::random::bernoulli_trial : il faut 0 <= num <= den, den > 0");
         return uniform_below(g, den) < num;
     }
 

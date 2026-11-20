@@ -3,9 +3,9 @@
 // Loi d'Erlang : somme de k exponentielles indépendantes de taux λ, gamma(k, λ) à forme
 // entière.
 //
-//   wsl::erlang E({.shape = 3, .rate = 2});   cdf(E, 1.0); quantile(E, 0.5); sample(E, g);
+//   wsl::random::erlang E({.shape = 3, .rate = 2});   cdf(E, 1.0); quantile(E, 0.5); sample(E, g);
 //
-// Fonctions : celles de wsl::gamma (sous 0,5 ulp). Tirage **exact** : somme paresseuse de k
+// Fonctions : celles de wsl::random::gamma (sous 0,5 ulp). Tirage **exact** : somme paresseuse de k
 // exponentielles exactes, arrondie correctement (detail/lazy_sum.hpp) ; coût O(k).
 
 #include <wsl/random/basic_laws.hpp>
@@ -17,7 +17,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double>
     class erlang
@@ -74,7 +74,7 @@ namespace wsl
         static constexpr gamma<T> check(parameters const& p)
         {
             if (p.shape <= 0 || p.shape > (std::int64_t{1} << 53))
-                throw std::domain_error("wsl::erlang : il faut 1 <= shape <= 2^53");
+                throw std::domain_error("wsl::random::erlang : il faut 1 <= shape <= 2^53");
             return gamma<T>(typename gamma<T>::shape_rate{static_cast<T>(p.shape), p.rate});
         }
 

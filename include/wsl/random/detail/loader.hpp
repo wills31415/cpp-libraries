@@ -5,7 +5,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/special/detail/loader.hpp>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     namespace sd = wsl::special::detail;
     namespace xd = wsl::special::detail::extended;

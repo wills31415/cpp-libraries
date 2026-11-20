@@ -2,7 +2,7 @@
 
 // Loi de Poisson de moyenne μ > 0 : P(N = k) = e^{−μ} μ^k / k!, k >= 0.
 //
-//   wsl::poisson N({.mean = 3.5});
+//   wsl::random::poisson N({.mean = 3.5});
 //   N.variance(); pmf(N, 2); log_pmf(N, 40); sample(N, g);
 //
 // Masse : décomposition de Loader, e^{−δ(k) − bd0(k, μ)} / √(2πk) (voir
@@ -26,7 +26,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t>
     class poisson
@@ -44,7 +44,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(mu_ > 0) || !detail::is_finite(mu_))
-                throw std::domain_error("wsl::poisson : il faut mean > 0, fini");
+                throw std::domain_error("wsl::random::poisson : il faut mean > 0, fini");
             if (mu_ < 10)
                 exp_minus_mu_ = wsl::special::exp(-mu_);
             else                                                            // constantes de PTRS
@@ -115,7 +115,7 @@ namespace wsl
         {
             namespace sd = detail::sd;
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             constexpr I top = std::numeric_limits<I>::max();
             if (p == 0)
                 return 0;

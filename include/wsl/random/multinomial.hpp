@@ -3,7 +3,7 @@
 // Loi multinomiale : n épreuves indépendantes à K issues de probabilités p₁, …, p_K
 // (K >= 2, Σ pᵢ = 1 à 2^-40 près) ; Nᵢ le nombre d'issues i.
 //
-//   wsl::multinomial<std::int64_t, 3> M({.trials = 10, .p = {0.2, 0.3, 0.5}});
+//   wsl::random::multinomial<std::int64_t, 3> M({.trials = 10, .p = {0.2, 0.3, 0.5}});
 //   pmf(M, {2, 3, 5}); M.mean(); M.covariance(); M.marginal(2); sample(M, g);
 //
 // Masse n!/Π kᵢ! Π pᵢ^{kᵢ} en logarithme double-double (lgamma, log pᵢ), un arrondi ;
@@ -27,7 +27,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_integer I = std::int64_t, std::size_t N = dynamic>
     class multinomial
@@ -45,19 +45,19 @@ namespace wsl
         constexpr multinomial(parameters q) : n_(q.trials), p_(q.p)
         {
             if (n_ < 0)
-                throw std::domain_error("wsl::multinomial : il faut trials >= 0");
+                throw std::domain_error("wsl::random::multinomial : il faut trials >= 0");
             if (p_.size() < 2)
-                throw std::domain_error("wsl::multinomial : il faut au moins deux issues");
+                throw std::domain_error("wsl::random::multinomial : il faut au moins deux issues");
             detail::sd::double_double s{0.0, 0.0};
             for (double const v : p_)
             {
                 if (!(v >= 0) || !(v <= 1))
-                    throw std::domain_error("wsl::multinomial : il faut p dans [0, 1]");
+                    throw std::domain_error("wsl::random::multinomial : il faut p dans [0, 1]");
                 s = detail::sum(s, {v, 0.0});
             }
             auto const d = detail::sum(s, {-1.0, 0.0});
             if (!((d.hi < 0 ? -d.hi : d.hi) <= 0x1p-40))
-                throw std::domain_error("wsl::multinomial : la somme des p doit valoir 1");
+                throw std::domain_error("wsl::random::multinomial : la somme des p doit valoir 1");
             // Probabilités conditionnelles pᵢ / (pᵢ + … + p_K), restes en double-double.
             std::size_t const k = p_.size();
             conditional_.assign(k, 1.0);

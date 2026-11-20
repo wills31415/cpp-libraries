@@ -4,13 +4,13 @@
 // std::vector<std::size_t> (éléments croissants d'un sous-ensemble de {0, …, n − 1},
 // lettres d'un mot, parts décroissantes d'une partition).
 //
-//   wsl::uniform_subset S({.size = 20});                    // chaque sous-ensemble : 2^-n
-//   wsl::bernoulli_subset B({.size = 20, .p = 0.1});        // chaque élément avec probabilité p
-//   wsl::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
-//   wsl::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
-//   wsl::uniform_integer_partition P({.n = 100});           // 1/p(n)
-//   wsl::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
-//   wsl::uniform_composition K({.n = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
+//   wsl::random::uniform_subset S({.size = 20});                    // chaque sous-ensemble : 2^-n
+//   wsl::random::bernoulli_subset B({.size = 20, .p = 0.1});        // chaque élément avec probabilité p
+//   wsl::random::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
+//   wsl::random::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
+//   wsl::random::uniform_integer_partition P({.n = 100});           // 1/p(n)
+//   wsl::random::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
+//   wsl::random::uniform_composition K({.n = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
 //
 // Tirages exacts : bits uniformes ; épreuves de Bernoulli exactes ; algorithme de Floyd
 // (k entiers uniformes) ; lettres uniformes ; partitions par l'algorithme de Nijenhuis et
@@ -41,7 +41,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -140,7 +140,7 @@ namespace wsl
         constexpr explicit bernoulli_subset(parameters q) : n_(q.size), p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::bernoulli_subset : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::random::bernoulli_subset : il faut p dans [0, 1]");
         }
 
         constexpr std::size_t size() const noexcept { return n_; }
@@ -208,7 +208,7 @@ namespace wsl
         constexpr explicit uniform_combination(parameters p) : n_(p.size), k_(p.count)
         {
             if (k_ > n_)
-                throw std::domain_error("wsl::uniform_combination : il faut count <= size");
+                throw std::domain_error("wsl::random::uniform_combination : il faut count <= size");
             log_count_ = detail::log_binomial(n_, k_);
         }
 
@@ -264,7 +264,7 @@ namespace wsl
         constexpr explicit uniform_word(parameters p) : length_(p.length), k_(p.alphabet)
         {
             if (k_ < 1)
-                throw std::domain_error("wsl::uniform_word : il faut alphabet >= 1");
+                throw std::domain_error("wsl::random::uniform_word : il faut alphabet >= 1");
         }
 
         constexpr std::size_t length() const noexcept { return length_; }
@@ -414,7 +414,7 @@ namespace wsl
         constexpr explicit uniform_composition(parameters q) : n_(q.n), k_(q.parts)
         {
             if (n_ < 1 || k_ > n_)
-                throw std::domain_error("wsl::uniform_composition : il faut n >= 1 et parts <= n");
+                throw std::domain_error("wsl::random::uniform_composition : il faut n >= 1 et parts <= n");
             log_count_ = k_ == 0 ? detail::mul({double(n_ - 1), 0.0}, {detail::sd::ln2_hi, detail::sd::ln2_lo}) : detail::log_binomial(n_ - 1, k_ - 1);
         }
 

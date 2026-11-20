@@ -2,7 +2,7 @@
 
 // Loi normale asymétrique (Azzalini) : densité (2/ω) φ(z) Φ(αz), z = (x − ξ)/ω.
 //
-//   wsl::skew_normal X({.location = 0, .scale = 1, .shape = 4});
+//   wsl::random::skew_normal X({.location = 0, .scale = 1, .shape = 4});
 //   pdf(X, 0.5); cdf(X, -1); quantile(X, 0.99); X.mean(); sample(X, g);
 //
 // Densité : φ(z) et Φ(αz) à l'échelle (z en double-double, Φ par erfc de wsl::special), un
@@ -34,7 +34,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -127,7 +127,7 @@ namespace wsl
         constexpr skew_normal(parameters p) : xi_(p.location), omega_(p.scale), alpha_(p.shape)
         {
             if (!detail::is_finite(xi_) || !(omega_ > 0) || !detail::is_finite(omega_) || !detail::is_finite(alpha_))
-                throw std::domain_error("wsl::skew_normal : il faut location et shape finis, scale > 0 fini");
+                throw std::domain_error("wsl::random::skew_normal : il faut location et shape finis, scale > 0 fini");
             // δ = α/√(1 + α²) et δ√(2/π), en double-double
             namespace sd = detail::sd;
             double const a = alpha_;
@@ -288,7 +288,7 @@ namespace wsl
         constexpr T inverse(double t, bool upper) const
         {
             if (!(t >= 0 && t <= 1))
-                throw std::domain_error("wsl::quantile : probabilité hors de [0, 1]");
+                throw std::domain_error("wsl::random::quantile : probabilité hors de [0, 1]");
             if (t == 0)
                 return upper ? std::numeric_limits<T>::infinity() : -std::numeric_limits<T>::infinity();
             if (t == 1)

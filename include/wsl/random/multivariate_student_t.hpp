@@ -3,7 +3,7 @@
 // Loi de Student multivariée t_ν(μ, Σ) : μ + L z √(ν/V), Σ = L Lᵀ, z normale centrée
 // réduite de dimension n, V de loi χ²(ν) indépendante.
 //
-//   wsl::multivariate_student_t<double, 2> X({.degrees_of_freedom = 4, .location = {0, 1},
+//   wsl::random::multivariate_student_t<double, 2> X({.degrees_of_freedom = 4, .location = {0, 1},
 //                                             .scale = {{1, 0.3}, {0.3, 2}}});
 //   pdf(X, {0.5, 0.5}); X.covariance(); X.marginal(0); sample(X, g);
 //
@@ -11,7 +11,7 @@
 // − ((ν + n)/2) log1p(q/ν), q = (x − μ)ᵀ Σ⁻¹ (x − μ), en double-double. Moyenne μ (ν > 1),
 // covariance ν/(ν − 2) Σ (ν > 2) ; NaN, ou +∞, sinon. Entropie ½ log det Σ
 // + log((νπ)^{n/2} Γ(ν/2)/Γ((ν + n)/2)) + ((ν + n)/2)(ψ((ν + n)/2) − ψ(ν/2)) ;
-// marginale i : √Σᵢᵢ T + μᵢ, T de Student (wsl::affine_image).
+// marginale i : √Σᵢᵢ T + μᵢ, T de Student (wsl::random::affine_image).
 //
 // Tirage (approché, bit-exact) : z (normales exactes), puis V (gamma), dans cet ordre.
 
@@ -30,7 +30,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     template <law_real T = double, std::size_t N = dynamic>
     class multivariate_student_t
@@ -51,14 +51,14 @@ namespace wsl
               chi_(typename gamma<double>::shape_scale{detail::sd::fmul(double(p.degrees_of_freedom), 0.5), 2.0})
         {
             if (!(nu_ > 0) || !detail::is_finite(nu_))
-                throw std::domain_error("wsl::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::random::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
             if (mu_.size() < 1 || sigma_.size() != mu_.size())
-                throw std::domain_error("wsl::multivariate_student_t : position et échelle de dimensions différentes");
+                throw std::domain_error("wsl::random::multivariate_student_t : position et échelle de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
-                    throw std::domain_error("wsl::multivariate_student_t : position non finie");
+                    throw std::domain_error("wsl::random::multivariate_student_t : position non finie");
             if (!detail::cholesky(sigma_, l_))
-                throw std::domain_error("wsl::multivariate_student_t : échelle non symétrique définie positive");
+                throw std::domain_error("wsl::random::multivariate_student_t : échelle non symétrique définie positive");
             namespace fp = detail::sd;
             double const n = double(dimension()), nu = nu_;
             double const h = fp::fmul(nu, 0.5);

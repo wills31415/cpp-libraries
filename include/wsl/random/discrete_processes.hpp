@@ -3,11 +3,11 @@
 // Processus en temps discret (voir docs/random.md §14) : marches aléatoires à pas
 // entiers, chaînes de Markov, urnes de Pólya, restaurant chinois (Pitman–Yor).
 //
-//   wsl::random_walk W(wsl::rademacher({.p = 0.5}));                       // marche simple
-//   wsl::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .start = 0});
-//   wsl::polya_urn U({.balls = {1, 2}, .added = 1});
-//   wsl::chinese_restaurant R({.theta = 1.5});
-//   for (auto x : wsl::trajectory(C, g) | std::views::take(100)) …
+//   wsl::random::random_walk W(wsl::random::rademacher({.p = 0.5}));                       // marche simple
+//   wsl::random::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .start = 0});
+//   wsl::random::polya_urn U({.balls = {1, 2}, .added = 1});
+//   wsl::random::chinese_restaurant R({.theta = 1.5});
+//   for (auto x : wsl::random::trajectory(C, g) | std::views::take(100)) …
 //   C.at(5); C.stationary(); sample(C.steps(100), g); pmf(C.steps(3), {0, 0, 1, 1});
 //   U.at(10);  R.at(100);                                                  // lois marginales
 //
@@ -45,7 +45,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     // ±1 : P(+1) = p, P(−1) = 1 − p (pas de la marche simple).
     class rademacher
@@ -63,7 +63,7 @@ namespace wsl
         constexpr explicit rademacher(parameters q) : p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::rademacher : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::random::rademacher : il faut p dans [0, 1]");
         }
 
         constexpr double p() const noexcept { return p_; }
@@ -230,13 +230,13 @@ namespace wsl
         constexpr explicit markov_chain(from_state p) : p_(std::move(p.transition)), initial_(point_mass(p.start, p_.size()))
         {
             if (p.start >= p_.size())
-                throw std::domain_error("wsl::markov_chain : état initial hors de {0, …, K − 1}");
+                throw std::domain_error("wsl::random::markov_chain : état initial hors de {0, …, K − 1}");
             build();
         }
         constexpr explicit markov_chain(from_law p) : p_(std::move(p.transition)), initial_(std::move(p.initial))
         {
             if (initial_.size() != p_.size())
-                throw std::domain_error("wsl::markov_chain : loi initiale de dimension différente");
+                throw std::domain_error("wsl::random::markov_chain : loi initiale de dimension différente");
             build();
         }
 
@@ -278,7 +278,7 @@ namespace wsl
                     if (detail::magnitude(a[r][c]) > detail::magnitude(a[pivot][c]))
                         pivot = r;
                 if (!(detail::magnitude(a[pivot][c]) > 0x1p-40))
-                    throw std::domain_error("wsl::markov_chain::stationary : loi stationnaire non unique");
+                    throw std::domain_error("wsl::random::markov_chain::stationary : loi stationnaire non unique");
                 std::swap(a[c], a[pivot]);
                 for (std::size_t r = 0; r < k; ++r)
                     if (r != c && a[r][c] != 0)
@@ -344,7 +344,7 @@ namespace wsl
         {
             std::size_t const k = p_.size();
             if (k < 1)
-                throw std::domain_error("wsl::markov_chain : au moins un état");
+                throw std::domain_error("wsl::random::markov_chain : au moins un état");
             for (std::size_t i = 0; i < k; ++i)
             {
                 std::vector<double> row(k);
@@ -353,12 +353,12 @@ namespace wsl
                 {
                     row[j] = p_(i, j);
                     if (!(row[j] >= 0) || !detail::is_finite(row[j]))
-                        throw std::domain_error("wsl::markov_chain : probabilités de transition >= 0, finies");
+                        throw std::domain_error("wsl::random::markov_chain : probabilités de transition >= 0, finies");
                     s = detail::sum(s, {row[j], 0.0});
                 }
                 auto const d = detail::sum(s, {-1.0, 0.0});
                 if (!(detail::magnitude(d.hi) <= 0x1p-40))
-                    throw std::domain_error("wsl::markov_chain : chaque ligne de transition doit sommer à 1");
+                    throw std::domain_error("wsl::random::markov_chain : chaque ligne de transition doit sommer à 1");
                 rows_.push_back(categorical<>({.p = row}));
             }
             initial_law_ = categorical<>({.p = initial_});
@@ -416,11 +416,11 @@ namespace wsl
         constexpr explicit dirichlet_multinomial(parameters q) : n_(q.trials), alpha_(std::move(q.alpha))
         {
             if (n_ < 0 || alpha_.size() < 2)
-                throw std::domain_error("wsl::dirichlet_multinomial : il faut trials >= 0 et au moins deux catégories");
+                throw std::domain_error("wsl::random::dirichlet_multinomial : il faut trials >= 0 et au moins deux catégories");
             for (double const a : alpha_)
             {
                 if (!(a > 0) || !detail::is_finite(a))
-                    throw std::domain_error("wsl::dirichlet_multinomial : il faut alpha > 0, fini");
+                    throw std::domain_error("wsl::random::dirichlet_multinomial : il faut alpha > 0, fini");
                 total_ = detail::sum(total_, {a, 0.0});
             }
         }
@@ -544,16 +544,16 @@ namespace wsl
         constexpr explicit polya_urn(parameters q) : balls_(std::move(q.balls)), added_(q.added)
         {
             if (balls_.size() < 2 || !(added_ >= 0) || !detail::is_finite(added_))
-                throw std::domain_error("wsl::polya_urn : au moins deux couleurs, added >= 0 fini");
+                throw std::domain_error("wsl::random::polya_urn : au moins deux couleurs, added >= 0 fini");
             double total = 0;
             for (double const b : balls_)
             {
                 if (!(b >= 0) || !detail::is_finite(b))
-                    throw std::domain_error("wsl::polya_urn : nombres de boules >= 0, finis");
+                    throw std::domain_error("wsl::random::polya_urn : nombres de boules >= 0, finis");
                 total += b;
             }
             if (!(total > 0))
-                throw std::domain_error("wsl::polya_urn : urne vide");
+                throw std::domain_error("wsl::random::polya_urn : urne vide");
             exponent_ = added_ > 0 ? detail::dyadic_of(added_).e : 0;
             for (double const b : balls_)
                 if (b > 0)
@@ -568,7 +568,7 @@ namespace wsl
         constexpr dirichlet_multinomial at(std::size_t n) const
         {
             if (!(added_ > 0))
-                throw std::domain_error("wsl::polya_urn::at : added = 0 (tirages indépendants : multinomiale)");
+                throw std::domain_error("wsl::random::polya_urn::at : added = 0 (tirages indépendants : multinomiale)");
             std::vector<double> alpha;
             for (double const b : balls_)
                 alpha.push_back(b / added_);
@@ -722,7 +722,7 @@ namespace wsl
         constexpr explicit ewens_partition(parameters q) : n_(q.size), theta_(q.theta), d_(q.discount)
         {
             if (!(d_ >= 0 && d_ < 1) || !(theta_ > -d_) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::ewens_partition : il faut 0 <= discount < 1 et theta > −discount");
+                throw std::domain_error("wsl::random::ewens_partition : il faut 0 <= discount < 1 et theta > −discount");
         }
 
         constexpr std::size_t size() const noexcept { return n_; }
@@ -818,7 +818,7 @@ namespace wsl
         constexpr explicit chinese_restaurant(parameters q) : theta_(q.theta), d_(q.discount)
         {
             if (!(d_ >= 0 && d_ < 1) || !(theta_ > -d_) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::chinese_restaurant : il faut 0 <= discount < 1 et theta > −discount");
+                throw std::domain_error("wsl::random::chinese_restaurant : il faut 0 <= discount < 1 et theta > −discount");
         }
 
         constexpr double theta() const noexcept { return theta_; }

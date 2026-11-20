@@ -3,7 +3,7 @@
 // Loi bêta de paramètres α > 0 et β > 0 : densité x^{α−1} (1 − x)^{β−1} / B(α, β)
 // sur [0, 1].
 //
-//   wsl::beta X({.alpha = 2, .beta = 5});
+//   wsl::random::beta X({.alpha = 2, .beta = 5});
 //   X.mean(); X.a(); X.b(); pdf(X, 0.3); log_pdf(X, 0.3); sample(X, g);
 //
 // (Une fonction membre ne peut pas s'appeler comme sa classe : les paramètres se
@@ -35,7 +35,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -91,7 +91,7 @@ namespace wsl
         {
             namespace fp = detail::sd;
             if (!(a_ > 0) || !detail::is_finite(a_) || !(b_ > 0) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::beta : il faut alpha > 0 et beta > 0, finis");
+                throw std::domain_error("wsl::random::beta : il faut alpha > 0 et beta > 0, finis");
             double const a = a_ >= 1 ? double(a_) : double(a_) + 1, b = b_ >= 1 ? double(b_) : double(b_) + 1;
             d_a_ = a - 1.0 / 3;
             c_a_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_a_));
@@ -165,7 +165,7 @@ namespace wsl
         friend constexpr T quantile(beta const& X, double p)
         {
             if (!(p >= 0 && p <= 1))
-                throw std::domain_error("wsl::quantile : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::quantile : p doit être dans [0, 1]");
             return static_cast<T>(wsl::special::ibeta_inv(double(X.a_), double(X.b_), p));
         }
 
@@ -173,7 +173,7 @@ namespace wsl
         friend constexpr T cquantile(beta const& X, double q)
         {
             if (!(q >= 0 && q <= 1))
-                throw std::domain_error("wsl::cquantile : q doit être dans [0, 1]");
+                throw std::domain_error("wsl::random::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return quantile(X, 1.0 - q);                                // 1 − q exact
             return static_cast<T>(wsl::special::ibetac_inv(double(X.a_), double(X.b_), q));

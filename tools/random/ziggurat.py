@@ -55,7 +55,7 @@ def main():
              f"// Ziggourat normale, N = {N} couches, R = {mp.nstr(r, 20)}, V = {mp.nstr(v, 20)}.\n",
              "// x[i] : bord droit de la couche i (x[0] = V/f(R), x[1] = R, x[N] = 0) ;\n",
              "// f[i] = e^{−x[i]²/2} (f[0] = f(R)).\n\n",
-             "namespace wsl::detail\n{\n",
+             "namespace wsl::random::detail\n{\n",
              f"    inline constexpr double ziggurat_r = {float(r).hex()};\n",
              f"    inline constexpr double ziggurat_inv_r = {float(1 / r).hex()};\n\n",
              f"    inline constexpr double ziggurat_x[{N + 1}] = {{\n"]

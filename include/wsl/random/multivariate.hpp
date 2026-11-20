@@ -3,9 +3,9 @@
 // Socle des lois multivariées (voir docs/random.md §12) : dimension fixe ou dynamique,
 // sur le modèle de std::span, vecteurs et matrices carrées.
 //
-//   wsl::dirichlet<double, 3>                // valeurs std::array<double, 3>
-//   wsl::dirichlet<double, wsl::dynamic>     // valeurs std::vector<double>, dimension donnée par les paramètres
-//   wsl::square_matrix<double, 2> S{{1, 0.5}, {0.5, 2}};   // ligne par ligne
+//   wsl::random::dirichlet<double, 3>                // valeurs std::array<double, 3>
+//   wsl::random::dirichlet<double, wsl::random::dynamic>     // valeurs std::vector<double>, dimension donnée par les paramètres
+//   wsl::random::square_matrix<double, 2> S{{1, 0.5}, {0.5, 2}};   // ligne par ligne
 //
 // Calcul (detail) : produits scalaires et sommes en double-double, produits par fmul ;
 // factorisation de Cholesky (Σ = L Lᵀ, L triangulaire inférieure) et résolution
@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl
+namespace wsl::random
 {
     inline constexpr std::size_t dynamic = std::dynamic_extent;
 
@@ -63,14 +63,14 @@ namespace wsl
         {
             if constexpr (N != dynamic)
                 if (rows.size() != N)
-                    throw std::domain_error("wsl::square_matrix : nombre de lignes différent de la dimension");
+                    throw std::domain_error("wsl::random::square_matrix : nombre de lignes différent de la dimension");
             if constexpr (N == dynamic)
                 data_.resize(n_ * n_);
             std::size_t i = 0;
             for (auto const& row : rows)
             {
                 if (row.size() != n_)
-                    throw std::domain_error("wsl::square_matrix : la matrice doit être carrée");
+                    throw std::domain_error("wsl::random::square_matrix : la matrice doit être carrée");
                 std::size_t j = 0;
                 for (T const& v : row)
                     data_[i * n_ + j++] = v;

@@ -3,8 +3,8 @@
 // Matrices aléatoires : groupes orthogonal et unitaire sous la mesure de Haar, ensembles
 // gaussiens orthogonal (GOE) et unitaire (GUE).
 //
-//   wsl::haar_orthogonal<double, 3> O;   wsl::haar_unitary<double> U({.dimension = 4});
-//   wsl::goe<double, 5> H;               wsl::gue<double, 5> K;
+//   wsl::random::haar_orthogonal<double, 3> O;   wsl::random::haar_unitary<double> U({.dimension = 4});
+//   wsl::random::goe<double, 5> H;               wsl::random::gue<double, 5> K;
 //   auto Q = sample(O, g);  log_pdf(H, sample(H, g));
 //
 // Haar : Q de la factorisation QR d'une matrice gaussienne (réelle, ou complexe de
@@ -16,7 +16,7 @@
 // le GUE) ; log-densité −½ Σ hᵢᵢ² − Σᵢ<ⱼ |hᵢⱼ|² − (n/2) log 2π − (n(n − 1)/4) log π
 // (n(n − 1)/2 pour le GUE) ; −∞ si H n'est pas symétrique (hermitienne).
 //
-// Valeurs : wsl::square_matrix<T, N> ou wsl::square_matrix<std::complex<T>, N>. Les
+// Valeurs : wsl::random::square_matrix<T, N> ou wsl::random::square_matrix<std::complex<T>, N>. Les
 // produits complexes sont calculés ici (fmul), jamais par l'opérateur * de
 // std::complex, qui se contracterait en fma selon les options du projet.
 // Tirage (approché, bit-exact) : normales exactes, colonne par colonne (Haar), ou
@@ -34,7 +34,7 @@
 #include <random>
 #include <stdexcept>
 
-namespace wsl
+namespace wsl::random
 {
     namespace detail
     {
@@ -127,7 +127,7 @@ namespace wsl
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr haar_orthogonal() requires(N != dynamic) : n_(N) {}
-        constexpr haar_orthogonal(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::haar_orthogonal : dimension invalide")) {}
+        constexpr haar_orthogonal(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::random::haar_orthogonal : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<T, N>(n_, T(-1), T(1)); }
@@ -165,7 +165,7 @@ namespace wsl
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr haar_unitary() requires(N != dynamic) : n_(N) {}
-        constexpr haar_unitary(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::haar_unitary : dimension invalide")) {}
+        constexpr haar_unitary(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::random::haar_unitary : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<std::complex<T>, N>(n_, {T(-1), T(-1)}, {T(1), T(1)}); }
@@ -206,7 +206,7 @@ namespace wsl
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr goe() requires(N != dynamic) : n_(N) {}
-        constexpr goe(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::goe : dimension invalide")) {}
+        constexpr goe(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::random::goe : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<T, N>(n_, -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::infinity()); }
@@ -276,7 +276,7 @@ namespace wsl
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr gue() requires(N != dynamic) : n_(N) {}
-        constexpr gue(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::gue : dimension invalide")) {}
+        constexpr gue(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::random::gue : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const

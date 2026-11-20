@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     namespace sd = wsl::special::detail;
     namespace xd = wsl::special::detail::extended;

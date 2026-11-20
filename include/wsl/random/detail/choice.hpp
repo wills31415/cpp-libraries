@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace wsl::detail
+namespace wsl::random::detail
 {
     // Entier uniforme sur [0, n), n > 0 en grand entier : k = bit_length(n) bits
     // tirés (mot de tête d'abord), rejetés s'ils dépassent n (moins de 2 essais en moyenne).
@@ -191,7 +191,7 @@ namespace wsl::detail
         constexpr std::size_t pick(G& g) const
         {
             if (!small_)
-                return wsl::detail::pick(g, big_, total_);
+                return wsl::random::detail::pick(g, big_, total_);
             std::uint64_t z = uniform_below(g, total64_);
             for (std::size_t i = 0; i + 1 < w64_.size(); ++i)
             {
