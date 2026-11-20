@@ -221,6 +221,8 @@ namespace wsl::random
         {
             T mean, shape;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.mean = mean(), .shape = shape()}; }
 
         constexpr inverse_gaussian(parameters p) : mu_(p.mean), lambda_(p.shape)
         {

@@ -40,6 +40,8 @@ namespace wsl::random
         {
             T d1, d2;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.d1 = d1(), .d2 = d2()}; }
 
         constexpr fisher_f(parameters p) : d1_(p.d1), d2_(p.d2)
         {

@@ -31,6 +31,8 @@ namespace wsl::random
             T rate;
             std::int64_t shape;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.rate = rate(), .shape = shape()}; }
 
         constexpr erlang(parameters p) : k_(p.shape), g_(check(p))
         {

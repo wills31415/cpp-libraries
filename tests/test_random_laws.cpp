@@ -946,5 +946,35 @@ int main()
         }, 1 << 5), 0xba852547a6b18b91);
     }
     assert(ok);
+
+    // ---- param() : L(X.param()) == X pour toutes les lois à paramètres -------------------
+    {
+        namespace wr = wsl::random;
+        auto const round_trip = [](auto const& X) { return std::remove_cvref_t<decltype(X)>(X.param()) == X; };
+        assert(round_trip(wr::uniform({.lower = -1.0, .upper = 2.0})) && round_trip(wr::discrete_uniform({.lower = 1, .upper = 6})));
+        assert(round_trip(wr::bernoulli({.p = 0.3})) && round_trip(wr::binomial({.trials = 10, .p = 0.3})) && round_trip(wr::geometric({.p = 0.2})));
+        assert(round_trip(wr::poisson({.mean = 3.0})) && round_trip(wr::negative_binomial({.successes = 2.5, .p = 0.4})) && round_trip(wr::logarithmic({.p = 0.6})));
+        assert(round_trip(wr::hypergeometric({.population = 50, .successes = 20, .draws = 10})) && round_trip(wr::beta_binomial({.trials = 8, .alpha = 2.0, .beta = 3.0})));
+        assert(round_trip(wr::categorical({.p = {0.2, 0.5, 0.3}})) && round_trip(wr::discrete_gaussian({.location = 1.5, .scale = 2.0})) && round_trip(wr::rademacher({.p = 0.4})));
+        assert(round_trip(wr::normal({.mean = 1.0, .stddev = 2.0})) && round_trip(wr::lognormal({.log_mean = 0.5, .log_stddev = 0.3})) && round_trip(wr::exponential({.rate = 2.0})));
+        assert(round_trip(wr::erlang({.rate = 1.5, .shape = 3})) && round_trip(wr::beta({.alpha = 2.0, .beta = 3.0})) && round_trip(wr::chi_squared({.degrees_of_freedom = 3.0})));
+        assert(round_trip(wr::student_t({.degrees_of_freedom = 4.0})) && round_trip(wr::fisher_f({.d1 = 3.0, .d2 = 7.0})) && round_trip(wr::cauchy({.location = 1.0, .scale = 2.0})));
+        assert(round_trip(wr::laplace({.location = 1.0, .scale = 2.0})) && round_trip(wr::logistic({.location = 1.0, .scale = 2.0})) && round_trip(wr::gumbel({.location = 1.0, .scale = 2.0})));
+        assert(round_trip(wr::frechet({.location = 1.0, .scale = 2.0, .shape = 3.0})) && round_trip(wr::weibull({.scale = 2.0, .shape = 1.5})) && round_trip(wr::pareto({.scale = 2.0, .shape = 2.5})));
+        assert(round_trip(wr::rayleigh({.scale = 2.0})) && round_trip(wr::triangular({.lower = 0.0, .mode = 1.0, .upper = 3.0})) && round_trip(wr::arcsine({.lower = -1.0, .upper = 1.0})));
+        assert(round_trip(wr::inverse_gaussian({.mean = 2.0, .shape = 3.0})) && round_trip(wr::skew_normal({.location = 1.0, .scale = 2.0, .shape = -3.0})));
+        assert(round_trip(wr::stable({.location = 1.0, .scale = 2.0, .alpha = 1.5, .beta = 0.5})) && round_trip(wr::von_mises({.location = 0.5, .concentration = 4.0})));
+        assert(round_trip(wr::von_mises_fisher<double, 3>({.mean_direction = {0.0, 0.0, 1.0}, .concentration = 10.0})) && round_trip(wr::dirichlet<double, 3>({.alpha = {1.0, 2.0, 3.0}})));
+        assert(round_trip(wr::multinomial<std::int64_t, 3>({.trials = 10, .p = {0.2, 0.3, 0.5}})) && round_trip(wr::multivariate_normal<double, 2>({.mean = {0.0, 1.0}, .covariance = {{1.0, 0.3}, {0.3, 2.0}}})));
+        assert(round_trip(wr::multivariate_student_t<double, 2>({.location = {0.0, 1.0}, .scale = {{1.0, 0.3}, {0.3, 2.0}}, .degrees_of_freedom = 4.0})));
+        assert(round_trip(wr::wishart<double, 2>({.scale = {{1.0, 0.2}, {0.2, 2.0}}, .degrees_of_freedom = 5.0})) && round_trip(wr::inverse_wishart<double, 2>({.scale = {{1.0, 0.2}, {0.2, 2.0}}, .degrees_of_freedom = 6.0})));
+        assert(round_trip(wr::uniform_sphere({.dimension = 3})) && round_trip(wr::uniform_ball({.dimension = 3})) && round_trip(wr::ewens({.size = 10, .theta = 2.0})) && round_trip(wr::mallows({.size = 10, .q = 0.5})));
+        assert(round_trip(wr::uniform_subset({.size = 10})) && round_trip(wr::bernoulli_subset({.size = 10, .p = 0.3})) && round_trip(wr::uniform_combination({.size = 10, .count = 3})));
+        assert(round_trip(wr::uniform_word({.length = 5, .alphabet = 4})) && round_trip(wr::uniform_set_partition({.size = 6})) && round_trip(wr::uniform_composition({.total = 10, .parts = 3})));
+        assert(round_trip(wr::uniform_integer_partition({.total = 10})) && round_trip(wr::dirichlet_multinomial({.trials = 10, .alpha = {1.0, 2.0}})) && round_trip(wr::ewens_partition({.size = 10, .theta = 1.5})));
+        assert(round_trip(wr::erdos_renyi({.vertices = 10, .p = 0.3})) && round_trip(wr::uniform_graph({.vertices = 10, .edges = 12})) && round_trip(wr::barabasi_albert({.vertices = 10, .edges = 2})));
+        assert(round_trip(wr::random_regular_graph({.vertices = 10, .degree = 3})) && round_trip(wr::uniform_tree({.vertices = 10})) && round_trip(wr::uniform_binary_tree({.vertices = 10})));
+        static_assert(std::is_same_v<wr::normal<>::param_type, wr::normal<>::parameters> && wr::normal<>().stddev() == 1 && wr::cauchy<>().scale() == 1);
+    }
     return 0;
 }

@@ -44,6 +44,8 @@ namespace wsl::random
             I trials;
             double alpha, beta;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.trials = trials(), .alpha = alpha(), .beta = beta()}; }
 
         constexpr beta_binomial(parameters q) : n_(q.trials), a_(q.alpha), b_(q.beta)
         {

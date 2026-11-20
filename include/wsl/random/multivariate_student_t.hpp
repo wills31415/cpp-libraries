@@ -45,6 +45,8 @@ namespace wsl::random
             square_matrix<T, N> scale;
             T degrees_of_freedom;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale(), .degrees_of_freedom = degrees_of_freedom()}; }
 
         constexpr multivariate_student_t(parameters p)
             : nu_(p.degrees_of_freedom), mu_(p.location), sigma_(p.scale), l_(detail::make_matrix<double, N>(p.location.size())),

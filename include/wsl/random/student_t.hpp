@@ -42,6 +42,8 @@ namespace wsl::random
         {
             T degrees_of_freedom;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.degrees_of_freedom = degrees_of_freedom()}; }
 
         constexpr student_t(parameters p) : nu_(p.degrees_of_freedom)
         {

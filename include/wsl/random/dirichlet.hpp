@@ -42,6 +42,8 @@ namespace wsl::random
         {
             vector_of<T, N> alpha;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.alpha = alpha()}; }
 
         constexpr dirichlet(parameters p) : alpha_(p.alpha)
         {

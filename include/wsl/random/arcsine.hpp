@@ -37,6 +37,8 @@ namespace wsl::random
         {
             T lower = 0, upper = 1;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.lower = lower(), .upper = upper()}; }
 
         constexpr arcsine() : arcsine(parameters{}) {}
 

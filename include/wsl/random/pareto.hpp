@@ -35,6 +35,8 @@ namespace wsl::random
         {
             T scale = 1, shape;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.scale = scale(), .shape = shape()}; }
 
         constexpr pareto(parameters p) : xm_(p.scale), alpha_(p.shape)
         {

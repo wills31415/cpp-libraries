@@ -39,6 +39,8 @@ namespace wsl::random
             vector_of<T, N> mean;
             square_matrix<T, N> covariance;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.mean = mean(), .covariance = covariance()}; }
 
         constexpr multivariate_normal(parameters p) : mu_(p.mean), sigma_(p.covariance), l_(make_matrix(p.mean.size()))
         {

@@ -36,6 +36,8 @@ namespace wsl::random
         {
             T lower, mode, upper;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.lower = lower(), .mode = mode(), .upper = upper()}; }
 
         constexpr triangular(parameters p) : a_(p.lower), c_(p.mode), b_(p.upper)
         {

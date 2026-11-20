@@ -44,6 +44,8 @@ namespace wsl::random
         {
             std::vector<double> p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.p = w_}; }
 
         constexpr explicit categorical(parameters q) : w_(std::move(q.p))
         {

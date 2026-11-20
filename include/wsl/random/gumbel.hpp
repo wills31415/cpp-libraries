@@ -82,6 +82,8 @@ namespace wsl::random
         {
             T location = 0, scale = 1;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale()}; }
 
         constexpr gumbel() : gumbel(parameters{}) {}
 
@@ -182,6 +184,8 @@ namespace wsl::random
         {
             T location = 0, scale = 1, shape;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale(), .shape = shape()}; }
 
         constexpr frechet(parameters p) : alpha_(p.shape), s_(p.scale), m_(p.location)
         {

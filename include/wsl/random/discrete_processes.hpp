@@ -58,6 +58,8 @@ namespace wsl::random
         {
             double p = 0.5;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.p = p()}; }
 
         constexpr rademacher() noexcept : p_(0.5) {}
         constexpr explicit rademacher(parameters q) : p_(q.p)
@@ -416,6 +418,8 @@ namespace wsl::random
             std::int64_t trials;
             std::vector<double> alpha;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.trials = trials(), .alpha = alpha()}; }
 
         constexpr explicit dirichlet_multinomial(parameters q) : n_(q.trials), alpha_(std::move(q.alpha))
         {
@@ -724,6 +728,8 @@ namespace wsl::random
             double theta;
             double discount = 0;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size(), .theta = theta(), .discount = discount()}; }
 
         constexpr explicit ewens_partition(parameters q) : n_(q.size), theta_(q.theta), d_(q.discount)
         {

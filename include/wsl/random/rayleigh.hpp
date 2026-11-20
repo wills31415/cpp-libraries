@@ -34,6 +34,8 @@ namespace wsl::random
         {
             T scale = 1;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.scale = scale()}; }
 
         constexpr rayleigh() : rayleigh(parameters{}) {}
 

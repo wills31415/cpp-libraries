@@ -61,6 +61,8 @@ namespace wsl::random
         {
             T location = 0, scale = 1;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale()}; }
 
         constexpr cauchy() : cauchy(parameters{}) {}
 

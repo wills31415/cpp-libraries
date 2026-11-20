@@ -38,6 +38,8 @@ namespace wsl::random
         {
             T rate;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.rate = rate()}; }
 
         constexpr exponential() : exponential(parameters{.rate = 1}) {}
 

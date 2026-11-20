@@ -42,6 +42,8 @@ namespace wsl::random
         {
             double successes, p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.successes = successes(), .p = p()}; }
 
         constexpr negative_binomial(parameters q) : r_(q.successes), p_(q.p)
         {

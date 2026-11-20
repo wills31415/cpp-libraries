@@ -49,6 +49,8 @@ namespace wsl::random
         {
             T lower = 0, upper = 1;
         };
+        using param_type = bounds;
+        constexpr param_type param() const { return {.lower = lower(), .upper = upper()}; }
 
         constexpr uniform() : uniform(bounds{}) {}
 
@@ -198,6 +200,8 @@ namespace wsl::random
         {
             I lower, upper;
         };
+        using param_type = bounds;
+        constexpr param_type param() const { return {.lower = lower(), .upper = upper()}; }
 
         constexpr discrete_uniform(bounds b) : low_(b.lower), high_(b.upper)
         {
@@ -358,6 +362,8 @@ namespace wsl::random
         {
             double p;
         };
+        using param_type = probability;
+        constexpr param_type param() const { return {.p = p()}; }
 
         constexpr bernoulli(probability parameter) : p_(parameter.p)
         {

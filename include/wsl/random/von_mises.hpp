@@ -129,6 +129,8 @@ namespace wsl::random
         {
             T location = 0, concentration;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .concentration = concentration()}; }
 
         constexpr von_mises(parameters p) : mu_(p.location), kappa_(p.concentration)
         {
@@ -360,6 +362,8 @@ namespace wsl::random
             vector_of<T, N> mean_direction;
             T concentration;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.mean_direction = mean_direction(), .concentration = concentration()}; }
 
         constexpr von_mises_fisher(parameters q) : mu_(q.mean_direction), kappa_(q.concentration)
         {

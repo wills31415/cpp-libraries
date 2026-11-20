@@ -39,6 +39,8 @@ namespace wsl::random
         {
             double p;
         };
+        using param_type = probability;
+        constexpr param_type param() const { return {.p = p()}; }
 
         constexpr geometric(probability q) : p_(q.p)
         {
@@ -180,7 +182,7 @@ namespace wsl::random
             return static_cast<I>(r);                                       // ⌊r⌋
         }
 
-        friend constexpr bool operator==(geometric const&, geometric const&) = default;
+        friend constexpr bool operator==(geometric const& a, geometric const& b) noexcept { return a.p_ == b.p_; }   // log(1 − p) s'en déduit
 
     private:
         // 1 − p, à l'échelle (exact : deux doubles).

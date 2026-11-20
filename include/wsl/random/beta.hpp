@@ -86,6 +86,8 @@ namespace wsl::random
         {
             T alpha, beta;
         };
+        using param_type = shapes;
+        constexpr param_type param() const { return {.alpha = a_, .beta = b_}; }   // pas d'accesseur beta() : c'est le nom de la classe
 
         constexpr beta(shapes p) : a_(p.alpha), b_(p.beta)
         {

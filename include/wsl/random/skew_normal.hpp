@@ -123,6 +123,8 @@ namespace wsl::random
         {
             T location = 0, scale = 1, shape = 0;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale(), .shape = shape()}; }
 
         constexpr skew_normal() : skew_normal(parameters{}) {}
 

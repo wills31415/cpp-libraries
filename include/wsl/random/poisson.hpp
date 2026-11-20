@@ -39,6 +39,8 @@ namespace wsl::random
         {
             double mean;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.mean = mean()}; }
 
         constexpr poisson(parameters p) : mu_(p.mean)
         {

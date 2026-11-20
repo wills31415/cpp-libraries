@@ -44,6 +44,8 @@ namespace wsl::random
         {
             I population, successes, draws;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.population = population(), .successes = successes(), .draws = draws()}; }
 
         constexpr hypergeometric(parameters q) : N_(q.population), K_(q.successes), n_(q.draws)
         {

@@ -141,6 +141,8 @@ namespace wsl::random
             std::size_t size;
             double theta;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size(), .theta = theta()}; }
 
         constexpr explicit ewens(parameters p) : n_(p.size), theta_(p.theta)
         {
@@ -225,6 +227,8 @@ namespace wsl::random
             std::size_t size;
             double q;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size(), .q = q()}; }
 
         constexpr explicit mallows(parameters p) : n_(p.size), q_(p.q)
         {

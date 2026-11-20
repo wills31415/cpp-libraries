@@ -85,6 +85,8 @@ namespace wsl::random
         {
             std::size_t size;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size()}; }
 
         constexpr explicit uniform_subset(parameters p) : n_(p.size) {}
 
@@ -139,6 +141,8 @@ namespace wsl::random
             std::size_t size;
             double p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size(), .p = p()}; }
 
         constexpr explicit bernoulli_subset(parameters q) : n_(q.size), p_(q.p)
         {
@@ -209,6 +213,8 @@ namespace wsl::random
         {
             std::size_t size, count;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size(), .count = count()}; }
 
         constexpr explicit uniform_combination(parameters p) : n_(p.size), k_(p.count)
         {
@@ -268,6 +274,8 @@ namespace wsl::random
         {
             std::size_t length, alphabet;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.length = length(), .alphabet = alphabet()}; }
 
         constexpr explicit uniform_word(parameters p) : length_(p.length), k_(p.alphabet)
         {
@@ -333,6 +341,8 @@ namespace wsl::random
         {
             std::size_t size;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.size = size()}; }
 
         constexpr explicit uniform_set_partition(parameters q) : n_(q.size)
         {
@@ -424,6 +434,8 @@ namespace wsl::random
             std::size_t total;
             std::size_t parts = 0;                                          // 0 : nombre de parts libre
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.total = total(), .parts = parts()}; }
 
         constexpr explicit uniform_composition(parameters q) : n_(q.total), k_(q.parts)
         {
@@ -495,6 +507,8 @@ namespace wsl::random
         {
             std::size_t total;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.total = total()}; }
 
         constexpr explicit uniform_integer_partition(parameters q) : n_(q.total)
         {

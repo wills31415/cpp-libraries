@@ -79,6 +79,8 @@ namespace wsl::random
         {
             T mean, stddev;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.mean = mean(), .stddev = stddev()}; }
 
         constexpr normal() : normal(parameters{.mean = 0, .stddev = 1}) {}
 

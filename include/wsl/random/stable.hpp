@@ -173,6 +173,8 @@ namespace wsl::random
         {
             T location = 0, scale = 1, alpha, beta = 0;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.location = location(), .scale = scale(), .alpha = alpha(), .beta = beta()}; }
 
         constexpr stable(parameters p) : alpha_(p.alpha), beta_(p.beta), gamma_(p.scale), delta_(p.location)
         {

@@ -37,6 +37,8 @@ namespace wsl::random
         {
             T log_mean, log_stddev;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.log_mean = log_mean(), .log_stddev = log_stddev()}; }
 
         constexpr lognormal(parameters p) : mu_(p.log_mean), sigma_(p.log_stddev)
         {

@@ -41,6 +41,8 @@ namespace wsl::random
             I trials;
             vector_of<double, N> p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.trials = trials(), .p = p()}; }
 
         constexpr multinomial(parameters q) : n_(q.trials), p_(q.p)
         {

@@ -38,6 +38,8 @@ namespace wsl::random
         {
             double p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.p = p()}; }
 
         constexpr logarithmic(parameters q) : p_(q.p)
         {

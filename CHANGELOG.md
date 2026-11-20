@@ -70,6 +70,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   Weibull, Pareto, Fréchet, stable, gaussienne discrète, von Mises, uniforme sur [0, 1]) ;
   constructeurs par défaut pour les lois standard (`normal()`, `exponential()`, `uniform()`,
   `cauchy()`…). Mêmes tirages et mêmes valeurs.
+- `param()` et `param_type` sur les 61 lois à structure de paramètres : `L(X.param()) == X`
+  (gamma, à deux paramétrisations, attend la forme canonique). Loi bêta : pas d'accesseur
+  `beta()` (nom de la classe), `B.param().alpha` et `B.param().beta`.
+- Correction : `operator==` de `geometric` était implicitement supprimé (membre
+  double-double sans égalité) ; il compare désormais `p`.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

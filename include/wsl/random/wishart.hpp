@@ -130,6 +130,8 @@ namespace wsl::random
             square_matrix<T, N> scale;
             T degrees_of_freedom;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.scale = scale(), .degrees_of_freedom = degrees_of_freedom()}; }
 
         constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::wishart : dimension nulle") {}
 
@@ -232,6 +234,8 @@ namespace wsl::random
             square_matrix<T, N> scale;
             T degrees_of_freedom;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.scale = scale(), .degrees_of_freedom = degrees_of_freedom()}; }
 
         constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::random::inverse_wishart : dimension nulle") {}
 

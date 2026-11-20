@@ -87,6 +87,8 @@ namespace wsl::random
         {
             std::size_t dimension;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.dimension = dimension()}; }
 
         constexpr uniform_sphere() requires(N != dynamic) : n_(N) { check(); }
         constexpr uniform_sphere(parameters p) : n_(p.dimension)
@@ -167,6 +169,8 @@ namespace wsl::random
         {
             std::size_t dimension;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.dimension = dimension()}; }
 
         constexpr uniform_ball() requires(N != dynamic) : n_(N) { check(); }
         constexpr uniform_ball(parameters p) : n_(p.dimension)

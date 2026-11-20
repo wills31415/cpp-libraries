@@ -128,6 +128,8 @@ namespace wsl::random
             std::size_t vertices;
             double p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = vertices(), .p = p()}; }
 
         constexpr explicit erdos_renyi(parameters q) : n_(q.vertices), p_(q.p)
         {
@@ -198,6 +200,8 @@ namespace wsl::random
         {
             std::size_t vertices, edges;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = n_, .edges = m_}; }
 
         constexpr explicit uniform_graph(parameters q) : n_(q.vertices), m_(q.edges)
         {
@@ -262,6 +266,8 @@ namespace wsl::random
         {
             std::size_t vertices, edges;                                    // m arêtes par nouveau sommet
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = n_, .edges = m_}; }
 
         constexpr explicit barabasi_albert(parameters q) : n_(q.vertices), m_(q.edges)
         {
@@ -324,6 +330,8 @@ namespace wsl::random
         {
             std::size_t vertices, degree;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = vertices(), .degree = degree()}; }
 
         constexpr explicit random_regular_graph(parameters q) : n_(q.vertices), d_(q.degree)
         {
@@ -379,6 +387,8 @@ namespace wsl::random
         {
             std::size_t vertices;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = vertices()}; }
 
         constexpr explicit uniform_tree(parameters q) : n_(q.vertices)
         {
@@ -460,6 +470,8 @@ namespace wsl::random
         {
             std::size_t vertices;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.vertices = vertices()}; }
 
         constexpr explicit uniform_binary_tree(parameters q) : n_(q.vertices)
         {

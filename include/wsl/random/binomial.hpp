@@ -46,6 +46,8 @@ namespace wsl::random
             I trials;
             double p;
         };
+        using param_type = parameters;
+        constexpr param_type param() const { return {.trials = trials(), .p = p()}; }
 
         constexpr binomial(parameters q) : n_(q.trials), p_(q.p)
         {
