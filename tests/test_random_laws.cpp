@@ -11,10 +11,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <limits>
-#include <random>
-#include <stdexcept>
 #include <numeric>
+#include <random>
+#include <ranges>
+#include <stdexcept>
 #include <vector>
 
 namespace
@@ -735,12 +737,33 @@ int main()
         assert(throws_domain_error([] { wsl::random::stable X({.alpha = 2.5}); }) && throws_domain_error([] { wsl::random::stable X({.alpha = 1.0, .beta = 1.5}); }));
     }
 
+    // ---- Objets-fonctions, densité, vue des tirages ----
+    {
+        namespace wr = wsl::random;
+        wr::normal const N({.mean = 1.0, .sd = 2.0});
+        wr::poisson const P({.mean = 3.5});
+        static_assert(std::is_same_v<wr::reference_measure_t<wr::normal<>>, wr::lebesgue> && std::is_same_v<wr::reference_measure_t<wr::poisson<>>, wr::counting>);
+        static_assert(wr::has_density<wr::normal<>> && wr::has_density<wr::poisson<>> && !wr::has_mean<wr::cauchy<>>);
+        assert(wr::pdf(N, 0.5) == pdf(N, 0.5) && wr::density(N, 0.5) == pdf(N, 0.5) && wr::density(P, 2) == pmf(P, 2));
+        assert(wr::mean(N) == N.mean() && wr::quantile(N, 0.9) == quantile(N, 0.9) && wr::log_density(P, 4) == log_pmf(P, 4));
+        std::vector<double> xs{-1.0, 0.0, 2.5};
+        auto const densities = xs | std::views::transform(std::bind_front(wr::pdf, N));   // passable en argument
+        assert(std::ranges::equal(densities, std::vector<double>{pdf(N, -1.0), pdf(N, 0.0), pdf(N, 2.5)}));
+        wr::xoshiro256pp a(7), b(7);
+        std::vector<double> lazy;
+        for (double v : wr::samples(N, a) | std::views::take(100))
+            lazy.push_back(v);
+        for (double v : lazy)
+            assert(v == wr::sample(N, b));
+        assert(a == b);                                                     // même consommation
+    }
+
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
     {
         wsl::random::xoshiro256pp a(5), b(5);
         wsl::random::uniform const X({.low = 0, .high = 1});
         for (int i = 0; i < 100; ++i)
-            assert(sample(X, a, wsl::random::fast) == sample(X, b));
+            assert(wsl::random::sample(X, a, wsl::random::fast) == sample(X, b));
     }
 
     // ---- Adaptateur vers <random> -------------------------------------------------

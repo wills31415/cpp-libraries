@@ -110,6 +110,38 @@ namespace wsl::random
         return process_view<decltype(process.walker()), G>(process.walker(), g);
     }
 
+    namespace detail
+    {
+        // Marcheur des tirages indépendants : chaque état est un tirage de la loi.
+        template <class L>
+        struct sample_walker
+        {
+            L law;
+            template <class G>
+            constexpr auto first(G& g) const
+            {
+                return wsl::random::sample(law, g);
+            }
+            template <class G>
+            constexpr auto next(G& g) const
+            {
+                return wsl::random::sample(law, g);
+            }
+        };
+    }
+
+    // Tirages indépendants de X, en vue paresseuse (même contrat que trajectory : une valeur
+    // n'est tirée qu'à la lecture ; les n premières valeurs sont celles de n appels
+    // sample(X, g) successifs).
+    //
+    //   for (double x : wsl::random::samples(X, g) | std::views::take(1000)) …
+    template <class L, std::uniform_random_bit_generator G>
+        requires samplable<L, G>
+    constexpr auto samples(L const& law, G& g)
+    {
+        return process_view<detail::sample_walker<L>, G>(detail::sample_walker<L>{law}, g);
+    }
+
     template <class P>
     concept stochastic_process = requires(P const& p, std::mt19937_64& g) {
         typename P::state_type;

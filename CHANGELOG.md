@@ -30,6 +30,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   ses internes dans `wsl::random::detail` (plus de `wsl::detail` partagé avec graded). Les
   appels non qualifiés (`pdf(X, x)`, `sample(X, g)`) restent trouvés par ADL. Alias conseillé :
   `namespace wr = wsl::random;`.
+- Objets-fonctions `wsl::random::pdf`, `log_pdf`, `pmf`, `log_pmf`, `density`, `log_density`,
+  `cdf`, `ccdf`, `quantile`, `cquantile`, `sample`, `mean`, `variance`, `skewness`,
+  `excess_kurtosis`, `entropy`, `median`, `mode`, `support` : appel qualifié et passage en
+  argument (`std::bind_front(wr::pdf, X)`) ; ils prennent le membre de la loi, sinon la
+  fonction trouvée par ADL. Densité unique (dérivée de Radon–Nikodym) et mesures de
+  référence `lebesgue`, `counting`, `surface` (`reference_measure_t<L>`). Vue paresseuse
+  `samples(X, g)`. Rupture : `sample(X, g, fast)` non qualifié pour une loi sans variante
+  rapide ne compile plus (`wr::sample(X, g, wr::fast)`).
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par
