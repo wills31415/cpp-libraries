@@ -166,8 +166,8 @@ namespace wsl::random
                 return 0;
             if (!C.prob_.empty())                                           // alias, 64 bits
             {
-                auto const c = static_cast<std::size_t>(uniform_below(g, k));
-                std::uint64_t const u = uniform_below(g, C.capacity_);
+                auto const c = static_cast<std::size_t>(uniform_below(k, g));
+                std::uint64_t const u = uniform_below(C.capacity_, g);
                 return static_cast<I>(u < C.prob_[c] ? c : C.alias_[c]);
             }
             detail::big const z = detail::uniform_below_big(g, C.cumulative_.back());

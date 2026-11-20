@@ -85,7 +85,7 @@ constexpr std::array<int, 6> shuffled_at_compile_time()
     return a;
 }
 static_assert(std::ranges::is_permutation(shuffled_at_compile_time(), std::array{0, 1, 2, 3, 4, 5}));
-static_assert([] { wsl::random::pcg64 g(1); return wsl::random::uniform_below(g, 10) < 10; }());
+static_assert([] { wsl::random::pcg64 g(1); return wsl::random::uniform_below(10, g) < 10; }());
 
 int main()
 {
@@ -106,20 +106,20 @@ int main()
     // ---- uniform_below ----------------------------------------------------------
     {
         for (int i = 0; i < 100; ++i)
-            assert(wsl::random::uniform_below(g, 1) == 0);
+            assert(wsl::random::uniform_below(1, g) == 0);
         std::vector<double> counts(7);
         for (int i = 0; i < 70000; ++i)
-            ++counts[wsl::random::uniform_below(g, 7)];
+            ++counts[wsl::random::uniform_below(7, g)];
         assert(chi_square(counts) < 30);                                    // 6 degrés de liberté
         // n = 2^63 + 1 : un simple modulo donnerait les petites valeurs deux fois
         // plus souvent ; Lemire, exactement la moitié des tirages sous n/2.
         std::uint64_t const n = (std::uint64_t{1} << 63) + 1;
         int below_half = 0;
         for (int i = 0; i < 100000; ++i)
-            below_half += wsl::random::uniform_below(g, n) < n / 2;
+            below_half += wsl::random::uniform_below(n, g) < n / 2;
         assert(std::abs(below_half / 100000.0 - 0.5) < 0.006);
         bool thrown = false;
-        try { (void)wsl::random::uniform_below(g, 0); } catch (std::domain_error const&) { thrown = true; }
+        try { (void)wsl::random::uniform_below(0, g); } catch (std::domain_error const&) { thrown = true; }
         assert(thrown);
     }
 
@@ -127,17 +127,17 @@ int main()
     {
         std::array<int, 256> seen{};
         for (int i = 0; i < 100000; ++i)
-            ++seen[static_cast<std::size_t>(wsl::random::uniform_int<std::int8_t>(g, -128, 127) + 128)];
+            ++seen[static_cast<std::size_t>(wsl::random::uniform_int<std::int8_t>(-128, 127, g) + 128)];
         assert(std::ranges::all_of(seen, [](int c) { return c > 250; }));
         for (int i = 0; i < 1000; ++i)
         {
-            auto const x = wsl::random::uniform_int(g, -5LL, -3LL);
+            auto const x = wsl::random::uniform_int(-5LL, -3LL, g);
             assert(x >= -5 && x <= -3);
-            (void)wsl::random::uniform_int(g, std::numeric_limits<std::int64_t>::min(), std::numeric_limits<std::int64_t>::max());
+            (void)wsl::random::uniform_int(std::numeric_limits<std::int64_t>::min(), std::numeric_limits<std::int64_t>::max(), g);
         }
-        assert(wsl::random::uniform_int(g, 42u, 42u) == 42u);
+        assert(wsl::random::uniform_int(42u, 42u, g) == 42u);
         bool thrown = false;
-        try { (void)wsl::random::uniform_int(g, 3, 2); } catch (std::domain_error const&) { thrown = true; }
+        try { (void)wsl::random::uniform_int(3, 2, g); } catch (std::domain_error const&) { thrown = true; }
         assert(thrown);
     }
 
@@ -196,23 +196,23 @@ int main()
     {
         int hits = 0;
         for (int i = 0; i < 200000; ++i)
-            hits += wsl::random::bernoulli_trial(g, 0.3);
+            hits += wsl::random::bernoulli_trial(0.3, g);
         assert(std::abs(hits / 200000.0 - 0.3) < 0.004);
-        assert(!wsl::random::bernoulli_trial(g, 0.0) && wsl::random::bernoulli_trial(g, 1.0));
+        assert(!wsl::random::bernoulli_trial(0.0, g) && wsl::random::bernoulli_trial(1.0, g));
         scripted zeros{{0}};
-        assert(wsl::random::bernoulli_trial(zeros, 0x1p-1074));                           // U = 0 < p
+        assert(wsl::random::bernoulli_trial(0x1p-1074, zeros));                           // U = 0 < p
         scripted ones{{~std::uint64_t{0}}};
-        assert(!wsl::random::bernoulli_trial(ones, std::nextafter(1.0, 0.0)));            // U = 1 − 2^-64·… >= p
+        assert(!wsl::random::bernoulli_trial(std::nextafter(1.0, 0.0), ones));            // U = 1 − 2^-64·… >= p
         scripted equal{{0xc000000000000000, 0}};                            // U = 0,11000… = p
-        assert(!wsl::random::bernoulli_trial(equal, 0.75) && equal.next == 1);            // U >= p, décidé sans autre mot
+        assert(!wsl::random::bernoulli_trial(0.75, equal) && equal.next == 1);            // U >= p, décidé sans autre mot
         scripted below_p{{0xbfffffffffffffff}};
-        assert(wsl::random::bernoulli_trial(below_p, 0.75));
+        assert(wsl::random::bernoulli_trial(0.75, below_p));
         int third = 0;
         for (int i = 0; i < 300000; ++i)
-            third += wsl::random::bernoulli_trial(g, 1, 3);
+            third += wsl::random::bernoulli_trial(1, 3, g);
         assert(std::abs(third / 300000.0 - 1.0 / 3) < 0.004);
         bool thrown = false;
-        try { (void)wsl::random::bernoulli_trial(g, 1.5); } catch (std::domain_error const&) { thrown = true; }
+        try { (void)wsl::random::bernoulli_trial(1.5, g); } catch (std::domain_error const&) { thrown = true; }
         assert(thrown);
     }
 
@@ -241,12 +241,12 @@ int main()
     bool ok = true;
     {
         wsl::random::xoshiro256pp x(7);
-        ok &= check("uniform_below", fingerprint([&] { return wsl::random::uniform_below(x, 1000003); }), 0xc31c297194c07ec7);
-        ok &= check("uniform_int", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::uniform_int(x, -50, 50)); }), 0xe68e1093afb2279b);
+        ok &= check("uniform_below", fingerprint([&] { return wsl::random::uniform_below(1000003, x); }), 0xc31c297194c07ec7);
+        ok &= check("uniform_int", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::uniform_int(-50, 50, x)); }), 0xe68e1093afb2279b);
         ok &= check("uniform_real double", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::random::uniform_real(x)); }), 0x3dac0cd7502899fb);
         ok &= check("uniform_real float", fingerprint([&] { return std::uint64_t{std::bit_cast<std::uint32_t>(wsl::random::uniform_real<float>(x))}; }), 0x4713094695c22526);
         ok &= check("uniform_real_fast", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::random::uniform_real_fast(x)); }), 0xf767bee0632d4554);
-        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wsl::random::bernoulli_trial(x, 0.3)}; }), 0xb356cd399bd84ee4);
+        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wsl::random::bernoulli_trial(0.3, x)}; }), 0xb356cd399bd84ee4);
         ok &= check("shuffle", fingerprint([&] {
             std::array<std::uint64_t, 52> deck{};
             for (std::size_t i = 0; i < deck.size(); ++i)
@@ -261,7 +261,7 @@ int main()
         wsl::random::philox4x64 ph(7);
         wsl::random::pcg64 pc(7);
         ok &= check("uniform_real philox", fingerprint([&] { return std::bit_cast<std::uint64_t>(wsl::random::uniform_real(ph)); }), 0x7b280f1d68239a86);
-        ok &= check("uniform_below pcg64", fingerprint([&] { return wsl::random::uniform_below(pc, 6); }), 0xbe14811296869dc7);
+        ok &= check("uniform_below pcg64", fingerprint([&] { return wsl::random::uniform_below(6, pc); }), 0xbe14811296869dc7);
     }
     assert(ok);
     return 0;

@@ -154,7 +154,7 @@ namespace wsl::random
             edge_list e;
             for (std::size_t u = 0; u < R.n_; ++u)
                 for (std::size_t v = u + 1; v < R.n_; ++v)
-                    if (bernoulli_trial(g, R.p_))
+                    if (bernoulli_trial(R.p_, g))
                         e.emplace_back(u, v);
             return e;
         }
@@ -231,7 +231,7 @@ namespace wsl::random
             chosen.reserve(R.m_);
             for (std::uint64_t j = total - R.m_; j < total; ++j)
             {
-                std::uint64_t const t = uniform_below(g, j + 1);
+                std::uint64_t const t = uniform_below(j + 1, g);
                 auto const at = std::ranges::lower_bound(chosen, t);
                 if (at != chosen.end() && *at == t)
                     chosen.insert(std::ranges::lower_bound(chosen, j), j);
@@ -293,7 +293,7 @@ namespace wsl::random
                 std::size_t const available = ends.size();                 // degrés avant l'arrivée de v
                 while (targets.size() < B.m_)
                 {
-                    std::size_t const t = ends[static_cast<std::size_t>(uniform_below(g, available))];
+                    std::size_t const t = ends[static_cast<std::size_t>(uniform_below(available, g))];
                     if (std::ranges::find(targets, t) == targets.end())
                         targets.push_back(t);
                 }
@@ -419,7 +419,7 @@ namespace wsl::random
             std::vector<std::size_t> code(n - 2), degree(n, 1);
             for (auto& c : code)
             {
-                c = static_cast<std::size_t>(uniform_below(g, n));
+                c = static_cast<std::size_t>(uniform_below(n, g));
                 ++degree[c];
             }
             std::size_t pointer = 0;
@@ -491,8 +491,8 @@ namespace wsl::random
             std::size_t root = 0, count = 1;                                // le nœud 0 : une feuille
             for (std::size_t i = 1; i <= n; ++i)
             {
-                std::size_t const x = static_cast<std::size_t>(uniform_below(g, count));
-                std::size_t const side = static_cast<std::size_t>(uniform_below(g, 2));
+                std::size_t const x = static_cast<std::size_t>(uniform_below(count, g));
+                std::size_t const side = static_cast<std::size_t>(uniform_below(2, g));
                 std::size_t const y = count, z = count + 1;                 // y interne, z feuille
                 count += 2;
                 std::size_t const p = parent[x];

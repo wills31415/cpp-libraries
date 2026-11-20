@@ -273,15 +273,15 @@ fixé) ; xoshiro256++ par la première sortie calculable à la main et ses sauts
 
 - `random_bits(g)` : 64 bits uniformes ; plage 2^w : concaténation, premier appel en
   poids fort ; autre plage (`minstd_rand`) : rejet sous 2^⌊log2 plage⌋.
-- `uniform_below(g, n)` : méthode de Lemire, exacte ; une valeur presque toujours.
-- `uniform_int(g, a, b)` : [a, b], jusqu'à la pleine plage de 64 bits.
+- `uniform_below(n, g)` : méthode de Lemire, exacte ; une valeur presque toujours.
+- `uniform_int(a, b, g)` : [a, b], jusqu'à la pleine plage de 64 bits.
 - `uniform_real<T>(g)` : **U arrondi vers le bas**, chaque flottant x de [0, 1) rendu avec
   probabilité x⁺ − x exactement (sous-normaux compris, 1 jamais) ; exposant géométrique
   lu sur les zéros de tête, mantisse prise dans le même mot quand il en reste assez :
   une valeur consommée presque toujours. `uniform_real_fast<T>(g)` : 53 (24) bits de
   tête, une valeur.
-- `bernoulli_trial(g, p)` : U < p par comparaison des bits, mot par mot (une valeur presque
-  toujours) ; `bernoulli_trial(g, num, den)` : `uniform_below(g, den) < num`.
+- `bernoulli_trial(p, g)` : U < p par comparaison des bits, mot par mot (une valeur presque
+  toujours) ; `bernoulli_trial(num, den, g)` : `uniform_below(den, g) < num`.
 - `shuffle(range, g)` : Fisher–Yates, n − 1 tirages.
 
 `wsl::exact_random` est retirée : `wsl::random` la remplace.
@@ -320,7 +320,7 @@ La cdf calculée étant arrondie, `quantile(cdf(k))` vaut k ou k + 1. (Rendre le
 cohérent avec la cdf arrondie a été essayé : intenable au-delà de 2⁵³ valeurs, où des
 milliers de k voisins ont la même cdf arrondie.)
 
-La primitive `bernoulli(g, p)` de la phase 2 est devenue `bernoulli_trial(g, p)`, pour
+La primitive `bernoulli(g, p)` de la phase 2 est devenue `bernoulli_trial(p, g)`, pour
 laisser le nom à la loi.
 
 ### Étape B : exponentielle et normale
@@ -733,7 +733,7 @@ trajectoire (X_t). Trois façons de s'en servir, du plus fini au plus paresseux 
 **Contrat de reproductibilité** : la k-ième valeur d'une trajectoire ne dépend que de
 l'état initial du moteur et de k ; tronquer (`views::take(k)`, `take_while`) ne change
 pas les valeurs gardées, et le moteur a alors consommé exactement ce qu'il faut pour
-elles. La vue tient le moteur **par référence** (comme `uniform_below(g, n)`) : elle
+elles. La vue tient le moteur **par référence** (comme `uniform_below(n, g)`) : elle
 l'avance, et il doit lui survivre. ✅ (2026-11-18)
 
 Ordre ✅ : temps discret d'abord (catégorielle exacte, marches, chaînes de Markov, urnes

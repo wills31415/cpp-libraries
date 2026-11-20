@@ -311,7 +311,7 @@ namespace wsl::random
             double const s = wsl::special::sqrt(fp::fmul(w, fp::fmul(4.0, lambda) + w));
             double const x2 = mu + fp::fmul(mu, (w + s) / fp::fmul(2.0, lambda));
             double const x1 = fp::fmul(mu, mu / x2);
-            return static_cast<T>(bernoulli_trial(g, mu / (mu + x1)) ? x1 : x2);
+            return static_cast<T>(bernoulli_trial(mu / (mu + x1), g) ? x1 : x2);
         }
 
         friend constexpr bool operator==(inverse_gaussian const&, inverse_gaussian const&) = default;

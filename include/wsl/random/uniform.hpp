@@ -3,15 +3,15 @@
 // Primitives uniformes exactes : la fondation de wsl::random.
 //
 //   random_bits(g)              64 bits uniformes, de n'importe quel générateur
-//   uniform_below(g, n)         entier uniforme sur [0, n)        (Lemire)
-//   uniform_int(g, a, b)        entier uniforme sur [a, b]
+//   uniform_below(n, g)         entier uniforme sur [0, n)        (Lemire)
+//   uniform_int(a, b, g)        entier uniforme sur [a, b]
 //   uniform_real<T>(g)          réel uniforme sur [0, 1), exact : chaque flottant x
 //                               est rendu avec exactement la probabilité de [x, x⁺),
 //                               sous-normaux compris
 //   uniform_real_fast<T>(g)     réel uniforme sur [0, 1), rapide : 2^53 (2^24) valeurs
 //                               également espacées
-//   bernoulli_trial(g, p)             vrai avec probabilité exactement p (p flottant)
-//   bernoulli_trial(g, num, den)      vrai avec probabilité exactement num/den
+//   bernoulli_trial(p, g)             vrai avec probabilité exactement p (p flottant)
+//   bernoulli_trial(num, den, g)      vrai avec probabilité exactement num/den
 //   shuffle(range, g)           mélange de Fisher–Yates : les n! ordres équiprobables
 //
 // « Exact » : si le générateur rend des bits uniformes et indépendants, les
@@ -74,7 +74,7 @@ namespace wsl::random
     // générateur presque toujours, et une division seulement dans le cas rare.
     // -----------------------------------------------------------------------
     template <std::uniform_random_bit_generator G>
-    constexpr std::uint64_t uniform_below(G& g, std::uint64_t n)
+    constexpr std::uint64_t uniform_below(std::uint64_t n, G& g)
     {
         if (n == 0)
             throw std::domain_error("wsl::random::uniform_below : n doit être > 0");
@@ -95,13 +95,13 @@ namespace wsl::random
     // Entier uniforme sur [a, b] (types entiers jusqu'à 64 bits, sauf bool).
     template <std::integral T, std::uniform_random_bit_generator G>
         requires(!std::same_as<T, bool> && sizeof(T) <= 8)
-    constexpr T uniform_int(G& g, T a, T b)
+    constexpr T uniform_int(T a, T b, G& g)
     {
         if (b < a)
             throw std::domain_error("wsl::random::uniform_int : a doit être <= b");
         using U = std::make_unsigned_t<T>;
         auto const span = static_cast<std::uint64_t>(static_cast<U>(static_cast<U>(b) - static_cast<U>(a)));
-        std::uint64_t const offset = span == ~std::uint64_t{0} ? random_bits(g) : uniform_below(g, span + 1);
+        std::uint64_t const offset = span == ~std::uint64_t{0} ? random_bits(g) : uniform_below(span + 1, g);
         return static_cast<T>(static_cast<U>(static_cast<U>(a) + static_cast<U>(offset)));
     }
 
@@ -171,7 +171,7 @@ namespace wsl::random
     // d'en lire une autre).
     // -----------------------------------------------------------------------
     template <std::uniform_random_bit_generator G>
-    constexpr bool bernoulli_trial(G& g, double p)
+    constexpr bool bernoulli_trial(double p, G& g)
     {
         if (!(p == p) || p < 0 || p > 1)
             throw std::domain_error("wsl::random::bernoulli_trial : p doit être dans [0, 1]");
@@ -199,11 +199,11 @@ namespace wsl::random
 
     // Bernoulli rationnelle : vrai avec probabilité num/den exactement (0 <= num <= den, den > 0).
     template <std::uniform_random_bit_generator G>
-    constexpr bool bernoulli_trial(G& g, std::uint64_t num, std::uint64_t den)
+    constexpr bool bernoulli_trial(std::uint64_t num, std::uint64_t den, G& g)
     {
         if (den == 0 || num > den)
             throw std::domain_error("wsl::random::bernoulli_trial : il faut 0 <= num <= den, den > 0");
-        return uniform_below(g, den) < num;
+        return uniform_below(den, g) < num;
     }
 
     // -----------------------------------------------------------------------
@@ -219,7 +219,7 @@ namespace wsl::random
         auto const n = static_cast<std::uint64_t>(std::ranges::size(range));
         for (std::uint64_t i = n; i > 1; --i)
         {
-            auto const j = uniform_below(g, i);
+            auto const j = uniform_below(i, g);
             std::ranges::iter_swap(first + static_cast<std::ptrdiff_t>(i - 1), first + static_cast<std::ptrdiff_t>(j));
         }
     }

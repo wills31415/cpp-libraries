@@ -165,7 +165,7 @@ namespace wsl::random
             auto const& B = *this;
             value_type s;
             for (std::size_t i = 0; i < B.n_; ++i)
-                if (bernoulli_trial(g, B.p_))
+                if (bernoulli_trial(B.p_, g))
                     s.push_back(i);
             return s;
         }
@@ -241,7 +241,7 @@ namespace wsl::random
             s.reserve(C.k_);
             for (std::size_t j = C.n_ - C.k_; j < C.n_; ++j)
             {
-                auto const t = static_cast<std::size_t>(uniform_below(g, std::uint64_t(j) + 1));
+                auto const t = static_cast<std::size_t>(uniform_below(std::uint64_t(j) + 1, g));
                 auto const at = std::ranges::lower_bound(s, t);
                 if (at != s.end() && *at == t)
                     s.insert(std::ranges::lower_bound(s, j), j);
@@ -303,7 +303,7 @@ namespace wsl::random
             auto const& W = *this;
             value_type w(W.length_);
             for (auto& c : w)
-                c = static_cast<std::size_t>(uniform_below(g, W.k_));
+                c = static_cast<std::size_t>(uniform_below(W.k_, g));
             return w;
         }
 

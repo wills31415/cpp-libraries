@@ -43,6 +43,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `wsl::random::pdf(X, x)` (objet-fonction) le remplace. Toutes les lois héritent de
   `law_interface` : `X(g)`, `X(g, wr::fast)`, `X(n, g)` (vecteur de n tirages, mêmes valeurs
   et même consommation que n appels `X(g)`), `X.density(x)`, `X.log_density(x)`.
+- Rupture : moteur en dernier argument pour les primitives, comme dans la norme :
+  `uniform_below(n, g)`, `uniform_int(a, b, g)`, `bernoulli_trial(p, g)`,
+  `bernoulli_trial(num, den, g)` (`random_bits(g)`, `uniform_real<T>(g)` et `shuffle(range, g)`
+  inchangés). Mêmes tirages.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

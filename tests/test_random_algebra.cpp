@@ -412,7 +412,7 @@ int main()
         ok &= check("pushforward", fingerprint([&] { return bits(wsl::random::sample(LP, x)); }), 0x4bf00f5f9cc7fcfc);
         ok &= check("sum functions", fingerprint([&] {
             double const u = wsl::random::uniform_real(x);
-            auto const k = static_cast<std::int64_t>(wsl::random::uniform_below(x, 40));
+            auto const k = static_cast<std::int64_t>(wsl::random::uniform_below(40, x));
             return bits(wsl::random::pmf(PB, k)) ^ (bits(wsl::random::cdf(PB, k)) << 1) ^ (bits(wsl::random::ccdf(PB, k)) << 2) ^ (static_cast<std::uint64_t>(wsl::random::quantile(PB, u)) << 3)
                  ^ (bits(wsl::random::cdf(LP, u + 0.5)) << 4) ^ (bits(wsl::random::quantile(LP, u)) << 5);
         }, 1 << 9), 0xfb59f13d32d4c878);

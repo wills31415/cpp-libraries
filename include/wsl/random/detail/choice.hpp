@@ -45,7 +45,7 @@ namespace wsl::random::detail
     constexpr sd::uint128 uniform_below_128(G& g, sd::uint128 n)
     {
         if ((n >> 64) == 0)
-            return uniform_below(g, static_cast<std::uint64_t>(n));
+            return uniform_below(static_cast<std::uint64_t>(n), g);
         int const k = 64 + std::bit_width(static_cast<std::uint64_t>(n >> 64));
         std::uint64_t const mask = k - 64 == 64 ? ~std::uint64_t{0} : (std::uint64_t{1} << (k - 64)) - 1;
         for (;;)
@@ -192,7 +192,7 @@ namespace wsl::random::detail
         {
             if (!small_)
                 return wsl::random::detail::pick(g, big_, total_);
-            std::uint64_t z = uniform_below(g, total64_);
+            std::uint64_t z = uniform_below(total64_, g);
             for (std::size_t i = 0; i + 1 < w64_.size(); ++i)
             {
                 if (z < w64_[i])

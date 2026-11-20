@@ -405,7 +405,7 @@ namespace wsl::random
                 return 0;
             else if (cumulative_big_.empty())
             {
-                std::uint64_t const r = uniform_below(g, cumulative_[n - 1]);
+                std::uint64_t const r = uniform_below(cumulative_[n - 1], g);
                 for (std::size_t i = 0; i + 1 < n; ++i)
                     if (r < cumulative_[i])
                         return i;

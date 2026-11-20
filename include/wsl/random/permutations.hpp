@@ -190,7 +190,7 @@ namespace wsl::random
                     images[i] = i;
                 else                                                        // après j : i → σ(j), j → i
                 {
-                    auto const j = static_cast<std::size_t>(uniform_below(g, i));
+                    auto const j = static_cast<std::size_t>(uniform_below(i, g));
                     images[i] = images[j];
                     images[j] = i;
                 }
@@ -280,9 +280,9 @@ namespace wsl::random
             if (m == 1)
                 return 0;
             if (q_ == 1)
-                return static_cast<std::size_t>(uniform_below(g, m));
+                return static_cast<std::size_t>(uniform_below(m, g));
             bool const below = q_ < 1;                                      // rapport r = q, ou 1/q (V renversé)
-            auto const success = [&] { return below ? bernoulli_trial(g, q_) : detail::fraction(g, 1.0, q_); };
+            auto const success = [&] { return below ? bernoulli_trial(q_, g) : detail::fraction(g, 1.0, q_); };
             double const gap = below ? 1 - q_ : 1 - 1 / q_;                 // 1 − r (seulement pour choisir la méthode)
             std::size_t w = 0;
             if (double(m) * gap >= 1)                                       // géométrique tronquée
@@ -297,7 +297,7 @@ namespace wsl::random
             else                                                            // uniforme acceptée avec probabilité r^w
                 for (;;)
                 {
-                    w = static_cast<std::size_t>(uniform_below(g, m));
+                    w = static_cast<std::size_t>(uniform_below(m, g));
                     std::size_t k = 0;
                     while (k < w && success())
                         ++k;

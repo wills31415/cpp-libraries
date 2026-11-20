@@ -79,7 +79,7 @@ namespace wsl::random
         constexpr std::int64_t sample(G& g) const
         {
             auto const& X = *this;
-            return bernoulli_trial(g, X.p_) ? 1 : -1;
+            return bernoulli_trial(X.p_, g) ? 1 : -1;
         }
 
         friend constexpr bool operator==(rademacher const&, rademacher const&) = default;
@@ -666,7 +666,7 @@ namespace wsl::random
                 if (customers == 0)
                     table = 0;
                 else if (d == 0)                                            // nouvelle table : θ/(θ + n) ; sinon un client uniforme
-                    table = choose(g, theta, double(customers)) ? tables.size() : seats[static_cast<std::size_t>(uniform_below(g, customers))];
+                    table = choose(g, theta, double(customers)) ? tables.size() : seats[static_cast<std::size_t>(uniform_below(customers, g))];
                 else
                 {
                     std::size_t const c = w.pick(g);                        // dernier indice : nouvelle table

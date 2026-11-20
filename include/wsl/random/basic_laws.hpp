@@ -305,7 +305,7 @@ namespace wsl::random
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            return uniform_int(g, X.low_, X.high_);
+            return uniform_int(X.low_, X.high_, g);
         }
 
         friend constexpr bool operator==(discrete_uniform const&, discrete_uniform const&) = default;
@@ -394,7 +394,7 @@ namespace wsl::random
         constexpr bool sample(G& g) const
         {
             auto const& X = *this;
-            return bernoulli_trial(g, X.p_);
+            return bernoulli_trial(X.p_, g);
         }
 
         friend constexpr bool operator==(bernoulli const&, bernoulli const&) = default;

@@ -129,7 +129,7 @@ namespace wsl::random
             geometric<I> const magnitude({.p = -wsl::special::expm1(-1.0 / t)});
             for (;;)
             {
-                bool const negative = bernoulli_trial(g, 0.5);
+                bool const negative = bernoulli_trial(0.5, g);
                 I const d = wsl::random::sample(magnitude, g);
                 if (negative && d == 0)
                     continue;
@@ -137,7 +137,7 @@ namespace wsl::random
                 double const e = dd - delta;
                 double const exponent = (double(d) / t - shift) - sd::fmul(e, e) / sd::fmul(2.0, sd::fmul(X.sigma_, X.sigma_));
                 double const accept = wsl::special::exp(exponent);
-                if (bernoulli_trial(g, accept < 1 ? accept : 1.0))
+                if (bernoulli_trial(accept < 1 ? accept : 1.0, g))
                     return X.center_ + (negative ? -d : d);
             }
         }

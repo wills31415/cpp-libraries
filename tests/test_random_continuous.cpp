@@ -88,9 +88,9 @@ int main()
         for (int trial = 0; trial < 1500; ++trial)
         {
             d::lazy_sum s;
-            int const m = 1 + int(wsl::random::uniform_below(g, 30));
+            int const m = 1 + int(wsl::random::uniform_below(30, g));
             for (int i = 0; i < m; ++i)
-                switch (wsl::random::uniform_below(g, 4))
+                switch (wsl::random::uniform_below(4, g))
                 {
                 case 0: s.add(d::lazy_sample(wsl::random::normal({.mean = 0.3, .sd = 1e-3 * (i + 1)}), g), g); break;
                 case 1: s.add(d::lazy_sample(wsl::random::exponential({.rate = 2.5}), g), g); break;

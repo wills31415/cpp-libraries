@@ -832,7 +832,7 @@ int main()
         ok &= check("binomial inversion", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(Bs, x)); }), 0x758aa2af1860fcd7);
         ok &= check("binomial BTRS", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(Bl, x)); }), 0xc68cde3109166ca4);
         ok &= check("discrete functions", fingerprint([&] {
-            auto const k = static_cast<long long>(wsl::random::uniform_below(x, 2000));
+            auto const k = static_cast<long long>(wsl::random::uniform_below(2000, x));
             return bits(wsl::random::pmf(Gf, k)) ^ (bits(wsl::random::cdf(Gf, k)) << 1) ^ (bits(wsl::random::pmf(Pl, k)) << 2) ^ (bits(wsl::random::log_pmf(Pl, k)) << 3)
                  ^ (bits(wsl::random::pmf(Bl, k + 69000)) << 4) ^ (bits(wsl::random::log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(wsl::random::quantile(Gf, wsl::random::uniform_real(x)));
         }, 1 << 13), 0x994f5c2864bf1649);
@@ -850,7 +850,7 @@ int main()
         }, 1 << 13), 0x9d4f36e7cb669b74);
         ok &= check("phase 4 functions", fingerprint([&] {
             double const u = wsl::random::uniform_real(x);
-            auto const k = static_cast<long long>(wsl::random::uniform_below(x, 2000));
+            auto const k = static_cast<long long>(wsl::random::uniform_below(2000, x));
             return bits(wsl::random::cdf(Ga, 10 * u)) ^ (bits(wsl::random::quantile(Ga_s, u)) << 1) ^ (bits(wsl::random::cdf(Be_a, u)) << 2) ^ (bits(wsl::random::quantile(Be_s, u)) << 3)
                  ^ (bits(wsl::random::cdf(Pl, k)) << 4) ^ static_cast<std::uint64_t>(wsl::random::quantile(Bl, u)) ^ (bits(Ga.entropy() + Be_s.entropy()) << 5);
         }, 1 << 10), 0x1a38363ea9e3931d);
@@ -916,7 +916,7 @@ int main()
         ok &= check("discrete lot 3", fingerprint([&] { return bits(double(wsl::random::sample(Nb, x))) ^ (bits(double(wsl::random::sample(Hg, x))) << 1); }, 1 << 12), 0x1abf82d977d052a7);
         ok &= check("discrete lot 3 functions", fingerprint([&] {
             double const u = wsl::random::uniform_real(x);
-            long long const k = static_cast<long long>(wsl::random::uniform_below(x, 30));
+            long long const k = static_cast<long long>(wsl::random::uniform_below(30, x));
             return bits(wsl::random::pmf(Nb, k)) ^ (bits(wsl::random::cdf(Nb, k)) << 1) ^ (bits(double(wsl::random::quantile(Nb, u))) << 2) ^ (bits(wsl::random::pmf(Hg, k)) << 3) ^ (bits(wsl::random::ccdf(Hg, k)) << 4) ^ (bits(double(wsl::random::quantile(Hg, u))) << 5);
         }, 1 << 9), 0x2fa168fb952bbce9);
         wsl::random::beta_binomial const Bb({.trials = 40, .alpha = 0.7, .beta = 2.5});
@@ -925,7 +925,7 @@ int main()
         ok &= check("discrete lot 4", fingerprint([&] { return bits(double(wsl::random::sample(Bb, x))) ^ (bits(double(wsl::random::sample(Lg, x))) << 1) ^ (bits(double(wsl::random::sample(Dg, x))) << 2); }, 1 << 12), 0x5715c99366cd16cf);
         ok &= check("discrete lot 4 functions", fingerprint([&] {
             double const u = wsl::random::uniform_real(x);
-            long long const k = static_cast<long long>(wsl::random::uniform_below(x, 40));
+            long long const k = static_cast<long long>(wsl::random::uniform_below(40, x));
             return bits(wsl::random::pmf(Bb, k)) ^ (bits(wsl::random::cdf(Bb, k)) << 1) ^ (bits(double(wsl::random::quantile(Bb, u))) << 2) ^ (bits(wsl::random::pmf(Lg, k)) << 3) ^ (bits(wsl::random::ccdf(Lg, k)) << 4)
                  ^ (bits(double(wsl::random::quantile(Lg, u))) << 5) ^ (bits(wsl::random::cdf(Dg, k - 20)) << 6) ^ (bits(double(wsl::random::quantile(Dg, u))) << 7);
         }, 1 << 9), 0x26b8cef1aa562a21);
