@@ -1,10 +1,13 @@
 
 
+#include <algorithm>
 #include <cassert>
 #include <compare>
 #include <iterator>
 #include <memory>
 #include <sstream>
+#include <utility>
+#include <vector>
 #include <string>
 
 #include <wsl/dlist.hpp>
@@ -68,6 +71,57 @@ int main()
     std::ostringstream empty_output;
     empty_output << empty;
     assert(empty_output.str() == "dlist{size=0, extent=0}");
+
+    // Positions publiques, effacement par itérateur (un nœud, une plage) : les autres
+    // positions et l'étendue sont inchangées.
+    {
+        wsl::dlist<int> d(wsl::dlist<int>::with_tail, 20);                  // étendue 20, sans valeur
+        for (int k : {3, 7, 8, 15, 20})
+            d.insert(static_cast<std::size_t>(k), k * 10);
+        auto positions = [&] {
+            std::vector<std::size_t> r;
+            for (auto it = d.cbegin(); it != d.cend(); ++it)
+                r.push_back(d.position(it));
+            return r;
+        };
+        assert((positions() == std::vector<std::size_t>{3, 7, 8, 15, 20}) && d.extent() == 20);
+        auto next = d.erase(std::next(d.cbegin()));                          // retire 7
+        assert(*next == 80 && (positions() == std::vector<std::size_t>{3, 8, 15, 20}) && d.extent() == 20);
+        next = d.erase(std::next(d.cbegin()), std::prev(d.cend()));         // retire 8 et 15
+        assert(*next == 200 && (positions() == std::vector<std::size_t>{3, 20}) && d.extent() == 20);
+        next = d.erase(d.cbegin(), d.cend());
+        assert(next == d.end() && d.empty() && d.extent() == 20);
+    }
+    // extract sur une longue liste, contre un modèle (positions absolues) : la plage est
+    // retirée, la suite recule de sa longueur.
+    {
+        wsl::dlist<int> d(wsl::dlist<int>::with_tail, 7000);
+        std::vector<std::pair<std::size_t, int>> model;
+        for (int k = 0; k < 2000; ++k)
+        {
+            std::size_t const pos = static_cast<std::size_t>(3 * k + (k % 5));
+            d.insert(pos, k);
+            model.emplace_back(pos, k);
+        }
+        std::ranges::sort(model);                                           // la liste range par position
+        std::size_t const from = 1000, length = 2500;
+        auto piece = d.extract(from, length);
+        std::vector<std::pair<std::size_t, int>> kept, cut;
+        for (auto [pos, v] : model)
+            if (pos < from)
+                kept.emplace_back(pos, v);
+            else if (pos < from + length)
+                cut.emplace_back(pos - from, v);
+            else
+                kept.emplace_back(pos - length, v);
+        auto as_pairs = [](wsl::dlist<int> const& l) {
+            std::vector<std::pair<std::size_t, int>> r;
+            for (auto it = l.cbegin(); it != l.cend(); ++it)
+                r.emplace_back(l.position(it), *it);
+            return r;
+        };
+        assert(as_pairs(d) == kept && as_pairs(piece) == cut && piece.extent() == length);
+    }
 
     return 0;
 }

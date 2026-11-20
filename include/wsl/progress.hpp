@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <deque>
 #include <format>
+#include <limits>
 #include <print>
 #include <string>
 #include <utility>
@@ -110,7 +111,10 @@ namespace wsl
         {
             auto const now = clock::now();
             rate_.add(now, done);
-            std::size_t const tranche = total ? done * 20 / total : 20;    // tranches de 5 %
+            // tranches de 5 % : 20 done/total, sans débordement (division préalable pour les totaux > 2^59)
+            std::size_t const tranche = !total || done >= total ? 20
+                                      : total <= std::numeric_limits<std::size_t>::max() / 20 ? done * 20 / total
+                                      : done / (total / 20);
             bool const end = done >= total;
             if(terminal_)
             {

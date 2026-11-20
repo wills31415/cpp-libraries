@@ -141,34 +141,41 @@ namespace wsl
             return static_cast<offset_type>(length);
         }
 
+        // Premier nœud de position >= position (décalage cumulé courant : un seul parcours).
         iterator node_at_or_after(offset_type position)
         {
+            offset_type at = 0;
             for (auto node = begin(); node != end(); ++node)
-                if (node_offset(node) >= position)
+            {
+                at += node.base()->first;
+                if (at >= position)
                     return node;
+            }
             return end();
         }
 
         const_iterator node_at_or_after(offset_type position) const
         {
+            offset_type at = 0;
             for (auto node = begin(); node != end(); ++node)
-                if (node_offset(node) >= position)
+            {
+                at += node.base()->first;
+                if (at >= position)
                     return node;
+            }
             return end();
         }
 
-        void erase_node(const_iterator position)
+        // Retire un nœud, son écart passant au suivant (ou à la queue), en O(1).
+        iterator erase_node(const_iterator position)
         {
-            auto mutable_position = begin();
-            while (mutable_position != end() && mutable_position != position)
-                ++mutable_position;
-
-            auto next = std::next(mutable_position);
+            offset_type const gap = position.base()->first;
+            iterator next(m_data.erase(position.base()));
             if (next != end())
-                next.base()->first += mutable_position.base()->first;
+                next.base()->first += gap;
             else
-                m_tail += mutable_position.base()->first;
-            m_data.erase(mutable_position.base());
+                m_tail += gap;
+            return next;
         }
 
     public:
@@ -231,6 +238,12 @@ namespace wsl
         }
 
     public:
+        // Position (absolue) de l'élément désigné, en O(distance depuis le début).
+        position_type position(const_iterator node) const
+        {
+            return static_cast<position_type>(node_offset(node));
+        }
+
         position_type extent() const
         {
             auto result = m_data.empty() ? m_tail : node_offset(std::prev(end())) + m_tail;
@@ -358,29 +371,21 @@ namespace wsl
             dlist result;
             auto successor = node_at_or_after(first + span);
             auto node = node_at_or_after(first);
+            auto current_position = node == end() ? offset_type{0} : node_offset(node);
             auto previous_position = first;
-            while (node != successor)
+            while (node != successor)                                       // positions cumulées au fil du parcours
             {
-                auto next = std::next(node);
-                auto current_position = node_offset(node);
-                result.append_node(current_position - previous_position,
-                                   std::move(*node));
+                result.append_node(current_position - previous_position, std::move(*node));
                 previous_position = current_position;
-                node = next;
+                ++node;
+                if (node != successor)
+                    current_position += node.base()->first;
             }
-
-            if (!result.empty())
-                result.m_tail = span - result.node_offset(std::prev(result.end()));
-            else
-                result.m_tail = span;
+            result.m_tail = span - (previous_position - first);
 
             node = node_at_or_after(first);
             while (node != successor)
-            {
-                auto next = std::next(node);
-                erase_node(node);
-                node = next;
-            }
+                node = erase_node(node);
 
             if (successor != end())
                 successor.base()->first -= span;
@@ -396,16 +401,15 @@ namespace wsl
 
         iterator erase(const_iterator position)
         {
-            auto next = std::next(position);
-            erase_node(position);
-            return next;
+            return erase_node(position);
         }
 
         iterator erase(const_iterator first, const_iterator last)
         {
-            while (first != last)
-                first = erase(first);
-            return first;
+            iterator next(m_data.erase(first.base(), first.base()));        // first, rendu modifiable
+            while (const_iterator(next) != last)
+                next = erase_node(next);
+            return next;
         }
     };
 

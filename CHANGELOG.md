@@ -11,6 +11,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   inverse, puissances, cycles canoniques, type de cycles, points fixes, signature,
   inversions en O(n log n), rang lexicographique (n <= 20), `permute`, `constexpr`.
 
+### dlist
+- Correction : `erase(const_iterator)` et `erase(first, last)` ne compilaient pas.
+- `position(it)` : position absolue d'un élément (jusqu'ici lisible seulement par `dump`).
+- Recherche de nœud, effacement et `extract` en un seul parcours (O(n) au lieu de O(n²)).
+
+### progress
+- Correction : le calcul des tranches de 5 % débordait pour `done` > 2⁵⁹.
+
 ### random (nouvelle)
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
