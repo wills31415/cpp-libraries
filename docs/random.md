@@ -667,7 +667,7 @@ von Mises (pas de forme close ; série de Bessel possible plus tard).
 
 ## 13. Phase 7 : objets combinatoires, lot 1
 
-Bibliothèque à part, **`wsl::permutation`** (`<wsl/permutation.hpp>`, C++20, dont
+Bibliothèque à part, **`wsl::permutation`** (`<wsl/permutation.hpp>`, C++23, dont
 `wsl::random` dépend) : permutations de {0, …, n − 1}, `(s * t)(i) = s(t(i))`, inverse,
 puissances, cycles canoniques, signature, inversions en O(n log n), rang
 lexicographique. Le concept de loi n'exige plus de support (`has_support` le teste) :

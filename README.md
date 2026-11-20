@@ -7,7 +7,7 @@ Collection de bibliothèques C++ génériques, en en-têtes seuls, sous le names
 garanties de la bibliothèque standard que possible.
 
 Testées à chaque commit avec GCC 14 et Clang 18 (libstdc++, Linux) et Apple Clang
-(libc++, macOS), en Debug (ASan + UBSan) et en Release, en C++20 et en C++23,
+(libc++, macOS), en Debug (ASan + UBSan) et en Release, en C++23,
 avertissements traités comme des erreurs.
 
 ## Catalogue
@@ -15,18 +15,18 @@ avertissements traités comme des erreurs.
 | Cible CMake | En-tête | Standard | Contenu |
 |---|---|---|---|
 | `wsl::array2d` | `<wsl/array2d.hpp>` | C++23 | Tableau 2D de taille fixe (agrégat), dispositions ligne/colonne majeure, vues de lignes et colonnes (`std::span` ou `strided_view`), `mdspan` |
-| `wsl::dlist` | `<wsl/dlist.hpp>` | C++20 | Liste à distances : valeurs placées à des positions entières, stockées par écarts relatifs (insertion et extraction de fragments) |
-| `wsl::graded` | `<wsl/graded.hpp>` | C++20 | N-uplets ordonnés lexicographiquement (jets) : `jet` (arité exacte), `series` (arité bornée), arithmétique, concaténation, hachage |
-| `wsl::graded_io` | `<wsl/graded_io.hpp>` | C++20 | `std::formatter`, `operator<<` et `to_string` pour `graded` |
-| `wsl::elo` | `<wsl/elo.hpp>` | C++20 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
-| `wsl::permutation` | `<wsl/permutation.hpp>` | C++20 | Permutations de {0, …, n − 1} : composition, inverse, puissances, cycles, signature, inversions (O(n log n)), rang lexicographique, `constexpr` |
+| `wsl::dlist` | `<wsl/dlist.hpp>` | C++23 | Liste à distances : valeurs placées à des positions entières, stockées par écarts relatifs (insertion et extraction de fragments) |
+| `wsl::graded` | `<wsl/graded.hpp>` | C++23 | N-uplets ordonnés lexicographiquement (jets) : `jet` (arité exacte), `series` (arité bornée), arithmétique, concaténation, hachage |
+| `wsl::graded_io` | `<wsl/graded_io.hpp>` | C++23 | `std::formatter`, `operator<<` et `to_string` pour `graded` |
+| `wsl::elo` | `<wsl/elo.hpp>` | C++23 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
+| `wsl::permutation` | `<wsl/permutation.hpp>` | C++23 | Permutations de {0, …, n − 1} : composition, inverse, puissances, cycles, signature, inversions (O(n log n)), rang lexicographique, `constexpr` |
 | `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
-| `wsl::special` | `<wsl/special.hpp>` | C++20 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv`, `cyl_bessel_i` ([conception](docs/special.md)) |
-| `wsl::random` | `<wsl/random.hpp>` | C++20 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (`uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy`, `fisher_f`, `weibull`, `laplace`, `logistic`, `pareto`, `gumbel`, `frechet`, `rayleigh`, `triangular`, `arcsine`, `erlang`, `inverse_gaussian`, `negative_binomial`, `hypergeometric`, `beta_binomial`, `logarithmic`, `discrete_gaussian`, `skew_normal`, `stable` : moments, densité ou masse, répartition, quantile et quantile de survie sous 0,51 ulp ; tirage exact pour les cinq premières, `laplace` et `erlang`) ; algèbre des lois : `2 * X + 1`, `X + Y` (identités de familles, convolution), `truncate`, `mixture`, `independent`, `pushforward` ; lois multivariées (`dirichlet`, `multinomial`, `multivariate_normal`, `multivariate_student_t`, `wishart`, `inverse_wishart`, `uniform_sphere`, `uniform_ball`, `von_mises`, `von_mises_fisher`, dimension fixe ou `wsl::dynamic`) ; objets combinatoires à tirage exact (`uniform_permutation`, `ewens`, `mallows`, `uniform_subset`, `bernoulli_subset`, `uniform_combination`, `uniform_word`, `uniform_integer_partition`, `uniform_set_partition`, `uniform_composition`, `erdos_renyi`, `uniform_graph`, `barabasi_albert`, `random_regular_graph`, `uniform_tree`, `uniform_binary_tree`) ; processus à trajectoires paresseuses et exactes (`markov_chain`, `random_walk`, `polya_urn`, `chinese_restaurant`, `brownian_motion`, `brownian_bridge`, `ornstein_uhlenbeck`, `poisson_process`, `compound_poisson`, `continuous_markov_chain`…) et `categorical` exacte ; matrices aléatoires (`haar_orthogonal`, `haar_unitary`, `goe`, `gue`) ([conception](docs/random.md)) |
+| `wsl::special` | `<wsl/special.hpp>` | C++23 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv`, `cyl_bessel_i` ([conception](docs/special.md)) |
+| `wsl::random` | `<wsl/random.hpp>` | C++23 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (`uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy`, `fisher_f`, `weibull`, `laplace`, `logistic`, `pareto`, `gumbel`, `frechet`, `rayleigh`, `triangular`, `arcsine`, `erlang`, `inverse_gaussian`, `negative_binomial`, `hypergeometric`, `beta_binomial`, `logarithmic`, `discrete_gaussian`, `skew_normal`, `stable` : moments, densité ou masse, répartition, quantile et quantile de survie sous 0,51 ulp ; tirage exact pour les cinq premières, `laplace` et `erlang`) ; algèbre des lois : `2 * X + 1`, `X + Y` (identités de familles, convolution), `truncate`, `mixture`, `independent`, `pushforward` ; lois multivariées (`dirichlet`, `multinomial`, `multivariate_normal`, `multivariate_student_t`, `wishart`, `inverse_wishart`, `uniform_sphere`, `uniform_ball`, `von_mises`, `von_mises_fisher`, dimension fixe ou `wsl::dynamic`) ; objets combinatoires à tirage exact (`uniform_permutation`, `ewens`, `mallows`, `uniform_subset`, `bernoulli_subset`, `uniform_combination`, `uniform_word`, `uniform_integer_partition`, `uniform_set_partition`, `uniform_composition`, `erdos_renyi`, `uniform_graph`, `barabasi_albert`, `random_regular_graph`, `uniform_tree`, `uniform_binary_tree`) ; processus à trajectoires paresseuses et exactes (`markov_chain`, `random_walk`, `polya_urn`, `chinese_restaurant`, `brownian_motion`, `brownian_bridge`, `ornstein_uhlenbeck`, `poisson_process`, `compound_poisson`, `continuous_markov_chain`…) et `categorical` exacte ; matrices aléatoires (`haar_orthogonal`, `haar_unitary`, `goe`, `gue`) ([conception](docs/random.md)) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
 
-Le standard indiqué est le minimum exigé. Il est transmis au projet consommateur :
-lier `wsl::array2d` à un projet en C++20 le fait passer en C++23. L'historique des
+Toutes les bibliothèques exigent C++23, transmis au projet consommateur : lier une
+cible `wsl::…` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
 
 En préparation dans `wsl::random` : d'autres lois (Skellam, Zipf…)
@@ -97,16 +97,16 @@ machine : une version incompatible installée plus tard casse les anciens projet
 | Tests en Release | tâche « Tests (Release) » | `ctest --preset release` |
 | Déboguer le test ouvert | F5 → « Déboguer le test courant » | — |
 
-Chaque `tests/test_<nom>.cpp` est compilé dans **chaque** standard supporté par la
-bibliothèque : `test_<nom>` (C++23) et, si elle descend jusqu'à C++20,
-`test_<nom>_cxx20`. Un test réussit s'il renvoie 0. `tests/package/` vérifie, en
+Chaque `tests/test_<nom>.cpp` donne `test_<nom>`, compilé en C++23 (et, si une
+bibliothèque redescendait un jour plus bas, une fois par standard supporté :
+`test_<nom>_cxx20`…). Un test réussit s'il renvoie 0. `tests/package/` vérifie, en
 CI, l'installation et FetchContent du point de vue d'un consommateur.
 
 ### Ajouter une bibliothèque
 
 1. `include/wsl/<nom>.hpp`, dans le namespace `wsl`.
 2. `tests/test_<nom>.cpp`.
-3. Dans `CMakeLists.txt` : `wsl_add_library(<nom> STANDARD <20|23> [DEPENDS ...])`
+3. Dans `CMakeLists.txt` : `wsl_add_library(<nom> STANDARD 23 [DEPENDS ...])`
    et `wsl_add_test(<nom>)`.
 4. Une ligne dans le catalogue ci-dessus, une entrée dans `CHANGELOG.md`.
 

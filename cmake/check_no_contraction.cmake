@@ -40,7 +40,7 @@ function(assembly source target flags out)
         set(target_option -target ${target})
     endif()
     execute_process(
-        COMMAND ${CXX} -std=c++20 -O2 -ffp-contract=fast -DWSL_SPECIAL_NO_FMA ${target_option} ${flags} -I${INCLUDE} -S -o - ${source}
+        COMMAND ${CXX} -std=c++23 -O2 -ffp-contract=fast -DWSL_SPECIAL_NO_FMA ${target_option} ${flags} -I${INCLUDE} -S -o - ${source}
         OUTPUT_VARIABLE asm ERROR_VARIABLE errors RESULT_VARIABLE status)
     if(NOT status EQUAL 0)
         message(FATAL_ERROR "Compilation de ${source} (${target}) impossible :\n${errors}")

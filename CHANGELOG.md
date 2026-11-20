@@ -6,6 +6,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 
 ## [Non publié]
 
+### Toutes les bibliothèques
+- Rupture : C++23 exigé partout (dlist, graded, graded_io, elo, special, permutation et
+  random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
+  la revue des interfaces (docs/interfaces.md).
+
 ### permutation (nouvelle)
 - `wsl::permutation` : construction vérifiée (images, cycles), composition `s * t` (s∘t),
   inverse, puissances, cycles canoniques, type de cycles, points fixes, signature,

@@ -18,8 +18,10 @@ option(WSL_LIBRARIES_WERROR "Traiter les avertissements des tests et exemples co
 include(GNUInstallDirs)
 
 # Standards sur lesquels les tests sont compilés. Une bibliothèque est testée
-# sur chacun de ceux qu'elle prétend supporter (de son minimum à C++23).
-set(WSL_LIBRARIES_STANDARDS 20 23)
+# sur chacun de ceux qu'elle prétend supporter (de son minimum à C++23). Le dépôt est
+# en C++23 partout (docs/interfaces.md, décision 7) ; ajouter 20 ici si une
+# bibliothèque redescend un jour à C++20, sur décision explicite.
+set(WSL_LIBRARIES_STANDARDS 23)
 
 # ---------------------------------------------------------------------------
 # Les bibliothèques
@@ -63,14 +65,14 @@ define_property(TARGET PROPERTY WSL_STANDARD
     BRIEF_DOCS "Standard C++ minimal d'une bibliothèque wsl")
 
 wsl_add_library(array2d      STANDARD 23)
-wsl_add_library(dlist        STANDARD 20)
-wsl_add_library(graded       STANDARD 20)
-wsl_add_library(graded_io    STANDARD 20 DEPENDS graded)
-wsl_add_library(elo          STANDARD 20)
+wsl_add_library(dlist        STANDARD 23)
+wsl_add_library(graded       STANDARD 23)
+wsl_add_library(graded_io    STANDARD 23 DEPENDS graded)
+wsl_add_library(elo          STANDARD 23)
 wsl_add_library(progress     STANDARD 23)
-wsl_add_library(special      STANDARD 20)
-wsl_add_library(permutation  STANDARD 20)
-wsl_add_library(random       STANDARD 20 DEPENDS special permutation)
+wsl_add_library(special      STANDARD 23)
+wsl_add_library(permutation  STANDARD 23)
+wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
 
 # Tout d'un coup : wsl::libraries.
 add_library(wsl_libraries INTERFACE)
@@ -101,8 +103,8 @@ endif()
 # tests/test_<nom>.cpp, lié à wsl::<bibliothèque> (par défaut wsl::<nom>), et
 # compilé une fois par standard supporté par cette bibliothèque :
 # test_<nom> en C++23 (celui que lancent l'éditeur et le débogueur), et
-# test_<nom>_cxx20 si la bibliothèque descend jusqu'à C++20. Un test réussit
-# s'il renvoie 0.
+# test_<nom>_cxx<standard> pour chaque standard inférieur supporté. Un test
+# réussit s'il renvoie 0.
 
 if(WSL_LIBRARIES_BUILD_TESTS)
     enable_testing()
@@ -146,6 +148,9 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     add_library(wsl_libraries_no_sign_compare INTERFACE)
     target_compile_options(wsl_libraries_no_sign_compare INTERFACE -Wno-sign-compare)
     foreach(test test_graded test_graded_cxx20)
+        if(NOT TARGET ${test})
+            continue()
+        endif()
         target_link_libraries(${test} PRIVATE wsl_libraries_no_sign_compare)
     endforeach()
     wsl_add_test(graded_io)
@@ -178,6 +183,9 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         add_custom_target(special_references DEPENDS ${references})
         wsl_add_test(special_elementary LIBRARY special)
         foreach(test test_special_elementary test_special_elementary_cxx20)
+            if(NOT TARGET ${test})
+                continue()
+            endif()
             add_dependencies(${test} special_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()
@@ -192,6 +200,9 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         add_custom_target(random_law_references DEPENDS ${law_references})
         wsl_add_test(random_precision LIBRARY random)
         foreach(test test_random_precision test_random_precision_cxx20)
+            if(NOT TARGET ${test})
+                continue()
+            endif()
             add_dependencies(${test} random_law_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()

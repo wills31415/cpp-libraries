@@ -44,7 +44,7 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 
 - Compiler : `cmake --preset debug && cmake --build --preset debug -j`
 - Tests : `ctest --preset debug` (ASan + UBSan) ; `ctest --preset release`
-- Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++20 et C++23,
+- Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++23,
   sur les trois compilateurs de la CI.
 
 ## Outils
@@ -115,8 +115,8 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 
 - `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via
   `DEPENDS`, p. ex. `graded_io` → `graded`).
-- `tests/test_<nom>.cpp` : compilé une fois par standard supporté (`test_<nom>`
-  en C++23, `test_<nom>_cxx20`).
+- `tests/test_<nom>.cpp` : `test_<nom>`, en C++23 (une variante `_cxx20` par standard
+  inférieur supporté, aucune aujourd'hui).
 - `examples/*.cpp` : un exécutable chacun, lié à `wsl::libraries`.
 - Compilateur imposé : `/usr/bin/clang++` (miniconda est en tête du PATH).
 
