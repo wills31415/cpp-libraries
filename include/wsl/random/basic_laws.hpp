@@ -232,7 +232,7 @@ namespace wsl::random
             auto const [t, t_error] = sd::two_sum(s, -1.0);
             return detail::divide(t, (t_error + s_error) + sd::fmul(2.0, sd::fmul(n, n_lo)), 12.0, 0.0);
         }
-        constexpr double skewness() const noexcept { return 0; }
+        constexpr double skewness() const noexcept { return low_ == high_ ? std::numeric_limits<double>::quiet_NaN() : 0.0; }   // a = b : loi dégénérée, 0/0
         constexpr double entropy() const noexcept
         {
             auto const [n, n_lo] = count();

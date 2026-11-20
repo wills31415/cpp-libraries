@@ -97,11 +97,15 @@ namespace wsl::random
         }
         constexpr double skewness() const noexcept
         {
+            if (n_ == 0 || p_ == 0 || p_ == 1)                              // loi dégénérée : 0/0
+                return std::numeric_limits<double>::quiet_NaN();
             double const q = 1 - p_;
             return (q - p_) / wsl::special::sqrt(detail::sd::fmul(detail::sd::fmul(static_cast<double>(n_), p_), q));
         }
         constexpr double excess_kurtosis() const noexcept
         {
+            if (n_ == 0 || p_ == 0 || p_ == 1)
+                return std::numeric_limits<double>::quiet_NaN();
             double const pq = detail::sd::fmul(p_, 1 - p_);
             return (1 - detail::sd::fmul(6.0, pq)) / detail::sd::fmul(static_cast<double>(n_), pq);
         }

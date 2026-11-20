@@ -210,6 +210,8 @@ namespace wsl::random
         // s² [Γ(1 − 2/α) − Γ(1 − 1/α)²], α > 2
         constexpr T variance() const noexcept
         {
+            if (!(double(alpha_) > 1))                                      // moyenne infinie : variance indéfinie
+                return std::numeric_limits<T>::quiet_NaN();
             if (!(double(alpha_) > 2))
                 return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::gamma_variance(-1.0 / double(alpha_), -inv_lo(), detail::log_precise(double(s_))));

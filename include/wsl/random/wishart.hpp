@@ -159,10 +159,10 @@ namespace wsl::random
             double const c = double(b_.n) - double(dimension()) - 1;
             return c >= 0 ? b_.scaled_scale(c) : b_.scaled_scale(std::numeric_limits<double>::quiet_NaN());
         }
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             auto const h = b_.wishart_entropy(b_.log_det_half);
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
         // Wᵢᵢ ~ Vᵢᵢ χ²(n) = gamma(n/2, échelle 2Vᵢᵢ)
         constexpr gamma<T> marginal(std::size_t i) const
@@ -248,11 +248,16 @@ namespace wsl::random
         constexpr value_type mean() const
         {
             double const c = double(b_.n) - double(dimension()) - 1;
-            return b_.scaled_scale(c > 0 ? 1 / c : std::numeric_limits<double>::quiet_NaN());
+            if (c > 0)
+                return b_.scaled_scale(1 / c);
+            auto m = b_.scaled_scale(std::numeric_limits<double>::quiet_NaN());   // E Xᵢⱼ indéfinie (∞ − ∞)
+            for (std::size_t i = 0; i < dimension(); ++i)
+                m(i, i) = std::numeric_limits<T>::infinity();               // Xᵢᵢ > 0 : diverge vers +∞
+            return m;
         }
         constexpr value_type mode() const { return b_.scaled_scale(1 / (double(b_.n) + double(dimension()) + 1)); }
         // H(W(Ψ⁻¹, ν)) − (p + 1)(ψ_p(ν/2) + p log 2 − log det Ψ)
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             namespace fp = detail::sd;
             double const p = double(dimension());
@@ -261,7 +266,7 @@ namespace wsl::random
             e = detail::sum(e, {fp::fmul(b_.log_det_half.hi, -2.0), fp::fmul(b_.log_det_half.lo, -2.0)});
             auto const t = detail::mul({p + 1, 0.0}, e);
             h = detail::sum(h, {-t.hi, -t.lo});
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
 
         constexpr double log_pdf(value_type const& x) const

@@ -75,6 +75,17 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `beta()` (nom de la classe), `B.param().alpha` et `B.param().beta`.
 - Correction : `operator==` de `geometric` était implicitement supprimé (membre
   double-double sans égalité) ; il compare désormais `p`.
+- Constantes indéfinies (décision 3b) : +∞ quand l'intégrale diverge vers +∞, NaN quand elle
+  n'a pas de sens. Corrigés : moyenne de Fisher pour d₂ <= 2 (+∞, NaN avant) ; asymétrie et
+  kurtosis +∞ quand la variance est finie et le moment d'ordre 3 ou 4 infini (Pareto,
+  Fisher ; NaN avant) ; variance NaN quand la moyenne n'est pas finie (Pareto et Fréchet
+  α <= 1, stable α <= 1 ; +∞ avant) ; moyenne stable ±∞ pour α < 1, β = ±1 ; moyenne de
+  Wishart inverse pour n <= p + 1 : +∞ sur la diagonale, NaN ailleurs ; asymétrie et
+  kurtosis NaN pour les lois dégénérées (binomiale p ∈ {0, 1} ou n = 0, géométrique et
+  binomiale négative p = 1, uniforme discrète a = b ; ±∞ ou 0 avant).
+- Types des constantes (décision 3a) : entropie en T pour von Mises et les lois continues
+  multivariées (double avant) ; `product_measure` : type commun des composantes. Médianes
+  `noexcept` (géométrique, inverse gaussienne, stable).
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par

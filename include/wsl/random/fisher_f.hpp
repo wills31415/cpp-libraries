@@ -64,8 +64,8 @@ namespace wsl::random
         constexpr T mean() const noexcept
         {
             double const d2 = d2_;
-            if (d2 <= 2)
-                return std::numeric_limits<T>::quiet_NaN();
+            if (d2 <= 2)                                                    // variable positive : diverge vers +∞
+                return std::numeric_limits<T>::infinity();
             auto const [m_hi, m_lo] = detail::sd::two_sum(d2, -2.0);
             return static_cast<T>(detail::rounded(detail::normalized(d2, 0.0) / detail::normalized(m_hi, m_lo)));
         }
@@ -102,16 +102,20 @@ namespace wsl::random
         constexpr T skewness() const noexcept
         {
             double const d1 = d1_, d2 = d2_;
-            if (d2 <= 6)
+            if (d2 <= 4)                                                    // variance infinie ou indéfinie
                 return std::numeric_limits<T>::quiet_NaN();
+            if (d2 <= 6)                                                    // variance finie, moment d'ordre 3 infini
+                return std::numeric_limits<T>::infinity();
             return static_cast<T>((detail::sd::fmul(2.0, d1) + d2 - 2) * wsl::special::sqrt(8 * (d2 - 4)) / ((d2 - 6) * wsl::special::sqrt(d1 * (d1 + d2 - 2))));
         }
         constexpr T excess_kurtosis() const noexcept
         {
             namespace fp = detail::sd;
             double const d1 = d1_, d2 = d2_;
-            if (d2 <= 8)
+            if (d2 <= 4)
                 return std::numeric_limits<T>::quiet_NaN();
+            if (d2 <= 8)
+                return std::numeric_limits<T>::infinity();
             double const num = fp::fmul(fp::fmul(d1, fp::fmul(5.0, d2) - 22), d1 + d2 - 2) + fp::fmul(fp::fmul(d2 - 4, d2 - 2), d2 - 2);
             return static_cast<T>(12 * num / (d1 * (d2 - 6) * (d2 - 8) * (d1 + d2 - 2)));
         }

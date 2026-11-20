@@ -175,13 +175,13 @@ namespace wsl::random
             return static_cast<T>(r.one_minus_a.hi + r.one_minus_a.lo);
         }
         // log 2π + log(e^{−κ} I₀) + κ (1 − A)
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             if (kappa_ == 0)
-                return log_norm_.hi + log_norm_.lo;
+                return static_cast<T>(log_norm_.hi + log_norm_.lo);
             auto const r = detail::bessel_ratio_of(0.0, double(kappa_));
             auto const h = detail::sum(log_norm_, detail::mul({double(kappa_), 0.0}, r.one_minus_a));
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
 
         constexpr T log_pdf(T x) const noexcept
@@ -426,7 +426,7 @@ namespace wsl::random
             return m;
         }
         // −(log C_p + κ) + κ (1 − A_p)
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             detail::sd::double_double h{-log_c_plus_kappa_.hi, -log_c_plus_kappa_.lo};
             if (kappa_ > 0)
@@ -434,7 +434,7 @@ namespace wsl::random
                 auto const r = detail::bessel_ratio_of(nu(), double(kappa_));
                 h = detail::sum(h, detail::mul({double(kappa_), 0.0}, r.one_minus_a));
             }
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
 
         constexpr double log_pdf(value_type const& x) const noexcept

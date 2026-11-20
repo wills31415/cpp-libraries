@@ -104,7 +104,7 @@ namespace wsl::random
                 m[i] = alpha_[i] > 1 ? static_cast<T>((double(alpha_[i]) - 1) / d) : std::numeric_limits<T>::quiet_NaN();
             return m;
         }
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             namespace fp = detail::sd;
             double const k = double(dimension());
@@ -114,7 +114,7 @@ namespace wsl::random
                 auto const t = detail::product(double(a) - 1, wsl::special::digamma(double(a)));
                 h = detail::sum(h, {-t.hi, -t.lo});
             }
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
         // Loi de la composante i : bêta(αᵢ, α₀ − αᵢ).
         constexpr beta<T> marginal(std::size_t i) const

@@ -206,16 +206,25 @@ namespace wsl::random
                 return {-inf, delta_};
             return {-inf, inf};
         }
-        // δ pour α > 1, indéfinie sinon
-        constexpr T mean() const noexcept { return alpha_ > 1 ? delta_ : std::numeric_limits<T>::quiet_NaN(); }
-        // 2γ² pour α = 2, infinie sinon
+        // δ pour α > 1 ; ±∞ pour α < 1, β = ±1 (support d'un côté) ; indéfinie sinon
+        constexpr T mean() const noexcept
+        {
+            if (alpha_ > 1)
+                return delta_;
+            if (alpha_ < 1 && (beta_ == 1 || beta_ == -1))
+                return beta_ == 1 ? std::numeric_limits<T>::infinity() : -std::numeric_limits<T>::infinity();
+            return std::numeric_limits<T>::quiet_NaN();
+        }
+        // 2γ² pour α = 2, +∞ pour 1 < α < 2, indéfinie pour α <= 1 (moyenne non finie)
         constexpr T variance() const noexcept
         {
+            if (!(alpha_ > 1))
+                return std::numeric_limits<T>::quiet_NaN();
             if (alpha_ < 2)
                 return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::rounded(detail::normalized(double(gamma_), 0.0) * detail::normalized(double(gamma_), 0.0) * detail::normalized(2.0, 0.0)));
         }
-        constexpr T median() const { return wsl::random::quantile(*this, 0.5); }
+        constexpr T median() const noexcept { return wsl::random::quantile(*this, 0.5); }
 
         constexpr T pdf(T x) const noexcept
         {

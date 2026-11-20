@@ -107,14 +107,14 @@ namespace wsl::random
                 }
             return c;
         }
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             namespace fp = detail::sd;
             double const nu = nu_;
             // −constante + ((ν + n)/2)(ψ((ν + n)/2) − ψ(ν/2)) (ψ par wsl::special)
             double const d = wsl::special::digamma(half_sum_.hi + half_sum_.lo) - wsl::special::digamma(fp::fmul(nu, 0.5));
             auto h = detail::sum({-constant_.hi, -constant_.lo}, detail::mul(half_sum_, {d, 0.0}));
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
         constexpr affine_image<student_t<T>> marginal(std::size_t i) const
         {

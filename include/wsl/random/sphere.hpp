@@ -110,10 +110,10 @@ namespace wsl::random
             auto const l = detail::log_sphere_area(n_);
             return l.hi > 1400 ? std::numeric_limits<double>::infinity() : detail::rounded(detail::exp_scaled(l.hi, l.lo));
         }
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             auto const l = detail::log_sphere_area(n_);
-            return l.hi + l.lo;
+            return static_cast<T>(l.hi + l.lo);
         }
 
         constexpr double pdf(value_type const& x) const noexcept
@@ -193,10 +193,10 @@ namespace wsl::random
             auto const l = log_volume();
             return l.hi > 1400 ? std::numeric_limits<double>::infinity() : l.hi < -1500 ? 0.0 : detail::rounded(detail::exp_scaled(l.hi, l.lo));
         }
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             auto const l = log_volume();
-            return l.hi + l.lo;
+            return static_cast<T>(l.hi + l.lo);
         }
 
         constexpr double pdf(value_type const& x) const noexcept

@@ -73,10 +73,10 @@ namespace wsl::random
             return {detail::make_vector<T, N>(dimension(), -std::numeric_limits<T>::infinity()), detail::make_vector<T, N>(dimension(), std::numeric_limits<T>::infinity())};
         }
         // (n/2)(1 + log 2π) + ½ log det Σ
-        constexpr double entropy() const noexcept
+        constexpr T entropy() const noexcept
         {
             auto const h = detail::sum(detail::mul({double(dimension()), 0.0}, {detail::normal_entropy_hi, detail::normal_entropy_lo}), log_det_half_);
-            return h.hi + h.lo;
+            return static_cast<T>(h.hi + h.lo);
         }
         constexpr normal<T> marginal(std::size_t i) const
         {

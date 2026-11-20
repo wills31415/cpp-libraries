@@ -61,15 +61,15 @@ namespace wsl::random
         // (2 − p)/√(r q)
         constexpr double skewness() const noexcept
         {
-            if (p_ == 1)
-                return std::numeric_limits<double>::infinity();
+            if (p_ == 1)                                                    // loi dégénérée : 0/0
+                return std::numeric_limits<double>::quiet_NaN();
             return detail::rounded(detail::normalized(2.0 - p_, 0.0) / detail::sqrt(detail::normalized(r_, 0.0) * q_scaled()));
         }
         // 6/r + p²/(r q)
         constexpr double excess_kurtosis() const noexcept
         {
             if (p_ == 1)
-                return std::numeric_limits<double>::infinity();
+                return std::numeric_limits<double>::quiet_NaN();
             namespace sd = detail::sd;
             double const q = 1 - p_;
             return 6 / r_ + sd::fmul(p_, p_) / sd::fmul(r_, q);

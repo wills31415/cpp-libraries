@@ -511,7 +511,7 @@ int main()
     {
         auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wsl::random::sample(law, g))); return v; };
         wsl::random::fisher_f const F({.d1 = 5, .d2 = 10});
-        assert(F.mean() == 1.25 && std::isnan(wsl::random::fisher_f({.d1 = 3, .d2 = 2}).mean()) && std::isinf(wsl::random::fisher_f({.d1 = 3, .d2 = 3}).variance()));
+        assert(F.mean() == 1.25 && wsl::random::fisher_f({.d1 = 3, .d2 = 2}).mean() == INFINITY && std::isinf(wsl::random::fisher_f({.d1 = 3, .d2 = 3}).variance()));
         assert(wsl::random::pdf(wsl::random::fisher_f({.d1 = 2, .d2 = 5}), 0.0) == 1 && wsl::random::pdf(F, 0.0) == 0 && wsl::random::pdf(wsl::random::fisher_f({.d1 = 1, .d2 = 5}), 0.0) == INFINITY);
         // F(1, ν) = t(ν)² : P(F <= t²) = P(|T| <= t).
         wsl::random::student_t const T7({.degrees_of_freedom = 7});
@@ -975,6 +975,36 @@ int main()
         assert(round_trip(wr::erdos_renyi({.vertices = 10, .p = 0.3})) && round_trip(wr::uniform_graph({.vertices = 10, .edges = 12})) && round_trip(wr::barabasi_albert({.vertices = 10, .edges = 2})));
         assert(round_trip(wr::random_regular_graph({.vertices = 10, .degree = 3})) && round_trip(wr::uniform_tree({.vertices = 10})) && round_trip(wr::uniform_binary_tree({.vertices = 10})));
         static_assert(std::is_same_v<wr::normal<>::param_type, wr::normal<>::parameters> && wr::normal<>().stddev() == 1 && wr::cauchy<>().scale() == 1);
+    }
+
+    // ---- Constantes indéfinies (décision 3b) : +∞ si l'intégrale diverge vers +∞, NaN si elle
+    // n'a pas de sens (∞ − ∞, 0/0) ; types : T pour les lois continues, double pour les discrètes.
+    {
+        namespace wr = wsl::random;
+        constexpr double inf = INFINITY;
+        auto const nan = [](auto v) { return std::isnan(v); };
+        // lois dégénérées (variance nulle) : asymétrie et kurtosis 0/0
+        assert(nan(wr::binomial({.trials = 5, .p = 0.0}).skewness()) && nan(wr::binomial({.trials = 0, .p = 0.3}).excess_kurtosis()));
+        assert(nan(wr::geometric({.p = 1.0}).skewness()) && nan(wr::geometric({.p = 1.0}).excess_kurtosis()));
+        assert(nan(wr::negative_binomial({.successes = 2.0, .p = 1.0}).skewness()) && nan(wr::discrete_uniform({.lower = 3, .upper = 3}).skewness()));
+        // queues lourdes
+        assert(wr::fisher_f({.d1 = 3.0, .d2 = 2.0}).mean() == inf && nan(wr::fisher_f({.d1 = 3.0, .d2 = 2.0}).variance()));
+        assert(wr::fisher_f({.d1 = 3.0, .d2 = 5.0}).skewness() == inf && wr::fisher_f({.d1 = 3.0, .d2 = 7.0}).excess_kurtosis() == inf && nan(wr::fisher_f({.d1 = 3.0, .d2 = 4.0}).skewness()));
+        assert(wr::pareto({.shape = 0.5}).mean() == inf && nan(wr::pareto({.shape = 0.5}).variance()) && wr::pareto({.shape = 1.5}).variance() == inf);
+        assert(wr::pareto({.shape = 2.5}).skewness() == inf && wr::pareto({.shape = 3.5}).excess_kurtosis() == inf && nan(wr::pareto({.shape = 1.5}).skewness()));
+        assert(wr::frechet({.shape = 0.5}).mean() == inf && nan(wr::frechet({.shape = 0.5}).variance()) && wr::frechet({.shape = 1.5}).variance() == inf);
+        assert(nan(wr::student_t({.degrees_of_freedom = 1.0}).mean()) && wr::student_t({.degrees_of_freedom = 1.5}).variance() == inf && wr::student_t({.degrees_of_freedom = 3.5}).excess_kurtosis() == inf);
+        assert(wr::stable({.alpha = 0.5, .beta = 1.0}).mean() == inf && wr::stable({.alpha = 0.5, .beta = -1.0}).mean() == -inf && nan(wr::stable({.alpha = 0.5}).mean()));
+        assert(nan(wr::stable({.alpha = 0.5}).variance()) && wr::stable({.alpha = 1.5}).variance() == inf && wr::stable({.alpha = 1.5}).mean() == 0);
+        auto const M = wr::inverse_wishart<double, 2>({.scale = {{1.0, 0.2}, {0.2, 2.0}}, .degrees_of_freedom = 2.5}).mean();
+        assert(M(0, 0) == inf && M(1, 1) == inf && nan(M(0, 1)));
+        // types des constantes
+        static_assert(std::is_same_v<decltype(wr::von_mises<float>({.concentration = 1.0f}).entropy()), float>);
+        static_assert(std::is_same_v<decltype(wr::multivariate_normal<float, 2>({.mean = {0.0f, 0.0f}, .covariance = {{1.0f, 0.0f}, {0.0f, 1.0f}}}).entropy()), float>);
+        static_assert(std::is_same_v<decltype(wr::product_measure(wr::normal<float>(), wr::exponential<float>()).entropy()), float>);
+        static_assert(std::is_same_v<decltype(wr::product_measure(wr::normal<float>(), wr::geometric({.p = 0.3})).entropy()), double>);
+        static_assert(std::is_same_v<decltype(wr::geometric({.p = 0.3}).mean()), double> && std::is_same_v<decltype(wr::geometric({.p = 0.3}).median()), std::int64_t>);
+        static_assert(noexcept(std::declval<wr::stable<> const&>().median()) && noexcept(std::declval<wr::geometric<> const&>().median()));
     }
     return 0;
 }

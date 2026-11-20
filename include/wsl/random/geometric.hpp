@@ -68,13 +68,17 @@ namespace wsl::random
             return detail::rounded(failure() / p_ / p_);
         }
         constexpr I mode() const noexcept { return 0; }
-        constexpr I median() const { return wsl::random::quantile(*this, 0.5); }
+        constexpr I median() const noexcept { return wsl::random::quantile(*this, 0.5); }
         constexpr double skewness() const noexcept
         {
+            if (p_ == 1)                                                    // loi dégénérée : 0/0
+                return std::numeric_limits<double>::quiet_NaN();
             return (2 - p_) / wsl::special::sqrt(1 - p_);
         }
         constexpr double excess_kurtosis() const noexcept
         {
+            if (p_ == 1)
+                return std::numeric_limits<double>::quiet_NaN();
             return 6 + detail::sd::fmul(p_, p_) / (1 - p_);
         }
         // −[(1 − p) log(1 − p) + p log p]/p = −((1 − p)/p) log(1 − p) − log p.

@@ -55,11 +55,13 @@ namespace wsl::random
             return std::apply([](auto const&... c) { return std::tuple{c.variance()...}; }, laws_);
         }
         // Σ H(Xᵢ)
-        constexpr double entropy() const noexcept requires(has_entropy<L> && ...)
+        // Type commun des entropies des composantes (T des lois continues, double des discrètes).
+        constexpr auto entropy() const noexcept requires(has_entropy<L> && ...)
         {
+            using R = std::common_type_t<decltype(std::declval<L const&>().entropy())...>;
             detail::sd::double_double s{0.0, 0.0};
             std::apply([&](auto const&... c) { ((s = detail::sum(s, {double(c.entropy()), 0.0})), ...); }, laws_);
-            return s.hi + s.lo;
+            return static_cast<R>(s.hi + s.lo);
         }
 
         constexpr double pdf(value_type const& x) const noexcept requires all_continuous && (has_pdf<L> && ...)

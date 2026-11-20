@@ -265,7 +265,7 @@ namespace wsl::random
             }
             return static_cast<T>(detail::rounded(detail::normalized(double(mu_), 0.0) / w));
         }
-        constexpr T median() const { return wsl::random::quantile(*this, 0.5); }
+        constexpr T median() const noexcept { return wsl::random::quantile(*this, 0.5); }
 
         constexpr T pdf(T x) const noexcept
         {

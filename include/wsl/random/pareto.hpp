@@ -61,6 +61,8 @@ namespace wsl::random
         constexpr T variance() const noexcept
         {
             double const a = alpha_;
+            if (a <= 1)                                                     // moyenne infinie : variance indéfinie
+                return std::numeric_limits<T>::quiet_NaN();
             if (a <= 2)
                 return std::numeric_limits<T>::infinity();
             auto const [m1_hi, m1_lo] = detail::sd::two_sum(a, -1.0);
@@ -78,16 +80,20 @@ namespace wsl::random
         constexpr T skewness() const noexcept
         {
             double const a = alpha_;
-            if (a <= 3)
+            if (a <= 2)                                                     // variance infinie : rapport indéfini
                 return std::numeric_limits<T>::quiet_NaN();
+            if (a <= 3)                                                     // variance finie, moment d'ordre 3 infini
+                return std::numeric_limits<T>::infinity();
             return static_cast<T>(detail::sd::fmul(2 * (1 + a) / (a - 3), wsl::special::sqrt((a - 2) / a)));
         }
         constexpr T excess_kurtosis() const noexcept
         {
             namespace fp = detail::sd;
             double const a = alpha_;
-            if (a <= 4)
+            if (a <= 2)
                 return std::numeric_limits<T>::quiet_NaN();
+            if (a <= 4)
+                return std::numeric_limits<T>::infinity();
             double const num = ((fp::fmul(fp::fmul(a, a), a) + fp::fmul(a, a)) - fp::fmul(6.0, a)) - 2.0;
             return static_cast<T>(6 * num / (a * (a - 3) * (a - 4)));
         }
