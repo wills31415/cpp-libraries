@@ -105,7 +105,7 @@ namespace wsl::random
             }();
             for (std::size_t i = 0; i < dimension(); ++i)
                 for (std::size_t j = 0; j < dimension(); ++j)
-                    c(i, j) = covariance_entry(i, j);
+                    c[i, j] = covariance_entry(i, j);
             return c;
         }
         constexpr binomial<I> marginal(std::size_t i) const { return binomial<I>({.trials = n_, .p = p_[i]}); }

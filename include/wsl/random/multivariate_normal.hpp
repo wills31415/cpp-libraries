@@ -44,7 +44,7 @@ namespace wsl::random
 
         constexpr multivariate_normal(parameters p) : mu_(p.mean), sigma_(p.covariance), l_(make_matrix(p.mean.size()))
         {
-            if (mu_.size() < 1 || sigma_.size() != mu_.size())
+            if (mu_.size() < 1 || sigma_.extent(0) != mu_.size())
                 throw std::domain_error("wsl::random::multivariate_normal : moyenne et covariance de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
@@ -53,7 +53,7 @@ namespace wsl::random
                 throw std::domain_error("wsl::random::multivariate_normal : covariance non symétrique définie positive");
             detail::sd::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < dimension(); ++i)
-                s = detail::sum(s, detail::log_precise(l_(i, i)));
+                s = detail::sum(s, detail::log_precise(l_[i, i]));
             log_det_half_ = s;
         }
 
@@ -65,7 +65,7 @@ namespace wsl::random
         {
             value_type v = detail::make_vector<T, N>(dimension());
             for (std::size_t i = 0; i < dimension(); ++i)
-                v[i] = sigma_(i, i);
+                v[i] = sigma_[i, i];
             return v;
         }
         constexpr interval<value_type> support() const noexcept
@@ -80,7 +80,7 @@ namespace wsl::random
         }
         constexpr normal<T> marginal(std::size_t i) const
         {
-            return normal<T>({.mean = mu_[i], .stddev = static_cast<T>(wsl::special::sqrt(double(sigma_(i, i))))});
+            return normal<T>({.mean = mu_[i], .stddev = static_cast<T>(wsl::special::sqrt(double(sigma_[i, i])))});
         }
         // (x − μ)ᵀ Σ⁻¹ (x − μ)
         constexpr double mahalanobis_squared(value_type const& x) const noexcept
@@ -143,7 +143,7 @@ namespace wsl::random
             value_type x = detail::make_vector<T, N>(dimension());
             for (std::size_t i = 0; i < dimension(); ++i)
             {
-                auto const e = detail::dot(i + 1, [&](std::size_t k) { return std::pair{l_(i, k), z[k]}; });
+                auto const e = detail::dot(i + 1, [&](std::size_t k) { return std::pair{l_[i, k], z[k]}; });
                 auto const t = detail::sum(e, {double(mu_[i]), 0.0});
                 x[i] = static_cast<T>(t.hi + t.lo);
             }

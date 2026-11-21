@@ -738,7 +738,7 @@ namespace wsl::random
 
         constexpr explicit continuous_markov_chain(parameters p) : q_(std::move(p.generator)), start_(p.start)
         {
-            std::size_t const k = q_.size();
+            std::size_t const k = q_.extent(0);
             if (k < 1 || start_ >= k)
                 throw std::domain_error("wsl::random::continuous_markov_chain : au moins un état, départ valide");
             for (std::size_t i = 0; i < k; ++i)
@@ -749,15 +749,15 @@ namespace wsl::random
                 {
                     if (j == i)
                         continue;
-                    if (!(q_(i, j) >= 0) || !detail::is_finite(q_(i, j)))
+                    if (!(q_[i, j] >= 0) || !detail::is_finite(q_[i, j]))
                         throw std::domain_error("wsl::random::continuous_markov_chain : taux hors diagonale >= 0, finis");
-                    row[j] = q_(i, j);
-                    out = detail::sum(out, {q_(i, j), 0.0});
+                    row[j] = q_[i, j];
+                    out = detail::sum(out, {q_[i, j], 0.0});
                 }
-                auto const d = detail::sum(out, {q_(i, i), 0.0});
+                auto const d = detail::sum(out, {q_[i, i], 0.0});
                 if (!(detail::magnitude(d.hi) <= detail::sd::fmul(out.hi + 0x1p-1000, 0x1p-40)))
                     throw std::domain_error("wsl::random::continuous_markov_chain : chaque ligne du générateur doit sommer à 0");
-                rates_.push_back(-q_(i, i));
+                rates_.push_back(-q_[i, i]);
                 if (out.hi > 0)
                     jumps_.push_back(categorical<>({.p = row}));
                 else
@@ -765,7 +765,7 @@ namespace wsl::random
             }
         }
 
-        constexpr std::size_t size() const noexcept { return q_.size(); }
+        constexpr std::size_t size() const noexcept { return q_.extent(0); }
         constexpr square_matrix<double> const& generator() const noexcept { return q_; }
 
         // Loi de X(t) : π₀ e^{Qt}, par mise à l'échelle et carrés (Taylor de degré 24).
@@ -774,7 +774,7 @@ namespace wsl::random
             std::size_t const k = size();
             double norm = 0;
             for (std::size_t i = 0; i < k; ++i)
-                norm = std::max(norm, detail::sd::fmul(detail::magnitude(q_(i, i)), 2.0));
+                norm = std::max(norm, detail::sd::fmul(detail::magnitude(q_[i, i]), 2.0));
             int squarings = 0;
             double scale = t;
             while (detail::sd::fmul(norm, scale) > 0.5)
@@ -786,8 +786,8 @@ namespace wsl::random
             for (std::size_t i = 0; i < k; ++i)
                 for (std::size_t j = 0; j < k; ++j)
                 {
-                    a(i, j) = detail::sd::fmul(q_(i, j), scale);
-                    term(i, j) = e(i, j) = i == j ? 1.0 : 0.0;
+                    a[i, j] = detail::sd::fmul(q_[i, j], scale);
+                    term[i, j] = e[i, j] = i == j ? 1.0 : 0.0;
                 }
             for (int n = 1; n <= 24; ++n)
             {
@@ -795,15 +795,15 @@ namespace wsl::random
                 for (std::size_t i = 0; i < k; ++i)
                     for (std::size_t j = 0; j < k; ++j)
                     {
-                        term(i, j) = term(i, j) / n;
-                        e(i, j) = e(i, j) + term(i, j);
+                        term[i, j] = term[i, j] / n;
+                        e[i, j] = e[i, j] + term[i, j];
                     }
             }
             for (int s = 0; s < squarings; ++s)
                 e = detail::multiply(e, e);
             std::vector<double> pi(k);
             for (std::size_t j = 0; j < k; ++j)
-                pi[j] = e(start_, j) < 0 ? 0.0 : e(start_, j);
+                pi[j] = e[start_, j] < 0 ? 0.0 : e[start_, j];
             return categorical<>({.p = pi});
         }
 

@@ -58,7 +58,7 @@ consteval bool scenario() {
     for (int x : a.rows() | std::views::join) if (x != expected++) return false;
     // transposée
     auto t = a.transposed();
-    if (t[2, 1] != 6 || t.row_count() != 3) return false;
+    if (t[2, 1] != 6 || t.extent(0) != 3 || t.extent(1) != 2 || t.rank() != 2) return false;
     if (t.transposed() != a) return false;
     // tri d'une colonne à travers la vue
     a[0, 1] = 9;

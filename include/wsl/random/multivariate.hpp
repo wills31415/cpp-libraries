@@ -78,11 +78,13 @@ namespace wsl::random
             }
         }
 
-        constexpr std::size_t size() const noexcept { return N == dynamic ? n_ : N; }
-        constexpr T& operator()(std::size_t i, std::size_t j) noexcept { return data_[i * size() + j]; }
-        constexpr T const& operator()(std::size_t i, std::size_t j) const noexcept { return data_[i * size() + j]; }
+        // Dimensions comme std::mdspan : extent(0) = extent(1) = n ; accès m[i, j] (par lignes).
+        static constexpr std::size_t rank() noexcept { return 2; }
+        constexpr std::size_t extent(std::size_t) const noexcept { return N == dynamic ? n_ : N; }
+        constexpr T& operator[](std::size_t i, std::size_t j) noexcept { return data_[i * extent(0) + j]; }
+        constexpr T const& operator[](std::size_t i, std::size_t j) const noexcept { return data_[i * extent(0) + j]; }
 
-        friend constexpr bool operator==(square_matrix const& a, square_matrix const& b) noexcept { return a.size() == b.size() && a.data_ == b.data_; }
+        friend constexpr bool operator==(square_matrix const& a, square_matrix const& b) noexcept { return a.extent(0) == b.extent(0) && a.data_ == b.data_; }
 
     private:
         std::size_t n_ = N == dynamic ? 0 : N;
@@ -109,28 +111,28 @@ namespace wsl::random
         template <class T, std::size_t N>
         constexpr bool cholesky(square_matrix<T, N> const& s, square_matrix<double, N>& l)
         {
-            std::size_t const n = s.size();
+            std::size_t const n = s.extent(0);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = 0; j < n; ++j)
-                    if (!(double(s(i, j)) == double(s(j, i))) || !is_finite(double(s(i, j))))
+                    if (!(double(s[i, j]) == double(s[j, i])) || !is_finite(double(s[i, j])))
                         return false;
             for (std::size_t j = 0; j < n; ++j)
             {
-                auto d = dot(j, [&](std::size_t k) { return std::pair{l(j, k), l(j, k)}; });
-                auto const r = sum({double(s(j, j)), 0.0}, {-d.hi, -d.lo});
+                auto d = dot(j, [&](std::size_t k) { return std::pair{l[j, k], l[j, k]}; });
+                auto const r = sum({double(s[j, j]), 0.0}, {-d.hi, -d.lo});
                 double const v = r.hi + r.lo;
                 if (!(v > 0))
                     return false;
                 double const ljj = wsl::special::sqrt(v);
-                l(j, j) = ljj;
+                l[j, j] = ljj;
                 for (std::size_t i = j + 1; i < n; ++i)
                 {
-                    auto const e = dot(j, [&](std::size_t k) { return std::pair{l(i, k), l(j, k)}; });
-                    auto const t = sum({double(s(i, j)), 0.0}, {-e.hi, -e.lo});
-                    l(i, j) = (t.hi + t.lo) / ljj;
+                    auto const e = dot(j, [&](std::size_t k) { return std::pair{l[i, k], l[j, k]}; });
+                    auto const t = sum({double(s[i, j]), 0.0}, {-e.hi, -e.lo});
+                    l[i, j] = (t.hi + t.lo) / ljj;
                 }
                 for (std::size_t i = 0; i < j; ++i)
-                    l(i, j) = 0;
+                    l[i, j] = 0;
             }
             return true;
         }
@@ -149,8 +151,8 @@ namespace wsl::random
         constexpr sd::double_double half_log_determinant(square_matrix<double, N> const& l) noexcept
         {
             sd::double_double s{0.0, 0.0};
-            for (std::size_t i = 0; i < l.size(); ++i)
-                s = sum(s, log_precise(l(i, i)));
+            for (std::size_t i = 0; i < l.extent(0); ++i)
+                s = sum(s, log_precise(l[i, i]));
             return s;
         }
 
@@ -158,13 +160,13 @@ namespace wsl::random
         template <std::size_t N>
         constexpr square_matrix<double, N> multiply(square_matrix<double, N> const& a, square_matrix<double, N> const& b)
         {
-            std::size_t const n = a.size();
+            std::size_t const n = a.extent(0);
             auto c = make_matrix<double, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = 0; j < n; ++j)
                 {
-                    auto const t = dot(n, [&](std::size_t k) { return std::pair{a(i, k), b(k, j)}; });
-                    c(i, j) = t.hi + t.lo;
+                    auto const t = dot(n, [&](std::size_t k) { return std::pair{a[i, k], b[k, j]}; });
+                    c[i, j] = t.hi + t.lo;
                 }
             return c;
         }
@@ -173,13 +175,13 @@ namespace wsl::random
         template <class T, std::size_t N>
         constexpr square_matrix<T, N> gram(square_matrix<double, N> const& b)
         {
-            std::size_t const n = b.size();
+            std::size_t const n = b.extent(0);
             auto c = make_matrix<T, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = 0; j <= i; ++j)
                 {
-                    auto const t = dot(n, [&](std::size_t k) { return std::pair{b(i, k), b(j, k)}; });
-                    c(i, j) = c(j, i) = static_cast<T>(t.hi + t.lo);
+                    auto const t = dot(n, [&](std::size_t k) { return std::pair{b[i, k], b[j, k]}; });
+                    c[i, j] = c[j, i] = static_cast<T>(t.hi + t.lo);
                 }
             return c;
         }
@@ -188,14 +190,14 @@ namespace wsl::random
         template <std::size_t N>
         constexpr square_matrix<double, N> lower_inverse(square_matrix<double, N> const& a)
         {
-            std::size_t const n = a.size();
+            std::size_t const n = a.extent(0);
             auto r = make_matrix<double, N>(n);
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = j; i < n; ++i)
                 {
-                    auto const e = dot(i - j, [&](std::size_t k) { return std::pair{a(i, j + k), r(j + k, j)}; });
+                    auto const e = dot(i - j, [&](std::size_t k) { return std::pair{a[i, j + k], r[j + k, j]}; });
                     auto const t = sum({i == j ? 1.0 : 0.0, 0.0}, {-e.hi, -e.lo});
-                    r(i, j) = (t.hi + t.lo) / a(i, i);
+                    r[i, j] = (t.hi + t.lo) / a[i, i];
                 }
             return r;
         }
@@ -204,16 +206,16 @@ namespace wsl::random
         template <std::size_t N>
         constexpr sd::double_double trace_solve(square_matrix<double, N> const& l, square_matrix<double, N> const& m)
         {
-            std::size_t const n = l.size();
+            std::size_t const n = l.extent(0);
             sd::double_double s{0.0, 0.0};
             auto column = make_vector<double, N>(n);
             for (std::size_t j = 0; j < n; ++j)
             {
                 for (std::size_t i = 0; i < n; ++i)
                 {
-                    auto const e = dot(i, [&](std::size_t k) { return std::pair{l(i, k), column[k]}; });
-                    auto const t = sum({m(i, j), 0.0}, {-e.hi, -e.lo});
-                    column[i] = (t.hi + t.lo) / l(i, i);
+                    auto const e = dot(i, [&](std::size_t k) { return std::pair{l[i, k], column[k]}; });
+                    auto const t = sum({m[i, j], 0.0}, {-e.hi, -e.lo});
+                    column[i] = (t.hi + t.lo) / l[i, i];
                 }
                 s = sum(s, dot(n, [&](std::size_t k) { return std::pair{column[k], column[k]}; }));
             }
@@ -242,12 +244,12 @@ namespace wsl::random
         template <std::size_t N, class V>
         constexpr V forward_substitution(square_matrix<double, N> const& l, V b)
         {
-            std::size_t const n = l.size();
+            std::size_t const n = l.extent(0);
             for (std::size_t i = 0; i < n; ++i)
             {
-                auto const e = dot(i, [&](std::size_t k) { return std::pair{l(i, k), double(b[k])}; });
+                auto const e = dot(i, [&](std::size_t k) { return std::pair{l[i, k], double(b[k])}; });
                 auto const t = sum({double(b[i]), 0.0}, {-e.hi, -e.lo});
-                b[i] = static_cast<typename V::value_type>((t.hi + t.lo) / l(i, i));
+                b[i] = static_cast<typename V::value_type>((t.hi + t.lo) / l[i, i]);
             }
             return b;
         }

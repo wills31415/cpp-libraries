@@ -92,7 +92,7 @@ int main()
     {
         wsl::random::dirichlet<double, 3> const D({.alpha = {1.0, 2.0, 3.0}});
         assert(D.dimension() == 3 && ulps(D.mean()[0], 1.0 / 6, 1) && D.mean()[2] == 0.5);
-        assert(ulps(D.variance()[0], 5.0 / 252, 1) && ulps(D.covariance()(0, 1), -2.0 / 252, 1) && D.covariance()(1, 0) == D.covariance()(0, 1));
+        assert((ulps(D.variance()[0], 5.0 / 252, 1) && ulps(D.covariance()[0, 1], -2.0 / 252, 1) && D.covariance()[1, 0] == D.covariance()[0, 1]));
         assert(ulps(wsl::random::pdf(D, {0.2, 0.3, 0.5}), 4.5) && ulps(wsl::random::log_pdf(D, {0.2, 0.3, 0.5}), std::log(4.5), 4));
         assert(ulps(D.entropy(), -1.2443445622221007));
         assert(wsl::random::pdf(D, {0.2, 0.3, 0.6}) == 0 && wsl::random::pdf(D, {-0.1, 0.6, 0.5}) == 0 && wsl::random::log_pdf(D, {0.2, 0.3, 0.6}) == -INFINITY);
@@ -123,7 +123,7 @@ int main()
     {
         wsl::random::multinomial<std::int64_t, 3> const M({.trials = 10, .p = {0.2, 0.3, 0.5}});
         assert(ulps(wsl::random::pmf(M, {2, 3, 5}), 0.08505) && wsl::random::pmf(M, {2, 3, 4}) == 0 && wsl::random::pmf(M, {-1, 6, 5}) == 0 && wsl::random::log_pmf(M, {11, 0, -1}) == -INFINITY);
-        assert(M.mean()[2] == 5 && ulps(M.covariance()(0, 1), -0.6, 1) && ulps(M.variance()[1], 2.1, 1) && M.marginal(1).p() == 0.3);
+        assert((M.mean()[2] == 5 && ulps(M.covariance()[0, 1], -0.6, 1) && ulps(M.variance()[1], 2.1, 1) && M.marginal(1).p() == 0.3));
         double total = 0;                                                   // Σ des masses = 1
         for (std::int64_t a = 0; a <= 10; ++a)
             for (std::int64_t b = 0; a + b <= 10; ++b)
@@ -207,8 +207,8 @@ int main()
     {
         wsl::random::multivariate_student_t<double, 2> const X({.location = {0, 1}, .scale = {{1, 0.3}, {0.3, 2}}, .degrees_of_freedom = 4});
         assert(ulps(wsl::random::pdf(X, {0.5, 0.5}), 0.082453654979996737) && ulps(X.entropy(), 3.6614286874386147));
-        assert(X.covariance()(0, 0) == 2 && ulps(X.covariance()(0, 1), 0.6, 1) && X.mean()[1] == 1);
-        assert(std::isinf(wsl::random::multivariate_student_t<double, 2>({.location = {0, 0}, .scale = {{1, 0}, {0, 1}}, .degrees_of_freedom = 1.5}).covariance()(0, 0)));
+        assert((X.covariance()[0, 0] == 2 && ulps(X.covariance()[0, 1], 0.6, 1) && X.mean()[1] == 1));
+        assert((std::isinf(wsl::random::multivariate_student_t<double, 2>({.location = {0, 0}, .scale = {{1, 0}, {0, 1}}, .degrees_of_freedom = 1.5}).covariance()[0, 0])));
         assert(std::isnan(wsl::random::multivariate_student_t<double, 2>({.location = {0, 0}, .scale = {{1, 0}, {0, 1}}, .degrees_of_freedom = 1.0}).mean()[0]));
         wsl::random::multivariate_student_t<double, 1> const One({.location = {0}, .scale = {{1}}, .degrees_of_freedom = 3});   // = Student
         for (double t : {-4.0, 0.0, 0.7, 12.0})
@@ -225,7 +225,7 @@ int main()
         wsl::random::square_matrix<double, 2> const A{{4, 1}, {1, 9}};
         wsl::random::wishart<double, 2> const W({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 5});
         assert(ulps(wsl::random::log_pdf(W, A), -6.6844907153650172, 2) && ulps(W.entropy(), 7.8199650891973836, 2));
-        assert(W.mean()(1, 1) == 10 && ulps(W.variance()(0, 1), 10.2, 1) && W.mode()(0, 0) == 2 && wsl::random::log_pdf(W, wsl::random::square_matrix<double, 2>{{1, 2}, {2, 1}}) == -INFINITY);
+        assert((W.mean()[1, 1] == 10 && ulps(W.variance()[0, 1], 10.2, 1) && W.mode()[0, 0] == 2 && wsl::random::log_pdf(W, wsl::random::square_matrix<double, 2>{{1, 2}, {2, 1}}) == -INFINITY));
         wsl::random::wishart<double, 1> const W1({.scale = {{2}}, .degrees_of_freedom = 3});   // = gamma(3/2, échelle 4)
         for (double x : {0.5, 3.0, 20.0})
             assert(close(wsl::random::log_pdf(W1, wsl::random::square_matrix<double, 1>{{x}}), wsl::random::log_pdf(wsl::random::gamma({.scale = 4.0, .shape = 1.5}), x), 1e-14));
@@ -234,22 +234,22 @@ int main()
         for (int i = 0; i < n; ++i)
         {
             auto const w = wsl::random::sample(W, g);
-            assert(w(0, 1) == w(1, 0) && w(0, 0) > 0 && w(0, 0) * w(1, 1) > w(0, 1) * w(0, 1));
-            m01 += w(0, 1);
-            d.push_back(w(1, 1));
+            assert((w[0, 1] == w[1, 0] && w[0, 0] > 0 && w[0, 0] * w[1, 1] > w[0, 1] * w[0, 1]));
+            m01 += w[0, 1];
+            d.push_back(w[1, 1]);
         }
         assert(std::abs(m01 / n - 1) < 0.06);
         auto const G = W.marginal(1);
         assert(kolmogorov_smirnov(d, [&](double v) { return wsl::random::cdf(G, v); }) < 1.95);
         wsl::random::inverse_wishart<double, 2> const I({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 6});
         assert(ulps(wsl::random::log_pdf(I, A), -19.926453791435178, 2) && std::abs(I.entropy() - -0.83656422870532905) < 1e-15);
-        assert(ulps(I.mean()(1, 1), 2.0 / 3, 1) && ulps(I.mode()(0, 0), 1.0 / 9, 1));
+        assert((ulps(I.mean()[1, 1], 2.0 / 3, 1) && ulps(I.mode()[0, 0], 1.0 / 9, 1)));
         double i00 = 0;
         for (int i = 0; i < n; ++i)
         {
             auto const x = wsl::random::sample(I, g);
-            assert(x(0, 1) == x(1, 0) && x(0, 0) > 0);
-            i00 += x(0, 0);
+            assert((x[0, 1] == x[1, 0] && x[0, 0] > 0));
+            i00 += x[0, 0];
         }
         assert(std::abs(i00 / n - 1.0 / 3) < 0.02);
         assert(throws_domain_error([] { wsl::random::wishart<double, 2> Y({.scale = {{1, 0}, {0, 1}}, .degrees_of_freedom = 0.9}); }));
@@ -269,12 +269,12 @@ int main()
                 {
                     double s = 0;
                     for (int k = 0; k < 3; ++k)
-                        s += q(k, a) * q(k, b);
+                        s += q[k, a] * q[k, b];
                     assert(std::abs(s - (a == b)) < 1e-15);
                 }
-            double const det = q(0, 0) * (q(1, 1) * q(2, 2) - q(1, 2) * q(2, 1)) - q(0, 1) * (q(1, 0) * q(2, 2) - q(1, 2) * q(2, 0)) + q(0, 2) * (q(1, 0) * q(2, 1) - q(1, 1) * q(2, 0));
+            double const det = q[0, 0] * (q[1, 1] * q[2, 2] - q[1, 2] * q[2, 1]) - q[0, 1] * (q[1, 0] * q[2, 2] - q[1, 2] * q[2, 0]) + q[0, 2] * (q[1, 0] * q[2, 1] - q[1, 1] * q[2, 0]);
             positive += det > 0;
-            z.push_back(q(2, 0));                                           // colonne uniforme sur S² : Archimède
+            z.push_back(q[2, 0]);                                           // colonne uniforme sur S² : Archimède
         }
         assert(kolmogorov_smirnov(z, [](double v) { return (v + 1) / 2; }) < 1.95 && std::abs(positive / double(n) - 0.5) < 0.015);
         wsl::random::haar_unitary<double> const U({.dimension = 4});
@@ -287,10 +287,10 @@ int main()
                 {
                     std::complex<double> s = 0;
                     for (int k = 0; k < 4; ++k)
-                        s += std::conj(u(k, a)) * u(k, b);
+                        s += std::conj(u[k, a]) * u[k, b];
                     assert(std::abs(s - double(a == b)) < 2e-15);
                 }
-            u2.push_back(std::norm(u(0, 0)));                               // |u₀₀|² ~ bêta(1, n − 1)
+            u2.push_back(std::norm(u[0, 0]));                               // |u₀₀|² ~ bêta(1, n − 1)
         }
         assert(kolmogorov_smirnov(u2, [](double t) { return 1 - std::pow(1 - t, 3); }) < 1.95);
         wsl::random::goe<double, 3> const H;
@@ -300,9 +300,9 @@ int main()
         for (int i = 0; i < n; ++i)
         {
             auto const h = wsl::random::sample(H, g);
-            assert(h(0, 2) == h(2, 0));
-            v00 += h(0, 0) * h(0, 0);
-            v01 += h(0, 1) * h(0, 1);
+            assert((h[0, 2] == h[2, 0]));
+            v00 += h[0, 0] * h[0, 0];
+            v01 += h[0, 1] * h[0, 1];
         }
         assert(std::abs(v00 / n - 1) < 0.04 && std::abs(v01 / n - 0.5) < 0.02);
         wsl::random::gue<double, 2> const K;
@@ -312,8 +312,8 @@ int main()
         for (int i = 0; i < n; ++i)
         {
             auto const k = wsl::random::sample(K, g);
-            assert(k(0, 1) == std::conj(k(1, 0)) && k(0, 0).imag() == 0);
-            vr += k(0, 1).real() * k(0, 1).real();
+            assert((k[0, 1] == std::conj(k[1, 0]) && k[0, 0].imag() == 0));
+            vr += k[0, 1].real() * k[0, 1].real();
         }
         assert(std::abs(vr / n - 0.5) < 0.02);
     }
@@ -397,7 +397,7 @@ int main()
         wsl::random::haar_unitary<double, 3> const HU;
         wsl::random::goe<double, 3> const GO;
         wsl::random::gue<double, 3> const GU;
-        auto const all = [](fnv1a& h, auto const& m) { for (std::size_t i = 0; i < m.size(); ++i) for (std::size_t j = 0; j < m.size(); ++j) { if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m(i, j))>, double>) h.add(bits(m(i, j))); else { h.add(bits(m(i, j).real())); h.add(bits(m(i, j).imag())); } } };
+        auto const all = [](fnv1a& h, auto const& m) { for (std::size_t i = 0; i < m.extent(0); ++i) for (std::size_t j = 0; j < m.extent(0); ++j) { if constexpr (std::is_same_v<std::remove_cvref_t<decltype(m[i, j])>, double>) h.add(bits(m[i, j])); else { h.add(bits(m[i, j].real())); h.add(bits(m[i, j].imag())); } } };
         ok &= check("multivariate_student", fingerprint([&](fnv1a& h) { for (double v : wsl::random::sample(T2, x)) h.add(bits(v)); }), 0x66189197e5f2a049);
         ok &= check("wishart", fingerprint([&](fnv1a& h) { all(h, wsl::random::sample(W, x)); }), 0x3526188a6af0a6bd);
         ok &= check("inverse_wishart", fingerprint([&](fnv1a& h) { all(h, wsl::random::sample(IW, x)); }), 0x621e8af1f4c88f70);
@@ -413,13 +413,20 @@ int main()
         ok &= check("vmf (dynamique)", fingerprint([&](fnv1a& h) { for (double v : wsl::random::sample(VD, x)) h.add(bits(v)); }), 0xb45be65456b07a76);
         ok &= check("functions 2", fingerprint([&](fnv1a& h) {
             auto const w = wsl::random::sample(W, x);
-            h.add(bits(wsl::random::log_pdf(W, w)) ^ (bits(wsl::random::log_pdf(T2, {w(0, 0), w(1, 2)})) << 1) ^ (bits(wsl::random::log_pdf(GO, wsl::random::sample(GO, x))) << 2));
+            h.add(bits(wsl::random::log_pdf(W, w)) ^ (bits(wsl::random::log_pdf(T2, {w[0, 0], w[1, 2]})) << 1) ^ (bits(wsl::random::log_pdf(GO, wsl::random::sample(GO, x))) << 2));
         }, 1 << 8), 0xcebc860185777128);
         ok &= check("functions", fingerprint([&](fnv1a& h) {
             namespace fp = wsl::special::detail;
             double const u = wsl::random::uniform_real(x), v = fp::fmul(0.5, u);
             h.add(bits(wsl::random::pdf(D, {v, 0.25, 0.75 - v})) ^ (bits(wsl::random::log_pdf(X, {u, v, -u})) << 1) ^ (bits(wsl::random::pmf(M, {5, 10, 15, 20})) << 2));
         }, 1 << 9), 0x5e2d79ac0279d5e6);
+    }
+    // supports et variances des lois matricielles (instancient les accès m[i, j])
+    {
+        wsl::random::multivariate_normal<double, 2> const N({.mean = {0.0, 1.0}, .covariance = {{2.0, 0.5}, {0.5, 3.0}}});
+        assert(N.variance()[0] == 2 && N.variance()[1] == 3);
+        auto const box = wsl::random::goe<double, 2>().support();
+        assert((box.lower[0, 1] < 0 && box.upper[1, 0] > 0));
     }
     assert(ok);
     std::printf("test_random_multivariate : ok\n");

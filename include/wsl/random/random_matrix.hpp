@@ -97,8 +97,8 @@ namespace wsl::random
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = 0; j < n; ++j)
                 {
-                    a(i, j) = lo;
-                    b(i, j) = up;
+                    a[i, j] = lo;
+                    b[i, j] = up;
                 }
             return {a, b};
         }
@@ -147,7 +147,7 @@ namespace wsl::random
             auto q = detail::make_matrix<T, N>(n);
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = 0; i < n; ++i)
-                    q(i, j) = static_cast<T>(re[j][i]);
+                    q[i, j] = static_cast<T>(re[j][i]);
             return q;
         }
 
@@ -188,7 +188,7 @@ namespace wsl::random
             auto q = detail::make_matrix<std::complex<T>, N>(n);
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = 0; i < n; ++i)
-                    q(i, j) = {static_cast<T>(re[j][i]), static_cast<T>(im[j][i])};
+                    q[i, j] = {static_cast<T>(re[j][i]), static_cast<T>(im[j][i])};
             return q;
         }
 
@@ -227,14 +227,14 @@ namespace wsl::random
             namespace fp = detail::sd;
             std::size_t const n = n_;
             constexpr fp::double_double none{-std::numeric_limits<double>::infinity(), 0.0};
-            if (h.size() != n)
+            if (h.extent(0) != n)
                 return none;
             fp::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
                 {
-                    double const v = h(i, j);
-                    if (!(v == double(h(j, i))) || !detail::is_finite(v))
+                    double const v = h[i, j];
+                    if (!(v == double(h[j, i])) || !detail::is_finite(v))
                         return none;
                     auto const q = detail::product(v, v);
                     s = detail::sum(s, i == j ? fp::double_double{fp::fmul(q.hi, 0.5), fp::fmul(q.lo, 0.5)} : q);
@@ -251,7 +251,7 @@ namespace wsl::random
             auto h = detail::make_matrix<T, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
-                    h(i, j) = h(j, i) = static_cast<T>(wsl::random::sample(i == j ? one : half, g));
+                    h[i, j] = h[j, i] = static_cast<T>(wsl::random::sample(i == j ? one : half, g));
             return h;
         }
 
@@ -302,14 +302,14 @@ namespace wsl::random
             namespace fp = detail::sd;
             std::size_t const n = n_;
             constexpr fp::double_double none{-std::numeric_limits<double>::infinity(), 0.0};
-            if (h.size() != n)
+            if (h.extent(0) != n)
                 return none;
             fp::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
                 {
-                    double const a = h(i, j).real(), b = h(i, j).imag();
-                    if (!(a == double(h(j, i).real())) || !(b == -double(h(j, i).imag())) || !detail::is_finite(a) || !detail::is_finite(b) || (i == j && b != 0))
+                    double const a = h[i, j].real(), b = h[i, j].imag();
+                    if (!(a == double(h[j, i].real())) || !(b == -double(h[j, i].imag())) || !detail::is_finite(a) || !detail::is_finite(b) || (i == j && b != 0))
                         return none;
                     auto const q = detail::sum(detail::product(a, a), detail::product(b, b));
                     s = detail::sum(s, i == j ? fp::double_double{fp::fmul(q.hi, 0.5), fp::fmul(q.lo, 0.5)} : q);
@@ -328,13 +328,13 @@ namespace wsl::random
                 for (std::size_t j = i; j < n; ++j)
                 {
                     if (i == j)
-                        h(i, i) = {static_cast<T>(wsl::random::sample(one, g)), T(0)};
+                        h[i, i] = {static_cast<T>(wsl::random::sample(one, g)), T(0)};
                     else
                     {
                         T const a = static_cast<T>(wsl::random::sample(half, g));
                         T const b = static_cast<T>(wsl::random::sample(half, g));
-                        h(i, j) = {a, b};
-                        h(j, i) = {a, -b};
+                        h[i, j] = {a, b};
+                        h[j, i] = {a, -b};
                     }
                 }
             return h;

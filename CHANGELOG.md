@@ -11,6 +11,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
   la revue des interfaces (docs/interfaces.md).
 
+### array2d
+
+- Rupture : `extent(i)` et `rank()` (comme `std::mdspan`) remplacent `row_count()` et
+  `column_count()` (décision 6 : conventions communes avec `square_matrix`). Commentaire
+  d'en-tête (exemple vérifié), message d'exception préfixé `wsl::array2d`, espaces après
+  `if`/`for`.
+
 ### graded, graded_io
 
 - Rupture (interne) : aides internes dans `wsl::detail::graded` (au lieu de `wsl::detail`,
@@ -100,6 +107,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   d'abord, comme `mt19937_64` ; xoshiro : état nul remplacé par celui de `seed(0)`),
   `seed()`, `os << e` et `is >> e` (décimal ; lecture invalide : moteur intact, `failbit`).
   `philox4x64::discard` en O(1) (compteur + n/4 ; il avançait bloc par bloc).
+- Rupture : `square_matrix` suit les conventions d'`array2d` (décision 6) : accès `m[i, j]`
+  (au lieu de `m(i, j)`), dimensions `extent(i)` et `rank()` ; `size()`, qui rendait la
+  dimension n et non le nombre d'éléments, est retiré (plutôt que de changer de sens).
+  Dans `assert`, `m[i, j]` demande des parenthèses doubles (virgule de macro).
 - Intensités rationnelles exactes (décision 5 révisée) : gamma, exponentielle et Erlang
   stockent λ = P/Q·2ᵉ réduite ; `.rate` ou `.scale` (double, ou `wr::ratio(a, b)`), exactes
   toutes deux, aucune des deux : λ = 1. `==` est l'égalité en loi

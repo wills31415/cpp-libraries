@@ -92,7 +92,7 @@ namespace wsl::random
             square_matrix<T, N> c = make_matrix();
             for (std::size_t i = 0; i < dimension(); ++i)
                 for (std::size_t j = 0; j < dimension(); ++j)
-                    c(i, j) = static_cast<T>(covariance_entry(i, j));
+                    c[i, j] = static_cast<T>(covariance_entry(i, j));
             return c;
         }
         // (αᵢ − 1)/(α₀ − K), tous les αᵢ > 1 ; NaN sinon.

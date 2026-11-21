@@ -1,5 +1,15 @@
 #pragma once
 
+// Tableau 2D de taille fixe R × C (agrégat, comme std::array), disposition par lignes
+// (row_major, défaut) ou par colonnes (column_major). Accès m[i, j] (C++23), dimensions
+// extent(0) = R et extent(1) = C comme std::mdspan ; vues de lignes et de colonnes
+// (std::span si contiguës, strided_view sinon), to_mdspan().
+//
+//   wsl::array2d<int, 2, 3> m = wsl::array2d<int, 2, 3>::from_rows({{1, 2, 3}, {4, 5, 6}});
+//   m[1, 2];                      // 6
+//   for (int x : m.column(1)) …   // 2, 5
+//   auto t = m.transposed();      // 3 × 2
+
 #include <algorithm>
 #include <compare>          // IWYU pragma: keep
 #include <concepts>
@@ -13,8 +23,6 @@
 #if __has_include(<mdspan>)
 #include <mdspan>
 #endif
-
-
 
 namespace wsl
 {
@@ -112,7 +120,7 @@ namespace wsl
     requires layout2d<Layout, R, C>
     struct array2d
     {
-        static_assert(R > 0 && C > 0, "Dimensions nulles non prises en charge... ");
+        static_assert(R > 0 && C > 0, "wsl::array2d : dimensions nulles non prises en charge");
 
         using value_type                = T;
         using layout_type               = Layout;
@@ -129,8 +137,8 @@ namespace wsl
 
         T elems_[R * C];
 
-        static constexpr size_type row_count() noexcept         {return R;}
-        static constexpr size_type column_count() noexcept      {return C;}
+        static constexpr size_type rank() noexcept              {return 2;}
+        static constexpr size_type extent(size_type i) noexcept {return i == 0 ? R : C;}
         static constexpr size_type size() noexcept              {return R * C;}
         static constexpr size_type max_size() noexcept          {return R * C;}
         [[nodiscard]] static constexpr bool empty() noexcept    {return false;}
@@ -203,8 +211,8 @@ namespace wsl
         requires std::default_initializable<T> && std::copyable<T>
         {
             array2d result{};
-            for(size_type i = 0; i < R; ++i)
-                for(size_type j = 0; j < C; ++j)
+            for (size_type i = 0; i < R; ++i)
+                for (size_type j = 0; j < C; ++j)
                     result[i, j] = values[i][j];
             return result;
         }
@@ -224,25 +232,25 @@ namespace wsl
         requires std::default_initializable<T> && std::copyable<T>
         {
             array2d<T, C, R, Layout> result{};
-            for(size_type i = 0; i < R; ++i)
-                for(size_type j = 0; j < C; ++j)
+            for (size_type i = 0; i < R; ++i)
+                for (size_type j = 0; j < C; ++j)
                     result[j, i] = (*this)[i, j];
             return result;
         }
 
         friend constexpr bool operator ==  (array2d const&, array2d const&) = default;
 
-        // Pas de relation d'ordre canonique au sens mathématique entre deux tableaux 2D : l'opérateur est donc volontairement supprimé. 
+        // Pas de relation d'ordre canonique entre deux tableaux 2D : l'opérateur est volontairement supprimé.
         friend constexpr auto operator <=> (array2d const&, array2d const&) = delete;
 
     private:
         static constexpr void check_bounds(size_type i, size_type j)
         {
-            if(i >= R || j >= C) throw std::out_of_range("array2d::at : Indice hors bornes... ");
+            if (i >= R || j >= C) throw std::out_of_range("wsl::array2d::at : indice hors bornes");
         }
     };
 
-}   //namespace wsl
+}   // namespace wsl
 
 
 template <typename T>

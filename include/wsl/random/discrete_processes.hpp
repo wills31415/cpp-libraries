@@ -233,20 +233,20 @@ namespace wsl::random
             std::vector<double> initial;
         };
 
-        constexpr explicit markov_chain(from_state p) : p_(std::move(p.transition)), initial_(point_mass(p.start, p_.size()))
+        constexpr explicit markov_chain(from_state p) : p_(std::move(p.transition)), initial_(point_mass(p.start, p_.extent(0)))
         {
-            if (p.start >= p_.size())
+            if (p.start >= p_.extent(0))
                 throw std::domain_error("wsl::random::markov_chain : état initial hors de {0, …, K − 1}");
             build();
         }
         constexpr explicit markov_chain(from_law p) : p_(std::move(p.transition)), initial_(std::move(p.initial))
         {
-            if (initial_.size() != p_.size())
+            if (initial_.size() != p_.extent(0))
                 throw std::domain_error("wsl::random::markov_chain : loi initiale de dimension différente");
             build();
         }
 
-        constexpr std::size_t size() const noexcept { return p_.size(); }
+        constexpr std::size_t size() const noexcept { return p_.extent(0); }
         constexpr square_matrix<double> const& transition() const noexcept { return p_; }
         constexpr double probability(std::size_t i, std::size_t j) const noexcept { return wsl::random::pmf(rows_[i], j); }
         constexpr bool is_absorbing(std::size_t i) const noexcept { return probability(i, i) == 1; }
@@ -274,7 +274,7 @@ namespace wsl::random
             std::vector<std::vector<double>> a(k, std::vector<double>(k + 1, 0.0));
             for (std::size_t i = 0; i < k; ++i)                             // ligne i : Σ_j (P_ji − δ_ij) π_j = 0
                 for (std::size_t j = 0; j < k; ++j)
-                    a[i][j] = q(j, i) - (i == j ? 1.0 : 0.0);
+                    a[i][j] = q[j, i] - (i == j ? 1.0 : 0.0);
             for (std::size_t j = 0; j <= k; ++j)                            // dernière ligne : Σ π = 1
                 a[k - 1][j] = 1.0;
             for (std::size_t c = 0; c < k; ++c)
@@ -348,7 +348,7 @@ namespace wsl::random
 
         constexpr void build()
         {
-            std::size_t const k = p_.size();
+            std::size_t const k = p_.extent(0);
             if (k < 1)
                 throw std::domain_error("wsl::random::markov_chain : au moins un état");
             for (std::size_t i = 0; i < k; ++i)
@@ -357,7 +357,7 @@ namespace wsl::random
                 detail::sd::double_double s{0.0, 0.0};
                 for (std::size_t j = 0; j < k; ++j)
                 {
-                    row[j] = p_(i, j);
+                    row[j] = p_[i, j];
                     if (!(row[j] >= 0) || !detail::is_finite(row[j]))
                         throw std::domain_error("wsl::random::markov_chain : probabilités de transition >= 0, finies");
                     s = detail::sum(s, {row[j], 0.0});
@@ -376,7 +376,7 @@ namespace wsl::random
             square_matrix<double> q(size());
             for (std::size_t i = 0; i < size(); ++i)
                 for (std::size_t j = 0; j < size(); ++j)
-                    q(i, j) = probability(i, j);
+                    q[i, j] = probability(i, j);
             return q;
         }
         constexpr std::vector<double> normalized_initial() const
@@ -391,7 +391,7 @@ namespace wsl::random
             std::vector<double> r(v.size());
             for (std::size_t j = 0; j < v.size(); ++j)
             {
-                auto const t = detail::dot(v.size(), [&](std::size_t i) { return std::pair{v[i], m(i, j)}; });
+                auto const t = detail::dot(v.size(), [&](std::size_t i) { return std::pair{v[i], m[i, j]}; });
                 r[j] = t.hi + t.lo;
             }
             return r;

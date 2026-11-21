@@ -1006,7 +1006,7 @@ int main()
         assert(wr::stable({.alpha = 0.5, .beta = 1.0}).mean() == inf && wr::stable({.alpha = 0.5, .beta = -1.0}).mean() == -inf && nan(wr::stable({.alpha = 0.5}).mean()));
         assert(nan(wr::stable({.alpha = 0.5}).variance()) && wr::stable({.alpha = 1.5}).variance() == inf && wr::stable({.alpha = 1.5}).mean() == 0);
         auto const M = wr::inverse_wishart<double, 2>({.scale = {{1.0, 0.2}, {0.2, 2.0}}, .degrees_of_freedom = 2.5}).mean();
-        assert(M(0, 0) == inf && M(1, 1) == inf && nan(M(0, 1)));
+        assert((M[0, 0] == inf && M[1, 1] == inf && nan(M[0, 1])));
         // types des constantes
         static_assert(std::is_same_v<decltype(wr::von_mises<float>({.concentration = 1.0f}).entropy()), float>);
         static_assert(std::is_same_v<decltype(wr::multivariate_normal<float, 2>({.mean = {0.0f, 0.0f}, .covariance = {{1.0f, 0.0f}, {0.0f, 1.0f}}}).entropy()), float>);

@@ -48,9 +48,9 @@ namespace wsl::random
             normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (std::size_t i = 0; i < p; ++i)
             {
-                a(i, i) = wsl::special::sqrt(wsl::random::sample(chi[i], g));
+                a[i, i] = wsl::special::sqrt(wsl::random::sample(chi[i], g));
                 for (std::size_t j = 0; j < i; ++j)
-                    a(i, j) = wsl::random::sample(standard, g);
+                    a[i, j] = wsl::random::sample(standard, g);
             }
             return a;
         }
@@ -66,9 +66,9 @@ namespace wsl::random
             sd::double_double log_det_half{}, log_gamma_p{};
 
             constexpr wishart_base(T degrees, square_matrix<T, N> const& scale, char const* name)
-                : n(degrees), v(scale), l(make_matrix<double, N>(scale.size()))
+                : n(degrees), v(scale), l(make_matrix<double, N>(scale.extent(0)))
             {
-                std::size_t const p = v.size();
+                std::size_t const p = v.extent(0);
                 if (p < 1)
                     throw std::domain_error(name);
                 if (!(double(n) > double(p) - 1) || !is_finite(n))
@@ -81,7 +81,7 @@ namespace wsl::random
                 log_gamma_p = log_multivariate_gamma(p, sd::fmul(double(n), 0.5));
             }
 
-            constexpr std::size_t dimension() const noexcept { return v.size(); }
+            constexpr std::size_t dimension() const noexcept { return v.extent(0); }
 
             // Entropie de W_p(LLᵀ, n), ½ log det = s (s = ± log_det_half).
             constexpr sd::double_double wishart_entropy(sd::double_double s) const noexcept
@@ -112,7 +112,7 @@ namespace wsl::random
                 auto m = make_matrix<T, N>(dimension());
                 for (std::size_t i = 0; i < dimension(); ++i)
                     for (std::size_t j = 0; j < dimension(); ++j)
-                        m(i, j) = static_cast<T>(sd::fmul(c, double(v(i, j))));
+                        m[i, j] = static_cast<T>(sd::fmul(c, double(v[i, j])));
                 return m;
             }
         };
@@ -148,9 +148,9 @@ namespace wsl::random
             for (std::size_t i = 0; i < dimension(); ++i)
                 for (std::size_t j = 0; j < dimension(); ++j)
                 {
-                    double const vij = b_.v(i, j), vii = b_.v(i, i), vjj = b_.v(j, j);
+                    double const vij = b_.v[i, j], vii = b_.v[i, i], vjj = b_.v[j, j];
                     auto const s = detail::sum(detail::product(vij, vij), detail::product(vii, vjj));
-                    m(i, j) = static_cast<T>(detail::rounded(detail::normalized(double(b_.n), 0.0) * detail::normalized(s.hi, s.lo)));
+                    m[i, j] = static_cast<T>(detail::rounded(detail::normalized(double(b_.n), 0.0) * detail::normalized(s.hi, s.lo)));
                 }
             return m;
         }
@@ -167,7 +167,7 @@ namespace wsl::random
         // Wᵢᵢ ~ Vᵢᵢ χ²(n) = gamma(n/2, échelle 2Vᵢᵢ)
         constexpr gamma<T> marginal(std::size_t i) const
         {
-            return gamma<T>(typename gamma<T>::parameters{.scale = static_cast<T>(detail::sd::fmul(2.0, double(b_.v(i, i)))), .shape = static_cast<T>(detail::sd::fmul(double(b_.n), 0.5))});
+            return gamma<T>(typename gamma<T>::parameters{.scale = static_cast<T>(detail::sd::fmul(2.0, double(b_.v[i, i]))), .shape = static_cast<T>(detail::sd::fmul(double(b_.n), 0.5))});
         }
 
         constexpr double log_pdf(value_type const& x) const
@@ -203,7 +203,7 @@ namespace wsl::random
             namespace fp = detail::sd;
             constexpr detail::sd::double_double none{-std::numeric_limits<double>::infinity(), 0.0};
             std::size_t const p = dimension();
-            if (x.size() != p)
+            if (x.extent(0) != p)
                 return none;
             auto lx = detail::make_matrix<double, N>(p);
             if (!detail::cholesky(x, lx))
@@ -252,7 +252,7 @@ namespace wsl::random
                 return b_.scaled_scale(1 / c);
             auto m = b_.scaled_scale(std::numeric_limits<double>::quiet_NaN());   // E Xᵢⱼ indéfinie (∞ − ∞)
             for (std::size_t i = 0; i < dimension(); ++i)
-                m(i, i) = std::numeric_limits<T>::infinity();               // Xᵢᵢ > 0 : diverge vers +∞
+                m[i, i] = std::numeric_limits<T>::infinity();               // Xᵢᵢ > 0 : diverge vers +∞
             return m;
         }
         constexpr value_type mode() const { return b_.scaled_scale(1 / (double(b_.n) + double(dimension()) + 1)); }
@@ -296,7 +296,7 @@ namespace wsl::random
             auto t = detail::make_matrix<double, N>(p);                     // A⁻ᵀ
             for (std::size_t i = 0; i < p; ++i)
                 for (std::size_t j = 0; j < p; ++j)
-                    t(i, j) = inv(j, i);
+                    t[i, j] = inv[j, i];
             return detail::gram<T>(detail::multiply(W.b_.l, t));
         }
 
@@ -310,7 +310,7 @@ namespace wsl::random
             namespace fp = detail::sd;
             constexpr detail::sd::double_double none{-std::numeric_limits<double>::infinity(), 0.0};
             std::size_t const p = dimension();
-            if (x.size() != p)
+            if (x.extent(0) != p)
                 return none;
             auto lx = detail::make_matrix<double, N>(p);
             if (!detail::cholesky(x, lx))

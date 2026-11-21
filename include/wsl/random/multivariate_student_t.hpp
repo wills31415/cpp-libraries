@@ -54,7 +54,7 @@ namespace wsl::random
         {
             if (!(nu_ > 0) || !detail::is_finite(nu_))
                 throw std::domain_error("wsl::random::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
-            if (mu_.size() < 1 || sigma_.size() != mu_.size())
+            if (mu_.size() < 1 || sigma_.extent(0) != mu_.size())
                 throw std::domain_error("wsl::random::multivariate_student_t : position et échelle de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
@@ -99,11 +99,11 @@ namespace wsl::random
                 {
                     double v = std::numeric_limits<double>::quiet_NaN();
                     if (nu > 2)
-                        v = double(sigma_(i, j)) == 0 ? 0.0 : (double(sigma_(i, j)) < 0 ? -1 : 1) *
-                                detail::rounded(detail::normalized(nu, 0.0) * detail::normalized(detail::magnitude(double(sigma_(i, j))), 0.0) / (nu - 2));
+                        v = double(sigma_[i, j]) == 0 ? 0.0 : (double(sigma_[i, j]) < 0 ? -1 : 1) *
+                                detail::rounded(detail::normalized(nu, 0.0) * detail::normalized(detail::magnitude(double(sigma_[i, j])), 0.0) / (nu - 2));
                     else if (nu > 1)
                         v = i == j ? std::numeric_limits<double>::infinity() : std::numeric_limits<double>::quiet_NaN();
-                    c(i, j) = static_cast<T>(v);
+                    c[i, j] = static_cast<T>(v);
                 }
             return c;
         }
@@ -118,7 +118,7 @@ namespace wsl::random
         }
         constexpr affine_image<student_t<T>> marginal(std::size_t i) const
         {
-            return affine_image<student_t<T>>(student_t<T>({.degrees_of_freedom = nu_}), {.scale = wsl::special::sqrt(double(sigma_(i, i))), .shift = double(mu_[i])});
+            return affine_image<student_t<T>>(student_t<T>({.degrees_of_freedom = nu_}), {.scale = wsl::special::sqrt(double(sigma_[i, i])), .shift = double(mu_[i])});
         }
 
         constexpr double log_pdf(value_type const& x) const noexcept
@@ -151,7 +151,7 @@ namespace wsl::random
             value_type x = detail::make_vector<T, N>(X.dimension());
             for (std::size_t i = 0; i < X.dimension(); ++i)
             {
-                auto const e = detail::dot(i + 1, [&](std::size_t k) { return std::pair{X.l_(i, k), z[k]}; });
+                auto const e = detail::dot(i + 1, [&](std::size_t k) { return std::pair{X.l_[i, k], z[k]}; });
                 auto const t = detail::sum(detail::mul(e, {f, 0.0}), {double(X.mu_[i]), 0.0});
                 x[i] = static_cast<T>(t.hi + t.lo);
             }

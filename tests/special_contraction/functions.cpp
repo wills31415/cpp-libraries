@@ -124,18 +124,18 @@ extern "C"
                                                    return 1 + wsl::random::cdf(L, y) + wsl::random::pdf(L, y) + wsl::random::quantile(L, 0.3); }
     // Lois multivariées.
     double check_dirichlet(double a, double x) { wsl::random::dirichlet<double, 3> const D({.alpha = {a, 2.0, 3.0}}); auto const m = D.mean(); auto const c = D.covariance();
-                                                 return 1 + wsl::random::pdf(D, {x, 0.25, 0.75 - x}) + wsl::random::log_pdf(D, {x, 0.25, 0.75 - x}) + D.entropy() + m[0] + c(0, 1) + D.variance()[1]; }
+                                                 return 1 + wsl::random::pdf(D, {x, 0.25, 0.75 - x}) + wsl::random::log_pdf(D, {x, 0.25, 0.75 - x}) + D.entropy() + m[0] + c[0, 1] + D.variance()[1]; }
     double check_multinomial(double p, long long k) { wsl::random::multinomial<std::int64_t, 3> const M({.trials = 20, .p = {p, 0.5 - p, 0.5}});
-                                                       return 1 + wsl::random::pmf(M, {k, 5, 15 - k}) + M.mean()[0] + M.covariance()(0, 1) + M.variance()[2]; }
+                                                       return 1 + wsl::random::pmf(M, {k, 5, 15 - k}) + M.mean()[0] + M.covariance()[0, 1] + M.variance()[2]; }
     double check_mvn(double a, double x) { wsl::random::multivariate_normal<double, 2> const X({.mean = {a, 0}, .covariance = {{2, 0.5}, {0.5, 1}}});
                                            return 1 + wsl::random::pdf(X, {x, a}) + wsl::random::log_pdf(X, {x, a}) + X.entropy() + X.mahalanobis_squared({x, x}); }
     double check_sphere(double x) { wsl::random::uniform_sphere<double, 3> const S; wsl::random::uniform_ball<double, 5> const B;
                                     return 1 + wsl::random::pdf(S, {x, 0.0, 0.0}) + S.surface_area() + S.entropy() + B.volume() + wsl::random::pdf(B, {x, 0, 0, 0, 0}); }
     double check_mvt(double nu, double x) { wsl::random::multivariate_student_t<double, 2> const X({.location = {x, 0}, .scale = {{2, 0.5}, {0.5, 1}}, .degrees_of_freedom = nu});
-                                            return 1 + wsl::random::pdf(X, {x, 1}) + wsl::random::log_pdf(X, {x, x}) + X.entropy() + X.covariance()(0, 1); }
+                                            return 1 + wsl::random::pdf(X, {x, 1}) + wsl::random::log_pdf(X, {x, x}) + X.entropy() + X.covariance()[0, 1]; }
     double check_wishart(double nu, double x) { wsl::random::wishart<double, 2> const W({.scale = {{2, 0.5}, {0.5, 1}}, .degrees_of_freedom = nu}); wsl::random::square_matrix<double, 2> const A{{x, 0.1}, {0.1, 1}};
                                                 wsl::random::inverse_wishart<double, 2> const I({.scale = {{2, 0.5}, {0.5, 1}}, .degrees_of_freedom = nu});
-                                                return 1 + wsl::random::pdf(W, A) + wsl::random::log_pdf(W, A) + W.entropy() + W.mean()(0, 1) + W.variance()(0, 0) + W.mode()(1, 1) + wsl::random::log_pdf(I, A) + I.entropy() + I.mean()(0, 0); }
+                                                return 1 + wsl::random::pdf(W, A) + wsl::random::log_pdf(W, A) + W.entropy() + W.mean()[0, 1] + W.variance()[0, 0] + W.mode()[1, 1] + wsl::random::log_pdf(I, A) + I.entropy() + I.mean()[0, 0]; }
     double check_random_matrix(double x) { wsl::random::goe<double, 2> const H; wsl::random::gue<double, 2> const K;
                                            return 1 + wsl::random::pdf(H, wsl::random::square_matrix<double, 2>{{x, 0.5}, {0.5, x}}) + wsl::random::log_pdf(K, wsl::random::square_matrix<std::complex<double>, 2>{{x, {0.5, x}}, {{0.5, -x}, 1}}); }
     double check_von_mises(double m, double k, double x) { wsl::random::von_mises const V({.location = m, .concentration = k}); return 1 + wsl::random::pdf(V, x) + wsl::random::log_pdf(V, x) + V.entropy() + V.circular_variance() + V.mean_resultant_length(); }

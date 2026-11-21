@@ -320,7 +320,7 @@ int main()
                 ba.push_back(e);
                 pr.push_back(0.5 * (y == x ? 0.5 : 0.25));
             }
-        assert(chi_square(wsl::random::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::random::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4);
+        assert((chi_square(wsl::random::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wsl::random::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4));
         wsl::random::barabasi_albert const B({.vertices = 2000, .edges = 3});
         auto const be = wsl::random::sample(B, g);
         assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::random::detail::is_edge_list(be, 2000));
