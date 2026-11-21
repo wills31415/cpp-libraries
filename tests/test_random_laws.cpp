@@ -1061,7 +1061,7 @@ int main()
             double const reference = wsl::random::detail::affine_scaled(mu, negative, st);
             assert(exact == reference);
         }
-        assert(throws_domain_error([&] { (void)wsl::random::detail::lazy_sample(V, h); }));   // somme exacte : σ doit être un double
+        assert(wsl::random::detail::lazy_sample(V, h).root && !wsl::random::detail::lazy_sample(R, h).root);   // somme exacte : terme √v V
         assert(kolmogorov_smirnov(V, [&] { std::vector<double> d; for (int i = 0; i < 20000; ++i) d.push_back(V(h)); return d; }()) < 1.95);
     }
     return 0;

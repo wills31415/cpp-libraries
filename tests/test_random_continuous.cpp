@@ -301,5 +301,43 @@ int main()
         ok &= check("real_walk", fingerprint([&](fnv1a& h) { take(h, wsl::random::trajectory(wsl::random::random_walk(wsl::random::uniform({.lower = -1.0, .upper = 2.0})), x) | std::views::take(20)); }), 0x96f2cfeff63723cb);
     }
     assert(ok);
+    // ---- Sommes paresseuses à √v irrationnel commun (normales données par leur variance) ------
+    {
+        int bad = 0;
+        for (int trial = 0; trial < 1500; ++trial)
+        {
+            d::lazy_sum s;
+            int const m = 1 + int(wsl::random::uniform_below(30, g));
+            double const v = trial % 2 ? 2e-6 : 3.0;                        // √v irrationnel, une variance par somme
+            for (int i = 0; i < m; ++i)
+                switch (wsl::random::uniform_below(4, g))
+                {
+                case 0: s.add(d::lazy_sample(wsl::random::normal({.mean = 0.3, .variance = v}), g), g); break;
+                case 1: s.add(d::lazy_sample(wsl::random::exponential({.rate = 2.5}), g), g); break;
+                case 2: s.add(d::lazy_sample(wsl::random::normal({.mean = -1.0, .stddev = 0.25}), g), g); break;
+                default: s.add(d::lazy_sample(wsl::random::uniform({.lower = -2.0, .upper = 3.0}), g), g); break;
+                }
+            d::dyadic_value const offset = d::to_dyadic(trial % 3 == 0 ? 0.0 : -0.3 * m);   // compensations
+            d::dyadic_value const alpha = d::to_dyadic(trial % 2 ? 0.5 : 0.0), beta = d::to_dyadic(trial % 5 == 0 ? -1.0 / 3 : 1.0);
+            std::size_t const k = std::size_t(m) / 2;
+            double const r = s.rounded<double>(g, offset, alpha, k, beta);
+            float const rf = s.rounded<float>(g, offset, alpha, k, beta);
+            bad += !s.confirms(g, r, 2, offset, alpha, k, beta) || !s.confirms(g, rf, 0, offset, alpha, k, beta);
+        }
+        assert(bad == 0);
+        // une seule racine par somme
+        assert(throws_domain_error([&] {
+            d::lazy_sum s;
+            s.add(d::lazy_sample(wsl::random::normal({.variance = 2.0}), g), g);
+            s.add(d::lazy_sample(wsl::random::normal({.variance = 3.0}), g), g);
+        }));
+        // marche à pas N(μ, v) : position au pas 5 de loi N(5μ, 5v), tirage exact
+        wsl::random::random_walk const W(wsl::random::normal({.mean = 0.2, .variance = 2.0}));
+        std::vector<double> values;
+        for (int i = 0; i < n; ++i)
+            values.push_back(wsl::random::sample(W.steps(5), g).back());
+        wsl::random::normal const N5({.mean = 1.0, .variance = 10.0});
+        assert(kolmogorov_smirnov(values, [&](double t) { return N5.cdf(t); }) < 1.95);
+    }
     std::printf("test_random_continuous : ok\n");
 }

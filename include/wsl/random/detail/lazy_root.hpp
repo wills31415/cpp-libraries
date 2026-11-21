@@ -65,99 +65,127 @@ namespace wsl::random::detail
         return {t.m.magnitude, t.e + v.e};
     }
 
-    // signe de √A − d (A = R 2^ea >= 0) : comparaison de A et d² si d >= 0.
-    constexpr int root_minus_sign(big const& r, int ea, exact_dyadic const& d)
+    // Signe de P + √v B (v = R 2^ev > 0, P et B dyadiques) : immédiat si P et B ne sont pas de
+    // signes opposés, sinon par comparaison de P² et v B².
+    constexpr int sign_plus_root(exact_dyadic const& p, exact_square const& v, exact_dyadic const& b)
     {
-        if (d.m.magnitude.is_zero())
-            return r.is_zero() ? 0 : 1;
-        if (d.m.negative)
-            return 1;
-        big const d2 = d.m.magnitude * d.m.magnitude;
-        int const ed = 2 * d.e;
-        int const base = std::min(ea, ed);
-        auto const c = r.shifted_left(ea - base) <=> d2.shifted_left(ed - base);
-        return c > 0 ? 1 : c < 0 ? -1 : 0;
+        bool const p_zero = p.m.magnitude.is_zero(), b_zero = b.m.magnitude.is_zero();
+        int const sp = p_zero ? 0 : p.m.negative ? -1 : 1, sb = b_zero ? 0 : b.m.negative ? -1 : 1;
+        if (sb == 0 || sp == sb)
+            return sp;
+        if (sp == 0)
+            return sb;
+        big const p2 = p.m.magnitude * p.m.magnitude, vb2 = v.r * (b.m.magnitude * b.m.magnitude);
+        int const ep = 2 * p.e, eb = v.e + 2 * b.e;
+        int const base = std::min(ep, eb);
+        auto const c = p2.shifted_left(ep - base) <=> vb2.shifted_left(eb - base);   // P² face à v B²
+        int const s = c > 0 ? 1 : c < 0 ? -1 : 0;
+        return sp > 0 ? s : -s;
+    }
+
+    // Cellule d'arrondi de r (T fini) : ses deux milieux, dyadiques exacts.
+    template <class T>
+    constexpr void rounding_cell(T r, exact_dyadic& below, exact_dyadic& above)
+    {
+        using F = format<T>;
+        double const x = r;
+        double const magnitude = x < 0 ? -x : x;
+        int ulp_e = F::denorm_exponent;
+        bool power = false;
+        if (magnitude != 0)
+        {
+            int const e = wsl::special::detail::exponent_of(magnitude);
+            if (e >= F::min_exponent)
+            {
+                ulp_e = e - F::digits + 1;
+                power = magnitude == wsl::special::detail::power_of_two(e) && e > F::min_exponent;
+            }
+        }
+        exact_dyadic const up{{false, big(1)}, ulp_e - 1}, down{{false, big(1)}, power ? ulp_e - 2 : ulp_e - 1};
+        exact_dyadic const c = exact_of(x);
+        if (x < 0)                                                          // vers zéro : l'écart « down » est au-dessus
+        {
+            above = exact_sum(c, down);
+            below = exact_sum(c, exact_negated(up));
+        }
+        else
+        {
+            above = exact_sum(c, up);
+            below = exact_sum(c, exact_negated(down));
+        }
+    }
+
+    // Arrondi au plus proche de y, connu par side(x) = signe de y − x (x dyadique ; y n'est
+    // jamais un milieu) : pas d'un T à son voisin depuis le candidat, puis bissection sur
+    // l'ordre des T si le candidat était loin (compensation).
+    template <class T, class Side>
+    constexpr T round_by_side(Side const& side, T candidate)
+    {
+        using bits_type = std::conditional_t<sizeof(T) == 8, std::uint64_t, std::uint32_t>;
+        constexpr bits_type sign_bit = bits_type{1} << (8 * sizeof(T) - 1);
+        // clé croissante avec la valeur (−∞ … +∞), et sa réciproque
+        auto const key = [](T x) {
+            bits_type const b = std::bit_cast<bits_type>(x);
+            return (b & sign_bit) != 0 ? bits_type(~b) : bits_type(b | sign_bit);
+        };
+        auto const of_key = [](bits_type k) { return std::bit_cast<T>((k & sign_bit) != 0 ? bits_type(k & ~sign_bit) : bits_type(~k)); };
+        constexpr T inf = std::numeric_limits<T>::infinity();
+        // y au-dessus de la cellule de r ? (cellule de +∞ : au-delà du milieu haut du plus grand fini)
+        auto const above_cell = [&](T r) {
+            if (r == inf)
+                return false;
+            exact_dyadic below, above;
+            rounding_cell(r == -inf ? -std::numeric_limits<T>::max() : r, below, above);
+            return side(r == -inf ? below : above) > 0;
+        };
+        if (candidate != candidate)
+            candidate = 0;
+        T y = candidate == 0 ? T(0) : candidate;
+        for (int step = 0; step < 64; ++step)
+        {
+            if (above_cell(y))
+            {
+                y = of_key(bits_type(key(y) + 1));
+                continue;
+            }
+            T const previous = y == -inf ? y : of_key(bits_type(key(y) - 1));
+            if (y != -inf && above_cell(previous) == false && !(previous == T(0) && y == T(0)))
+            {
+                y = previous;
+                continue;
+            }
+            return y == 0 ? (side(exact_dyadic{}) < 0 ? -T(0) : T(0)) : y;   // zéro du signe de la valeur
+        }
+        // bissection : plus petit r (en clé) dont la cellule n'est pas sous y
+        bits_type lo = key(-inf), hi = key(inf);
+        while (lo < hi)
+        {
+            bits_type const mid = lo + (hi - lo) / 2;
+            if (above_cell(of_key(mid)))
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        T const r = of_key(lo);
+        return r == 0 ? (side(exact_dyadic{}) < 0 ? -T(0) : T(0)) : r;
     }
 
     // Arrondi correct en T de μ ± √v · w 2^-b (w >= 0 entier), σ ≈ √v pour le candidat.
     template <class T>
     constexpr T round_root_affine(double mu, exact_square const& v, double sigma, bool negative, big const& w, int b)
     {
-        using F = format<T>;
-        using bits_type = std::conditional_t<sizeof(T) == 8, std::uint64_t, std::uint32_t>;
         if (w.is_zero())
             return static_cast<T>(mu);
-        big const r = v.r * (w * w);                                        // A = v w² 2^-2b
-        int const ea = v.e - 2 * b;
-        exact_dyadic const m = exact_negated(exact_of(mu));
-        // signe de y − x, y = μ ± √A.
-        auto const side = [&](exact_dyadic const& x) {
-            exact_dyadic const d = exact_sum(x, m);                         // x − μ
-            return negative ? -root_minus_sign(r, ea, exact_negated(d)) : root_minus_sign(r, ea, d);
-        };
+        // y − x = (μ − x) ± √v · w 2^-b
+        exact_dyadic const coefficient{{negative, w}, -b};
+        exact_dyadic const m = exact_of(mu);
+        auto const side = [&](exact_dyadic const& x) { return sign_plus_root(exact_sum(m, exact_negated(x)), v, coefficient); };
         // Candidat : t ≈ w 2^-b par ses 64 bits de tête.
         int const length = w.bit_length();
         int const shift = std::max(0, length - 64);
         double const t = wsl::special::detail::scale_by_power_of_two(static_cast<double>(w.shifted_right(shift).bits_at(0)), shift - b);
         double const step = wsl::special::detail::fmul(sigma, t);
-        T y = static_cast<T>(negative ? mu - step : mu + step);
-        // Demi-écarts aux voisins de y (dyadiques exacts) : milieux de la cellule d'arrondi.
-        auto const half_gaps = [](T a, exact_dyadic& below, exact_dyadic& above) {
-            double const x = a;
-            double const magnitude = x < 0 ? -x : x;
-            int ulp_e = F::denorm_exponent;
-            bool power = false;
-            if (magnitude != 0)
-            {
-                int const e = wsl::special::detail::exponent_of(magnitude);
-                if (e >= F::min_exponent)
-                {
-                    ulp_e = e - F::digits + 1;
-                    power = magnitude == wsl::special::detail::power_of_two(e) && e > F::min_exponent;
-                }
-            }
-            exact_dyadic const up{{false, big(1)}, ulp_e - 1}, down{{false, big(1)}, power ? ulp_e - 2 : ulp_e - 1};
-            exact_dyadic const c = exact_of(x);
-            if (x < 0)                                                      // vers zéro : l'écart « down » est au-dessus
-            {
-                above = exact_sum(c, down);
-                below = exact_sum(c, exact_negated(up));
-            }
-            else
-            {
-                above = exact_sum(c, up);
-                below = exact_sum(c, exact_negated(down));
-            }
-        };
-        auto const next = [](T a, bool up) {
-            if (a == 0)
-                return up ? std::numeric_limits<T>::denorm_min() : -std::numeric_limits<T>::denorm_min();
-            bits_type const bits = std::bit_cast<bits_type>(a);
-            return std::bit_cast<T>((a > 0) == up ? bits_type(bits + 1) : bits_type(bits - 1));
-        };
-        for (int guard = 0; guard < 4096; ++guard)
-        {
-            if (y == std::numeric_limits<T>::infinity() || y == -std::numeric_limits<T>::infinity())
-            {
-                T const edge = y > 0 ? std::numeric_limits<T>::max() : -std::numeric_limits<T>::max();
-                exact_dyadic below, above;
-                half_gaps(edge, below, above);
-                if (y > 0 ? side(above) < 0 : side(below) > 0)               // dans la cellule du plus grand fini
-                    y = edge;
-                else
-                    return y;
-                continue;
-            }
-            exact_dyadic below, above;
-            half_gaps(y, below, above);
-            if (side(above) > 0)
-                y = next(y, true);
-            else if (side(below) < 0)
-                y = next(y, false);
-            else
-                return y == 0 ? (side(exact_dyadic{}) < 0 ? -T(0) : T(0)) : y;   // zéro du signe de la valeur
-        }
-        return y;
+        return round_by_side<T>(side, static_cast<T>(negative ? mu - step : mu + step));
     }
 
     // Arrondi correct en T de μ ± √v · V, V = k + u paresseux : raffine u jusqu'à ce que les

@@ -106,9 +106,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   en double-double, tirage exact de μ ± √v·V par comparaison des carrés (sans calculer √v),
   avec voie rapide certaine (176 ns contre 136 ns pour σ double). Identités de l'algèbre :
   variances additionnées (convolution) et multipliées par a² (image affine), à 2⁻¹⁰⁶ près
-  (σ arrondis avant). Limite : le tirage exact d'une somme (marche aléatoire, Poisson
-  composé) d'une normale de σ irrationnel lève `std::domain_error`. Voie rapide inchangée
-  quand σ est un double : mêmes valeurs et mêmes tirages.
+  (σ arrondis avant). Sommes exactes (marche aléatoire, Poisson composé) : un groupe de
+  termes c √v V par somme, décidé par comparaison de P² et v B² ; une somme mêlant deux
+  variances à racines irrationnelles différentes lève `std::domain_error`. Voie rapide
+  inchangée quand σ est un double : mêmes valeurs et mêmes tirages.
 - Moteurs `splitmix64`, `xoshiro256pp` (sauts de 2^128 et 2^192), `pcg64` (PCG XSL RR
   128/64, avance en O(log n)), `philox4x64` (à compteur) : `std::uniform_random_bit_generator`,
   `constexpr`, sorties vérifiées contre NumPy et, pour les sauts de xoshiro, par
