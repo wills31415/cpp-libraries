@@ -11,6 +11,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
   la revue des interfaces (docs/interfaces.md).
 
+### graded, graded_io
+
+- Rupture (interne) : aides internes dans `wsl::detail::graded` (au lieu de `wsl::detail`,
+  partagé). Gardes `#pragma once` ; commentaires accentués.
+
 ### permutation (nouvelle)
 - `wsl::permutation` : construction vérifiée (images, cycles), composition `s * t` (s∘t),
   inverse, puissances, cycles canoniques, type de cycles, points fixes, signature,

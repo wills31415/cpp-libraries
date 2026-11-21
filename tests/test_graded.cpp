@@ -8,11 +8,11 @@
 
 using namespace wsl;
 
-// Un plafond genereux tient le role que jouait la variante largeamique.
+// Un plafond généreux tient le rôle que jouait la variante largeamique.
 using large = series<int, 8>;
 
 // =======================================================================
-// Construction et retrecissement
+// Construction et rétrécissement
 // =======================================================================
 static_assert(std::is_aggregate_v<jet<unsigned, 2>>);
 static_assert(std::is_aggregate_v<series<unsigned, 2>>);
@@ -55,20 +55,20 @@ static_assert(jet<int, 4>{1, 2}.size() == 4);
 static_assert(series<int, 4>{1, 2}.capacity() == 4);
 static_assert(large::capacity() == 8);
 
-// size() n'existe que la ou la taille appartient a la valeur
+// size() n'existe que là où la taille appartient à la valeur
 template <class X>
 concept has_size = requires { X::size(); };
 static_assert(has_size<jet<int, 3>>);
 static_assert(!has_size<series<int, 3>>);
 
-// les alias du cas courant, un par arite
+// les alias du cas courant, un par arité
 static_assert(std::same_as<index_jet<3>, jet<std::size_t, 3>>);
 static_assert(std::same_as<index_series<3>, series<std::size_t, 3>>);
 static_assert(has_size<index_jet<3>>);
 static_assert(!has_size<index_series<3>>);
 static_assert(index_jet<2>{1, 2} == index_series<5>{1, 2});
 
-// acces total des deux cotes
+// accès total des deux côtés
 static_assert(jet<int, 2>{1, 2}[9999] == 0);
 static_assert(series<int, 2>{1, 2}[9999] == 0);
 
@@ -108,7 +108,7 @@ static_assert(sign(-jet<int, 3>{0, 4, 9}) == -sign(jet<int, 3>{0, 4, 9}));
 static_assert(sign(jet<unsigned, 4>{0, 5}) == 1);
 
 // =======================================================================
-// Monde fixe : la taille fait partie de l'identite
+// Monde fixe : la taille fait partie de l'identité
 // =======================================================================
 template <class L, class R>
 concept comparable = requires(L lhs, R rhs) { lhs < rhs; };
@@ -123,7 +123,7 @@ static_assert(comparable<jet<int, 3>, jet<int, 3>>);
 static_assert(addable<jet<int, 3>, jet<int, 3>>);
 static_assert(addable<jet<int, 3>, jet<unsigned, 3>>);
 
-// deux tailles differentes ne se rencontrent jamais
+// deux tailles différentes ne se rencontrent jamais
 static_assert(!comparable<jet<int, 2>, jet<int, 3>>);
 static_assert(!equatable<jet<int, 2>, jet<int, 3>>);
 static_assert(!addable<jet<int, 2>, jet<int, 3>>);
@@ -136,7 +136,7 @@ static_assert(!std::convertible_to<jet<int, 3>, jet<int, 2>>);
 static_assert(!std::convertible_to<jet<int, 3>, series<int, 3>>);
 static_assert(!std::convertible_to<jet<int, 3>, large>);
 
-// arithmetique interne au monde fixe : le resultat y reste
+// arithmétique interne au monde fixe : le résultat y reste
 static_assert(std::same_as<decltype(jet<int, 3>{} + jet<int, 3>{}),
                            jet<int, 3>>);
 static_assert(std::same_as<decltype(jet<unsigned, 3>{} - jet<unsigned, 3>{}),
@@ -155,13 +155,13 @@ static_assert(series<int, 0>{} == series<int, 3>{});
 static_assert(large{1, 2, 0, 0} == series<int, 9>{1, 2});
 static_assert(large{1, 2, 0, 0}.degree() == 1);
 
-// elargissement implicite interne au monde flexible
+// élargissement implicite interne au monde flexible
 static_assert(std::convertible_to<series<int, 2>, series<int, 4>>);
 static_assert(std::convertible_to<series<int, 2>, large>);
 static_assert(!std::convertible_to<series<int, 4>, series<int, 2>>);
 
-// un prefixe n'est pas inferieur a son prolongement : {1} vaut {1, 0} et
-// doit donc etre superieur a {1, -2}
+// un préfixe n'est pas inférieur à son prolongement : {1} vaut {1, 0} et
+// doit donc être supérieur à {1, -2}
 constexpr bool prefixe_signe()
 {
     return large{1} > large{1, -2} && large{1} < large{1, 2} &&
@@ -169,7 +169,7 @@ constexpr bool prefixe_signe()
 }
 static_assert(prefixe_signe());
 
-// ordre lexicographique non archimedien, compatible avec la loi de groupe
+// ordre lexicographique non archimédien, compatible avec la loi de groupe
 static_assert(jet<int, 2>{2, 0} > jet<int, 2>{1, 999});
 constexpr bool translation_invariante()
 {
@@ -181,7 +181,7 @@ constexpr bool translation_invariante()
 static_assert(translation_invariante());
 
 // =======================================================================
-// Melange : a sens unique, le resultat est toujours flexible
+// Mélange : à sens unique, le résultat est toujours flexible
 // =======================================================================
 static_assert(std::same_as<decltype(jet<int, 3>{} + series<int, 5>{}),
                            series<int, 5>>);
@@ -200,7 +200,7 @@ constexpr bool melange()
 }
 static_assert(melange());
 
-// affectations composees croisees
+// affectations composées croisées
 static_assert(accumulable<large, jet<int, 3>>);
 static_assert(accumulable<series<int, 5>, jet<int, 3>>);
 static_assert(accumulable<jet<int, 5>, series<int, 3>>);
@@ -222,7 +222,7 @@ constexpr bool accumulation()
 }
 static_assert(accumulation());
 
-// avancer une position non signee d'un deplacement signe
+// avancer une position non signée d'un déplacement signe
 constexpr bool avance()
 {
     jet<unsigned, 2> value{3, 7};
@@ -232,14 +232,14 @@ constexpr bool avance()
 static_assert(avance());
 
 // =======================================================================
-// Fidelite au type sous-jacent
+// Fidélité au type sous-jacent
 // =======================================================================
 static_assert((jet<unsigned, 2>{3, 7} - jet<unsigned, 2>{5, 2})[0] == 3u - 5u);
 static_assert((jet<int, 2>{3, 7} - jet<int, 2>{5, 2})[0] == 3 - 5);
 static_assert((-jet<unsigned, 2>{2, 0})[0] == -2u);
 static_assert((jet<std::uint32_t, 1>{0} - jet<std::uint32_t, 1>{5})[0] == 0u - 5u);
 
-// piege signe/non-signe reproduit tel quel
+// piège signe/non-signe reproduit tel quel
 static_assert(jet<int, 1>{-1} > jet<unsigned, 1>{1u});
 static_assert(jet<int, 1>{2} == jet<unsigned, 1>{2u});
 
@@ -252,7 +252,7 @@ constexpr bool groupe()
 }
 static_assert(groupe());
 
-// a -= b et a = a - b coincident
+// a -= b et a = a - b coïncident
 constexpr bool composee_coherente()
 {
     jet<unsigned, 2> value{3, 7};
@@ -270,8 +270,8 @@ static_assert(std::same_as<decltype(to_series(large{})), large>);
 static_assert(std::same_as<decltype(to_jet<2>(large{})), jet<int, 2>>);
 static_assert(std::same_as<decltype(to_jet<2>(jet<int, 5>{})), jet<int, 2>>);
 
-// to_flex s'applique uniformement aux deux mondes : le code generique
-// ecrit sur le concept n'a pas a les distinguer
+// to_flex s'applique uniformément aux deux mondes : le code générique
+// écrit sur le concept n'a pas à les distinguer
 template <lexicographic X>
 constexpr auto souplifie(X const &value)
 {
@@ -289,10 +289,10 @@ constexpr bool pont()
 }
 static_assert(pont());
 
-// elargissement sans perte, aller-retour fidele
+// élargissement sans perte, aller-retour fidèle
 static_assert(to_jet<2>(to_jet<7>(jet<int, 2>{1, 2})) == jet<int, 2>{1, 2});
 
-// troncature : totale, bien definie, sans precondition
+// troncature : totale, bien définie, sans précondition
 static_assert(to_jet<2>(jet<int, 3>{1, 2, 3}) == jet<int, 2>{1, 2});
 static_assert(to_jet<1>(large{9, 8, 7}) == jet<int, 1>{9});
 static_assert(to_series<2>(series<int, 4>{1, 2, 3, 4}) == series<int, 2>{1, 2});
@@ -307,18 +307,18 @@ constexpr bool homomorphisme()
 }
 static_assert(homomorphisme());
 
-// ... mais elle ne preserve pas l'ordre
+// ... mais elle ne préserve pas l'ordre
 static_assert(jet<int, 3>{1, 2, 3} > jet<int, 3>{1, 2, 0});
 static_assert(to_jet<2>(jet<int, 3>{1, 2, 3}) == to_jet<2>(jet<int, 3>{1, 2, 0}));
 
-// value_cast preserve le monde
+// value_cast préserve le monde
 static_assert(std::same_as<decltype(value_cast<long>(jet<int, 3>{})),
                            jet<long, 3>>);
 static_assert(std::same_as<decltype(value_cast<long>(large{})), series<long, 8>>);
 static_assert(value_cast<long>(jet<unsigned, 2>{1, 2}) == jet<long, 2>{1, 2});
 
 // =======================================================================
-// Concatenation
+// Concaténation
 // =======================================================================
 static_assert(std::same_as<decltype(concat(jet<int, 2>{}, jet<int, 3>{})),
                            jet<int, 5>>);
@@ -333,25 +333,25 @@ static_assert(concat(jet<int, 2>{1, 0}, jet<int, 2>{0, 5}) ==
 static_assert(concat(jet<int, 2>{1, 2}, large{3}) == series<int, 3>{1, 2, 3});
 static_assert(concat(jet<int, 0>{}, jet<int, 2>{1, 2}) == jet<int, 2>{1, 2});
 
-// variadique, par pliage a gauche
+// variadique, par pliage à gauche
 static_assert(concat(jet<int, 1>{1}, jet<int, 1>{2}, jet<int, 2>{3, 4}) ==
               jet<int, 4>{1, 2, 3, 4});
 
-// l'operande gauche doit avoir une longueur : un series n'en a pas
+// l'opérande gauche doit avoir une longueur : un series n'en a pas
 template <class L, class R>
 concept concatenable = requires(L lhs, R rhs) { concat(lhs, rhs); };
 static_assert(concatenable<jet<int, 2>, jet<int, 2>>);
 static_assert(concatenable<jet<int, 2>, large>);
 static_assert(!concatenable<large, jet<int, 2>>);
 static_assert(!concatenable<series<int, 2>, jet<int, 2>>);
-// les value_type peuvent differer : le type resultat est herite de l'addition
+// les value_type peuvent différer : le type résultat est hérite de l'addition
 static_assert(concatenable<jet<int, 2>, jet<unsigned, 2>>);
 static_assert(std::same_as<decltype(concat(jet<int, 2>{}, jet<unsigned, 2>{})),
                            jet<unsigned, 4>>);
 static_assert(std::same_as<decltype(concat(jet<short, 2>{}, jet<short, 2>{})),
-                           jet<int, 4>>);   // promotion entiere
+                           jet<int, 4>>);   // promotion entière
 
-// la reduction litterale : concat(a, b) est la somme des deux completes de zeros
+// la réduction littérale : concat(a, b) est la somme des deux, complétés de zéros
 constexpr bool reduction()
 {
     constexpr jet<int, 2> a{1, 2};
@@ -361,7 +361,7 @@ constexpr bool reduction()
 }
 static_assert(reduction());
 
-// le piege signe/non-signe s'applique ici comme a l'addition, ni plus ni moins
+// le piège signe/non-signe s'applique ici comme à l'addition, ni plus ni moins
 static_assert(concat(jet<unsigned, 2>{1, 2}, jet<int, 2>{-3, 4})[2] ==
               static_cast<unsigned>(-3));
 static_assert(concat(jet<int, 2>{1, 2}, jet<int, 2>{-3, 4}) ==
@@ -374,19 +374,19 @@ constexpr bool produit_lexicographique()
     constexpr jet<int, 1> b{2};
     constexpr jet<int, 1> x{7};
     constexpr jet<int, 1> y{9};
-    return concat(a, y) < concat(b, x) &&   // a < b decide, quels que soient x et y
-           concat(a, x) < concat(a, y) &&   // a == a, c'est x < y qui decide
+    return concat(a, y) < concat(b, x) &&   // a < b décide, quels que soient x et y
+           concat(a, x) < concat(a, y) &&   // a == a, c'est x < y qui décide
            concat(a, x) == concat(a, x);
 }
 static_assert(produit_lexicographique());
 
-// l'operateur virgule est un alias, a employer entre parentheses
+// l'opérateur virgule est un alias, à employer entre parenthèses
 static_assert((jet<int, 2>{1, 2}, jet<int, 2>{3, 4}) ==
               concat(jet<int, 2>{1, 2}, jet<int, 2>{3, 4}));
 static_assert((jet<int, 1>{1}, jet<int, 1>{2}, jet<int, 1>{3}) ==
               jet<int, 3>{1, 2, 3});
 
-// la garantie de sequencement gauche-avant-droite, rendue observable
+// la garantie de séquencement gauche-avant-droite, rendue observable
 constexpr bool sequencement()
 {
     int compteur = 0;
@@ -398,10 +398,10 @@ constexpr bool sequencement()
 static_assert(sequencement());
 
 // =======================================================================
-// Le marqueur d'arite se propage
+// Le marqueur d'arité se propage
 // =======================================================================
-// exact + exact de meme taille reste exact ; des qu'un plafond entre en jeu,
-// le resultat est borne -- le melange est a sens unique
+// exact + exact de même taille reste exact ; des qu'un plafond entre en jeu,
+// le résultat est borné -- le mélange est à sens unique
 static_assert(std::same_as<decltype(jet<int, 3>{} + jet<int, 3>{}), jet<int, 3>>);
 static_assert(std::same_as<decltype(jet<int, 3>{} + series<int, 3>{}), series<int, 3>>);
 static_assert(std::same_as<decltype(series<int, 3>{} + jet<int, 5>{}), series<int, 5>>);
@@ -409,14 +409,14 @@ static_assert(std::same_as<decltype(-jet<int, 3>{}), jet<int, 3>>);
 static_assert(std::same_as<decltype(-series<int, 3>{}), series<int, 3>>);
 static_assert(std::same_as<decltype(value_cast<long>(jet<int, 3>{})), jet<long, 3>>);
 
-// la concatenation transmet l'arite de son operande droit
+// la concaténation transmet l'arité de son opérande droit
 static_assert(std::same_as<decltype(concat(jet<int, 2>{}, jet<int, 3>{})), jet<int, 5>>);
 static_assert(std::same_as<decltype(concat(jet<int, 2>{}, series<int, 3>{})),
                            series<int, 5>>);
 
-// deux tailles exactes differentes ne produisent aucun type resultat
+// deux tailles exactes différentes ne produisent aucun type résultat
 template <class L, class R>
-concept combinable = requires { typename wsl::detail::combine<L, R, int>; };
+concept combinable = requires { typename wsl::detail::graded::combine<L, R, int>; };
 static_assert(combinable<jet<int, 3>, jet<int, 3>>);
 static_assert(!combinable<jet<int, 3>, jet<int, 2>>);
 static_assert(combinable<jet<int, 3>, series<int, 2>>);
@@ -444,7 +444,7 @@ int main()
     assert((souples.front() == large{0, 5}));
     assert((souples.back() == large{2}));
 
-    // hachage invariant par plafond et coherent entre les deux arites
+    // hachage invariant par plafond et cohérent entre les deux arités
     std::hash<series<int, 2>> const court{};
     std::hash<series<int, 5>> const moyen{};
     std::hash<large> const genereux{};

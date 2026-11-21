@@ -1,5 +1,4 @@
-#ifndef WSL_DLIST_HPP
-#define WSL_DLIST_HPP
+#pragma once
 
 #include <compare>
 #include <concepts>
@@ -422,4 +421,3 @@ namespace wsl
     }
 }
 
-#endif // WSL_DLIST_HPP

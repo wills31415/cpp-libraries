@@ -6,17 +6,17 @@
 using namespace wsl;
 int main()
 {
-    // forme compacte : les equivalents s'affichent identiquement
+    // forme compacte : les équivalents s'affichent identiquement
     assert(std::format("{}", series<int, 2>{1, 2}) == "{1, 2}");
     assert(std::format("{}", series<int, 9>{1, 2, 0, 0}) == "{1, 2}");
     assert(std::format("{}", jet<int, 4>{1, 2}) == "{1, 2}");
 
-    // les deux arites s'affichent pareil : la distinction est nominale
+    // les deux arités s'affichent pareil : la distinction est nominale
     assert(std::format("{}", jet<int, 5>{0, 3, 7}) ==
            std::format("{}", series<int, 5>{0, 3, 7}));
     assert(std::format("{}", index_jet<3>{4, 5}) == "{4, 5}");
 
-    // les zeros de tete restent
+    // les zéros de tête restent
     assert(std::format("{}", jet<int, 4>{0, 0, 3}) == "{0, 0, 3}");
 
     // neutre
@@ -27,7 +27,7 @@ int main()
     assert(std::format("{}", jet<int, 3>{-1, 0, -7}) == "{-1, 0, -7}");
     assert(std::format("{}", jet<unsigned, 2>{4294967295u, 1}) == "{4294967295, 1}");
 
-    // forme complete : taille pour le fixe, plafond pour le flexible
+    // forme complète : taille pour le fixe, plafond pour le flexible
     assert(std::format("{:#}", jet<int, 4>{1, 2}) == "{1, 2, 0, 0}");
     assert(std::format("{:#}", series<int, 4>{1, 2}) == "{1, 2, 0, 0}");
     assert(std::format("{:#}", jet<int, 4>{}) == "{0, 0, 0, 0}");
