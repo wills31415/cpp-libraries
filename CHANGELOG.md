@@ -37,6 +37,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   inversions en O(n log n), rang lexicographique (n <= 20), `permute`, `constexpr`.
 
 - Style : espaces après `if`/`for` (aligné sur le dépôt).
+
 ### dlist
 
 - Rupture (mineure) : concept `wsl::streamable` déplacé dans `wsl::detail::dlist` ;
@@ -121,6 +122,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   (au lieu de `m(i, j)`), dimensions `extent(i)` et `rank()` ; `size()`, qui rendait la
   dimension n et non le nombre d'éléments, est retiré (plutôt que de changer de sens).
   Dans `assert`, `m[i, j]` demande des parenthèses doubles (virgule de macro).
+- Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
+  actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
+  paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples
+  compilés), état des points du §15 ; README à jour.
 - Intensités rationnelles exactes (décision 5 révisée) : gamma, exponentielle et Erlang
   stockent λ = P/Q·2ᵉ réduite ; `.rate` ou `.scale` (double, ou `wr::ratio(a, b)`), exactes
   toutes deux, aucune des deux : λ = 1. `==` est l'égalité en loi
