@@ -11,6 +11,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
   la revue des interfaces (docs/interfaces.md).
 
+### elo
+
+- Rupture : espace `wsl::elo` (noms trop génériques dans `wsl::`) ; `elo_from_score` →
+  `from_score`, `score_from_elo` → `to_score`, `signed_elo` → `format_signed`,
+  `estimate_elo` → `pairwise`, une seule structure `rating {elo, low, high}` (au lieu de
+  `elo_estimate` et `rating`). Bilans incohérents et `samples < 40` : `std::invalid_argument`
+  (au lieu d'`assert`, sans effet en Release). Rééchantillonnage par `<random>` inchangé.
+
 ### array2d
 
 - Rupture : `extent(i)` et `rank()` (comme `std::mdspan`) remplacent `row_count()` et

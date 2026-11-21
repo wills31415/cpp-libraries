@@ -1,9 +1,10 @@
 #include <wsl/elo.hpp>
 #include <cassert>
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 
-using namespace wsl;
+using namespace wsl::elo;
 
 namespace
 {
@@ -12,39 +13,47 @@ namespace
 
 void scores()
 {
-    assert(elo_from_score(0.5) == 0);
-    assert(near(elo_from_score(0.64), 100, 1));                 // +100 Elo : environ 64 %
-    assert(near(elo_from_score(0.91), 402, 2));                 // +400 Elo : environ 91 %
-    assert(near(score_from_elo(elo_from_score(0.7)), 0.7, 1e-9));
-    assert(near(elo_from_score(0.3), -elo_from_score(0.7), 1e-9));
-    assert(std::isfinite(elo_from_score(1)) && std::isfinite(elo_from_score(0)));
+    assert(from_score(0.5) == 0);
+    assert(near(from_score(0.64), 100, 1));                 // +100 Elo : environ 64 %
+    assert(near(from_score(0.91), 402, 2));                 // +400 Elo : environ 91 %
+    assert(near(to_score(from_score(0.7)), 0.7, 1e-9));
+    assert(near(from_score(0.3), -from_score(0.7), 1e-9));
+    assert(std::isfinite(from_score(1)) && std::isfinite(from_score(0)));
 }
 
 void estimates()
 {
     // 60 % sur 100 parties : environ +70 Elo, intervalle d'environ ±70.
     tally const t{60, 0, 40};
-    elo_estimate const e = estimate_elo(t);
+    rating const e = pairwise(t);
     assert(near(e.elo, 70.4, 0.5) && e.low > 0 && e.high < 150 && e.low < e.elo && e.elo < e.high);
     // Les nuls réduisent l'incertitude.
-    elo_estimate const d = estimate_elo(tally{20, 80, 0});
+    rating const d = pairwise(tally{20, 80, 0});
     assert(near(d.elo, 70.4, 0.5) && d.high - d.low < e.high - e.low);
     // Le bilan inverse donne l'écart inverse.
-    assert(near(estimate_elo(t.reversed()).elo, -e.elo, 1e-9));
+    assert(near(pairwise(t.reversed()).elo, -e.elo, 1e-9));
     // Tout gagner : écart infini, et seule la borne basse compte. Sur 200 parties, au moins +692 Elo.
-    elo_estimate const all = estimate_elo(tally{200, 0, 0});
+    rating const all = pairwise(tally{200, 0, 0});
     assert(std::isinf(all.elo) && all.elo > 0 && near(all.low, 692, 1));
-    assert(std::isinf(estimate_elo(tally{0, 0, 200}).elo) && near(estimate_elo(tally{0, 0, 200}).high, -all.low, 1e-9));
+    assert(std::isinf(pairwise(tally{0, 0, 200}).elo) && near(pairwise(tally{0, 0, 200}).high, -all.low, 1e-9));
 }
 
 void ratings()
 {
+    // bilans incohérents : std::invalid_argument
+    {
+        std::vector<std::vector<tally>> bad(2, std::vector<tally>(2));
+        bad[0][1] = tally{1, 0, 0};                                     // results[1][0] devrait être {0, 0, 1}
+        bool thrown = false;
+        try { (void)bradley_terry(bad); } catch (std::invalid_argument const&) { thrown = true; }
+        assert(thrown);
+    }
     // Deux agents : Bradley-Terry retrouve l'écart du score, à la partie nulle fictive près.
     std::vector<std::vector<tally>> two(2, std::vector<tally>(2));
     two[0][1] = {36, 0, 64};
     two[1][0] = two[0][1].reversed();
     auto const elo = bradley_terry(two);
-    assert(elo[0] == 0 && near(elo[1], elo_from_score(64.5 / 101), 1));
+    assert(elo[0] == 0 && near(elo[1], from_score(64.5 / 101), 1));
 
     // Trois agents, A > B > C.
     std::vector<std::vector<tally>> three(3, std::vector<tally>(3));
@@ -87,7 +96,7 @@ void convergence()
         {
             if(i == j) continue;
             points += results[i][j].points() + 0.5;
-            expected += double(results[i][j].games() + 1) * score_from_elo(elo[i] - elo[j]);
+            expected += double(results[i][j].games() + 1) * to_score(elo[i] - elo[j]);
         }
         assert(near(points, expected, 1e-6 * points));
     }
