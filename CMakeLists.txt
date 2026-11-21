@@ -218,6 +218,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(random_combinatorics LIBRARY random)
     wsl_add_test(random_processes LIBRARY random)
     wsl_add_test(random_continuous LIBRARY random)
+    wsl_add_test(random_variables LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     add_test(NAME special_no_contraction
              COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include

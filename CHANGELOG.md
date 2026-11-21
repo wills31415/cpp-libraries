@@ -122,6 +122,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   (au lieu de `m(i, j)`), dimensions `extent(i)` et `rank()` ; `size()`, qui rendait la
   dimension n et non le nombre d'éléments, est retiré (plutôt que de changer de sens).
   Dans `assert`, `m[i, j]` demande des parenthèses doubles (virgule de macro).
+- Variables aléatoires, lot 1a (docs/variables.md, décisions V1 à V6) : `wr::variable X{P}`
+  (identité unique, copies partagées, `independent_copy()`), expressions `+ − × ÷` avec
+  variables et scalaires, évaluation couplée (`(X − X)(g) == 0` ; chaque variable de base
+  tirée une fois par ω, par identifiant croissant), `wr::evaluate(g, X, Y, …)` sur un même
+  ω, `wr::E`, `wr::Var`, `wr::Cov` par linéarité (coefficients regroupés : Var(X + X) =
+  4 Var X). Calcul flottant des expressions (évaluation exacte des combinaisons affines,
+  `wr::law` et fonctions : lots suivants).
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

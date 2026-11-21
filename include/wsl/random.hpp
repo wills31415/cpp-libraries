@@ -70,3 +70,4 @@
 #include <wsl/random/process.hpp>
 #include <wsl/random/categorical.hpp>
 #include <wsl/random/permutations.hpp>
+#include <wsl/random/variable.hpp>
