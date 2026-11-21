@@ -1,5 +1,21 @@
 #pragma once
 
+// Liste à décalages (« delta list ») : des valeurs à des positions entières d'une étendue
+// [0, extent()], chacune stockée par son écart à la précédente. Insérer un fragment (une
+// autre dlist, avec son étendue) ou extraire un intervalle décale d'un bloc toutes les
+// positions qui suivent, sans les parcourir ; position(it) relit une position absolue.
+//
+//   using L = wsl::dlist<std::string>;
+//   L doc(L::with_tail, 12);                  // étendue [0, 12], vide
+//   doc.emplace(2, "a"); doc.emplace(7, "b"); // a en 2, b en 7
+//   L fragment(L::with_tail, 4);
+//   fragment.emplace(1, "c");
+//   doc.insert(5, fragment);                  // c en 6, b passe en 11, étendue 16
+//   L part = doc.extract(4, 4);               // retire [4, 8) (c) : b revient en 7
+//
+// Exceptions : std::out_of_range (position ou longueur hors de l'étendue ou des décalages
+// représentables), std::overflow_error (étendue hors des positions).
+
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -15,10 +31,13 @@
 
 namespace wsl
 {
-    template <typename T>
-    concept streamable = requires(std::ostream &stream, T const &value) {
-        stream << value;
-    };
+    namespace detail::dlist
+    {
+        template <typename T>
+        concept streamable = requires(std::ostream &stream, T const &value) {
+            stream << value;
+        };
+    }
 
     template <typename T, std::signed_integral Offset = std::ptrdiff_t>
     class dlist
@@ -34,16 +53,16 @@ namespace wsl
         using node_type = std::pair<offset_type, value_type>;
         using type = std::list<node_type>;
 
-        template <bool IsConst>
+        template <bool is_const>
         class basic_iterator
         {
-            using base_iterator = std::conditional_t<IsConst,
+            using base_iterator = std::conditional_t<is_const,
                                                      typename type::const_iterator,
                                                      typename type::iterator>;
 
-            base_iterator m_current{};
+            base_iterator current_{};
 
-            explicit basic_iterator(base_iterator current) : m_current(current) {}
+            explicit basic_iterator(base_iterator current) : current_(current) {}
 
             friend class dlist;
             template <bool>
@@ -53,24 +72,24 @@ namespace wsl
             using iterator_category = std::bidirectional_iterator_tag;
             using value_type = dlist::value_type;
             using difference_type = std::ptrdiff_t;
-            using reference = std::conditional_t<IsConst, value_type const &, value_type &>;
-            using pointer = std::conditional_t<IsConst, value_type const *, value_type *>;
+            using reference = std::conditional_t<is_const, value_type const &, value_type &>;
+            using pointer = std::conditional_t<is_const, value_type const *, value_type *>;
 
             basic_iterator() = default;
 
-            template <bool OtherConst>
-                requires IsConst && (!OtherConst)
-            basic_iterator(basic_iterator<OtherConst> const &other)
-                : m_current(other.m_current)
+            template <bool other_const>
+                requires is_const && (!other_const)
+            basic_iterator(basic_iterator<other_const> const &other)
+                : current_(other.current_)
             {
             }
 
-            reference operator*() const { return m_current->second; }
-            pointer operator->() const { return &m_current->second; }
+            reference operator*() const { return current_->second; }
+            pointer operator->() const { return &current_->second; }
 
             basic_iterator &operator++()
             {
-                ++m_current;
+                ++current_;
                 return *this;
             }
 
@@ -83,7 +102,7 @@ namespace wsl
 
             basic_iterator &operator--()
             {
-                --m_current;
+                --current_;
                 return *this;
             }
 
@@ -94,19 +113,19 @@ namespace wsl
                 return result;
             }
 
-            template <bool OtherConst>
-            bool operator==(basic_iterator<OtherConst> const &other) const
+            template <bool other_const>
+            bool operator==(basic_iterator<other_const> const &other) const
             {
-                return m_current == other.m_current;
+                return current_ == other.current_;
             }
 
-            template <bool OtherConst>
-            bool operator!=(basic_iterator<OtherConst> const &other) const
+            template <bool other_const>
+            bool operator!=(basic_iterator<other_const> const &other) const
             {
                 return !(*this == other);
             }
 
-            base_iterator base() const { return m_current; }
+            base_iterator base() const { return current_; }
         };
 
         using iterator = basic_iterator<false>;
@@ -122,21 +141,21 @@ namespace wsl
         inline static constexpr with_tail_t with_tail{};
 
     private:
-        type m_data{};
-        offset_type m_tail{};
+        type data_{};
+        offset_type tail_{};
 
         offset_type checked_position(position_type position) const
         {
             if (position > extent() ||
                 position > static_cast<position_type>(std::numeric_limits<offset_type>::max()))
-                throw std::out_of_range("position exceeds the dlist extent");
+                throw std::out_of_range("wsl::dlist : position au-delà de l'étendue");
             return static_cast<offset_type>(position);
         }
 
         offset_type checked_length(size_type length) const
         {
             if (length > static_cast<size_type>(std::numeric_limits<offset_type>::max()))
-                throw std::out_of_range("length exceeds the offset range");
+                throw std::out_of_range("wsl::dlist : longueur hors des décalages représentables");
             return static_cast<offset_type>(length);
         }
 
@@ -169,11 +188,11 @@ namespace wsl
         iterator erase_node(const_iterator position)
         {
             offset_type const gap = position.base()->first;
-            iterator next(m_data.erase(position.base()));
+            iterator next(data_.erase(position.base()));
             if (next != end())
                 next.base()->first += gap;
             else
-                m_tail += gap;
+                tail_ += gap;
             return next;
         }
 
@@ -181,29 +200,29 @@ namespace wsl
         dlist() = default;
         explicit dlist(value_type value)
         {
-            m_data.emplace_back(0, std::move(value));
+            data_.emplace_back(0, std::move(value));
         }
         dlist(with_tail_t, size_type tail)
         {
             if (tail > static_cast<size_type>(std::numeric_limits<offset_type>::max()))
-                throw std::out_of_range("tail exceeds the offset range");
-            m_tail = static_cast<offset_type>(tail);
+                throw std::out_of_range("wsl::dlist : fin hors des décalages représentables");
+            tail_ = static_cast<offset_type>(tail);
         }
         dlist(dlist const &) = default;
         dlist(dlist &&) noexcept = default;
         dlist &operator=(dlist const &) = default;
         dlist &operator=(dlist &&) noexcept = default;
 
-        size_type size() const noexcept { return m_data.size(); }
+        size_type size() const noexcept { return data_.size(); }
 
-        bool empty() const noexcept { return m_data.empty(); }
+        bool empty() const noexcept { return data_.empty(); }
 
-        iterator begin() { return iterator(m_data.begin()); }
-        const_iterator begin() const { return const_iterator(m_data.cbegin()); }
-        const_iterator cbegin() const { return const_iterator(m_data.cbegin()); }
-        iterator end() { return iterator(m_data.end()); }
-        const_iterator end() const { return const_iterator(m_data.cend()); }
-        const_iterator cend() const { return const_iterator(m_data.cend()); }
+        iterator begin() { return iterator(data_.begin()); }
+        const_iterator begin() const { return const_iterator(data_.cbegin()); }
+        const_iterator cbegin() const { return const_iterator(data_.cbegin()); }
+        iterator end() { return iterator(data_.end()); }
+        const_iterator end() const { return const_iterator(data_.cend()); }
+        const_iterator cend() const { return const_iterator(data_.cend()); }
         reverse_iterator rbegin() { return reverse_iterator(end()); }
         const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
         const_reverse_iterator crbegin() const { return const_reverse_iterator(cend()); }
@@ -211,15 +230,15 @@ namespace wsl
         const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
         const_reverse_iterator crend() const { return const_reverse_iterator(cbegin()); }
 
-        reference front() { return m_data.front().second; }
-        const_reference front() const { return m_data.front().second; }
-        reference back() { return m_data.back().second; }
-        const_reference back() const { return m_data.back().second; }
+        reference front() { return data_.front().second; }
+        const_reference front() const { return data_.front().second; }
+        reference back() { return data_.back().second; }
+        const_reference back() const { return data_.back().second; }
 
         void clear() noexcept
         {
-            m_data.clear();
-            m_tail = 0;
+            data_.clear();
+            tail_ = 0;
         }
 
     private:
@@ -245,15 +264,15 @@ namespace wsl
 
         position_type extent() const
         {
-            auto result = m_data.empty() ? m_tail : node_offset(std::prev(end())) + m_tail;
+            auto result = data_.empty() ? tail_ : node_offset(std::prev(end())) + tail_;
             if (result < 0 ||
                 static_cast<std::make_unsigned_t<offset_type>>(result) >
                     std::numeric_limits<position_type>::max())
-                throw std::overflow_error("dlist extent exceeds the position range");
+                throw std::overflow_error("wsl::dlist : étendue hors des positions représentables");
             return static_cast<position_type>(result);
         }
 
-        template <streamable Value = value_type>
+        template <detail::dlist::streamable Value = value_type>
         void dump(std::ostream &stream) const
         {
             stream << "dlist{size=" << size() << ", extent=" << extent() << '}';
@@ -277,7 +296,7 @@ namespace wsl
                 previous_position = current_position;
             }
 
-            stream << "\n\xE2\x95\x98\xE2\x95\x90 tail  " << m_tail;
+            stream << "\n\xE2\x95\x98\xE2\x95\x90 tail  " << tail_;
         }
 
     private:
@@ -291,7 +310,7 @@ namespace wsl
 
         void append_node(offset_type offset, value_type value)
         {
-            m_data.emplace_back(offset, std::move(value));
+            data_.emplace_back(offset, std::move(value));
         }
 
         iterator insert_value(position_type position, value_type value)
@@ -300,12 +319,12 @@ namespace wsl
             auto successor = node_at_or_after(insertion_position);
             auto previous_position = successor == begin() ? 0 : node_offset(std::prev(successor));
             auto gap = insertion_position - previous_position;
-            auto successor_gap = successor == end() ? m_tail : successor.base()->first;
-            auto inserted = m_data.emplace(successor.base(), gap, std::move(value));
+            auto successor_gap = successor == end() ? tail_ : successor.base()->first;
+            auto inserted = data_.emplace(successor.base(), gap, std::move(value));
             if (successor != end())
                 successor.base()->first = successor_gap - gap;
             else
-                m_tail = successor_gap - gap;
+                tail_ = successor_gap - gap;
             return iterator(inserted);
         }
 
@@ -322,19 +341,19 @@ namespace wsl
             auto successor = node_at_or_after(insertion_position);
             auto previous_position = successor == begin() ? 0 : node_offset(std::prev(successor));
             auto gap = insertion_position - previous_position;
-            auto successor_gap = successor == end() ? m_tail : successor.base()->first;
+            auto successor_gap = successor == end() ? tail_ : successor.base()->first;
 
             auto has_nodes = !other.empty();
             auto inserted = has_nodes ? other.begin() : successor;
             auto first_offset = has_nodes ? inserted.base()->first : 0;
-            m_data.splice(successor.base(), other.m_data);
+            data_.splice(successor.base(), other.data_);
             if (has_nodes)
                 inserted.base()->first = gap + first_offset;
 
             if (successor != end())
-                successor.base()->first = other.m_tail + successor_gap - gap;
+                successor.base()->first = other.tail_ + successor_gap - gap;
             else
-                m_tail = other.m_tail + successor_gap - gap;
+                tail_ = other.tail_ + successor_gap - gap;
             return inserted;
         }
 
@@ -365,7 +384,7 @@ namespace wsl
             auto first = checked_position(position);
             auto span = checked_length(length);
             if (position > extent() - static_cast<position_type>(span))
-                throw std::out_of_range("erase range exceeds the dlist extent");
+                throw std::out_of_range("wsl::dlist : intervalle à effacer au-delà de l'étendue");
 
             dlist result;
             auto successor = node_at_or_after(first + span);
@@ -380,7 +399,7 @@ namespace wsl
                 if (node != successor)
                     current_position += node.base()->first;
             }
-            result.m_tail = span - (previous_position - first);
+            result.tail_ = span - (previous_position - first);
 
             node = node_at_or_after(first);
             while (node != successor)
@@ -389,7 +408,7 @@ namespace wsl
             if (successor != end())
                 successor.base()->first -= span;
             else
-                m_tail -= span;
+                tail_ -= span;
             return result;
         }
 
@@ -405,7 +424,7 @@ namespace wsl
 
         iterator erase(const_iterator first, const_iterator last)
         {
-            iterator next(m_data.erase(first.base(), first.base()));        // first, rendu modifiable
+            iterator next(data_.erase(first.base(), first.base()));        // first, rendu modifiable
             while (const_iterator(next) != last)
                 next = erase_node(next);
             return next;
@@ -413,7 +432,7 @@ namespace wsl
     };
 
     template <typename T, std::signed_integral Offset>
-        requires streamable<T>
+        requires detail::dlist::streamable<T>
     std::ostream &operator<<(std::ostream &stream, dlist<T, Offset> const &values)
     {
         values.dump(stream);

@@ -22,6 +22,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   inversions en O(n log n), rang lexicographique (n <= 20), `permute`, `constexpr`.
 
 ### dlist
+
+- Rupture (mineure) : concept `wsl::streamable` déplacé dans `wsl::detail::dlist` ;
+  messages d'exception en français. Commentaire d'en-tête (exemple vérifié), style des
+  membres (`x_`) et des paramètres de modèle (`is_const`) alignés sur le reste du dépôt.
 - Correction : `erase(const_iterator)` et `erase(first, last)` ne compilaient pas.
 - `position(it)` : position absolue d'un élément (jusqu'ici lisible seulement par `dump`).
 - Recherche de nœud, effacement et `extract` en un seul parcours (O(n) au lieu de O(n²)).

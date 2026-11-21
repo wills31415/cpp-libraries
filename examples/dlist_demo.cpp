@@ -19,14 +19,14 @@ int main()
     std::cout << "== Insertion de notes ==\n";
     wsl::dlist<std::string> document(
         wsl::dlist<std::string>::with_tail, 12);
-    document.emplace(2, "premiere note");
-    document.emplace(7, "derniere note");
+    document.emplace(2, "première note");
+    document.emplace(7, "dernière note");
     std::cout << document << "\n\n";
 
     std::cout << "== Insertion d'un fragment ==\n";
     wsl::dlist<std::string> fragment(
         wsl::dlist<std::string>::with_tail, 4);
-    fragment.emplace(1, "note inseree");
+    fragment.emplace(1, "note insérée");
     fragment.emplace(2, "seconde note");
     document.insert(5, fragment);
     std::cout << document << "\n\n";
