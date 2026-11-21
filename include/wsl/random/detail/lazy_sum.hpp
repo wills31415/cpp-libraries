@@ -193,23 +193,44 @@ namespace wsl::random::detail
         {
             while (v.fraction.size() < level_)
                 v.fraction.refine(g);
-            atoms_.push_back({std::move(c), divisor_index, std::move(v), {}, 0, 0, root});
+            atoms_.push_back({std::move(c), divisor_index, std::move(v), nullptr, {}, 0, 0, root});
             refresh(atoms_.size() - 1);
             append_prefix();
         }
+        // Même terme, V tenu ailleurs et partagé avec d'autres sommes (variables aléatoires : un
+        // même ω pour plusieurs expressions) : les bits tirés pour l'une servent aux autres. *v
+        // doit survivre à la somme.
         template <class G>
-        constexpr void add(lazy_draw d, G& g)
+        constexpr void add_shared(dyadic_value c, std::size_t divisor_index, lazy_real* v, G& g, bool root = false)
+        {
+            while (v->fraction.size() < level_)
+                v->fraction.refine(g);
+            atoms_.push_back({std::move(c), divisor_index, {}, v, {}, 0, 0, root});
+            refresh(atoms_.size() - 1);
+            append_prefix();
+        }
+        // Rang du diviseur q (> 0) dans la liste, ajouté s'il n'y est pas.
+        constexpr std::size_t divisor_slot(double q)
         {
             std::size_t index = 0;
-            while (index < divisors_.size() && divisors_[index] != d.divisor)
+            while (index < divisors_.size() && divisors_[index] != q)
                 ++index;
             if (index == divisors_.size())
             {
-                divisors_.push_back(d.divisor);
-                auto const q = decompose(d.divisor);
-                divisor_mantissa_.push_back(q.mantissa);
-                divisor_exponent_.push_back(q.exponent);
+                divisors_.push_back(q);
+                auto const d = decompose(q);
+                divisor_mantissa_.push_back(d.mantissa);
+                divisor_exponent_.push_back(d.exponent);
             }
+            return index;
+        }
+        // Termes racine c √v V : la variance commune (une seule par somme).
+        constexpr void use_root(scaled const& v) { set_root(v); }
+
+        template <class G>
+        constexpr void add(lazy_draw d, G& g)
+        {
+            std::size_t const index = divisor_slot(d.divisor);
             if (d.root)
                 set_root(d.variance);
             add_constant(d.offset);
@@ -296,11 +317,15 @@ namespace wsl::random::detail
         {
             dyadic_value c;
             std::size_t divisor;
-            lazy_real v;
+            lazy_real own;
+            lazy_real* external = nullptr;                                  // V partagé (add_shared)
             sd::double_double mid;                                          // ≈ c mid(V) / q
             double width;                                                   // >= |c| 2^-b / q (réductible)
             double error;                                                   // >= |mid − c mid(V)/q| (fixe)
             bool root = false;                                              // terme c √v V
+
+            constexpr lazy_real& real() noexcept { return external ? *external : own; }
+            constexpr lazy_real const& real() const noexcept { return external ? *external : own; }
         };
 
         // √v commun des termes racine (une seule variance par somme : pas de racines mêlées).
@@ -356,12 +381,12 @@ namespace wsl::random::detail
         constexpr void refresh(std::size_t j)
         {
             atom& a = atoms_[j];
-            int const b = a.v.fraction.bits();
+            int const b = a.real().fraction.bits();
             // milieu de V : k + (A + ½) 2^-b, sur les deux premiers mots (reste dans l'erreur)
-            double const w0 = a.v.fraction.size() > 0 ? double(a.v.fraction.word(0) >> 11) : 0.0;
-            double const w0_low = a.v.fraction.size() > 0 ? double(a.v.fraction.word(0) & 0x7ff) : 0.0;
-            double const w1 = a.v.fraction.size() > 1 ? double(a.v.fraction.word(1) >> 11) : 0.0;
-            sd::double_double mv{double(a.v.integer), 0.0};
+            double const w0 = a.real().fraction.size() > 0 ? double(a.real().fraction.word(0) >> 11) : 0.0;
+            double const w0_low = a.real().fraction.size() > 0 ? double(a.real().fraction.word(0) & 0x7ff) : 0.0;
+            double const w1 = a.real().fraction.size() > 1 ? double(a.real().fraction.word(1) >> 11) : 0.0;
+            sd::double_double mv{double(a.real().integer), 0.0};
             mv = sum(mv, {sd::scale_by_power_of_two(w0, -53), 0.0});
             mv = sum(mv, {sd::scale_by_power_of_two(w0_low, -64), 0.0});
             mv = sum(mv, {sd::scale_by_power_of_two(w1, -117), 0.0});
@@ -378,8 +403,8 @@ namespace wsl::random::detail
             // largeur de l'intervalle (réductible) ; erreur du milieu (bits au-delà du deuxième mot
             // ignorés, arrondis du double-double, partie entière grande), qui ne diminue pas
             a.width = sd::scale_by_power_of_two(cw, -b);
-            a.error = sd::fmul(magnitude(m.hi), a.root ? 0x1p-96 : 0x1p-100) + (a.v.fraction.size() > 2 ? sd::scale_by_power_of_two(cw, -116) : 0.0);
-            if (a.v.integer >= (std::uint64_t{1} << 50))
+            a.error = sd::fmul(magnitude(m.hi), a.root ? 0x1p-96 : 0x1p-100) + (a.real().fraction.size() > 2 ? sd::scale_by_power_of_two(cw, -116) : 0.0);
+            if (a.real().integer >= (std::uint64_t{1} << 50))
                 a.error = a.error + sd::fmul(magnitude(m.hi), 0x1p-90);
             if (!is_finite(a.width) || !is_finite(a.error) || !is_finite(m.hi) || (c.hi == 0 && !a.c.is_zero()))
                 a.error = std::numeric_limits<double>::infinity();             // hors de portée des doubles : voie exacte
@@ -419,8 +444,8 @@ namespace wsl::random::detail
         {
             ++level_;
             for (auto& a : atoms_)
-                while (a.v.fraction.size() < level_)
-                    a.v.fraction.refine(g);
+                while (a.real().fraction.size() < level_)
+                    a.real().fraction.refine(g);
             rebuild_prefix();
         }
 
@@ -513,8 +538,8 @@ namespace wsl::random::detail
                 if (weight.is_zero())
                     continue;
                 dyadic_value const gamma = weight * a.c;
-                int const b = a.v.fraction.bits();
-                big const lo = big(a.v.integer).shifted_left(b) + a.v.fraction.numerator();
+                int const b = a.real().fraction.bits();
+                big const lo = big(a.real().integer).shifted_left(b) + a.real().fraction.numerator();
                 // γ V / q = γ (lo + θ) 2^{−b} 2^{−e_q} (D/m_q) / D, θ ∈ [0, 1]
                 big const share = divide(denominator, big(divisor_mantissa_[a.divisor])).quotient;
                 dyadic_value const unit = gamma * dyadic_value{{false, share}, -b - divisor_exponent_[a.divisor]};

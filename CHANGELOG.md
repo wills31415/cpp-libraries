@@ -127,8 +127,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   variables et scalaires, évaluation couplée (`(X − X)(g) == 0` ; chaque variable de base
   tirée une fois par ω, par identifiant croissant), `wr::evaluate(g, X, Y, …)` sur un même
   ω, `wr::E`, `wr::Var`, `wr::Cov` par linéarité (coefficients regroupés : Var(X + X) =
-  4 Var X). Calcul flottant des expressions (évaluation exacte des combinaisons affines,
-  `wr::law` et fonctions : lots suivants).
+  4 Var X).
+- Variables aléatoires, lot 1b (V3) : une combinaison affine Σ aᵢ Xᵢ + b de variables à
+  tirage paresseux (normale, exponentielle, Laplace, uniforme) est l'arrondi correct de sa
+  valeur exacte, coefficients regroupés par identifiant, divisions par des constantes
+  exactes (`(X + X) / 2`, `2 * X − X`, `(3 * X + 1 − 1) / 3` rendent X au bit près) ; réels
+  paresseux partagés par toutes les expressions d'un même ω (`lazy_sum::add_shared`).
+  Ailleurs (produits, autres lois, coefficient non représentable), calcul flottant sur des
+  valeurs tirées exactement ; `Z(g, wr::fast)` : calcul flottant sur tirages rapides.
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

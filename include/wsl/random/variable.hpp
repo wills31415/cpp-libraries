@@ -20,12 +20,21 @@
 // Évaluation (V2) : à chaque ω, chaque variable de base de l'expression est tirée une fois,
 // par l'algorithme de sa loi, dans l'ordre croissant des identifiants (ordre de création) ;
 // ses autres occurrences reçoivent la même valeur. L'ordre et le nombre de valeurs
-// consommées font partie du contrat. L'expression est ensuite calculée en flottant.
+// consommées font partie du contrat.
+//
+// Arrondi (V3, exact quand c'est possible) : une combinaison affine Σ aᵢ Xᵢ + b de variables
+// à tirage paresseux (normale, exponentielle, Laplace, uniforme) est l'arrondi correct de sa
+// valeur exacte (réels paresseux partagés par toutes les expressions d'un même ω : `lazy_sum`),
+// coefficients et diviseurs exacts ; ailleurs (produits de variables, autres lois, coefficient
+// non représentable), calcul flottant sur les valeurs des variables de base, elles-mêmes
+// tirées exactement. Z(g, wsl::random::fast) : calcul flottant sur des tirages rapides.
 //
 // Constantes : E, Var et Cov par linéarité sur la forme affine Σ aᵢ Xᵢ + b, les coefficients
 // d'une même variable regroupés (Var(X + X) = 4 Var X ; variables de base distinctes
 // indépendantes).
 
+#include <wsl/random/detail/lazy_sum.hpp>
+#include <wsl/random/engines.hpp>
 #include <wsl/random/law.hpp>
 
 #include <algorithm>
@@ -118,7 +127,7 @@ namespace wsl::random
 
         // Tirage des feuilles : chaque variable de base une fois, par identifiant croissant.
         template <class G, class... L>
-        constexpr std::tuple<typename L::value_type...> draw_leaves(G& g, std::tuple<variable<L> const*...> const& leaf)
+        constexpr std::tuple<typename L::value_type...> draw_leaves(G& g, std::tuple<variable<L> const*...> const& leaf, bool fast = false)
         {
             constexpr std::size_t n = sizeof...(L);
             std::tuple<std::optional<typename L::value_type>...> slots;
@@ -129,7 +138,7 @@ namespace wsl::random
                 std::array<std::size_t, n> order{};
                 for (std::size_t i = 0; i < n; ++i)
                     order[i] = i;
-                std::ranges::stable_sort(order, [&](std::size_t a, std::size_t b) { return ids[a] < ids[b]; });
+                std::ranges::sort(order, [&](std::size_t a, std::size_t b) { return ids[a] != ids[b] ? ids[a] < ids[b] : a < b; });
                 std::size_t first = 0;
                 for (std::size_t p = 0; p < n; ++p)
                 {
@@ -137,7 +146,9 @@ namespace wsl::random
                     if (p == 0 || ids[j] != ids[order[p - 1]])
                     {
                         first = j;
-                        with_index<n>(j, [&]<std::size_t J>() { std::get<J>(slots) = std::get<J>(leaf)->law()(g); });
+                        with_index<n>(j, [&]<std::size_t J>() {
+                            std::get<J>(slots) = fast ? std::get<J>(leaf)->law()(g, wsl::random::fast) : std::get<J>(leaf)->law()(g);
+                        });
                         continue;
                     }
                     with_index<n>(j, [&]<std::size_t J>() {
@@ -283,7 +294,7 @@ namespace wsl::random
         {
             affine_form f;
             collect_affine(node, 1.0, f);
-            std::ranges::stable_sort(f.terms, [](affine_term const& a, affine_term const& b) { return a.id < b.id; });
+            std::ranges::sort(f.terms, [](affine_term const& a, affine_term const& b) { return a.id < b.id; });
             std::vector<affine_term> merged;
             for (auto const& t : f.terms)
                 if (!merged.empty() && merged.back().id == t.id)
@@ -298,6 +309,290 @@ namespace wsl::random
         concept affine_with_mean = is_affine<std::remove_cvref_t<N>> && leaves_have_mean<std::remove_cvref_t<N>>;
         template <class N>
         concept affine_with_variance = is_affine<std::remove_cvref_t<N>> && leaves_have_variance<std::remove_cvref_t<N>>;
+    }
+
+    namespace detail
+    {
+        // ---- Voie exacte : combinaisons affines de variables à tirage paresseux ----------------
+        template <class N>
+        inline constexpr bool lazy_leaves = true;                           // constantes
+        template <class L>
+        inline constexpr bool lazy_leaves<variable<L>> = lazy_samplable<L, splitmix64>;
+        template <class Op, class... A>
+        inline constexpr bool lazy_leaves<expression<Op, A...>> = (lazy_leaves<A> && ...);
+
+        template <class N>
+        concept exact_affine = is_affine<N> && lazy_leaves<N> && std::floating_point<typename node_value<N>::type>;
+
+        constexpr bool is_power_of_two(double d) noexcept
+        {
+            return d > 0 && is_finite(d) && (std::bit_cast<std::uint64_t>(d) & ((std::uint64_t{1} << 52) - 1)) == 0
+                   && (std::bit_cast<std::uint64_t>(d) >> 52) != 0;
+        }
+        // a · b exactement en double ?
+        constexpr bool exact_product(double a, double b, double& out) noexcept
+        {
+            auto const [p, e] = sd::two_product(a, b);
+            out = p;
+            return e == 0 && is_finite(p) && p != 0;
+        }
+
+        struct exact_term
+        {
+            std::uint64_t id;
+            std::size_t leaf;                                               // rang de la feuille (dans l'expression)
+            dyadic_value numerator;
+            double denominator;                                             // coefficient : numerator / denominator
+        };
+        // Constante numerator / denominator, regroupée par dénominateur avant d'être réduite.
+        struct exact_constant
+        {
+            dyadic_value numerator;
+            double denominator;
+        };
+        struct exact_form
+        {
+            std::vector<exact_term> terms;
+            std::vector<exact_constant> constants;
+            bool ok = true;
+        };
+
+        // Σ des constantes, dyadique ; vide si l'une des sommes par dénominateur ne l'est pas
+        // (n / d dyadique si la mantisse de n est divisible par la partie impaire de d).
+        constexpr std::optional<dyadic_value> exact_constant_sum(std::vector<exact_constant> c)
+        {
+            std::ranges::sort(c, [](exact_constant const& a, exact_constant const& b) { return a.denominator < b.denominator; });
+            dyadic_value total;
+            for (std::size_t i = 0; i < c.size();)
+            {
+                dyadic_value n = c[i].numerator;
+                double const den = c[i].denominator;
+                std::size_t k = i + 1;
+                for (; k < c.size() && c[k].denominator == den; ++k)
+                    n = n + c[k].numerator;
+                i = k;
+                if (n.is_zero())
+                    continue;
+                auto const d = decompose(den);                              // den = m 2^e, m impair
+                std::uint64_t const m = d.mantissa >> std::countr_zero(d.mantissa);
+                int const e = d.exponent + std::countr_zero(d.mantissa);
+                auto const [q, r] = divide(n.m.magnitude, m);
+                if (r != 0)
+                    return std::nullopt;
+                total = total + dyadic_value{{n.m.negative, q}, n.e - e};
+            }
+            return total;
+        }
+
+        template <class N>
+        constexpr void collect_exact(N const& node, dyadic_value const& num, double den, exact_form& out, std::size_t& leaf)
+        {
+            if (!out.ok)
+                return;
+            if constexpr (requires { typename N::law_type; })
+                out.terms.push_back({node.id(), leaf++, num, den});
+            else if constexpr (requires { node.value; })
+            {
+                if (double(node.value) != 0)
+                    out.constants.push_back({num * to_dyadic(double(node.value)), den});
+            }
+            else
+            {
+                using op = typename N::operation_type;
+                auto const& args = node.arguments();
+                if constexpr (std::is_same_v<op, plus_op>)
+                {
+                    collect_exact(std::get<0>(args), num, den, out, leaf);
+                    collect_exact(std::get<1>(args), num, den, out, leaf);
+                }
+                else if constexpr (std::is_same_v<op, minus_op>)
+                {
+                    collect_exact(std::get<0>(args), num, den, out, leaf);
+                    collect_exact(std::get<1>(args), -num, den, out, leaf);
+                }
+                else if constexpr (std::is_same_v<op, negate_op>)
+                    collect_exact(std::get<0>(args), -num, den, out, leaf);
+                else if constexpr (std::is_same_v<op, multiplies_op>)
+                {
+                    if constexpr (requires { std::get<1>(args).value; })
+                        collect_exact(std::get<0>(args), num * to_dyadic(double(std::get<1>(args).value)), den, out, leaf);
+                    else
+                        collect_exact(std::get<1>(args), num * to_dyadic(double(std::get<0>(args).value)), den, out, leaf);
+                }
+                else                                                        // divides_op, diviseur constant
+                {
+                    double const d = double(std::get<1>(args).value);
+                    double q = 0;
+                    if (!(d != 0) || !is_finite(d) || !exact_product(den, d < 0 ? -d : d, q))
+                    {
+                        out.ok = false;
+                        return;
+                    }
+                    collect_exact(std::get<0>(args), d < 0 ? -num : num, q, out, leaf);
+                }
+            }
+        }
+
+        // Ce que ω a tiré pour une feuille à tirage paresseux : offset + c V / q (ou c √v V).
+        struct lazy_leaf
+        {
+            lazy_real* v = nullptr;                                         // dans le ω (adresse stable)
+            dyadic_value offset, coefficient;
+            double divisor = 1;
+            bool root = false;
+            scaled variance{1.0, 0.0, 0};
+        };
+
+        // Un ω : les feuilles (de toutes les expressions évaluées ensemble) tirées une fois par
+        // identifiant, paresseusement si leur loi le permet, sinon par leur loi.
+        template <class G, class... L>
+        class omega
+        {
+        public:
+            using values = std::tuple<typename L::value_type...>;
+            static constexpr std::size_t n = sizeof...(L);
+
+            omega(omega const&) = delete;                                   // les sommes pointent sur reals_
+            omega& operator=(omega const&) = delete;
+
+            constexpr omega(G& g, std::tuple<variable<L> const*...> const& leaf) : g_(g), leaf_(leaf)
+            {
+                if constexpr (n > 0)
+                {
+                    std::array<std::uint64_t, n> ids{};
+                    [&]<std::size_t... J>(std::index_sequence<J...>) { ((ids[J] = std::get<J>(leaf_)->id()), ...); }(std::make_index_sequence<n>{});
+                    std::array<std::size_t, n> order{};
+                    for (std::size_t i = 0; i < n; ++i)
+                        order[i] = i;
+                    std::ranges::sort(order, [&](std::size_t a, std::size_t b) { return ids[a] != ids[b] ? ids[a] < ids[b] : a < b; });
+                    for (std::size_t p = 0; p < n; ++p)
+                    {
+                        std::size_t const j = order[p];
+                        if (p == 0 || ids[j] != ids[order[p - 1]])
+                        {
+                            first_ = j;
+                            with_index<n>(j, [&]<std::size_t J>() { draw<J>(); });
+                        }
+                        else
+                            with_index<n>(j, [&]<std::size_t J>() { with_index<n>(first_, [&]<std::size_t F>() { share<J, F>(); }); });
+                    }
+                }
+            }
+
+            // Valeur de la feuille J (arrondie une fois, exactement, puis mémorisée).
+            template <std::size_t J>
+            constexpr auto const& leaf_value()
+            {
+                auto& slot = std::get<J>(slots_);
+                if (!slot)
+                {
+                    using T = std::tuple_element_t<J, values>;
+                    if constexpr (std::floating_point<T> && lazy_samplable<std::remove_cvref_t<decltype(std::get<J>(leaf_)->law())>, splitmix64>)
+                    {
+                        lazy_leaf const& d = lazy_[J];
+                        lazy_sum s;
+                        s.add_constant(d.offset);
+                        if (d.root)
+                            s.use_root(d.variance);
+                        s.add_shared(d.coefficient, s.divisor_slot(d.divisor), d.v, g_, d.root);
+                        slot = s.template rounded<T>(g_, {}, {}, 0, to_dyadic(1.0));
+                    }
+                }
+                return *slot;
+            }
+            constexpr values leaf_values()
+            {
+                return [&]<std::size_t... J>(std::index_sequence<J...>) { return values{leaf_value<J>()...}; }(std::make_index_sequence<n>{});
+            }
+
+            // Combinaison affine exacte (feuilles first.. de l'expression) ; vide si un
+            // coefficient, un diviseur ou une constante n'est pas représentable exactement.
+            template <class T, class N>
+            constexpr std::optional<T> exact(N const& node, std::size_t first)
+            {
+                exact_form f;
+                std::size_t leaf = first;
+                collect_exact(node, to_dyadic(1.0), 1.0, f, leaf);
+                if (!f.ok)
+                    return std::nullopt;
+                std::ranges::sort(f.terms, [](exact_term const& a, exact_term const& b) { return a.id != b.id ? a.id < b.id : a.leaf < b.leaf; });
+                lazy_sum s;
+                for (std::size_t i = 0; i < f.terms.size();)
+                {
+                    exact_term t = f.terms[i];                               // regroupe une même variable
+                    std::size_t k = i + 1;
+                    for (; k < f.terms.size() && f.terms[k].id == t.id; ++k)
+                    {
+                        if (f.terms[k].denominator != t.denominator)
+                            return std::nullopt;
+                        t.numerator = t.numerator + f.terms[k].numerator;
+                    }
+                    i = k;
+                    if (t.numerator.is_zero())
+                        continue;
+                    lazy_leaf const& d = lazy_[t.leaf];
+                    double q = 0;
+                    if (!exact_product(t.denominator, d.divisor, q))
+                        return std::nullopt;
+                    if (!d.offset.is_zero())                                 // offset · numerator / denominator
+                        f.constants.push_back({d.offset * t.numerator, t.denominator});
+                    if (d.root)
+                        s.use_root(d.variance);
+                    s.add_shared(t.numerator * d.coefficient, s.divisor_slot(q), d.v, g_, d.root);
+                }
+                auto const constant = exact_constant_sum(std::move(f.constants));
+                if (!constant)
+                    return std::nullopt;
+                s.add_constant(*constant);
+                return s.template rounded<T>(g_, {}, {}, 0, to_dyadic(1.0));
+            }
+
+            // Valeur d'une expression dont la première feuille est first.
+            template <std::size_t First, class N>
+            constexpr auto value_of(N const& node)
+            {
+                using T = typename node_value<N>::type;
+                if constexpr (exact_affine<N>)
+                    if (auto const r = exact<T>(node, First))
+                        return *r;
+                return value_at<First>(node, leaf_values());
+            }
+
+        private:
+            template <std::size_t J>
+            constexpr void draw()
+            {
+                auto const& law = std::get<J>(leaf_)->law();
+                using law_type = std::remove_cvref_t<decltype(law)>;
+                if constexpr (lazy_samplable<law_type, G>)
+                {
+                    lazy_draw d = lazy_sample(law, g_);
+                    reals_[J] = std::move(d.v);
+                    lazy_[J] = {&reals_[J], std::move(d.offset), std::move(d.coefficient), d.divisor, d.root, d.variance};
+                }
+                else
+                    std::get<J>(slots_) = law(g_);
+            }
+            template <std::size_t J, std::size_t F>
+            constexpr void share()
+            {
+                if constexpr (std::is_same_v<std::tuple_element_t<J, values>, std::tuple_element_t<F, values>>)   // même variable
+                {
+                    lazy_[J] = lazy_[F];
+                    std::get<J>(slots_) = std::get<F>(slots_);
+                }
+            }
+
+            G& g_;
+            std::tuple<variable<L> const*...> leaf_;
+            std::array<lazy_real, n> reals_{};
+            std::array<lazy_leaf, n> lazy_{};
+            std::tuple<std::optional<typename L::value_type>...> slots_;
+            std::size_t first_ = 0;
+        };
+
+        template <class G, class... L>
+        omega(G&, std::tuple<variable<L> const*...> const&) -> omega<G, L...>;
     }
 
     // -----------------------------------------------------------------------
@@ -347,11 +642,19 @@ namespace wsl::random
         constexpr Op const& operation() const noexcept { return op_; }
         constexpr std::tuple<A...> const& arguments() const noexcept { return args_; }
 
-        // Un ω neuf : chaque variable de base tirée une fois, puis l'expression en flottant.
+        // Un ω neuf : chaque variable de base tirée une fois ; exact pour une combinaison affine.
         template <std::uniform_random_bit_generator G>
         constexpr value_type operator()(G& g) const
         {
-            auto const values = detail::draw_leaves(g, detail::leaves(*this));
+            auto const leaf = detail::leaves(*this);
+            detail::omega w(g, leaf);
+            return w.template value_of<0>(*this);
+        }
+        // Calcul flottant sur des tirages rapides.
+        template <std::uniform_random_bit_generator G>
+        constexpr value_type operator()(G& g, fast_t) const
+        {
+            auto const values = detail::draw_leaves(g, detail::leaves(*this), true);
             return detail::value_at<0>(*this, values);
         }
         template <std::uniform_random_bit_generator G>
@@ -374,7 +677,7 @@ namespace wsl::random
     constexpr std::tuple<typename detail::node_value<std::remove_cvref_t<E>>::type...> evaluate(G& g, E const&... e)
     {
         auto const leaf = std::tuple_cat(detail::leaves(e)...);
-        auto const values = detail::draw_leaves(g, leaf);
+        detail::omega w(g, leaf);
         constexpr std::size_t counts[] = {detail::leaf_count<std::remove_cvref_t<E>>..., 0};
         return [&]<std::size_t... K>(std::index_sequence<K...>) {
             constexpr auto offset = [](std::size_t k) {
@@ -383,7 +686,7 @@ namespace wsl::random
                     s += counts[i];
                 return s;
             };
-            return std::tuple<typename detail::node_value<std::remove_cvref_t<E>>::type...>{detail::value_at<offset(K)>(e, values)...};
+            return std::tuple<typename detail::node_value<std::remove_cvref_t<E>>::type...>{w.template value_of<offset(K)>(e)...};
         }(std::index_sequence_for<E...>{});
     }
 

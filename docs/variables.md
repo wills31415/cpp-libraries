@@ -28,7 +28,7 @@ wr::variable Y{wr::exponential()};                // Y ~ E(1), indépendante de 
 auto Z = 2 * X + Y;                               // expression paresseuse
 Z(g);                                             // un ω : X et Y tirées une fois chacune
 (X - X)(g);                                       // 0, en tout ω
-auto [x, z] = wr::evaluate(g, X, Z);              // même ω : z == 2 x + y
+auto [x, z] = wr::evaluate(g, X, Z);              // même ω : z, arrondi exact de 2X + Y
 wr::law(2 * X + 1);                               // normal({.mean = 1, .stddev = 2}), exacte
 wr::law(X + X);                                   // normal({.variance = 4}) : 2X, pas P ∗ P
 wr::law(X + wr::variable{wr::normal()});          // normal({.variance = 2}) : convolution
@@ -112,7 +112,20 @@ Les lois restent des mesures, sans opérateurs arithmétiques (décision 8c) ; `
 `convolution`… restent les opérations sur les lois. Une variable n'est qu'une couche
 au-dessus : elle ne modifie aucun tirage existant.
 
-## 4. Lots proposés
+## 4. Réalisation
+
+- Lot 1a ✅ : `wr::variable X{P}` (écriture à accolades : `wr::variable X(P());` déclarerait
+  une fonction), expressions, évaluation couplée, `wr::evaluate`, `wr::E`, `wr::Var`,
+  `wr::Cov` par linéarité.
+- Lot 1b ✅ : combinaisons affines exactes. Dans une expression, chaque variable de base à
+  tirage paresseux est tirée comme réel paresseux, partagé par toutes les expressions du
+  même ω ; une combinaison affine en est l'arrondi correct (`lazy_sum`), les coefficients
+  d'une même variable regroupés, les divisions par des constantes gardées exactes comme
+  diviseurs, les constantes réduites par dénominateur. Repli sur le calcul flottant (sur
+  des valeurs tirées exactement) dès qu'un coefficient n'est pas représentable exactement.
+  Une variable de base seule, `X(g)`, est le tirage de sa loi.
+
+## 5. Lots proposés
 
 1. Variables de base, expressions arithmétiques et fonctions, évaluation couplée,
    `law` des combinaisons affines, constantes par linéarité.
