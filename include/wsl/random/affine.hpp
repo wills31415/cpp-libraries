@@ -105,7 +105,9 @@ namespace wsl::random
     template <law_real T>
     constexpr normal<T> affine_closure(normal<T> const& X, double a, double b)
     {
-        return normal<T>({.mean = static_cast<T>(detail::linear(a, double(X.mean()), b)), .stddev = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.stddev())))});
+        // variance a² v (double-double : un arrondi à 2^-106 au plus), moyenne a μ + b arrondie une fois
+        detail::scaled const a2 = detail::normalized(detail::magnitude(a), 0.0) * detail::normalized(detail::magnitude(a), 0.0);
+        return normal<T>(static_cast<T>(detail::linear(a, double(X.mean()), b)), a2 * X.exact_variance());
     }
     template <law_real T>
     constexpr cauchy<T> affine_closure(cauchy<T> const& X, double a, double b)

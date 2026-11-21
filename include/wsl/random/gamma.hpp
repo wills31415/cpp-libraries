@@ -100,7 +100,7 @@ namespace wsl::random
         // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
-            std::optional<ratio> rate, scale;
+            std::optional<ratio> rate = std::nullopt, scale = std::nullopt;
             T shape;
         };
         using param_type = parameters;

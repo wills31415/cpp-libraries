@@ -56,7 +56,8 @@ namespace wsl::random
     template <law_real T>
     constexpr normal<T> sum_closure(normal<T> const& X, normal<T> const& Y)
     {
-        return normal<T>({.mean = static_cast<T>(double(X.mean()) + double(Y.mean())), .stddev = static_cast<T>(wsl::special::hypot(double(X.stddev()), double(Y.stddev())))});
+        // variances additionnées (double-double), moyennes additionnées et arrondies une fois
+        return normal<T>(static_cast<T>(double(X.mean()) + double(Y.mean())), detail::add_scaled(X.exact_variance(), Y.exact_variance()));
     }
     template <law_real T>
     constexpr cauchy<T> sum_closure(cauchy<T> const& X, cauchy<T> const& Y)

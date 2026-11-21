@@ -6,12 +6,23 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/special.hpp>
 #include <algorithm>
+#include <concepts>
 
 namespace wsl::random::detail
 {
+    // σ en double (voie rapide) ou à l'échelle (σ = √v en double-double, normale donnée par sa
+    // variance) : mêmes expressions, donc mêmes calculs pour un σ double.
+    template <class S>
+    concept gaussian_sigma = std::floating_point<S> || std::same_as<S, scaled>;
+    constexpr int sigma_exponent(double sigma) noexcept { return sd::exponent_of(sigma); }
+    constexpr int sigma_exponent(scaled const& sigma) noexcept { return sigma.e; }
+    constexpr scaled sigma_scaled(double sigma) noexcept { return normalized(sigma, 0.0); }
+    constexpr scaled const& sigma_scaled(scaled const& sigma) noexcept { return sigma; }
+
     // z = (x − μ)/σ en double-double. ±∞ si |z| > 2^600, 0 si |z| < 2^-600
     // (sans effet sur aucune des fonctions de la loi).
-    constexpr sd::double_double standardize(double x, double mu, double sigma) noexcept
+    template <gaussian_sigma S>
+    constexpr sd::double_double standardize(double x, double mu, S const& sigma) noexcept
     {
         if (!is_finite(x))
             return {x, 0.0};                                            // ±∞, NaN
@@ -28,7 +39,7 @@ namespace wsl::random::detail
             return {0.0, 0.0};
         bool const negative = n < 0;
         double const a = negative ? -n : n, a_error = negative ? -n_error : n_error;
-        int const e = sd::exponent_of(a) + doubled - sd::exponent_of(sigma);
+        int const e = sd::exponent_of(a) + doubled - sigma_exponent(sigma);
         if (e > 600)
             return {negative ? -sd::infinity : sd::infinity, 0.0};
         if (e < -600)
@@ -46,7 +57,8 @@ namespace wsl::random::detail
         scaled z;                                                       // z.hi == 0 si x = μ
     };
 
-    constexpr standardized_scaled standardize_scaled(double x, double mu, double sigma) noexcept
+    template <gaussian_sigma S>
+    constexpr standardized_scaled standardize_scaled(double x, double mu, S const& sigma) noexcept
     {
         auto [n, n_error] = sd::two_sum(x, -mu);
         int doubled = 0;
@@ -150,10 +162,11 @@ namespace wsl::random::detail
     }
 
     // μ + σ x arrondi une fois, x en double-double non nul.
-    constexpr double affine(double mu, double sigma, double x_hi, double x_lo) noexcept
+    template <gaussian_sigma S>
+    constexpr double affine(double mu, S const& sigma, double x_hi, double x_lo) noexcept
     {
         bool const negative = x_hi < 0;
-        return affine_scaled(mu, negative, normalized(negative ? -x_hi : x_hi, negative ? -x_lo : x_lo) * normalized(sigma, 0.0));
+        return affine_scaled(mu, negative, normalized(negative ? -x_hi : x_hi, negative ? -x_lo : x_lo) * sigma_scaled(sigma));
     }
 
     // Φ(w), w en double-double, à l'échelle (0 sous 2^-1100 environ).

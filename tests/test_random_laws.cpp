@@ -944,6 +944,14 @@ int main()
             double const u = wsl::random::uniform_real(x), t = fp::fmul(10.0, u) - 5;
             return bits(wsl::random::pdf(S1, t)) ^ (bits(wsl::random::cdf(S1, t)) << 1) ^ (bits(wsl::random::ccdf(S2, t)) << 2);
         }, 1 << 5), 0xba852547a6b18b91);
+        wsl::random::normal const NV({.mean = 0.5, .variance = 2.0});                 // √2 : tirage exact par les carrés
+        wsl::random::normal<float> const NVF({.mean = -1.0f, .variance = 3.0f});
+        ok &= check("normal variance", fingerprint([&] { return bits(wsl::random::sample(NV, x)) ^ (std::uint64_t{std::bit_cast<std::uint32_t>(wsl::random::sample(NVF, x))} << 1); }, 1 << 12), 0x2df7ca19b86ab85d);
+        ok &= check("normal variance fns", fingerprint([&] {
+            namespace fp = wsl::special::detail;
+            double const u = wsl::random::uniform_real(x), t = fp::fmul(12.0, u) - 6;
+            return bits(NV.pdf(t)) ^ (bits(NV.cdf(t)) << 1) ^ (bits(NV.ccdf(t)) << 2) ^ (bits(NV.quantile(u)) << 3);
+        }, 1 << 12), 0xe9abcd992c0dde7d);
     }
     assert(ok);
 
@@ -1006,6 +1014,55 @@ int main()
         static_assert(std::is_same_v<decltype(wr::product_measure(wr::normal<float>(), wr::geometric({.p = 0.3})).entropy()), double>);
         static_assert(std::is_same_v<decltype(wr::geometric({.p = 0.3}).mean()), double> && std::is_same_v<decltype(wr::geometric({.p = 0.3}).median()), std::int64_t>);
         static_assert(noexcept(std::declval<wr::stable<> const&>().median()) && noexcept(std::declval<wr::geometric<> const&>().median()));
+    }
+
+    // ---- Normale par sa variance (décision 5, N4) -----------------------------------------
+    {
+        namespace wr = wsl::random;
+        namespace fp = wsl::special::detail;
+        auto const close = [](double a, double b, double tol) { return std::abs(a - b) <= tol * std::max(std::abs(a), std::abs(b)); };
+        // forme canonique : la variance exacte
+        assert(wr::normal({.mean = 1.0, .variance = 4.0}) == wr::normal({.mean = 1.0, .stddev = 2.0}) && wr::normal({.variance = 4.0}).param().stddev);
+        assert(!(wr::normal({.variance = 2.0}) == wr::normal({.stddev = wsl::special::sqrt(2.0)})));      // √2 arrondi : autre loi
+        wr::normal const V({.mean = 0.5, .variance = 2.0});
+        assert(V.variance() == 2 && V.stddev() == wsl::special::sqrt(2.0) && !V.param().stddev && *V.param().variance == 2 && wr::normal(V.param()) == V);
+        assert(throws_domain_error([] { (void)wr::normal({.stddev = 1.0, .variance = 1.0}); }) && throws_domain_error([] { (void)wr::normal({.variance = -1.0}); }));
+        // algèbre : les variances s'additionnent exactement
+        assert(wr::convolution(wr::normal(), wr::normal()) == wr::normal({.variance = 2.0}));
+        assert(wr::affine(wr::normal(), {.scale = 3}) == wr::normal({.stddev = 3.0}) && wr::affine(wr::normal({.variance = 2.0}), {.scale = 0.5}) == wr::normal({.variance = 0.5}));
+        // fonctions : à 1 ulp de celles de σ = √2 arrondi (l'écart de σ est sous 2^-53)
+        wr::normal const R({.mean = 0.5, .stddev = wsl::special::sqrt(2.0)});
+        for (double t = -8; t <= 8; t += 0.37)
+        {
+            assert(close(V.cdf(t), R.cdf(t), 4e-16 * (1 + std::abs(t))) && close(V.pdf(t), R.pdf(t), 4e-16 * (1 + t * t)));
+            double const p = V.cdf(t);
+            if (p > 1e-300 && p < 0.9)
+                assert(close(V.quantile(p), t, 1e-14 * (1 + std::abs(t))));
+        }
+        // arrondi exact par les carrés, contre μ + σ t en double-double (σ = √v à 2^-104) :
+        // désaccord possible seulement à moins de 2^-100 d'un milieu (probabilité ~2^-50 par point)
+        wr::xoshiro256pp h(77);
+        auto const square = wsl::random::detail::exact_square_of(wsl::random::detail::normalized(2.0, 0.0));
+        wsl::random::detail::scaled const sigma = wsl::random::detail::sqrt(wsl::random::detail::normalized(2.0, 0.0));
+        for (int i = 0; i < 20000; ++i)
+        {
+            std::uint64_t const w = (h() >> 11) >> (h() % 50);
+            int const b = static_cast<int>(h() % 80);
+            bool const negative = (h() & 1) != 0;
+            double const mu = i % 3 == 0 ? 0.0 : fp::fmul(wr::uniform_real(h) - 0.5, 1e3);
+            double const exact = wsl::random::detail::round_root_affine<double>(mu, square, wsl::special::sqrt(2.0), negative, wsl::random::detail::big(w), b);
+            if (w == 0)
+            {
+                assert(exact == mu);
+                continue;
+            }
+            auto const t = sigma * wsl::random::detail::normalized(static_cast<double>(w), 0.0);
+            wsl::random::detail::scaled const st{t.hi, t.lo, t.e - b};
+            double const reference = wsl::random::detail::affine_scaled(mu, negative, st);
+            assert(exact == reference);
+        }
+        assert(throws_domain_error([&] { (void)wsl::random::detail::lazy_sample(V, h); }));   // somme exacte : σ doit être un double
+        assert(kolmogorov_smirnov(V, [&] { std::vector<double> d; for (int i = 0; i < 20000; ++i) d.push_back(V(h)); return d; }()) < 1.95);
     }
     return 0;
 }

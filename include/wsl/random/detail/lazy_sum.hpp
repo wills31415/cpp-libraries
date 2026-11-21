@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -129,6 +130,10 @@ namespace wsl::random::detail
     template <class T, class G>
     constexpr lazy_draw lazy_sample(normal<T> const& X, G& g)
     {
+        // Somme exacte de termes dyadiques : σ doit en être un (√v irrationnel : pas de tirage
+        // exact de la somme, plutôt qu'un σ arrondi en silence).
+        if (!X.has_double_stddev())
+            throw std::domain_error("wsl::random : tirage exact d'une somme impossible pour une normale de σ = √v irrationnel (donner .stddev)");
         lazy_real v = exact_half_normal(g);
         bool const negative = (random_bits(g) >> 63) != 0;                  // même ordre que sample(normal)
         dyadic_value c = to_dyadic(double(X.stddev()));

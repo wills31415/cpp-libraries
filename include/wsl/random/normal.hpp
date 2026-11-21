@@ -19,6 +19,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/gaussian.hpp>
 #include <wsl/random/detail/lazy.hpp>
+#include <wsl/random/detail/lazy_root.hpp>
 #include <wsl/random/detail/ziggurat_tables.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/uniform.hpp>
@@ -28,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <random>
 #include <stdexcept>
 
@@ -75,22 +77,54 @@ namespace wsl::random
         using value_type = T;
         static constexpr exactness sampling = exactness::exact;
 
+        // Écart type .stddev ou variance .variance (l'un des deux au plus ; aucun : σ = 1), exacts
+        // tous deux : la forme canonique est la variance exacte (σ² en double-double pour .stddev).
         struct parameters
         {
-            T mean, stddev;
+            T mean = 0;
+            std::optional<T> stddev = std::nullopt, variance = std::nullopt;
         };
         using param_type = parameters;
-        constexpr param_type param() const { return {.mean = mean(), .stddev = stddev()}; }
-
-        constexpr normal() : normal(parameters{.mean = 0, .stddev = 1}) {}
-
-        constexpr normal(parameters p) : mean_(p.mean), sd_(p.stddev)
+        constexpr param_type param() const
         {
-            if (!detail::is_finite(mean_) || !(sd_ > 0) || !detail::is_finite(sd_))
-                throw std::domain_error("wsl::random::normal : il faut mean fini et stddev > 0, fini");
+            if (sd_ != 0)
+                return {.mean = mean_, .stddev = sd_, .variance = std::nullopt};
+            return {.mean = mean_, .stddev = std::nullopt, .variance = static_cast<T>(detail::rounded(var_))};
         }
 
-        constexpr T stddev() const noexcept { return sd_; }
+        constexpr normal() : normal(parameters{}) {}
+
+        constexpr normal(parameters p) : mean_(p.mean)
+        {
+            if ((p.stddev && p.variance) || !detail::is_finite(mean_))
+                throw std::domain_error("wsl::random::normal : il faut mean fini, et .stddev ou .variance (pas les deux), > 0 et finis");
+            if (p.variance)
+            {
+                double const v = *p.variance;
+                if (!(v > 0) || !detail::is_finite(v))
+                    throw std::domain_error("wsl::random::normal : il faut variance > 0, finie");
+                set_variance(detail::normalized(v, 0.0));
+                return;
+            }
+            T const sigma = p.stddev ? *p.stddev : T(1);
+            if (!(sigma > 0) || !detail::is_finite(sigma))
+                throw std::domain_error("wsl::random::normal : il faut stddev > 0, fini");
+            sd_ = sigma;
+            var_ = detail::normalized(double(sigma), 0.0) * detail::normalized(double(sigma), 0.0);   // exact
+        }
+
+        // Forme canonique : variance exacte v > 0 à l'échelle (identités de l'algèbre).
+        constexpr normal(T mean, detail::scaled const& variance) : mean_(mean)
+        {
+            if (!detail::is_finite(mean_) || !(variance.hi > 0) || variance.e > 2047)
+                throw std::domain_error("wsl::random::normal : il faut mean fini et variance > 0, finie");
+            set_variance(variance);
+        }
+
+        // σ arrondi (exact s'il est un T), variance exacte.
+        constexpr T stddev() const noexcept { return sd_ != 0 ? sd_ : static_cast<T>(detail::rounded(sigma_)); }
+        constexpr detail::scaled const& exact_variance() const noexcept { return var_; }
+        constexpr bool has_double_stddev() const noexcept { return sd_ != 0; }   // σ = √v est un T
         constexpr interval<T> support() const noexcept
         {
             return {-std::numeric_limits<T>::infinity(), std::numeric_limits<T>::infinity()};
@@ -99,14 +133,14 @@ namespace wsl::random
         constexpr T mean() const noexcept { return mean_; }
         constexpr T median() const noexcept { return mean_; }
         constexpr T mode() const noexcept { return mean_; }
-        constexpr T variance() const noexcept { return static_cast<T>(detail::sd::fmul(double(sd_), double(sd_))); }
+        constexpr T variance() const noexcept { return static_cast<T>(detail::rounded(var_)); }
         constexpr T skewness() const noexcept { return 0; }
         constexpr T excess_kurtosis() const noexcept { return 0; }
         // log σ + (1 + log 2π)/2.
         constexpr T entropy() const noexcept
         {
             namespace fp = detail::sd;
-            auto const [hi, lo] = detail::log_precise(double(sd_));
+            auto const [hi, lo] = log_sigma();
             auto const [s, s_error] = fp::two_sum(hi, detail::normal_entropy_hi);
             return static_cast<T>(s + (s_error + (lo + detail::normal_entropy_lo)));
         }
@@ -115,7 +149,7 @@ namespace wsl::random
         {
             auto const& X = *this;
             namespace fp = detail::sd;
-            auto const [z_hi, z_lo] = detail::standardize(x, X.mean_, X.sd_);
+            auto const [z_hi, z_lo] = X.with_sigma([&](auto const& s) { return detail::standardize(x, X.mean_, s); });
             double const a = detail::magnitude(z_hi);
             if (!(a < 54.6))                                                // e^{−z²/2}/(σ√2π) < 2^-1075 ; NaN
                 return a == a ? T(0) : T(z_hi);
@@ -127,7 +161,7 @@ namespace wsl::random
                 e = detail::exp_scaled(fp::fmul(s, -0.5), fp::fmul(s_lo, -0.5));
             }
             detail::scaled const c = detail::normalized(detail::inv_sqrt_2pi_hi, detail::inv_sqrt_2pi_lo);
-            return static_cast<T>(detail::rounded(e * c / double(X.sd_)));
+            return static_cast<T>(detail::rounded(X.with_sigma([&](auto const& s) { return e * c / s; })));
         }
 
         // −z²/2 − log σ − log(2π)/2.
@@ -135,7 +169,7 @@ namespace wsl::random
         {
             auto const& X = *this;
             namespace fp = detail::sd;
-            auto const [z_hi, z_lo] = detail::standardize(x, X.mean_, X.sd_);
+            auto const [z_hi, z_lo] = X.with_sigma([&](auto const& s) { return detail::standardize(x, X.mean_, s); });
             double const a = detail::magnitude(z_hi);
             if (!(a < 0x1p500))                                             // z²/2 domine (−∞ compris) ; NaN
                 return static_cast<T>(-fp::fmul(fp::fmul(z_hi, z_hi), 0.5));
@@ -146,7 +180,7 @@ namespace wsl::random
                 y_hi = fp::fmul(s, 0.5);
                 y_lo = fp::fmul(s_error + fp::fmul(2.0, fp::fmul(z_hi, z_lo)), 0.5);
             }
-            auto const [l_hi, l_lo] = detail::log_precise(double(X.sd_));
+            auto const [l_hi, l_lo] = X.log_sigma();
             auto const [s1, e1] = fp::two_sum(-y_hi, -l_hi);
             auto const [s2, e2] = fp::two_sum(s1, -detail::half_log_2pi_hi);
             return static_cast<T>(s2 + ((e1 + e2) - ((y_lo + l_lo) + detail::half_log_2pi_lo)));
@@ -181,7 +215,7 @@ namespace wsl::random
             auto const [x_hi, x_lo] = detail::standard_quantile(p);
             if (x_hi == 0)
                 return X.mean_;
-            return static_cast<T>(detail::affine(X.mean_, X.sd_, x_hi, x_lo));
+            return static_cast<T>(X.with_sigma([&](auto const& s) { return detail::affine(X.mean_, s, x_hi, x_lo); }));
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
@@ -195,7 +229,7 @@ namespace wsl::random
             if (q == 0)
                 return std::numeric_limits<T>::infinity();
             auto const [x_hi, x_lo] = detail::standard_quantile(q);         // μ − σ Φ⁻¹(q)
-            return static_cast<T>(detail::affine(X.mean_, X.sd_, -x_hi, -x_lo));
+            return static_cast<T>(X.with_sigma([&](auto const& s) { return detail::affine(X.mean_, s, -x_hi, -x_lo); }));
         }
 
         template <std::uniform_random_bit_generator G>
@@ -204,25 +238,66 @@ namespace wsl::random
             auto const& X = *this;
             detail::lazy_real v = detail::exact_half_normal(g);
             bool const negative = (random_bits(g) >> 63) != 0;
-            return detail::round_lazy<T>(X.mean_, X.sd_, 1.0, negative, v, g);
+            if (X.sd_ != 0)
+                return detail::round_lazy<T>(X.mean_, X.sd_, 1.0, negative, v, g);
+            return detail::round_lazy_root<T>(X.mean_, X.var_, double(X.stddev()), negative, v, g);   // √v exact
         }
 
-        // Ziggourat (approché, bit-exact) : μ + σ Z, deux arrondis.
+        // Ziggourat (approché, bit-exact) : μ + σ Z, deux arrondis (σ arrondi s'il n'est pas un double).
         template <std::uniform_random_bit_generator G>
         constexpr T sample(G& g, fast_t) const
         {
             auto const& X = *this;
-            return static_cast<T>(double(X.mean_) + detail::sd::fmul(double(X.sd_), detail::ziggurat_normal(g)));
+            return static_cast<T>(double(X.mean_) + detail::sd::fmul(double(X.stddev()), detail::ziggurat_normal(g)));
         }
 
-        friend constexpr bool operator==(normal const&, normal const&) = default;
+        // Égalité en loi : même moyenne, même variance exacte.
+        friend constexpr bool operator==(normal const& a, normal const& b) noexcept
+        {
+            return a.mean_ == b.mean_ && a.var_.hi == b.var_.hi && a.var_.lo == b.var_.lo && a.var_.e == b.var_.e;
+        }
 
     private:
+        // σ double (voie rapide, calculs inchangés) si √v en est un, sinon σ = √v à l'échelle.
+        constexpr void set_variance(detail::scaled const& v)
+        {
+            var_ = v;
+            detail::scaled const root = detail::sqrt(v);
+            double const s = detail::rounded(root);                         // candidat (v peut déborder du double)
+            bool exact = s > 0 && detail::is_finite(s) && double(static_cast<T>(s)) == s;
+            if (exact)
+            {
+                detail::scaled const square = detail::normalized(s, 0.0) * detail::normalized(s, 0.0);
+                exact = square.hi == v.hi && square.lo == v.lo && square.e == v.e;
+            }
+            if (exact)
+                sd_ = static_cast<T>(s);
+            else
+            {
+                sd_ = 0;
+                sigma_ = root;
+            }
+        }
+        template <class F>
+        constexpr auto with_sigma(F const& f) const noexcept
+        {
+            if (sd_ != 0)
+                return f(double(sd_));
+            return f(sigma_);
+        }
+        constexpr detail::sd::double_double log_sigma() const noexcept     // log σ = ½ log v
+        {
+            if (sd_ != 0)
+                return detail::log_precise(double(sd_));
+            auto const [hi, lo] = detail::log(var_);
+            return {detail::sd::fmul(hi, 0.5), detail::sd::fmul(lo, 0.5)};
+        }
+
         // z/√2 en double-double.
         constexpr detail::sd::double_double scaled_argument(T x) const noexcept
         {
             namespace fp = detail::sd;
-            auto const [z_hi, z_lo] = detail::standardize(x, mean_, sd_);
+            auto const [z_hi, z_lo] = with_sigma([&](auto const& s) { return detail::standardize(x, mean_, s); });
             if (z_hi == 0 || !detail::is_finite(z_hi))
                 return {z_hi, 0.0};
             auto const [m, m_error] = fp::two_product(z_hi, detail::inv_sqrt2_hi);
@@ -230,6 +305,9 @@ namespace wsl::random
             return {hi, lo};
         }
 
-        T mean_, sd_;
+        T mean_;
+        T sd_ = 0;                                                          // σ s'il est un T (sinon 0)
+        detail::scaled var_{1.0, 0.0, 0};                                   // variance exacte
+        detail::scaled sigma_{1.0, 0.0, 0};                                 // √v, si sd_ == 0
     };
 }

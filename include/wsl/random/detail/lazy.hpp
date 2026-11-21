@@ -312,7 +312,10 @@ namespace wsl::random::detail
     // mêmes bits. Le résultat et le nombre de mots tirés sont donc ceux de la voie
     // exacte, quelle que soit la voie prise.
     template <class T>
-    constexpr bool round_quickly(double mu, double sigma, double divisor, bool negative, lazy_real const& v, T& result) noexcept
+    // sigma_lo : partie basse de σ = √v en double-double (normale donnée par sa variance ; l'écart
+    // à √v, sous 2^-100 relativement, est couvert par la marge de 2^-95).
+    constexpr bool round_quickly(double mu, double sigma, double divisor, bool negative, lazy_real const& v, T& result,
+                                 double sigma_lo = 0.0) noexcept
     {
         namespace sd = wsl::special::detail;
         using F = format<T>;
@@ -331,7 +334,8 @@ namespace wsl::random::detail
 
         // t = σ V / Q en double-double.
         auto const [p, p_error] = sd::two_product(sigma, v_hi);
-        auto const [t_hi, t_lo] = sd::fast_two_sum(p, p_error + sd::fmul(sigma, v_lo));
+        auto const [t_hi, t_lo] = sigma_lo == 0 ? sd::fast_two_sum(p, p_error + sd::fmul(sigma, v_lo))
+                                                : sd::fast_two_sum(p, p_error + (sd::fmul(sigma, v_lo) + sd::fmul(sigma_lo, v_hi)));
         double q_hi = t_hi, q_lo = t_lo;
         if (divisor != 1.0)
         {

@@ -29,7 +29,7 @@ namespace wsl::random
         // Intensité .rate ou échelle .scale, comme gamma (exactes toutes deux).
         struct parameters
         {
-            std::optional<ratio> rate, scale;
+            std::optional<ratio> rate = std::nullopt, scale = std::nullopt;
             std::int64_t shape;
         };
         using param_type = parameters;
