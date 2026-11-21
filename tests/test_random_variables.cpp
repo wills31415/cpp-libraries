@@ -109,6 +109,32 @@ int main()
         double const fx = wr::normal({.mean = 0.5, .stddev = 3.0})(b, wr::fast), fy = wr::exponential()(b, wr::fast);
         assert(f == 2 * fx + fy && a == b);
     }
+    // ---- Lot 1c : loi d'une expression (V4) ----------------------------------------------------
+    {
+        wr::variable const X{wr::normal()};
+        wr::variable const C{wr::cauchy({.location = 1.0, .scale = 2.0})};
+        wr::variable const Y{wr::exponential()};
+        static_assert(std::is_same_v<decltype(wr::law(X)), wr::normal<> const&>);       // une variable : sa loi
+        // familles closes : la loi exacte, résolue à l'exécution
+        auto const A = wr::law(2 * X + 1);
+        assert(A.family() && *A.family() == wr::normal({.mean = 1.0, .stddev = 2.0}) && A.cdf(1.0) == 0.5);
+        assert(*wr::law(X + X).family() == wr::normal({.variance = 4.0}));                 // 2X, pas P ∗ P
+        assert(*wr::law(X + X.independent_copy()).family() == wr::normal({.variance = 2.0}));
+        assert(*wr::law(C - 3 * C.independent_copy()).family() == wr::cauchy({.location = -2.0, .scale = 8.0}));
+        wr::variable const G{wr::gamma({.rate = 2.0, .shape = 1.5})};
+        assert(*wr::law(G + G.independent_copy()).family() == wr::gamma({.rate = 2.0, .shape = 3.0}));
+        assert(*wr::law(3 * G).family() == wr::gamma({.rate = wr::ratio(2, 3), .shape = 1.5}));
+        assert(!wr::law(G - G.independent_copy()).family() && std::isnan(wr::law(G - G.independent_copy()).cdf(0.0)));   // pas d'identité
+        assert(!wr::law(X - X).family());                                                  // loi de Dirac en 0
+        // sans famille : moments par les cumulants, tirage de l'expression
+        auto const M = wr::law(2 * X + Y);
+        static_assert(!decltype(M)::has_family && decltype(M)::sampling == wr::exactness::exact);
+        assert(M.mean() == 1 && M.variance() == 5 && std::abs(M.skewness() - 2 / (5 * std::sqrt(5.0))) < 1e-15 && std::abs(M.excess_kurtosis() - 6.0 / 25) < 1e-15);
+        assert(wr::law(X + X).excess_kurtosis() == 0 && wr::law(Y - Y.independent_copy()).skewness() == 0);
+        wr::xoshiro256pp a(3), b(3);
+        assert(M(a) == (2 * X + Y)(b) && a == b);                                          // tirage de l'expression
+    }
+
     // ---- Empreinte (bit-exacte sur toutes les plateformes) -----------------------------------
     {
         wr::xoshiro256pp x(20261121);

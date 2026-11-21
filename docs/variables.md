@@ -29,9 +29,9 @@ auto Z = 2 * X + Y;                               // expression paresseuse
 Z(g);                                             // un ω : X et Y tirées une fois chacune
 (X - X)(g);                                       // 0, en tout ω
 auto [x, z] = wr::evaluate(g, X, Z);              // même ω : z, arrondi exact de 2X + Y
-wr::law(2 * X + 1);                               // normal({.mean = 1, .stddev = 2}), exacte
-wr::law(X + X);                                   // normal({.variance = 4}) : 2X, pas P ∗ P
-wr::law(X + wr::variable{wr::normal()});          // normal({.variance = 2}) : convolution
+wr::law(2 * X + 1).family();                      // normal({.mean = 1, .stddev = 2}), exacte
+wr::law(X + X).family();                          // normal({.variance = 4}) : 2X, pas P ∗ P
+wr::law(X + wr::variable{wr::normal()}).family(); // normal({.variance = 2}) : convolution
 wr::E(Z);                                         // 1 (linéarité, sans tirage)
 ```
 
@@ -124,6 +124,12 @@ au-dessus : elle ne modifie aucun tirage existant.
   diviseurs, les constantes réduites par dénominateur. Repli sur le calcul flottant (sur
   des valeurs tirées exactement) dès qu'un coefficient n'est pas représentable exactement.
   Une variable de base seule, `X(g)`, est le tirage de sa loi.
+- Lot 1c ✅ : `wr::law(X)` est la loi de X ; `wr::law(Z)` d'une expression, une
+  `expression_law` (identifiants connus seulement à l'exécution : le type ne peut dépendre de
+  la fusion de X + X en 2X, comme pour `convolution_law`). Tirage de Z ; moments par les
+  cumulants, κₙ(Σ aᵢ Xᵢ) = Σ aᵢⁿ κₙ(Xᵢ) ; pour une famille close (normale, Cauchy ; gamma à
+  coefficients positifs, sans constante, de même intensité), `family()` rend la loi exacte,
+  dont densité, répartition et quantiles sont ceux de l'expression ; NaN sans identité.
 
 ## 5. Lots proposés
 

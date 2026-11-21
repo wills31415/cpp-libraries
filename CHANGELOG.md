@@ -135,6 +135,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   paresseux partagés par toutes les expressions d'un même ω (`lazy_sum::add_shared`).
   Ailleurs (produits, autres lois, coefficient non représentable), calcul flottant sur des
   valeurs tirées exactement ; `Z(g, wr::fast)` : calcul flottant sur tirages rapides.
+- Variables aléatoires, lot 1c (V4) : `wr::law(X)` (la loi de X) et `wr::law(Z)`
+  (`expression_law`) : tirage de Z, moyenne, variance, asymétrie et kurtosis par les
+  cumulants ; `family()` : loi exacte pour une famille close (normale, Cauchy ; gamma de
+  même intensité à coefficients positifs), résolue à l'exécution ; ses fonctions sont
+  celles de l'expression, NaN sans identité (règle 3b).
+- Correction (lot 1b) : le produit de deux variables et les constantes (E, Var, Cov,
+  cumulants) passent par `fmul` : sous `-ffp-contract=fast`, la contraction en fma changeait
+  les valeurs (CI FMA).
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

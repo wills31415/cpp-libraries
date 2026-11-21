@@ -29,10 +29,19 @@
 // non représentable), calcul flottant sur les valeurs des variables de base, elles-mêmes
 // tirées exactement. Z(g, wsl::random::fast) : calcul flottant sur des tirages rapides.
 //
+// Loi (V4) : wsl::random::law(X) est la loi de X ; law(Z) d'une expression, une
+// expression_law : tirage de Z, moments par les cumulants (κₙ(Σ aᵢ Xᵢ) = Σ aᵢⁿ κₙ(Xᵢ),
+// variables de base distinctes indépendantes) ; pour une combinaison affine de variables
+// d'une même famille close (normale, Cauchy ; gamma à coefficients positifs et sans
+// constante, de même intensité), la loi de la famille, résolue à l'exécution (family()),
+// dont densité, répartition et quantiles sont ceux de l'expression ; NaN sans identité.
+//
 // Constantes : E, Var et Cov par linéarité sur la forme affine Σ aᵢ Xᵢ + b, les coefficients
 // d'une même variable regroupés (Var(X + X) = 4 Var X ; variables de base distinctes
 // indépendantes).
 
+#include <wsl/random/affine.hpp>
+#include <wsl/random/convolution.hpp>
 #include <wsl/random/detail/lazy_sum.hpp>
 #include <wsl/random/engines.hpp>
 #include <wsl/random/law.hpp>
@@ -189,7 +198,19 @@ namespace wsl::random
         // ---- Opérations ------------------------------------------------------------------
         struct plus_op { constexpr auto operator()(auto const& a, auto const& b) const { return a + b; } };
         struct minus_op { constexpr auto operator()(auto const& a, auto const& b) const { return a - b; } };
-        struct multiplies_op { constexpr auto operator()(auto const& a, auto const& b) const { return a * b; } };
+        // Produit protégé de la contraction en fma (-ffp-contract=fast chez l'appelant) : un
+        // produit flottant suivi d'une addition ne doit pas changer de résultat selon les options.
+        struct multiplies_op
+        {
+            constexpr auto operator()(auto const& a, auto const& b) const
+            {
+                using R = decltype(a * b);
+                if constexpr (std::floating_point<R>)
+                    return static_cast<R>(sd::fmul(double(a), double(b)));
+                else
+                    return a * b;
+            }
+        };
         struct divides_op { constexpr auto operator()(auto const& a, auto const& b) const { return a / b; } };
         struct negate_op { constexpr auto operator()(auto const& a) const { return -a; } };
 
@@ -260,7 +281,7 @@ namespace wsl::random
                 out.terms.push_back({node.id(), scale, m, v});
             }
             else if constexpr (requires { node.value; })
-                out.constant += scale * double(node.value);
+                out.constant += sd::fmul(scale, double(node.value));
             else
             {
                 using op = typename N::operation_type;
@@ -280,9 +301,9 @@ namespace wsl::random
                 else if constexpr (std::is_same_v<op, multiplies_op>)
                 {
                     if constexpr (requires { std::get<1>(args).value; })
-                        collect_affine(std::get<0>(args), scale * double(std::get<1>(args).value), out);
+                        collect_affine(std::get<0>(args), sd::fmul(scale, double(std::get<1>(args).value)), out);
                     else
-                        collect_affine(std::get<1>(args), scale * double(std::get<0>(args).value), out);
+                        collect_affine(std::get<1>(args), sd::fmul(scale, double(std::get<0>(args).value)), out);
                 }
                 else                                                        // divides_op, diviseur constant
                     collect_affine(std::get<0>(args), scale / double(std::get<1>(args).value), out);
@@ -741,7 +762,7 @@ namespace wsl::random
                 auto const f = affine_of(z);
                 double s = f.constant;
                 for (auto const& t : f.terms)
-                    s += t.coefficient * t.mean;
+                    s += sd::fmul(t.coefficient, t.mean);
                 return s;
             }
         };
@@ -753,7 +774,7 @@ namespace wsl::random
             {
                 double s = 0;
                 for (auto const& t : affine_of(z).terms)
-                    s += t.coefficient * t.coefficient * t.variance;
+                    s += sd::fmul(sd::fmul(t.coefficient, t.coefficient), t.variance);
                 return s;
             }
         };
@@ -771,7 +792,7 @@ namespace wsl::random
                     while (j < fb.terms.size() && fb.terms[j].id < t.id)
                         ++j;
                     if (j < fb.terms.size() && fb.terms[j].id == t.id)
-                        s += t.coefficient * fb.terms[j].coefficient * t.variance;
+                        s += sd::fmul(sd::fmul(t.coefficient, fb.terms[j].coefficient), t.variance);
                 }
                 return s;
             }
@@ -783,5 +804,263 @@ namespace wsl::random
         inline constexpr detail::cpo::expectation_fn E{};
         inline constexpr detail::cpo::variance_of_fn Var{};
         inline constexpr detail::cpo::covariance_fn Cov{};
+    }
+    namespace detail
+    {
+        // Loi commune des feuilles : void sans feuille, mixed_laws si elles diffèrent.
+        struct mixed_laws {};
+        template <class A, class B>
+        using merge_laws = std::conditional_t<std::is_void_v<A>, B, std::conditional_t<std::is_void_v<B> || std::is_same_v<A, B>, A, mixed_laws>>;
+        template <class N>
+        struct common_leaf_law { using type = void; };
+        template <class L>
+        struct common_leaf_law<variable<L>> { using type = L; };
+        template <class Op, class... A>
+        struct common_leaf_law<expression<Op, A...>>
+        {
+            template <class... T>
+            struct fold { using type = void; };
+            template <class T, class... R>
+            struct fold<T, R...> { using type = merge_laws<T, typename fold<R...>::type>; };
+            using type = typename fold<typename common_leaf_law<A>::type...>::type;
+        };
+
+        // Famille close : toute image affine et toute somme y restent (normale, Cauchy), ou
+        // seulement l'échelle positive et les sommes de même paramètre (gamma).
+        template <class L>
+        concept closed_family = affine_closed<L> && requires(L const& a) { { sum_closure(a, a) } -> std::same_as<L>; };
+        template <class L>
+        concept scale_family = scale_closed<L> && requires(L const& a) { { sum_closure(a, a) } -> std::same_as<std::optional<L>>; };
+
+        template <class N>
+        using family_of_expression = typename common_leaf_law<N>::type;
+        template <class N>
+        concept has_family = !std::is_void_v<family_of_expression<N>> && !std::is_same_v<family_of_expression<N>, mixed_laws> && is_affine<N>
+                             && (closed_family<family_of_expression<N>> || scale_family<family_of_expression<N>>);
+        template <class N>
+        struct family_storage { using type = char; };
+        template <class N>
+            requires has_family<N>
+        struct family_storage<N> { using type = std::optional<family_of_expression<N>>; };
+
+        // Termes a·Pᵢ (variables regroupées) et constante, pour une famille L.
+        template <class L, class N>
+        constexpr void collect_family(N const& node, double scale, std::vector<std::tuple<std::uint64_t, double, L>>& terms, double& constant)
+        {
+            if constexpr (requires { typename N::law_type; })
+                terms.emplace_back(node.id(), scale, node.law());
+            else if constexpr (requires { node.value; })
+                constant += sd::fmul(scale, double(node.value));
+            else
+            {
+                using op = typename N::operation_type;
+                auto const& args = node.arguments();
+                if constexpr (std::is_same_v<op, plus_op>)
+                {
+                    collect_family<L>(std::get<0>(args), scale, terms, constant);
+                    collect_family<L>(std::get<1>(args), scale, terms, constant);
+                }
+                else if constexpr (std::is_same_v<op, minus_op>)
+                {
+                    collect_family<L>(std::get<0>(args), scale, terms, constant);
+                    collect_family<L>(std::get<1>(args), -scale, terms, constant);
+                }
+                else if constexpr (std::is_same_v<op, negate_op>)
+                    collect_family<L>(std::get<0>(args), -scale, terms, constant);
+                else if constexpr (std::is_same_v<op, multiplies_op>)
+                {
+                    if constexpr (requires { std::get<1>(args).value; })
+                        collect_family<L>(std::get<0>(args), sd::fmul(scale, double(std::get<1>(args).value)), terms, constant);
+                    else
+                        collect_family<L>(std::get<1>(args), sd::fmul(scale, double(std::get<0>(args).value)), terms, constant);
+                }
+                else
+                    collect_family<L>(std::get<0>(args), scale / double(std::get<1>(args).value), terms, constant);
+            }
+        }
+
+        template <class N>
+        std::optional<family_of_expression<N>> family_law(N const& node)
+        {
+            using L = family_of_expression<N>;
+            std::vector<std::tuple<std::uint64_t, double, L>> raw;
+            double constant = 0;
+            collect_family<L>(node, 1.0, raw, constant);
+            std::ranges::sort(raw, [](auto const& a, auto const& b) { return std::get<0>(a) < std::get<0>(b); });
+            std::vector<std::pair<double, L>> terms;                        // variables regroupées
+            for (std::size_t i = 0; i < raw.size(); ++i)
+                if (i > 0 && std::get<0>(raw[i]) == std::get<0>(raw[i - 1]))
+                    terms.back().first += std::get<1>(raw[i]);
+                else
+                    terms.emplace_back(std::get<1>(raw[i]), std::get<2>(raw[i]));
+            std::erase_if(terms, [](auto const& t) { return t.first == 0; });
+            if (terms.empty())
+                return std::nullopt;                                        // loi de Dirac : pas de famille
+            if constexpr (closed_family<L>)
+            {
+                std::optional<L> r;
+                for (std::size_t i = 0; i < terms.size(); ++i)
+                {
+                    L const image = affine_closure(terms[i].second, terms[i].first, i == 0 ? constant : 0.0);
+                    r = r ? sum_closure(*r, image) : image;
+                }
+                return r;
+            }
+            else
+            {
+                if (constant != 0)
+                    return std::nullopt;
+                std::optional<L> r;
+                for (auto const& [a, law] : terms)
+                {
+                    if (!(a > 0))
+                        return std::nullopt;
+                    auto const image = scale_closure(law, a);
+                    if (!image)
+                        return std::nullopt;
+                    r = r ? sum_closure(*r, *image) : image;
+                    if (!r)
+                        return std::nullopt;
+                }
+                return r;
+            }
+        }
+
+        // Cumulants de la forme affine : κ₂, κ₃, κ₄ (feuilles munies de ces constantes).
+        template <class N>
+        inline constexpr bool leaves_have_shape = true;
+        template <class L>
+        inline constexpr bool leaves_have_shape<variable<L>> = has_skewness<L> && has_excess_kurtosis<L> && has_variance<L>;
+        template <class Op, class... A>
+        inline constexpr bool leaves_have_shape<expression<Op, A...>> = (leaves_have_shape<A> && ...);
+
+        // Feuilles d'une forme affine : identifiant, coefficient, variance, asymétrie, kurtosis.
+        using shape_term = std::tuple<std::uint64_t, double, double, double, double>;
+        template <class M>
+        void collect_shape(M const& n, double scale, std::vector<shape_term>& raw)
+        {
+            if constexpr (requires { typename M::law_type; })
+                raw.emplace_back(n.id(), scale, double(n.law().variance()), double(n.law().skewness()), double(n.law().excess_kurtosis()));
+            else if constexpr (requires { n.value; })
+                return;
+            else
+            {
+                using op = typename M::operation_type;
+                auto const& args = n.arguments();
+                if constexpr (std::is_same_v<op, plus_op>)
+                {
+                    collect_shape(std::get<0>(args), scale, raw);
+                    collect_shape(std::get<1>(args), scale, raw);
+                }
+                else if constexpr (std::is_same_v<op, minus_op>)
+                {
+                    collect_shape(std::get<0>(args), scale, raw);
+                    collect_shape(std::get<1>(args), -scale, raw);
+                }
+                else if constexpr (std::is_same_v<op, negate_op>)
+                    collect_shape(std::get<0>(args), -scale, raw);
+                else if constexpr (std::is_same_v<op, multiplies_op>)
+                {
+                    if constexpr (requires { std::get<1>(args).value; })
+                        collect_shape(std::get<0>(args), sd::fmul(scale, double(std::get<1>(args).value)), raw);
+                    else
+                        collect_shape(std::get<1>(args), sd::fmul(scale, double(std::get<0>(args).value)), raw);
+                }
+                else
+                    collect_shape(std::get<0>(args), scale / double(std::get<1>(args).value), raw);
+            }
+        }
+
+        template <class N>
+        std::array<double, 3> cumulants(N const& node)                      // κ₂, κ₃, κ₄
+        {
+            std::vector<shape_term> raw;
+            collect_shape(node, 1.0, raw);
+            std::ranges::sort(raw, [](auto const& a, auto const& b) { return std::get<0>(a) < std::get<0>(b); });
+            std::array<double, 3> k{};
+            for (std::size_t i = 0; i < raw.size();)
+            {
+                auto [id, a, v, g1, g2] = raw[i];
+                std::size_t j = i + 1;
+                for (; j < raw.size() && std::get<0>(raw[j]) == id; ++j)
+                    a += std::get<1>(raw[j]);
+                i = j;
+                double const a2 = sd::fmul(a, a), s = wsl::special::sqrt(v);
+                k[0] += sd::fmul(a2, v);
+                k[1] += sd::fmul(sd::fmul(sd::fmul(a2, a), g1), sd::fmul(v, s));
+                k[2] += sd::fmul(sd::fmul(a2, a2), sd::fmul(g2, sd::fmul(v, v)));
+            }
+            return k;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Loi d'une expression.
+    // -----------------------------------------------------------------------
+    template <class N>
+    class expression_law : public law_interface
+    {
+    public:
+        using value_type = typename detail::node_value<N>::type;
+        static constexpr exactness sampling = detail::exact_affine<N> ? exactness::exact : exactness::approximate;
+        static constexpr bool has_family = detail::has_family<N>;
+
+        explicit expression_law(N z) : z_(std::move(z))
+        {
+            if constexpr (has_family)
+                family_ = detail::family_law(z_);
+        }
+
+        constexpr N const& expression() const noexcept { return z_; }
+        // La loi de la famille, quand une identité la donne (sinon vide).
+        auto const& family() const noexcept requires has_family { return family_; }
+
+        // Moments : par les cumulants (feuilles indépendantes).
+        double mean() const requires detail::affine_with_mean<N> { return E(z_); }
+        double variance() const requires detail::affine_with_variance<N> { return Var(z_); }
+        double skewness() const requires detail::is_affine<N> && detail::leaves_have_shape<N>
+        {
+            auto const k = detail::cumulants(z_);
+            return k[0] > 0 ? k[1] / (k[0] * wsl::special::sqrt(k[0])) : std::numeric_limits<double>::quiet_NaN();
+        }
+        double excess_kurtosis() const requires detail::is_affine<N> && detail::leaves_have_shape<N>
+        {
+            auto const k = detail::cumulants(z_);
+            return k[0] > 0 ? k[2] / (k[0] * k[0]) : std::numeric_limits<double>::quiet_NaN();
+        }
+
+        // Fonctions de la loi : celles de la famille ; NaN sans identité (règle 3b).
+        value_type pdf(value_type x) const requires has_family { return family_ ? family_->pdf(x) : nan(); }
+        value_type log_pdf(value_type x) const requires has_family { return family_ ? family_->log_pdf(x) : nan(); }
+        value_type cdf(value_type x) const requires has_family { return family_ ? family_->cdf(x) : nan(); }
+        value_type ccdf(value_type x) const requires has_family { return family_ ? family_->ccdf(x) : nan(); }
+        value_type quantile(double p) const requires has_family { return family_ ? family_->quantile(p) : nan(); }
+        value_type cquantile(double q) const requires has_family { return family_ ? family_->cquantile(q) : nan(); }
+
+        template <std::uniform_random_bit_generator G>
+        value_type sample(G& g) const { return z_(g); }
+        template <std::uniform_random_bit_generator G>
+        value_type sample(G& g, fast_t) const { return z_(g, wsl::random::fast); }
+
+    private:
+        static constexpr value_type nan() noexcept { return std::numeric_limits<value_type>::quiet_NaN(); }
+
+        N z_;
+        typename detail::family_storage<N>::type family_{};
+    };
+
+    namespace detail::cpo
+    {
+        struct law_fn
+        {
+            template <class L>
+            constexpr L const& operator()(variable<L> const& x) const noexcept { return x.law(); }
+            template <class Op, class... A>
+            expression_law<expression<Op, A...>> operator()(expression<Op, A...> const& z) const { return expression_law<expression<Op, A...>>(z); }
+        };
+    }
+    inline namespace operations
+    {
+        inline constexpr detail::cpo::law_fn law{};
     }
 }
