@@ -36,6 +36,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   inverse, puissances, cycles canoniques, type de cycles, points fixes, signature,
   inversions en O(n log n), rang lexicographique (n <= 20), `permute`, `constexpr`.
 
+- Style : espaces après `if`/`for` (aligné sur le dépôt).
 ### dlist
 
 - Rupture (mineure) : concept `wsl::streamable` déplacé dans `wsl::detail::dlist` ;
@@ -46,6 +47,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Recherche de nœud, effacement et `extract` en un seul parcours (O(n) au lieu de O(n²)).
 
 ### progress
+- Style : espaces après `if`/`for` (aligné sur le dépôt).
 - Correction : le calcul des tranches de 5 % débordait pour `done` > 2⁵⁹.
 
 ### random (nouvelle)
