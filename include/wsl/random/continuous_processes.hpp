@@ -147,8 +147,28 @@ namespace wsl::random
         public:
             using value_type = std::vector<double>;
             static constexpr exactness sampling = exactness::exact;
+            static constexpr bool gaussian = true;                          // vecteur gaussien
 
             constexpr grid_law(parameters b, std::vector<double> times) : b_(b), times_(std::move(times)) { detail::check_times(times_); }
+
+            // x₀ + μ tᵢ, et σ² min(tᵢ, tⱼ) (un arrondi par coefficient).
+            constexpr value_type mean() const
+            {
+                value_type m;
+                for (double t : times_)
+                    m.push_back(detail::linear(b_.drift, t, b_.start));
+                return m;
+            }
+            constexpr square_matrix<double> covariance() const
+            {
+                std::size_t const n = times_.size();
+                square_matrix<double> c(n);
+                double const s2 = detail::sd::fmul(b_.volatility, b_.volatility);
+                for (std::size_t i = 0; i < n; ++i)
+                    for (std::size_t j = 0; j < n; ++j)
+                        c[i, j] = detail::sd::fmul(s2, times_[i] < times_[j] ? times_[i] : times_[j]);
+                return c;
+            }
 
             template <std::uniform_random_bit_generator G>
             constexpr value_type sample(G& g) const

@@ -226,6 +226,13 @@ namespace wsl::random
         };
         struct divides_op { constexpr auto operator()(auto const& a, auto const& b) const { return a / b; } };
         struct negate_op { constexpr auto operator()(auto const& a) const { return -a; } };
+        // Composante i d'une variable vectorielle (lot 3).
+        struct component_op
+        {
+            std::size_t index;
+            constexpr auto operator()(auto const& v) const { return v[index]; }
+        };
+
         // Événements : comparaisons (indicatrices), et, ou, non.
         enum class relation
         {
@@ -308,6 +315,14 @@ namespace wsl::random
         inline constexpr bool is_affine<expression<multiplies_op, constant<S>, A>> = is_affine<A>;
         template <class A, class S>
         inline constexpr bool is_affine<expression<divides_op, A, constant<S>>> = is_affine<A>;
+        template <class L>
+        inline constexpr bool is_affine<expression<component_op, variable<L>>> = true;
+
+        // Moyenne vectorielle et matrice de covariance d'une loi vectorielle.
+        template <class L>
+        concept vector_mean = requires(L const& l) { double(l.mean()[std::size_t{}]); };
+        template <class L>
+        concept covariance_matrix = requires(L const& l) { double(l.covariance()[std::size_t{}, std::size_t{}]); };
 
         // Constantes connues de chaque feuille.
         template <class N>
@@ -316,18 +331,34 @@ namespace wsl::random
         inline constexpr bool leaves_have_mean<variable<L>> = has_mean<L>;
         template <class Op, class... A>
         inline constexpr bool leaves_have_mean<expression<Op, A...>> = (leaves_have_mean<A> && ...);
+        template <class L>
+        inline constexpr bool leaves_have_mean<expression<component_op, variable<L>>> = vector_mean<L>;
         template <class N>
         inline constexpr bool leaves_have_variance = true;
         template <class L>
         inline constexpr bool leaves_have_variance<variable<L>> = has_variance<L>;
         template <class Op, class... A>
         inline constexpr bool leaves_have_variance<expression<Op, A...>> = (leaves_have_variance<A> && ...);
+        template <class L>
+        inline constexpr bool leaves_have_variance<expression<component_op, variable<L>>> = covariance_matrix<L>;
 
+        inline constexpr std::size_t scalar_term = std::size_t(-1);
         struct affine_term
         {
             std::uint64_t id;
+            std::size_t component;                                          // scalar_term : variable scalaire
             double coefficient, mean, variance;
+            std::vector<double> covariance;                                 // composante : ligne de la covariance
         };
+        // Cov(t, u) de deux termes : nulle entre variables distinctes (indépendantes).
+        constexpr double term_covariance(affine_term const& t, affine_term const& u) noexcept
+        {
+            if (t.id != u.id)
+                return 0;
+            if (t.component == scalar_term)
+                return t.variance;
+            return u.component < t.covariance.size() ? t.covariance[u.component] : 0.0;
+        }
         struct affine_form
         {
             std::vector<affine_term> terms;                                 // regroupés par identifiant, croissants
@@ -344,10 +375,27 @@ namespace wsl::random
                     m = double(node.law().mean());
                 if constexpr (has_variance<typename N::law_type>)
                     v = double(node.law().variance());
-                out.terms.push_back({node.id(), scale, m, v});
+                out.terms.push_back({node.id(), scalar_term, scale, m, v, {}});
             }
             else if constexpr (requires { node.value; })
                 out.constant += sd::fmul(scale, double(node.value));
+            else if constexpr (std::is_same_v<typename N::operation_type, component_op>)
+            {
+                auto const& x = std::get<0>(node.arguments());
+                std::size_t const i = node.operation().index;
+                double m = 0;
+                std::vector<double> row;
+                if constexpr (vector_mean<typename std::remove_cvref_t<decltype(x)>::law_type>)
+                    m = double(x.law().mean()[i]);
+                if constexpr (covariance_matrix<typename std::remove_cvref_t<decltype(x)>::law_type>)
+                {
+                    auto const c = x.law().covariance();
+                    for (std::size_t j = 0; j < c.extent(0); ++j)
+                        row.push_back(double(c[i, j]));
+                }
+                double const v = i < row.size() ? row[i] : 0.0;
+                out.terms.push_back({x.id(), i, scale, m, v, std::move(row)});
+            }
             else
             {
                 using op = typename N::operation_type;
@@ -381,10 +429,10 @@ namespace wsl::random
         {
             affine_form f;
             collect_affine(node, 1.0, f);
-            std::ranges::sort(f.terms, [](affine_term const& a, affine_term const& b) { return a.id < b.id; });
+            std::ranges::sort(f.terms, [](affine_term const& a, affine_term const& b) { return a.id != b.id ? a.id < b.id : a.component < b.component; });
             std::vector<affine_term> merged;
             for (auto const& t : f.terms)
-                if (!merged.empty() && merged.back().id == t.id)
+                if (!merged.empty() && merged.back().id == t.id && merged.back().component == t.component)
                     merged.back().coefficient += t.coefficient;
                 else
                     merged.push_back(t);
@@ -766,6 +814,13 @@ namespace wsl::random
         // Même loi, nouvelle identité : une variable indépendante.
         variable independent_copy() const { return variable(law_); }
 
+        // Composante i d'une variable vectorielle : même identité, donc couplée aux autres.
+        constexpr auto operator[](std::size_t i) const
+            requires requires(value_type const& v) { v[std::size_t{}]; }
+        {
+            return expression<detail::component_op, variable>(detail::component_op{i}, *this);
+        }
+
         template <std::uniform_random_bit_generator G>
         constexpr value_type operator()(G& g) const { return law_(g); }
         template <std::uniform_random_bit_generator G>
@@ -932,9 +987,12 @@ namespace wsl::random
                 requires affine_with_variance<Z>
             constexpr double operator()(Z const& z) const
             {
+                auto const terms = affine_of(z).terms;                       // Σ aₜ aᵤ Cov(t, u)
                 double s = 0;
-                for (auto const& t : affine_of(z).terms)
-                    s += sd::fmul(sd::fmul(t.coefficient, t.coefficient), t.variance);
+                for (auto const& t : terms)
+                    for (auto const& u : terms)
+                        if (t.id == u.id)
+                            s += sd::fmul(sd::fmul(t.coefficient, u.coefficient), term_covariance(t, u));
                 return s;
             }
         };
@@ -946,14 +1004,10 @@ namespace wsl::random
             {
                 auto const fa = affine_of(a), fb = affine_of(b);
                 double s = 0;
-                std::size_t j = 0;
-                for (auto const& t : fa.terms)                              // termes triés : fusion
-                {
-                    while (j < fb.terms.size() && fb.terms[j].id < t.id)
-                        ++j;
-                    if (j < fb.terms.size() && fb.terms[j].id == t.id)
-                        s += sd::fmul(sd::fmul(t.coefficient, fb.terms[j].coefficient), t.variance);
-                }
+                for (auto const& t : fa.terms)
+                    for (auto const& u : fb.terms)
+                        if (t.id == u.id)
+                            s += sd::fmul(sd::fmul(t.coefficient, u.coefficient), term_covariance(t, u));
                 return s;
             }
         };
@@ -997,11 +1051,37 @@ namespace wsl::random
         template <class N>
         concept has_family = !std::is_void_v<family_of_expression<N>> && !std::is_same_v<family_of_expression<N>, mixed_laws> && is_affine<N>
                              && (closed_family<family_of_expression<N>> || scale_family<family_of_expression<N>>);
+        // Famille gaussienne (lot 3) : combinaison affine de normales et de composantes de vecteurs
+        // gaussiens (normale multivariée, grille brownienne) : normale de moyenne E, variance Var.
+        template <class L>
+        concept gaussian_vector = requires { L::gaussian; } && L::gaussian;
+        template <class N>
+        inline constexpr bool gaussian_leaves = true;                      // constantes
+        template <class L>
+        inline constexpr bool gaussian_leaves<variable<L>> = false;
+        template <class T>
+        inline constexpr bool gaussian_leaves<variable<normal<T>>> = true;
+        template <class Op, class... A>
+        inline constexpr bool gaussian_leaves<expression<Op, A...>> = (gaussian_leaves<A> && ...);
+        template <class L>
+        inline constexpr bool gaussian_leaves<expression<component_op, variable<L>>> = gaussian_vector<L>;
+        template <class N>
+        inline constexpr bool has_component = false;
+        template <class Op, class... A>
+        inline constexpr bool has_component<expression<Op, A...>> = (has_component<A> || ...);
+        template <class L>
+        inline constexpr bool has_component<expression<component_op, variable<L>>> = true;
+        template <class N>
+        concept gaussian_family = is_affine<N> && gaussian_leaves<N> && has_component<N> && leaves_have_mean<N> && leaves_have_variance<N>;
+
         template <class N>
         struct family_storage { using type = char; };
         template <class N>
             requires has_family<N>
         struct family_storage<N> { using type = std::optional<family_of_expression<N>>; };
+        template <class N>
+            requires(!has_family<N> && gaussian_family<N>)
+        struct family_storage<N> { using type = std::optional<normal<>>; };
 
         // Termes a·Pᵢ (variables regroupées) et constante, pour une famille L.
         template <class L, class N>
@@ -1163,12 +1243,18 @@ namespace wsl::random
     public:
         using value_type = typename detail::node_value<N>::type;
         static constexpr exactness sampling = detail::exact_affine<N> ? exactness::exact : exactness::approximate;
-        static constexpr bool has_family = detail::has_family<N>;
+        static constexpr bool has_family = detail::has_family<N> || detail::gaussian_family<N>;
 
         explicit expression_law(N z) : z_(std::move(z))
         {
-            if constexpr (has_family)
+            if constexpr (detail::has_family<N>)
                 family_ = detail::family_law(z_);
+            else if constexpr (detail::gaussian_family<N>)
+            {
+                double const v = Var(z_);
+                if (v > 0)
+                    family_ = normal<>({.mean = E(z_), .variance = v});
+            }
         }
 
         constexpr N const& expression() const noexcept { return z_; }
@@ -1416,11 +1502,11 @@ namespace wsl::random
                         return threshold_probability(std::get<0>(args).law(), op::kind, double(std::get<1>(args).value));
                     else if constexpr (requires { std::get<0>(args).value; } && requires { typename B::law_type; })
                         return threshold_probability(std::get<1>(args).law(), flipped(op::kind), double(std::get<0>(args).value));
-                    else if constexpr (is_affine<A> && is_affine<B> && has_family<expression<minus_op, A, B>>)
+                    else if constexpr (is_affine<A> && is_affine<B> && (has_family<expression<minus_op, A, B>> || gaussian_family<expression<minus_op, A, B>>))
                     {
                         auto const difference = expression<minus_op, A, B>({}, std::get<0>(args), std::get<1>(args));
-                        auto const law = family_law(difference);           // A − B, de loi connue
-                        return law ? threshold_probability(*law, op::kind, 0.0) : nan;
+                        expression_law<expression<minus_op, A, B>> const law(difference);   // A − B, de loi connue
+                        return law.family() ? threshold_probability(*law.family(), op::kind, 0.0) : nan;
                     }
                     else
                         return nan;

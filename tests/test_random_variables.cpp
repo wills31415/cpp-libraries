@@ -211,6 +211,41 @@ int main()
         assert(thrown);
     }
 
+    // ---- Lot 3 : variables vectorielles, processus comme familles de variables --------------------
+    {
+        wr::variable const V{wr::multivariate_normal<double, 2>({.mean = {1.0, 2.0}, .covariance = {{2.0, 0.6}, {0.6, 1.0}}})};
+        wr::variable const X{wr::normal()};
+        // composantes : même tirage, couplées
+        for (int i = 0; i < 1000; ++i)
+        {
+            auto const [v, a, b, c] = wr::evaluate(g, V, V[0], V[1], V[0] - 2 * V[1] + X);
+            assert(a == v[0] && b == v[1] && std::abs(c - (v[0] - 2 * v[1])) < 20);
+        }
+        // linéarité avec covariances
+        assert(wr::E(V[0] + 2 * V[1]) == 5 && std::abs(wr::Var(V[0] + 2 * V[1]) - 8.4) < 1e-15 && wr::Cov(V[0], V[1]) == 0.6);
+        assert(wr::Cov(V[0], X) == 0 && wr::Var(V[1] - V[1]) == 0 && std::abs(wr::Cov(V[0] + V[1], V[1] + X) - 1.6) < 1e-15);
+        // famille gaussienne : la loi d'une combinaison de composantes
+        auto const D = wr::law(V[0] - V[1] + X);
+        assert(D.family() && D.family()->mean() == -1 && std::abs(D.family()->variance() - 2.8) < 1e-15);
+        assert(std::abs(wr::P(V[0] > V[1]) - wr::normal({.mean = -1.0, .variance = 1.8}).ccdf(0.0)) < 1e-15);   // V₀ − V₁ ~ N(−1, 1,8)
+        // processus : le mouvement brownien sur une grille, ses accroissements
+        wr::brownian_motion const B({.drift = 0.5, .volatility = 2.0});
+        wr::variable const W{B.on_grid({1.0, 2.0, 4.0})};
+        assert(wr::E(W[2] - W[0]) == 1.5 && wr::Var(W[2] - W[1]) == 8 && wr::Cov(W[0], W[2]) == 4);
+        auto const I = wr::law(W[2] - W[0]);                               // accroissement : N(μΔt, σ²Δt)
+        assert(I.family() && I.family()->mean() == 1.5 && I.family()->variance() == 12);
+        double m = 0, q = 0;
+        int const n = 40000;
+        for (int i = 0; i < n; ++i)
+        {
+            auto const [w, d] = wr::evaluate(g, W, W[2] - W[0]);
+            assert(d == w[2] - w[0]);
+            m += d;
+            q += d * d;
+        }
+        assert(std::abs(m / n - 1.5) < 0.06 && std::abs(q / n - (12 + 2.25)) < 0.4);
+    }
+
     // ---- Empreinte (bit-exacte sur toutes les plateformes) -----------------------------------
     {
         wr::xoshiro256pp x(20261121);
@@ -246,6 +281,22 @@ int main()
         }
         std::printf("variables events       %016llx\n", static_cast<unsigned long long>(h));
         assert(h == 0xd86c1f4992ee39c0);
+    }
+    // ---- Empreinte des variables vectorielles ---------------------------------------------------
+    {
+        wr::xoshiro256pp x(777);
+        wr::variable const V{wr::multivariate_normal<double, 3>({.mean = {0.0, 1.0, -1.0}, .covariance = {{1.0, 0.2, 0.0}, {0.2, 2.0, 0.5}, {0.0, 0.5, 1.5}}})};
+        wr::variable const W{wr::brownian_motion({.drift = -0.25, .volatility = 1.5}).on_grid({0.5, 1.0, 3.0})};
+        std::uint64_t h = 0xcbf29ce484222325;
+        for (int i = 0; i < 2048; ++i)
+        {
+            auto const [a, b, c] = wr::evaluate(x, V[0] + 2 * V[2], W[2] - W[1], V[1] * W[0] > 0);
+            h = (h ^ std::bit_cast<std::uint64_t>(a)) * 0x100000001b3;
+            h = (h ^ std::bit_cast<std::uint64_t>(b)) * 0x100000001b3;
+            h = (h ^ std::uint64_t{c}) * 0x100000001b3;
+        }
+        std::printf("variables vectors      %016llx\n", static_cast<unsigned long long>(h));
+        assert(h == 0x7d67eaa28ed5efff);
     }
     std::printf("test_random_variables : ok\n");
 }

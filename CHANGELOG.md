@@ -151,6 +151,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   exactement pour les comparaisons affines ; `wr::P(A)` exacte (seuils, comparaisons de loi
   connue, événements indépendants), NaN ailleurs ; `wr::given(Z, A)` (loi conditionnelle, par
   rejet ; loi tronquée ou loi de Z quand c'est une identité).
+- Variables aléatoires, lot 3 : composantes `V[i]` (couplées), E, Var, Cov avec la matrice de
+  covariance, famille gaussienne (normales et composantes de vecteurs gaussiens) ;
+  `multivariate_normal` et la grille de `brownian_motion` se déclarent gaussiennes, la grille
+  gagne `mean()` et `covariance()`.
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

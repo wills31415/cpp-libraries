@@ -32,6 +32,7 @@ namespace wsl::random
     {
     public:
         using value_type = vector_of<T, N>;
+        static constexpr bool gaussian = true;                              // vecteur gaussien
         static constexpr exactness sampling = exactness::approximate;
 
         struct parameters

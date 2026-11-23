@@ -146,6 +146,14 @@ au-dessus : elle ne modifie aucun tirage existant.
   `wr::given(Z, A)` (E2) : nouvelle variable de base, de loi celle de Z sachant A, tirée par
   rejet ; `std::domain_error` si P(A) = 0 ; loi tronquée exacte pour un seuil sur Z, loi de
   Z si A ne porte pas sur Z.
+- Lot 3 ✅ : composantes `V[i]` d'une variable vectorielle (même identité : couplées) ;
+  linéarité avec covariances (E par le vecteur moyenne, Var et Cov par la matrice de
+  covariance : deux composantes d'une même variable ne sont pas indépendantes) ; famille
+  gaussienne : une combinaison affine de normales et de composantes de vecteurs gaussiens
+  (normale multivariée, grille brownienne) a pour loi la normale de moyenne E et variance Var
+  (`law(Z).family()`, `wr::P` par elle). Processus comme familles de variables :
+  `wr::variable W{B.on_grid(ts)}`, accroissements `W[j] − W[i]` (la grille brownienne a sa
+  moyenne x₀ + μt et sa covariance σ² min(tᵢ, tⱼ)).
 
 ## 5. Lots proposés
 
