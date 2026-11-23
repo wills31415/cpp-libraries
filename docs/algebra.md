@@ -1,0 +1,59 @@
+# Objets mathématiques : algèbre linéaire, tenseurs, analyse
+
+Chantier ouvert le 2026-11-23, en remplacement du chantier `mdarray` de la revue des
+interfaces (docs/interfaces.md, décision 6). Ce document fixe la vision, la méthode et la
+feuille de route ; les notions y seront ensuite conçues une à une, pan par pan.
+
+## 1. Vision
+
+Écrire et manipuler les objets des mathématiques appliquées comme dans un cours ou un livre :
+espaces vectoriels munis de leurs structures, bases, applications linéaires, formes,
+tenseurs, fonctions entre espaces, différentielles, dérivées partielles ∂^α, puis espaces
+de fonctions, opérateurs et variétés. Les tableaux ne sont que la **représentation en
+coordonnées** de ces objets : une matrice est une application linéaire lue dans deux
+bases, un tableau multidimensionnel stocke des composantes.
+
+C'est la démarche de wsl::random (des lois qui sont des mesures, des variables aléatoires
+qui sont des applications mesurables), appliquée à l'algèbre linéaire et à l'analyse.
+
+Consommateurs visés, hors de ce dépôt : un projet de relativité générale (équations,
+visualisations ; le dépôt cpp-tensors en est un premier essai, à refondre sur ces
+bibliothèques) et un futur projet de mécanique des milieux continus et des fluides.
+
+## 2. Décisions de méthode
+
+| # | Décision |
+|---|---|
+| A1 | **Définitions tirées de la littérature publiée**, citée dans chaque section, avec la correspondance entre symboles et noms ; ne rien inventer quand un usage établi existe. Les conventions qui divergent entre communautés (signature (−+++) ou (+−−−), linéarité du produit hermitien, place des indices, convention d'Einstein) sont choisies une fois et écrites ici. |
+| A2 | **Une définition = un concept C++ ; les hypothèses d'un théorème = les contraintes du code.** Exemple : `grad(f)` n'existe que si l'espace a un produit scalaire (isomorphisme de Riesz) ; sans lui, seule la différentielle Df(x) ∈ E* est définie. |
+| A3 | **Un espace vectoriel est une structure, pas une dimension** : corps des scalaires, dimension, puis structures ajoutées (norme, produit scalaire, forme bilinéaire non dégénérée de signature donnée, orientation, structure affine). |
+| A4 | **Tout à la compilation par défaut** (vérifications, absence de coût à l'exécution, vectorisation, `constexpr`) ; dimension dynamique (`wsl::dynamic`) en exception assumée, là où elle n'est connue qu'à l'exécution (discrétisations). |
+| A5 | **Infrastructure de stockage propre** (étendues, dispositions, vue multidimensionnelle), aux noms et à la sémantique de `<mdspan>`, dont elle ne s'écarte que par des **ajouts** : tout code valide avec `std::mdspan` garde le même sens. Raison : `std::mdspan` manque à GCC 14 et 15 (GCC 16 ou libc++ requis), et la vue gagnera des extensions (multi-indices, indexation partielle). Conversion vers `std::mdspan` là où il existe. |
+| A6 | **Multi-indices** : `graded` (arité exacte, `index_jet<N>`) devient le multi-indice α ∈ ℕᴺ, pour indexer des composantes comme pour dériver (∂^α, x^α, Taylor) ; il gagnera \|α\|, α!, les binomiaux et l'ordre composante par composante. Nom à trancher (`multi_index` proposé, `mdindex` évoqué). |
+| A7 | **Plusieurs bibliothèques, pas une** : chaque pan devient une bibliothèque du dépôt (en-tête, cible CMake, dépendances déclarées) ; noms décidés pan par pan. |
+| A8 | **Des lots qui livrent du code utilisable**, testé et poussé ; la conception ne devance le code que d'un pan. |
+
+## 3. Feuille de route
+
+| Pan | Contenu | Débloque |
+|---|---|---|
+| 1. Algèbre linéaire | corps des scalaires ; espaces vectoriels (Kⁿ et sa base canonique, espaces généraux, sous-espaces, familles, bases, dimension) ; applications linéaires L(E, F), matrices dans des bases, noyau, image, rang, changement de bases ; dual ; réduction ; formes bilinéaires et produits scalaires, orthogonalité ; espaces normés de dimension finie, normes subordonnées ; espace affine ; en support : multi-indices et stockage des composantes | calcul en coordonnées, systèmes linéaires, valeurs propres ; points et vecteurs en mécanique |
+| 2. Tenseurs | produit tensoriel, composantes, variances, contractions, notation indicielle (convention d'Einstein), symétries | tenseurs des contraintes et des déformations ; métrique, Riemann |
+| 3. Calcul différentiel | fonctions entre espaces, différentielle, dérivées d'ordre supérieur, ∂^α, Taylor, différentiation automatique (les jets de `graded` sont des développements de Taylor tronqués) | gradients, jacobiennes, hessiennes ; opérateurs grad, div, rot, Δ |
+| 4. Au-delà (esquisse) | espaces de fonctions et opérateurs, discrétisations (différences finies, éléments finis), variétés, cartes, champs, connexions | équations de la relativité générale, de la MMC et des fluides |
+
+Premier lot visé : scalaires, Kⁿ et espaces vectoriels, applications linéaires et leurs
+matrices, en dimension fixe (A(u), B ∘ A, déterminant, inverse).
+
+## 4. Questions ouvertes
+
+- Syntaxe des espaces : Kⁿ (base canonique, vecteurs = n-uplets) et espaces nommés
+  (distincts même de même dimension, coordonnées seulement dans une base explicite).
+- Application et composition : `A(u)` et `B * A` (proposé), ou style matriciel `A * u`.
+- Dérivées : opérateurs sur les fonctions (`D(f)`, `grad(f)`, `partial(f, α)`), et/ou en un
+  point.
+- Composantes : notation indicielle nommée (`C[i, k] = A[i, j] * B[j, k]`) et fonctions
+  nommées (`contract`, `trace`).
+- Familles de fonctions indexées (`m[i, j](x, y)` et `m(x, y)[i, j]`, curryfications de
+  Y^(I×X)) ; diffusion entre rangs (aucune implicite hors scalaires, proposé).
+- Place d'`array2d` (alias d'un tableau de rang 2 ?) et de `square_matrix` (wsl::random).

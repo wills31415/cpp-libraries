@@ -275,7 +275,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 7 | Objets combinatoires ✅ (avec `wsl::permutation`) : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers et d'ensembles, compositions, graphes, arbres |
 | 8 | Processus ✅ (temps discret et continu, exacts) |
 | Revue | ✅ Revue des interfaces de toutes les bibliothèques du dépôt (2026-11-20 et 21) : décisions dans [interfaces.md](interfaces.md) §6 ; les incohérences du §15 sont résolues |
-| (chantiers futurs) | Variables aléatoires (expressions paresseuses, `X + Y`, tirages couplés) ; `mdarray` (avec `graded` pour indice)  (faites) ; zêta (avec `riemann_zeta`) ; tirage générique |
+| (chantiers futurs) | Variables aléatoires ✅ ([variables.md](variables.md)) ; Skellam, Zipf, Rice ✅ (§22) ; zêta (avec `riemann_zeta`) ; tirage générique ; objets mathématiques ([algebra.md](algebra.md)) |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
 cpp-traversal, cpp-sudoku et puissance-4, dont `random_agent`, dont la promesse « même

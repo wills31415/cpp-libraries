@@ -19,6 +19,9 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   `wsl_add_library(... STANDARD ...)`.
 - Interfaces : les décisions de la revue (espaces de noms, paramètres, types, erreurs…) sont
   dans `docs/interfaces.md` ; tout nouveau code les suit.
+- Objets mathématiques (algèbre linéaire, tenseurs, analyse) : vision, méthode et feuille
+  de route dans `docs/algebra.md`. Ne citer que des ouvrages publiés, jamais de supports de
+  cours (ni formation, ni école, ni enseignants).
 - Aucune dépendance externe dans une bibliothèque, sauf décision explicite.
 
 ## Dépôt, versions, CI
@@ -133,6 +136,8 @@ d'ici depuis, remplacée par `wsl::random`),
 `cpp-traversal/src/util/{array2d,progress}.hpp`, `cpp-traversal/src/agents/elo.hpp`.
 cpp-traversal utilise encore sa propre copie d'`array2d.hpp`.
 
-Le paquet `wsl` de `~/projets/cpp-tensors` (cibles `wsl::wsl`, `wsl::formula`,
-en-têtes `include/wsl/`) partage le namespace et le dossier d'en-têtes : éviter les
-noms d'en-têtes qui y existent déjà (`index.hpp`, `space.hpp`, `field.hpp`…).
+cpp-libraries est le **dépôt principal** : il regroupe toutes les bibliothèques de
+l'utilisateur ; les autres dépôts sont des projets qui en consomment une partie. Les noms
+s'y choisissent librement : le paquet `wsl` de `~/projets/cpp-tensors` (même espace, même
+dossier d'en-têtes) est un premier essai, qui s'adaptera en étant refondu sur les objets
+mathématiques d'ici (docs/algebra.md). Aucun projet ne combine aujourd'hui les deux.
