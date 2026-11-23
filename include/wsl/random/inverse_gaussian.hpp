@@ -32,6 +32,8 @@
 #include <wsl/random/uniform.hpp>
 #include <wsl/special.hpp>
 
+#include <bit>
+#include <cstdint>
 #include <limits>
 #include <random>
 #include <stdexcept>
@@ -355,7 +357,45 @@ namespace wsl::random
                 return next < -745.0 ? -745.0 : next > 709.7 ? 709.7 : next;
             };
             auto const u = detail::solve_part(evaluate, !upper, t, {.start = wsl::special::log(mu), .max_step = 16}, outward, detail::arithmetic_midpoint);
-            return detail::rounded(detail::exp_scaled(u.hi, u.lo));
+            return nearest_double(detail::rounded(detail::exp_scaled(u.hi, u.lo)), t, upper);
+        }
+
+        // Finition : V (F ou S) n'est évaluée qu'en des doubles ; quand elle varie de plus d'un
+        // ulp par ulp de x (x f/V grand : queues des lois concentrées), le solveur peut s'arrêter
+        // à quelques ulp. Encadrer la racine entre deux doubles voisins x_a <= x* < x_b, puis
+        // garder le plus proche : V linéaire à l'échelle d'un ulp, x_a si t est plus près de V(x_a)
+        // que du milieu. Au plus 8 pas de chaque côté, sinon le résultat du solveur.
+        constexpr double nearest_double(double x, double t, bool upper) const noexcept
+        {
+            if (!(x > std::numeric_limits<double>::min() && x < std::numeric_limits<double>::max()))
+                return x;
+            double const mu = mu_, lambda = lambda_;
+            auto const value = [&](double y) {
+                auto const p = detail::inverse_gaussian_at(y, mu, lambda);
+                return upper ? p.upper : p.lower;
+            };
+            auto const step = [](double y, int d) { return std::bit_cast<double>(std::bit_cast<std::uint64_t>(y) + static_cast<std::uint64_t>(std::int64_t{d})); };
+            // y à gauche de la racine (ou dessus) : F(y) <= t, S(y) >= t
+            auto const left = [&](detail::scaled const& v) { int const c = detail::compare(v, {t, 0.0}); return upper ? c >= 0 : c <= 0; };
+            double a = x;
+            detail::scaled va = value(a);
+            int moves = 0;
+            for (; moves < 8 && !left(va); ++moves)
+                va = value(a = step(a, -1));
+            detail::scaled vb = value(step(a, 1));
+            for (; moves < 16 && left(vb); ++moves)
+            {
+                a = step(a, 1);
+                va = vb;
+                vb = value(step(a, 1));
+            }
+            if (moves >= 16 || !left(va))
+                return x;
+            detail::scaled middle = detail::add_scaled(va, vb);
+            middle.e -= 1;
+            int const c = detail::compare(middle, {t, 0.0});                // signe de milieu − t
+            bool const keep_a = upper ? c < 0 : c > 0;                      // t entre V(x_a) et le milieu
+            return keep_a ? a : step(a, 1);
         }
 
         constexpr T inverse(double t, bool upper) const

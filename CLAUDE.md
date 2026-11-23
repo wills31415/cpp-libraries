@@ -103,9 +103,14 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   tools/random/engine_vectors.py` écrit `tests/random_engine_vectors.hpp` (versionné,
   petit ; NumPy pour pcg64 et philox4x64, sauts de xoshiro vérifiés par GF(2)).
 - Empreintes des suites tirées : `tests/test_random_uniform.cpp`, `tests/test_random_laws.cpp`.
-- Précision des lois : références mpmath non versionnées, engendrées par CMake
-  (`tools/random/law_references.py`, qui vérifie aussi les constantes de
-  `wsl/special/detail/extended.hpp`) ; tables de la ziggourat versionnées
+- Précision des lois : références mpmath non versionnées, engendrées par CMake, **une
+  famille par module** de `tools/random/references/` (`common.py` : outils et écriture ;
+  la famille `base` vérifie aussi les constantes de `wsl/special/detail/extended.hpp`).
+  Seules les familles modifiées sont recalculées : une nouvelle loi a son propre module
+  (déclaré dans `law_families` du CMakeLists). Mesurer le temps d'un module seul
+  (`law_references.py FAMILLE FICHIER`) avant la génération complète ; éviter les
+  fonctions spéciales de mpmath dans les boucles (récurrences, sommes en précision fixée) ;
+  tables de la ziggourat versionnées
   (`uv run --no-project --with mpmath python tools/random/ziggurat.py`).
 - Tirages exacts (`detail/lazy.hpp`) : toute voie rapide ne doit rendre un résultat que
   s'il est certain, pour que résultat et nombre de mots tirés soient ceux de la voie

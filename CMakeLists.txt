@@ -189,15 +189,60 @@ if(WSL_LIBRARIES_BUILD_TESTS)
             add_dependencies(${test} special_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()
-        # Lois de wsl::random : même principe.
-        set(law_references ${PROJECT_BINARY_DIR}/generated/data/random_law_reference.hpp)
-        add_custom_command(
-            OUTPUT ${law_references}
-            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_references}
-            DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${PROJECT_SOURCE_DIR}/tools/special/generate.py
-                    ${PROJECT_SOURCE_DIR}/include/wsl/special/detail/extended.hpp
-            COMMENT "Valeurs de référence des lois de wsl::random (mpmath)")
-        add_custom_target(random_law_references DEPENDS ${law_references})
+        # Lois de wsl::random : même principe, une famille par module de tools/random/references/
+        # (seules les familles modifiées sont recalculées) ; l'en-tête commun les inclut toutes.
+        set(law_families base derived circular complement inverse_gaussian skew_normal stable discrete skellam zipf rice)
+        set(law_sources ${PROJECT_SOURCE_DIR}/tools/random/references)
+        set(law_outputs "")
+        set(law_includes "")
+        foreach(family IN LISTS law_families)
+            set(output ${PROJECT_BINARY_DIR}/generated/data/random_law_reference/${family}.hpp)
+            set(extra "")
+            if(family STREQUAL "base")
+                set(extra ${PROJECT_SOURCE_DIR}/include/wsl/special/detail/extended.hpp)
+            elseif(family STREQUAL "derived")
+                set(extra ${law_sources}/base.py)
+            endif()
+            add_custom_command(
+                OUTPUT ${output}
+                COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${family} ${output}
+                DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_sources}/${family}.py ${law_sources}/common.py
+                        ${PROJECT_SOURCE_DIR}/tools/special/generate.py ${extra}
+                COMMENT "Valeurs de référence des lois de wsl::random : ${family} (mpmath)")
+            list(APPEND law_outputs ${output})
+            string(APPEND law_includes "#include \"data/random_law_reference/${family}.hpp\"\n")
+        endforeach()
+        file(CONFIGURE OUTPUT ${PROJECT_BINARY_DIR}/generated/data/random_law_reference.hpp CONTENT [[
+// ENGENDRÉ par CMake — ne pas modifier à la main.
+#pragma once
+
+// Valeurs de référence des lois de wsl::random (mpmath), une famille par en-tête.
+
+namespace law_reference_data
+{
+    template <class T>
+    struct point
+    {
+        double a, b, x;
+        T rounded;
+        double offset;
+    };
+
+    struct quantile_point
+    {
+        double p, u;
+        long long k;
+    };
+
+    struct quantile_point2
+    {
+        double a, b, u;
+        long long k;
+    };
+}
+
+@law_includes@]] @ONLY)
+        add_custom_target(random_law_references DEPENDS ${law_outputs})
         wsl_add_test(random_precision LIBRARY random)
         foreach(test test_random_precision test_random_precision_cxx20)
             if(NOT TARGET ${test})

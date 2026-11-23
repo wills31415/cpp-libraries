@@ -969,6 +969,12 @@ int main()
             long long const k = 1 + static_cast<long long>(wsl::random::uniform_below(1000, x));
             return bits(ZP.pmf(k)) ^ (bits(ZP.cdf(k)) << 1) ^ (bits(ZP.ccdf(k)) << 2);
         }, 1 << 10), 0x458210ef1666a63d);
+        wsl::random::rice const RC({.scale = 1.5, .noncentrality = 2.0});
+        ok &= check("rice", fingerprint([&] { return bits(wsl::random::sample(RC, x)); }, 1 << 12), 0xba4941ebb4520dcc);
+        ok &= check("rice functions", fingerprint([&] {
+            double const u = wsl::random::uniform_real(x), t = wsl::special::detail::fmul(8.0, u);   // entrées protégées de la contraction
+            return bits(RC.pdf(t)) ^ (bits(RC.cdf(t)) << 1) ^ (bits(RC.ccdf(t)) << 2) ^ (bits(RC.quantile(u)) << 3);
+        }, 1 << 8), 0x36a6e864e0bde893);
     }
     assert(ok);
 
@@ -1118,6 +1124,30 @@ int main()
             assert(Z.cdf(k) >= u && (k == 1 || Z.cdf(k - 1) < u));
         }
         assert(throws_domain_error([] { wr::zipf X({.size = 0, .exponent = 1.0}); }) && throws_domain_error([] { wr::zipf X({.size = 10, .exponent = -1.0}); }));
+    }
+
+    // ---- Rice ---------------------------------------------------------------------------------------
+    {
+        namespace wr = wsl::random;
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::sample(law, g))); return v; };
+        for (auto [s, n] : {std::pair{1.0, 0.0}, {1.5, 2.0}, {0.5, 0.2}, {2.0, 40.0}})
+        {
+            wr::rice const R({.scale = s, .noncentrality = n});
+            assert(wr::rice(R.param()) == R && kolmogorov_smirnov(R, draws(R)) < 1.95);
+            for (double u : {1e-300, 1e-9, 0.3, 0.5, 0.97})
+            {
+                double const y = R.quantile(u), z = R.cquantile(u);
+                // encadrement (le conditionnement de F dans les queues interdit un aller-retour serré)
+                assert(R.cdf(std::nextafter(y, 0.0)) <= u && u <= R.cdf(std::nextafter(y, 1e300)));
+                assert(R.ccdf(std::nextafter(z, 1e300)) <= u && u <= R.ccdf(std::nextafter(z, 0.0)));
+            }
+        }
+        wr::rice const R0({.scale = 2.0, .noncentrality = 0.0});
+        wr::rayleigh const Ra({.scale = 2.0});
+        for (double t : {1e-200, 0.3, 2.0, 9.0, 70.0})
+            assert(R0.pdf(t) == Ra.pdf(t) && R0.cdf(t) == Ra.cdf(t) && R0.ccdf(t) == Ra.ccdf(t));
+        assert(R0.mean() == Ra.mean() && R0.variance() == Ra.variance());
+        assert(throws_domain_error([] { wr::rice X({.scale = 0.0, .noncentrality = 1.0}); }) && throws_domain_error([] { wr::rice X({.scale = 1.0, .noncentrality = -1.0}); }));
     }
     return 0;
 }

@@ -175,7 +175,7 @@ namespace wsl::random::detail
         auto const [x_hi, x_error] = sd::two_product(w.hi, inv_sqrt2_hi);   // erfc(−w/√2)/2
         double const x_lo = x_error + (sd::fmul(w.lo, inv_sqrt2_hi) + sd::fmul(w.hi, inv_sqrt2_lo));
         auto const [y_hi, y_lo] = sd::fast_two_sum(-x_hi, -x_lo);      // y = −w/√2
-        if (y_hi >= 27.0)                                              // erfc(27) < 2^-1060
+        if (y_hi >= 27.5)                                              // erfc(27,5)/2 < 2^-1090 (arrondi à 0 ; sous-normal jusqu'à 27,25)
             return {0.0, 0.0, 0};
         double const ay = magnitude(y_hi);
         if (ay < 0.25)

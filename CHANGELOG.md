@@ -155,6 +155,15 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   log-masse, répartition, survie, asymétrie, kurtosis sous 0,51 ulp (masse par
   `log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z = 2√(μ₁μ₂) ; queues sommées
   en double-double), quantiles exacts, tirage N₁ − N₂.
+- Rice : `rice({.scale = 1, .noncentrality})` : densité, log-densité, répartition, survie
+  (séries de Marcum à termes positifs), quantiles, moyenne, variance sous 0,51 ulp ;
+  ν = 0 délégué à `rayleigh` ; tirage hypot(ν + σZ₁, σZ₂).
+- Correction : survies sous-normales (erfc(y)/2 pour 27 <= y < 27,25) rendues nulles, pour
+  `stable` (α = 2) et `skew_normal`.
+- Correction : quantiles de `inverse_gaussian` faux de quelques ulp dans les queues des lois
+  très concentrées (λ/μ grand) : finition entre deux doubles voisins.
+- Références de précision des lois : une famille par module de `tools/random/references/`,
+  engendrée séparément par CMake ; seules les familles modifiées sont recalculées.
 - Zipf (finie) : `zipf({.size, .exponent})` sur {1, …, N} : masse, log-masse, répartition,
   survie, moyenne, variance sous 0,51 ulp (Euler–Maclaurin en double-double au-delà de
   max(64, 8|p|)), quantiles exacts, tirage par rejet par inversion (Hörmann et Derflinger).

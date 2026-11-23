@@ -239,7 +239,7 @@ Tout est fait, sauf les lois marquées ◻︎.
 | Famille | Lois |
 |---|---|
 | Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf, zeta ◻︎, logarithmique, Skellam, bêta-binomiale, gaussienne discrète |
-| Continues univariées | uniforme, normale, log-normale, exponentielle, gamma, χ², Erlang, bêta, Student, Fisher, Cauchy, Laplace, logistique, Weibull, Pareto, Gumbel, Fréchet, Rayleigh, Rice ◻︎, von Mises, triangulaire, arcsinus, inverse-gaussienne, normale asymétrique, stables (α, β) |
+| Continues univariées | uniforme, normale, log-normale, exponentielle, gamma, χ², Erlang, bêta, Student, Fisher, Cauchy, Laplace, logistique, Weibull, Pareto, Gumbel, Fréchet, Rayleigh, Rice, von Mises, triangulaire, arcsinus, inverse-gaussienne, normale asymétrique, stables (α, β) |
 | Multivariées | Dirichlet, multinomiale, normale multivariée, Student multivariée, Wishart et inverse-Wishart, uniformes sur la sphère, la boule et le simplexe (Dirichlet(1, …, 1)), von Mises–Fisher, matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE) |
 | Combinatoires | permutations (uniformes, Ewens, Mallows), sous-ensembles, combinaisons, partitions d'entiers et d'ensembles, compositions, graphes (Erdős–Rényi, Barabási–Albert, graphes réguliers), arbres (Cayley, binaires de Catalan), mots |
 | Processus | marches aléatoires, chaînes de Markov (discrètes et continues), processus de Poisson (homogène, inhomogène, composé), mouvement brownien et pont brownien, processus de Dirichlet (par le restaurant chinois, Pitman–Yor), restaurant chinois, urnes de Pólya |
@@ -275,7 +275,7 @@ Les tirages étant reproductibles, **les tests le sont aussi** : aucun test stat
 | 7 | Objets combinatoires ✅ (avec `wsl::permutation`) : permutations, sous-ensembles, combinaisons, mots, partitions d'entiers et d'ensembles, compositions, graphes, arbres |
 | 8 | Processus ✅ (temps discret et continu, exacts) |
 | Revue | ✅ Revue des interfaces de toutes les bibliothèques du dépôt (2026-11-20 et 21) : décisions dans [interfaces.md](interfaces.md) §6 ; les incohérences du §15 sont résolues |
-| (chantiers futurs) | Variables aléatoires (expressions paresseuses, `X + Y`, tirages couplés) ; `mdarray` (avec `graded` pour indice) ; Zipf, Skellam, Rice ; tirage générique |
+| (chantiers futurs) | Variables aléatoires (expressions paresseuses, `X + Y`, tirages couplés) ; `mdarray` (avec `graded` pour indice)  (faites) ; zêta (avec `riemann_zeta`) ; tirage générique |
 
 Ensuite : migration des projets qui utilisent les lois de `<random>` (14 fichiers dans
 cpp-traversal, cpp-sudoku et puissance-4, dont `random_agent`, dont la promesse « même
@@ -393,7 +393,8 @@ au premier ordre pour w_lo ; quantile : `erfc_inv` puis un pas de Newton sur un
 résidu précis.
 
 **Précision mesurée** (contre mpmath, `tests/test_random_precision.cpp`, références
-engendrées par `tools/random/law_references.py`) : en double, au plus 0,5012 ulp pour
+engendrées par `tools/random/law_references.py`, une famille de lois par module de
+`tools/random/references/`) : en double, au plus 0,5012 ulp pour
 `pdf`, `cdf`, `ccdf`, `quantile` des deux lois (arrondi correct dans 99,9 % des cas ou
 plus) ; `log_pdf` aussi sur les points mesurés, mais sa précision relative se dégrade
 quand ses termes se compensent (résultat proche de 0). En float, au plus 0,5000 ulp.
@@ -958,7 +959,7 @@ Moments partagés avec Weibull (`detail/gamma_moments.hpp`) : lgamma(1 + ε) en 
 (Weibull, 1/k) ou négatif (Fréchet, −1/α) ; Weibull garde ses bits. Précision mesurée :
 tout sous 0,5 ulp en double et float, arrondi correct sur 100 % des points
 (≈ 9 000 points, références mpmath ; constantes double-double nouvelles vérifiées par
-`law_references.py`).
+`references/base.py`).
 
 ## 17. Compléments au catalogue, lot 2 : inverse-gaussienne
 
@@ -1102,6 +1103,7 @@ bit-exact.
 |---|---|---|---|
 | `skellam<I>` | `{.mean1, .mean2}` (> 0) | masse e^{−(μ₁+μ₂)} (μ₁/μ₂)^{k/2} I_|k|(2√(μ₁μ₂)) en logarithme double-double (`log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z) ; répartition : la queue du côté de k sommée depuis k, l'autre par complément ; quantiles exacts ; moyenne, variance, asymétrie, kurtosis exactes | N₁ − N₂ (deux Poisson) |
 | `zipf<I>` | `{.size, .exponent}` (1 <= N <= 2⁵³, s >= 0) | sommes Σ_{j=a}^{b} j^p (p = −s, 1 − s, 2 − s) en double-double : directes sous a₀ = max(64, 8\|p\|), Euler–Maclaurin au-delà (12 termes de Bernoulli, relativement à a₀^p ; intégrale par expm1, stable près de s = 1) ; répartition H_k/H_N, survie par la queue directe ; moyenne 1 + A/H et variance (BH − A²)/H² sans compensation | rejet par inversion (Hörmann et Derflinger) ; uniforme si s = 0 |
+| `rice<T>` | `{.scale = 1, .noncentrality}` (σ > 0, ν >= 0) | réduite y = x/σ, c = ν/σ ; densité y e^{−(y²+c²)/2} I₀(cy) en logarithme double-double (`log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de cy) ; répartition par les séries de Marcum à termes positifs, S = e^{−(y²+c²)/2} Σ_{k>=0} (c/y)^k I_k(cy) ou F = … Σ_{k>=1} (y/c)^k I_k(cy), la plus petite des deux, l'autre par complément ; quantiles par le solveur commun (départ √(2t) e^{c²/4} pour les petites probabilités) ; moyenne σ√(π/2) L_{1/2}(−c²/2), variance σ²(2 + c² − m²), développement asymptotique sans compensation pour c >= 12 ; ν = 0 : `rayleigh` | hypot(ν + σZ₁, σZ₂) (approché, bit-exact) |
 
 Mesures (références mpmath à 200 bits, table étendue jusqu'à des masses sous 2⁻¹¹³⁰) :
 masse, répartition, survie, asymétrie, kurtosis sous 0,5 ulp, arrondi correct sur tous les
@@ -1112,4 +1114,17 @@ Zipf : masse, répartition, survie, moyenne, variance sous 0,5 ulp, arrondi corr
 points (N jusqu'à 2⁵⁰, s de 0 à 30), 700 quantiles exacts. Le ζ de Hurwitz de mpmath n'étant
 précis qu'en absolu, les références des petites queues sont des sommes directes. La loi zêta
 (N infini, s > 1) attend `riemann_zeta` dans wsl::special.
+Rice : densité, log-densité, répartition, survie, quantiles, moyenne, variance sous 0,5 ulp,
+arrondi correct sur tous les points (c de 10⁻³ à 80, probabilités sous-normales comprises).
+Références : les I_k(cy) de tous les ordres par la récurrence descendante de Miller, normalisés
+par I₀ + 2 Σ I_k = e^z (une minute pour la famille, contre des heures avec `besseli` terme à
+terme).
+Découpage des références par famille (nouvelles graines, donc nouveaux points) : il a fait
+apparaître trois défauts. (1) `normal_lower_scaled` rendait 0 au-delà de erfc(27), alors que
+erfc(y)/2 reste sous-normal jusqu'à y ≈ 27,25 : survies sous-normales de la loi stable (α = 2)
+et de la normale asymétrique, corrigé. (2) Quantiles de l'inverse-gaussienne très concentrée
+(λ/μ = 10⁶) faux de 3 ulp dans les queues : la survie n'y est évaluée qu'en des doubles et varie
+de 6·10⁻¹² par ulp ; finition par encadrement entre deux doubles voisins et interpolation.
+(3) Référence de l'inverse-gaussienne : 2λ/μ calculé en flottant (e^{2λ/μ} faux de 2·10⁻¹⁰) ;
+et quantiles de `affine(student_t)` près du zéro du résultat écartés (erreur relative sans borne).
 
