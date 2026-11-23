@@ -130,6 +130,12 @@ au-dessus : elle ne modifie aucun tirage existant.
   cumulants, κₙ(Σ aᵢ Xᵢ) = Σ aᵢⁿ κₙ(Xᵢ) ; pour une famille close (normale, Cauchy ; gamma à
   coefficients positifs, sans constante, de même intensité), `family()` rend la loi exacte,
   dont densité, répartition et quantiles sont ceux de l'expression ; NaN sans identité.
+- Lot 1d ✅ : `wr::apply(f, X, Y…)` (f quelconque, ou bijection monotone déclarée par
+  `wr::increasing` / `wr::decreasing`) ; `exp`, `log`, `sqrt`, `cbrt`, `expm1`, `log1p`,
+  `atan`, `erf` (monotones, déclarées comme telles), `sin`, `cos`, `tan`, `abs`, `pow`,
+  `hypot`, `atan2`, `min`, `max`, toutes de wsl::special (bit-exactes), en calcul flottant sur
+  des valeurs tirées exactement ; `wr::law(f(X))` pour une variable de base : la mesure image
+  (`law(exp(X))` est la log-normale par composition : répartition, quantiles, densité).
 
 ## 5. Lots proposés
 

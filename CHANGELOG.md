@@ -143,6 +143,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Correction (lot 1b) : le produit de deux variables et les constantes (E, Var, Cov,
   cumulants) passent par `fmul` : sous `-ffp-contract=fast`, la contraction en fma changeait
   les valeurs (CI FMA).
+- Variables aléatoires, lot 1d : `wr::apply(f, X, …)` ; fonctions `exp`, `log`, `sqrt`,
+  `cbrt`, `expm1`, `log1p`, `atan`, `erf` (bijections monotones déclarées), `sin`, `cos`,
+  `tan`, `abs`, `pow`, `hypot`, `atan2`, `min`, `max` (wsl::special) ; `wr::law(f(X))` :
+  mesure image de la loi de X (`pushforward`).
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

@@ -135,6 +135,40 @@ int main()
         assert(M(a) == (2 * X + Y)(b) && a == b);                                          // tirage de l'expression
     }
 
+    // ---- Lot 1d : fonctions de variables --------------------------------------------------------
+    {
+        namespace sp = wsl::special;
+        wr::variable const X{wr::normal({.mean = 0.2, .stddev = 0.7})};
+        wr::variable const U{wr::uniform()};
+        for (int i = 0; i < 1000; ++i)
+        {
+            auto const [x, u, e, h, m, q, a, f] = wr::evaluate(g, X, U, exp(X), hypot(X, U), max(X, U), pow(X, 2.0), wr::abs(X), wr::apply([](double s, double t) { return s - t; }, X, U));
+            assert(e == sp::exp(x) && h == sp::hypot(x, u) && m == std::max(x, u) && q == sp::pow(x, 2.0) && a == std::abs(x) && f == x - u);
+        }
+        // loi de f(X) : mesure image ; f monotone déclarée → répartition, quantiles, densité
+        auto const LN = wr::law(exp(X));
+        wr::lognormal const R({.log_mean = 0.2, .log_stddev = 0.7});
+        for (double y : {0.3, 1.0, 2.5})
+            assert(std::abs(LN.cdf(y) - R.cdf(y)) < 1e-15 && std::abs(LN.pdf(y) - R.pdf(y)) < 1e-14 * R.pdf(y));
+        assert(std::abs(LN.quantile(0.9) - R.quantile(0.9)) < 1e-14 * R.quantile(0.9) && LN.median() == sp::exp(0.2));
+        auto const S = wr::law(sin(X));                                     // fonction quelconque : tirage seul
+        static_assert(!wr::has_cdf<decltype(S)> && wr::has_cdf<decltype(LN)>);
+        auto const T = wr::law(sqrt(U));                                    // √U : répartition y² sur [0, 1]
+        assert(T.cdf(0.5) == 0.25 && T.quantile(0.25) == 0.5);
+        static_assert(!has_expectation<decltype(exp(X))>);                   // non affine : pas de linéarité
+        // empreinte des fonctions
+        wr::xoshiro256pp x(77);
+        std::uint64_t hash = 0xcbf29ce484222325;
+        for (int i = 0; i < 4096; ++i)
+        {
+            auto const [a1, a2, a3] = wr::evaluate(x, exp(X) * U + log1p(U), atan2(X, U) - erf(X), cbrt(X) / (1 + abs(X)));
+            for (double v : {a1, a2, a3})
+                hash = (hash ^ std::bit_cast<std::uint64_t>(v)) * 0x100000001b3;
+        }
+        std::printf("variables functions    %016llx\n", static_cast<unsigned long long>(hash));
+        assert(hash == 0x93f4e7f5ae31e15a);
+    }
+
     // ---- Empreinte (bit-exacte sur toutes les plateformes) -----------------------------------
     {
         wr::xoshiro256pp x(20261121);

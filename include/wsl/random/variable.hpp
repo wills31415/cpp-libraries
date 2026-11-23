@@ -36,6 +36,12 @@
 // constante, de même intensité), la loi de la famille, résolue à l'exécution (family()),
 // dont densité, répartition et quantiles sont ceux de l'expression ; NaN sans identité.
 //
+// Fonctions : wsl::random::apply(f, X, Y…) applique f (ou une bijection monotone déclarée,
+// increasing / decreasing de pushforward.hpp) ; exp, log, sqrt, cbrt, expm1, log1p, atan,
+// erf (monotones, déclarées comme telles), sin, cos, tan, abs, pow, hypot, atan2, min, max,
+// toutes de wsl::special (bit-exactes). Calcul flottant ; law(f(X)), X variable de base :
+// pushforward(loi de X, f) (répartition, quantiles, densité si f est monotone).
+//
 // Constantes : E, Var et Cov par linéarité sur la forme affine Σ aᵢ Xᵢ + b, les coefficients
 // d'une même variable regroupés (Var(X + X) = 4 Var X ; variables de base distinctes
 // indépendantes).
@@ -45,6 +51,8 @@
 #include <wsl/random/detail/lazy_sum.hpp>
 #include <wsl/random/engines.hpp>
 #include <wsl/random/law.hpp>
+#include <wsl/random/pushforward.hpp>
+#include <wsl/special.hpp>
 
 #include <algorithm>
 #include <array>
@@ -52,6 +60,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <tuple>
 #include <type_traits>
@@ -213,6 +222,19 @@ namespace wsl::random
         };
         struct divides_op { constexpr auto operator()(auto const& a, auto const& b) const { return a / b; } };
         struct negate_op { constexpr auto operator()(auto const& a) const { return -a; } };
+        // f appliquée aux valeurs ; pour une bijection monotone déclarée, sa partie directe.
+        template <class F>
+        struct apply_op
+        {
+            F f;
+            constexpr auto operator()(auto const&... a) const
+            {
+                if constexpr (is_monotone_map<F>::value)
+                    return f.forward(a...);
+                else
+                    return std::invoke(f, a...);
+            }
+        };
 
         template <class T>
         constexpr auto as_node(T const& x)
@@ -1055,6 +1077,12 @@ namespace wsl::random
         {
             template <class L>
             constexpr L const& operator()(variable<L> const& x) const noexcept { return x.law(); }
+            // f(X), X variable de base : la mesure image de la loi de X.
+            template <class F, class L>
+            auto operator()(expression<apply_op<F>, variable<L>> const& z) const
+            {
+                return pushforward(std::get<0>(z.arguments()).law(), z.operation().f);
+            }
             template <class Op, class... A>
             expression_law<expression<Op, A...>> operator()(expression<Op, A...> const& z) const { return expression_law<expression<Op, A...>>(z); }
         };
@@ -1063,4 +1091,65 @@ namespace wsl::random
     {
         inline constexpr detail::cpo::law_fn law{};
     }
+
+    // -----------------------------------------------------------------------
+    // Fonctions de variables (lot 1d).
+    // -----------------------------------------------------------------------
+    template <class F, class... A>
+        requires(sizeof...(A) > 0) && (random_variable<A> || ...) && ((random_variable<A> || detail::expression_scalar<A>) && ...)
+    constexpr auto apply(F f, A const&... a)
+    {
+        return expression<detail::apply_op<F>, decltype(detail::as_node(a))...>(detail::apply_op<F>{std::move(f)}, detail::as_node(a)...);
+    }
+
+    namespace detail::functions
+    {
+        namespace sp = wsl::special;
+        // Bijections croissantes : f, f⁻¹, (f⁻¹)' (produits protégés de la contraction).
+        inline constexpr auto exp = increasing([](auto x) { return sp::exp(x); }, [](auto y) { return sp::log(y); }, [](auto y) { return 1 / y; });
+        inline constexpr auto log = increasing([](auto x) { return sp::log(x); }, [](auto y) { return sp::exp(y); }, [](auto y) { return sp::exp(y); });
+        inline constexpr auto sqrt = increasing([](auto x) { return sp::sqrt(x); }, [](auto y) { return decltype(y)(sd::fmul(double(y), double(y))); },
+                                                [](auto y) { return y + y; });
+        inline constexpr auto cbrt = increasing([](auto x) { return sp::cbrt(x); },
+                                                [](auto y) { return decltype(y)(sd::fmul(sd::fmul(double(y), double(y)), double(y))); },
+                                                [](auto y) { return decltype(y)(sd::fmul(3.0, sd::fmul(double(y), double(y)))); });
+        inline constexpr auto expm1 = increasing([](auto x) { return sp::expm1(x); }, [](auto y) { return sp::log1p(y); }, [](auto y) { return 1 / (1 + y); });
+        inline constexpr auto log1p = increasing([](auto x) { return sp::log1p(x); }, [](auto y) { return sp::expm1(y); }, [](auto y) { return sp::exp(y); });
+        inline constexpr auto atan = increasing([](auto x) { return sp::atan(x); }, [](auto y) { return sp::tan(y); },
+                                                [](auto y) { auto const t = sp::tan(y); return decltype(y)(1 + sd::fmul(double(t), double(t))); });
+        // (erf⁻¹)'(y) = (√π/2) e^{erf⁻¹(y)²}
+        inline constexpr auto erf = increasing([](auto x) { return sp::erf(x); }, [](auto y) { return sp::erf_inv(y); },
+                                               [](auto y) {
+                                                   double const u = double(sp::erf_inv(y));
+                                                   return decltype(y)(sd::fmul(0x1.c5bf891b4ef6bp-1, sp::exp(sd::fmul(u, u))));
+                                               });
+        // Fonctions ordinaires.
+        inline constexpr auto sin = [](auto x) { return sp::sin(x); };
+        inline constexpr auto cos = [](auto x) { return sp::cos(x); };
+        inline constexpr auto tan = [](auto x) { return sp::tan(x); };
+        inline constexpr auto abs = [](auto x) { return x < 0 ? -x : x; };
+        inline constexpr auto pow = [](auto x, auto y) { return sp::pow(x, y); };
+        inline constexpr auto hypot = [](auto x, auto y) { return sp::hypot(x, y); };
+        inline constexpr auto atan2 = [](auto y, auto x) { return sp::atan2(y, x); };
+        inline constexpr auto min = [](auto x, auto y) { return y < x ? y : x; };
+        inline constexpr auto max = [](auto x, auto y) { return x < y ? y : x; };
+    }
+
+    template <random_variable A> constexpr auto exp(A const& a) { return apply(detail::functions::exp, a); }
+    template <random_variable A> constexpr auto log(A const& a) { return apply(detail::functions::log, a); }
+    template <random_variable A> constexpr auto sqrt(A const& a) { return apply(detail::functions::sqrt, a); }
+    template <random_variable A> constexpr auto cbrt(A const& a) { return apply(detail::functions::cbrt, a); }
+    template <random_variable A> constexpr auto expm1(A const& a) { return apply(detail::functions::expm1, a); }
+    template <random_variable A> constexpr auto log1p(A const& a) { return apply(detail::functions::log1p, a); }
+    template <random_variable A> constexpr auto atan(A const& a) { return apply(detail::functions::atan, a); }
+    template <random_variable A> constexpr auto erf(A const& a) { return apply(detail::functions::erf, a); }
+    template <random_variable A> constexpr auto sin(A const& a) { return apply(detail::functions::sin, a); }
+    template <random_variable A> constexpr auto cos(A const& a) { return apply(detail::functions::cos, a); }
+    template <random_variable A> constexpr auto tan(A const& a) { return apply(detail::functions::tan, a); }
+    template <random_variable A> constexpr auto abs(A const& a) { return apply(detail::functions::abs, a); }
+    template <class A, class B> requires expression_operands<A, B> constexpr auto pow(A const& a, B const& b) { return apply(detail::functions::pow, a, b); }
+    template <class A, class B> requires expression_operands<A, B> constexpr auto hypot(A const& a, B const& b) { return apply(detail::functions::hypot, a, b); }
+    template <class A, class B> requires expression_operands<A, B> constexpr auto atan2(A const& y, B const& x) { return apply(detail::functions::atan2, y, x); }
+    template <class A, class B> requires expression_operands<A, B> constexpr auto min(A const& a, B const& b) { return apply(detail::functions::min, a, b); }
+    template <class A, class B> requires expression_operands<A, B> constexpr auto max(A const& a, B const& b) { return apply(detail::functions::max, a, b); }
 }
