@@ -155,6 +155,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   log-masse, répartition, survie, asymétrie, kurtosis sous 0,51 ulp (masse par
   `log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z = 2√(μ₁μ₂) ; queues sommées
   en double-double), quantiles exacts, tirage N₁ − N₂.
+- Zipf (finie) : `zipf({.size, .exponent})` sur {1, …, N} : masse, log-masse, répartition,
+  survie, moyenne, variance sous 0,51 ulp (Euler–Maclaurin en double-double au-delà de
+  max(64, 8|p|)), quantiles exacts, tirage par rejet par inversion (Hörmann et Derflinger).
 - Correction : quantile de `geometric` pour u sous-normal (t = log(1 − u)/log(1 − p) sous-dépassait,
   ⌈0⌉ − 1 rendait le plus grand entier au lieu de 0).
 - Variables aléatoires, lot 3 : composantes `V[i]` (couplées), E, Var, Cov avec la matrice de

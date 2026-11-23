@@ -68,6 +68,7 @@
 #include <wsl/random/inverse_gaussian.hpp>
 #include <wsl/random/negative_binomial.hpp>
 #include <wsl/random/skellam.hpp>
+#include <wsl/random/zipf.hpp>
 #include <wsl/random/process.hpp>
 #include <wsl/random/categorical.hpp>
 #include <wsl/random/permutations.hpp>

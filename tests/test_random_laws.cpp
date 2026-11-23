@@ -963,6 +963,12 @@ int main()
             long long const k = static_cast<long long>(wsl::random::uniform_below(30, x)) - 12;
             return bits(SK.pmf(k)) ^ (bits(SK.cdf(k)) << 1) ^ (bits(SK.ccdf(k)) << 2);
         }, 1 << 10), 0x01f121fa1149564f);
+        wsl::random::zipf const ZP({.size = 1000, .exponent = 1.3});
+        ok &= check("zipf", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(ZP, x)); }, 1 << 12), 0xcf20e17a6221804c);
+        ok &= check("zipf functions", fingerprint([&] {
+            long long const k = 1 + static_cast<long long>(wsl::random::uniform_below(1000, x));
+            return bits(ZP.pmf(k)) ^ (bits(ZP.cdf(k)) << 1) ^ (bits(ZP.ccdf(k)) << 2);
+        }, 1 << 10), 0x458210ef1666a63d);
     }
     assert(ok);
 
@@ -1095,6 +1101,23 @@ int main()
         }
         assert(throws_domain_error([] { wr::skellam X({.mean1 = 0.0, .mean2 = 1.0}); }));
         assert(wr::geometric({.p = 0.999}).quantile(0x1p-1073) == 0 && wr::geometric({.p = 0.5}).quantile(0x1p-1074) == 0);   // u sous-normal
+    }
+
+    // ---- Zipf ---------------------------------------------------------------------------------------
+    {
+        namespace wr = wsl::random;
+        wr::zipf const Z({.size = 50, .exponent = 1.1});
+        assert(wr::zipf(Z.param()) == Z && Z.mode() == 1 && Z.cdf(50) == 1 && Z.ccdf(0) == 1);
+        assert(std::abs(chi_square(Z, g, 50000, 1, 50)) < 4);
+        assert(std::abs(chi_square(wr::zipf({.size = 10, .exponent = 0.0}), g, 50000, 1, 10)) < 4);       // uniforme
+        assert(std::abs(chi_square(wr::zipf({.size = 1L << 40, .exponent = 2.5}), g, 50000, 1, 30)) < 4);
+        assert(std::abs(chi_square(wr::zipf({.size = 200, .exponent = 1.0}), g, 50000, 1, 200)) < 4);
+        for (double u : {1e-12, 0.3, 0.5, 0.97})
+        {
+            long long const k = Z.quantile(u);
+            assert(Z.cdf(k) >= u && (k == 1 || Z.cdf(k - 1) < u));
+        }
+        assert(throws_domain_error([] { wr::zipf X({.size = 0, .exponent = 1.0}); }) && throws_domain_error([] { wr::zipf X({.size = 10, .exponent = -1.0}); }));
     }
     return 0;
 }

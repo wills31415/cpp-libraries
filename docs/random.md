@@ -238,7 +238,7 @@ Tout est fait, sauf les lois marquées ◻︎.
 
 | Famille | Lois |
 |---|---|
-| Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf ◻︎, zeta ◻︎, logarithmique, Skellam, bêta-binomiale, gaussienne discrète |
+| Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf, zeta ◻︎, logarithmique, Skellam, bêta-binomiale, gaussienne discrète |
 | Continues univariées | uniforme, normale, log-normale, exponentielle, gamma, χ², Erlang, bêta, Student, Fisher, Cauchy, Laplace, logistique, Weibull, Pareto, Gumbel, Fréchet, Rayleigh, Rice ◻︎, von Mises, triangulaire, arcsinus, inverse-gaussienne, normale asymétrique, stables (α, β) |
 | Multivariées | Dirichlet, multinomiale, normale multivariée, Student multivariée, Wishart et inverse-Wishart, uniformes sur la sphère, la boule et le simplexe (Dirichlet(1, …, 1)), von Mises–Fisher, matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE) |
 | Combinatoires | permutations (uniformes, Ewens, Mallows), sous-ensembles, combinaisons, partitions d'entiers et d'ensembles, compositions, graphes (Erdős–Rényi, Barabási–Albert, graphes réguliers), arbres (Cayley, binaires de Catalan), mots |
@@ -1101,10 +1101,15 @@ bit-exact.
 | Loi | Paramètres | Calcul | Tirage |
 |---|---|---|---|
 | `skellam<I>` | `{.mean1, .mean2}` (> 0) | masse e^{−(μ₁+μ₂)} (μ₁/μ₂)^{k/2} I_|k|(2√(μ₁μ₂)) en logarithme double-double (`log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z) ; répartition : la queue du côté de k sommée depuis k, l'autre par complément ; quantiles exacts ; moyenne, variance, asymétrie, kurtosis exactes | N₁ − N₂ (deux Poisson) |
+| `zipf<I>` | `{.size, .exponent}` (1 <= N <= 2⁵³, s >= 0) | sommes Σ_{j=a}^{b} j^p (p = −s, 1 − s, 2 − s) en double-double : directes sous a₀ = max(64, 8\|p\|), Euler–Maclaurin au-delà (12 termes de Bernoulli, relativement à a₀^p ; intégrale par expm1, stable près de s = 1) ; répartition H_k/H_N, survie par la queue directe ; moyenne 1 + A/H et variance (BH − A²)/H² sans compensation | rejet par inversion (Hörmann et Derflinger) ; uniforme si s = 0 |
 
 Mesures (références mpmath à 200 bits, table étendue jusqu'à des masses sous 2⁻¹¹³⁰) :
 masse, répartition, survie, asymétrie, kurtosis sous 0,5 ulp, arrondi correct sur tous les
 points ; 600 quantiles exacts, probabilités sous-normales comprises. Le générateur de
 références sommait la survie par différence avec le total quand F > ½ (perte de précision dans
 les queues) : corrigé, pour la gaussienne discrète aussi.
+Zipf : masse, répartition, survie, moyenne, variance sous 0,5 ulp, arrondi correct sur tous les
+points (N jusqu'à 2⁵⁰, s de 0 à 30), 700 quantiles exacts. Le ζ de Hurwitz de mpmath n'étant
+précis qu'en absolu, les références des petites queues sont des sommes directes. La loi zêta
+(N infini, s > 1) attend `riemann_zeta` dans wsl::special.
 

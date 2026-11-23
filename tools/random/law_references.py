@@ -935,6 +935,30 @@ BETA_BINOMIAL_BETA = {(n, a): b for n, a, b in BETA_BINOMIAL}
 LOGARITHMIC = [0.9, 0.01, 0.5, 0.999, 1e-6]
 DISCRETE_GAUSSIAN = [(0.3, 2.5), (0.3, 0.4), (-7.25, 30.0), (1e6 + 0.5, 1.0), (0.0, 0.05), (2.0, 1e3)]
 SKELLAM = [(3.0, 1.5), (0.3, 0.02), (15.0, 18.0), (400.0, 380.0), (0.01, 6.0), (2500.0, 0.5)]
+ZIPF = [(1000, 1.2), (10 ** 6, 1.0), (2 ** 40, 2.0), (50, 0.0), (10 ** 4, 0.5), (100, 30.0), (2 ** 50, 1.0000001)]
+
+
+def zipf_partial(n, s, a=1):
+    """Σ_{j=a}^{n} j^{−s} (directe sur moins de 10⁵ termes, sinon zêta de Hurwitz, ψ pour s = 1), s double exact."""
+    with mp.workprec(200):
+        s = mpf(s)
+        if n < a:
+            return mpf(0)
+        if n - a < 10 ** 5:                                                 # somme directe : le ζ de Hurwitz de
+            return mp.fsum(mpf(j) ** -s for j in range(a, n + 1))           # mpmath n'est précis qu'en absolu
+        if s == 1:
+            return mp.digamma(n + 1) - mp.digamma(a)
+        if s == 0:
+            return mpf(n - a + 1)
+        return mp.zeta(s, a) - mp.zeta(s, n + 1)
+
+
+def zipf_cdf(n, s, k):
+    if k < 1:
+        return mpf(0)
+    if k >= n:
+        return mpf(1)
+    return zipf_partial(k, s) / zipf_partial(n, s)
 _SKELLAM_TABLES = {}
 
 
@@ -1103,6 +1127,25 @@ def new_discrete_laws():
                 return m1 if which == 0 else mp.fsum((j - m1) ** 2 * t for j, t in zip(js, terms)) / z
         out.append(("discrete_gaussian_mean", mu, sigma, [0.0], lambda _, moments=moments: moments(which=0)))
         out.append(("discrete_gaussian_variance", mu, sigma, [0.0], lambda _, moments=moments: moments(which=1)))
+    for n, sz in ZIPF:
+        ks = sorted({min(n, max(1, int(2.0 ** rng.uniform(0, math.log2(n))))) for _ in range(40)} | {1, 2, n, n - 1})
+        H = lambda n=n, sz=sz: zipf_partial(n, sz)
+        out.append(("zipf_pmf", float(n), sz, [float(k) for k in ks], lambda k, n=n, sz=sz: mpf(int(k)) ** -mpf(sz) / zipf_partial(n, sz)))
+        out.append(("zipf_log_pmf", float(n), sz, [float(k) for k in ks if k > 1 or sz != 0 or n > 1], lambda k, n=n, sz=sz: -mpf(sz) * mp.log(int(k)) - mp.log(zipf_partial(n, sz))))
+        inner = [float(k) for k in ks if k < n]
+        out.append(("zipf_cdf", float(n), sz, inner, lambda k, n=n, sz=sz: zipf_cdf(n, sz, int(k))))
+        out.append(("zipf_ccdf", float(n), sz, inner, lambda k, n=n, sz=sz: zipf_partial(n, sz, int(k) + 1) / zipf_partial(n, sz)))
+        if n <= 10 ** 7:
+            def zipf_moment(n=n, sz=sz, which=0):
+                with mp.workprec(200):
+                    h, s_ = zipf_partial(n, sz), mpf(sz)
+                    a = zipf_partial(n, s_ - 1, 2) - zipf_partial(n, s_, 2)
+                    if which == 0:
+                        return 1 + a / h
+                    b = zipf_partial(n, s_ - 2, 2) - 2 * zipf_partial(n, s_ - 1, 2) + zipf_partial(n, s_, 2)
+                    return b / h - (a / h) ** 2
+            out.append(("zipf_mean", float(n), sz, [0.0], lambda _, f=zipf_moment: f(which=0)))
+            out.append(("zipf_variance", float(n), sz, [0.0], lambda _, f=zipf_moment: f(which=1)))
     for m1, m2 in SKELLAM:
         sd, m = math.sqrt(m1 + m2), m1 - m2
         ks = sorted({int(round(m + sd * rng.uniform(-9, 9))) for _ in range(40)} | {int(m), int(m) - 1, int(m) + 1, 0}
@@ -1474,6 +1517,7 @@ def reference_file():
                                     ("beta_binomial_quantile", [(float(n), a) for n, a, _ in BETA_BINOMIAL if n <= 1000],
                                      lambda n, a, k: beta_binomial_cdf(int(n), a, BETA_BINOMIAL_BETA[(int(n), a)], int(k)), lambda n, a, u: n * u),
                                     ("logarithmic_quantile", [(pp, 0.0) for pp in LOGARITHMIC], lambda pp, _, k: mpf(0) if k < 1 else logarithmic_cdf(pp, int(k)), lambda pp, _, u: 1.0),
+                                    ("zipf_quantile", [(float(n), sz) for n, sz in ZIPF], lambda n, sz, k: zipf_cdf(int(n), sz, int(k)), lambda n, sz, u: 1.0, 1),
                                     ("skellam_quantile", SKELLAM, lambda m1, m2, k: skellam_parts(m1, m2, int(k))[1],
                                      lambda m1, m2, u: m1 - m2 + _m.sqrt(m1 + m2) * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u))), -10 ** 6),
                                     ("discrete_gaussian_quantile", [(mu, sigma) for mu, sigma in DISCRETE_GAUSSIAN if sigma <= 30],

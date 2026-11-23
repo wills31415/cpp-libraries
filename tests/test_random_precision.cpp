@@ -389,6 +389,13 @@ int main()
     check<double>("discrete_gaussian ccdf", d::discrete_gaussian_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(DG(a, b), K(x)); }, tight);
     check<double>("discrete_gaussian mean", d::discrete_gaussian_mean_double, [&](double a, double b, double) { return DG(a, b).mean(); }, tight);
     check<double>("discrete_gaussian variance", d::discrete_gaussian_variance_double, [&](double a, double b, double) { return DG(a, b).variance(); }, tight);
+    auto const ZI = [](double a, double b) { return wsl::random::zipf<K>({.size = K(a), .exponent = b}); };
+    check<double>("zipf pmf", d::zipf_pmf_double, [&](double a, double b, double x) { return wsl::random::pmf(ZI(a, b), K(x)); }, tight);
+    check<double>("zipf log_pmf", d::zipf_log_pmf_double, [&](double a, double b, double x) { return wsl::random::log_pmf(ZI(a, b), K(x)); }, 1.0);
+    check<double>("zipf cdf", d::zipf_cdf_double, [&](double a, double b, double x) { return wsl::random::cdf(ZI(a, b), K(x)); }, tight);
+    check<double>("zipf ccdf", d::zipf_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(ZI(a, b), K(x)); }, tight);
+    check<double>("zipf mean", d::zipf_mean_double, [&](double a, double b, double) { return ZI(a, b).mean(); }, tight);
+    check<double>("zipf variance", d::zipf_variance_double, [&](double a, double b, double) { return ZI(a, b).variance(); }, tight);
     auto const SK = [](double a, double b) { return wsl::random::skellam<K>({.mean1 = a, .mean2 = b}); };
     check<double>("skellam pmf", d::skellam_pmf_double, [&](double a, double b, double x) { return wsl::random::pmf(SK(a, b), K(x)); }, tight);
     check<double>("skellam log_pmf", d::skellam_log_pmf_double, [&](double a, double b, double x) { return wsl::random::log_pmf(SK(a, b), K(x)); }, 1.0);
@@ -434,6 +441,7 @@ int main()
         };
         quantiles("beta_binomial quantile", d::beta_binomial_quantile, [](double a, double b) { return beta_binomial_of<K>(a, b); });
         quantiles("logarithmic quantile", d::logarithmic_quantile, [](double a, double) { return wsl::random::logarithmic<K>({.p = a}); });
+        quantiles("zipf quantile", d::zipf_quantile, [](double a, double b) { return wsl::random::zipf<K>({.size = K(a), .exponent = b}); });
         quantiles("skellam quantile", d::skellam_quantile, [](double a, double b) { return wsl::random::skellam<K>({.mean1 = a, .mean2 = b}); });
         quantiles("discrete_gaussian quantile", d::discrete_gaussian_quantile, [](double a, double b) { return wsl::random::discrete_gaussian<K>({.location = a, .scale = b}); });
     }
