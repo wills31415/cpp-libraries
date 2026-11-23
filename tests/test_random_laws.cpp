@@ -122,8 +122,13 @@ namespace
                 pooled_expected = pooled_count = 0;
             }
         }
-        for (long long k = low - 1; k >= 0 && k >= low - 100000; --k)
-            expected_below += draws * wsl::random::pmf(law, k);
+        for (long long k = low - 1; k >= low - 100000; --k)              // support négatif compris
+        {
+            double const p = wsl::random::pmf(law, k);
+            expected_below += draws * p;
+            if (p < 1e-300 && k < low - 50)
+                break;
+        }
         double const total = draws - [&] { double e = 0; for (long long k = low; k <= high; ++k) e += draws * wsl::random::pmf(law, k); return e; }();
         expected_above = total - expected_below;
         for (auto [c, e] : {std::pair{double(below + 0) + 0.0, expected_below}, {double(above) + pooled_count, expected_above + pooled_expected}})
@@ -952,6 +957,12 @@ int main()
             double const u = wsl::random::uniform_real(x), t = fp::fmul(12.0, u) - 6;
             return bits(NV.pdf(t)) ^ (bits(NV.cdf(t)) << 1) ^ (bits(NV.ccdf(t)) << 2) ^ (bits(NV.quantile(u)) << 3);
         }, 1 << 12), 0xe9abcd992c0dde7d);
+        wsl::random::skellam const SK({.mean1 = 3.5, .mean2 = 1.25});
+        ok &= check("skellam", fingerprint([&] { return static_cast<std::uint64_t>(wsl::random::sample(SK, x)); }, 1 << 12), 0x3603842a3cbc0d13);
+        ok &= check("skellam functions", fingerprint([&] {
+            long long const k = static_cast<long long>(wsl::random::uniform_below(30, x)) - 12;
+            return bits(SK.pmf(k)) ^ (bits(SK.cdf(k)) << 1) ^ (bits(SK.ccdf(k)) << 2);
+        }, 1 << 10), 0x01f121fa1149564f);
     }
     assert(ok);
 
@@ -1063,6 +1074,27 @@ int main()
         }
         assert(wsl::random::detail::lazy_sample(V, h).root && !wsl::random::detail::lazy_sample(R, h).root);   // somme exacte : terme √v V
         assert(kolmogorov_smirnov(V, [&] { std::vector<double> d; for (int i = 0; i < 20000; ++i) d.push_back(V(h)); return d; }()) < 1.95);
+    }
+
+    // ---- Skellam ----------------------------------------------------------------------------------
+    {
+        namespace wr = wsl::random;
+        wr::skellam const S({.mean1 = 3.0, .mean2 = 1.5});
+        assert(S.mean() == 1.5 && S.variance() == 4.5 && wr::skellam(S.param()) == S);
+        assert(std::abs(chi_square(S, g, 50000, -6, 10)) < 4);
+        assert(std::abs(chi_square(wr::skellam({.mean1 = 0.4, .mean2 = 6.0}), g, 50000, -14, 3)) < 4);
+        assert(std::abs(chi_square(wr::skellam({.mean1 = 200.0, .mean2 = 180.0}), g, 50000, -40, 80)) < 4);
+        // symétrie : P_{μ₁,μ₂}(k) = P_{μ₂,μ₁}(−k), au bit près
+        wr::skellam const R({.mean1 = 1.5, .mean2 = 3.0});
+        for (long long k = -10; k <= 10; ++k)
+            assert(S.pmf(k) == R.pmf(-k) && std::abs(S.cdf(k) - R.ccdf(-k - 1)) <= 2.3e-16 * S.cdf(k));
+        for (double u : {1e-12, 0.3, 0.5, 0.97})
+        {
+            long long const k = S.quantile(u);
+            assert(S.cdf(k) >= u && S.cdf(k - 1) < u);
+        }
+        assert(throws_domain_error([] { wr::skellam X({.mean1 = 0.0, .mean2 = 1.0}); }));
+        assert(wr::geometric({.p = 0.999}).quantile(0x1p-1073) == 0 && wr::geometric({.p = 0.5}).quantile(0x1p-1074) == 0);   // u sous-normal
     }
     return 0;
 }

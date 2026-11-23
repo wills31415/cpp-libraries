@@ -389,6 +389,13 @@ int main()
     check<double>("discrete_gaussian ccdf", d::discrete_gaussian_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(DG(a, b), K(x)); }, tight);
     check<double>("discrete_gaussian mean", d::discrete_gaussian_mean_double, [&](double a, double b, double) { return DG(a, b).mean(); }, tight);
     check<double>("discrete_gaussian variance", d::discrete_gaussian_variance_double, [&](double a, double b, double) { return DG(a, b).variance(); }, tight);
+    auto const SK = [](double a, double b) { return wsl::random::skellam<K>({.mean1 = a, .mean2 = b}); };
+    check<double>("skellam pmf", d::skellam_pmf_double, [&](double a, double b, double x) { return wsl::random::pmf(SK(a, b), K(x)); }, tight);
+    check<double>("skellam log_pmf", d::skellam_log_pmf_double, [&](double a, double b, double x) { return wsl::random::log_pmf(SK(a, b), K(x)); }, 1.0);
+    check<double>("skellam cdf", d::skellam_cdf_double, [&](double a, double b, double x) { return wsl::random::cdf(SK(a, b), K(x)); }, tight);
+    check<double>("skellam ccdf", d::skellam_ccdf_double, [&](double a, double b, double x) { return wsl::random::ccdf(SK(a, b), K(x)); }, tight);
+    check<double>("skellam skewness", d::skellam_skewness_double, [&](double a, double b, double) { return SK(a, b).skewness(); }, tight);
+    check<double>("skellam excess_kurtosis", d::skellam_excess_kurtosis_double, [&](double a, double b, double) { return SK(a, b).excess_kurtosis(); }, tight);
     check<double>("hypergeometric pmf", d::hypergeometric_pmf_double, [](double a, double b, double x) { return wsl::random::pmf(hypergeometric_of<K>(a, b), K(x)); }, tight);
     check<double>("hypergeometric log_pmf", d::hypergeometric_log_pmf_double, [](double a, double b, double x) { return wsl::random::log_pmf(hypergeometric_of<K>(a, b), K(x)); }, 1.0);
     check<double>("hypergeometric cdf", d::hypergeometric_cdf_double, [](double a, double b, double x) { return wsl::random::cdf(hypergeometric_of<K>(a, b), K(x)); }, tight);
@@ -427,6 +434,7 @@ int main()
         };
         quantiles("beta_binomial quantile", d::beta_binomial_quantile, [](double a, double b) { return beta_binomial_of<K>(a, b); });
         quantiles("logarithmic quantile", d::logarithmic_quantile, [](double a, double) { return wsl::random::logarithmic<K>({.p = a}); });
+        quantiles("skellam quantile", d::skellam_quantile, [](double a, double b) { return wsl::random::skellam<K>({.mean1 = a, .mean2 = b}); });
         quantiles("discrete_gaussian quantile", d::discrete_gaussian_quantile, [](double a, double b) { return wsl::random::discrete_gaussian<K>({.location = a, .scale = b}); });
     }
 

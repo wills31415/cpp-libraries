@@ -151,6 +151,12 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   exactement pour les comparaisons affines ; `wr::P(A)` exacte (seuils, comparaisons de loi
   connue, événements indépendants), NaN ailleurs ; `wr::given(Z, A)` (loi conditionnelle, par
   rejet ; loi tronquée ou loi de Z quand c'est une identité).
+- Skellam : `skellam({.mean1, .mean2})` (différence de deux Poisson indépendantes) : masse,
+  log-masse, répartition, survie, asymétrie, kurtosis sous 0,51 ulp (masse par
+  `log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z = 2√(μ₁μ₂) ; queues sommées
+  en double-double), quantiles exacts, tirage N₁ − N₂.
+- Correction : quantile de `geometric` pour u sous-normal (t = log(1 − u)/log(1 − p) sous-dépassait,
+  ⌈0⌉ − 1 rendait le plus grand entier au lieu de 0).
 - Variables aléatoires, lot 3 : composantes `V[i]` (couplées), E, Var, Cov avec la matrice de
   covariance, famille gaussienne (normales et composantes de vecteurs gaussiens) ;
   `multivariate_normal` et la grille de `brownian_motion` se déclarent gaussiennes, la grille

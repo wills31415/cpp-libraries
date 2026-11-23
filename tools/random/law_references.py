@@ -934,6 +934,48 @@ BETA_BINOMIAL = [(20, 2.0, 3.0), (1000, 0.5, 0.5), (10 ** 6, 3.0, 40.0), (50, 0.
 BETA_BINOMIAL_BETA = {(n, a): b for n, a, b in BETA_BINOMIAL}
 LOGARITHMIC = [0.9, 0.01, 0.5, 0.999, 1e-6]
 DISCRETE_GAUSSIAN = [(0.3, 2.5), (0.3, 0.4), (-7.25, 30.0), (1e6 + 0.5, 1.0), (0.0, 0.05), (2.0, 1e3)]
+SKELLAM = [(3.0, 1.5), (0.3, 0.02), (15.0, 18.0), (400.0, 380.0), (0.01, 6.0), (2500.0, 0.5)]
+_SKELLAM_TABLES = {}
+
+
+def skellam_table(m1, m2):
+    """(lo, termes P(lo … hi), sommes cumulées) à 200 bits ; la table s'étend depuis le mode
+    jusqu'à des masses sous 2^-1130 (quantiles de probabilités sous-normales compris)."""
+    key = (m1, m2)
+    if key not in _SKELLAM_TABLES:
+        with mp.workprec(200):
+            a, b = mpf(m1), mpf(m2)
+            z = 2 * mp.sqrt(a * b)
+            mass = lambda j: mp.exp(-(a + b)) * (a / b) ** (mpf(j) / 2) * mp.besseli(abs(j), z)
+            c = int(math.floor(m1 - m2))
+            tiny = mpf(2) ** -1130
+            lo = c
+            while mass(lo - 1) > tiny or lo > c - 3:
+                lo -= 1
+            hi = c
+            while mass(hi + 1) > tiny or hi < c + 3:
+                hi += 1
+            terms = [mass(j) for j in range(lo, hi + 1)]
+            prefix, acc = [], mpf(0)
+            for t in terms:
+                acc += t
+                prefix.append(acc)
+            _SKELLAM_TABLES[key] = (lo, terms, prefix, acc)
+    return _SKELLAM_TABLES[key]
+
+
+def skellam_parts(m1, m2, k):
+    """(P(k), F(k), 1 − F(k)) par sommes directes à 200 bits."""
+    lo, terms, prefix, z = skellam_table(m1, m2)
+    with mp.workprec(200):
+        i = k - lo
+        if i < 0:
+            return mpf(0), mpf(0), mpf(1)
+        if i >= len(terms):
+            return mpf(0), mpf(1), mpf(0)
+        lower = prefix[i]
+        upper = mp.fsum(terms[i + 1:]) if lower > z / 2 else z - lower      # queue directe quand elle est petite
+        return terms[i], lower, upper
 
 
 def beta_binomial_log_pmf(n, a, b, k):
@@ -1010,7 +1052,7 @@ def discrete_gaussian_parts(mu, sigma, k):
         if i >= len(terms):
             return mpf(0), mpf(1), mpf(0)
         lower = prefix[i]
-        upper = z - lower if lower > z / 2 else mp.fsum(terms[i + 1:])
+        upper = mp.fsum(terms[i + 1:]) if lower > z / 2 else z - lower      # queue directe quand elle est petite
         return terms[i] / z, lower / z, upper / z
 
 
@@ -1061,6 +1103,15 @@ def new_discrete_laws():
                 return m1 if which == 0 else mp.fsum((j - m1) ** 2 * t for j, t in zip(js, terms)) / z
         out.append(("discrete_gaussian_mean", mu, sigma, [0.0], lambda _, moments=moments: moments(which=0)))
         out.append(("discrete_gaussian_variance", mu, sigma, [0.0], lambda _, moments=moments: moments(which=1)))
+    for m1, m2 in SKELLAM:
+        sd, m = math.sqrt(m1 + m2), m1 - m2
+        ks = sorted({int(round(m + sd * rng.uniform(-9, 9))) for _ in range(40)} | {int(m), int(m) - 1, int(m) + 1, 0}
+                    | {int(round(m + sd * 2.0 ** rng.uniform(3, 4.5) * (1 if i % 2 else -1))) for i in range(6)})
+        for name, idx in (("pmf", 0), ("cdf", 1), ("ccdf", 2)):
+            out.append((f"skellam_{name}", m1, m2, [float(k) for k in ks], lambda k, m1=m1, m2=m2, idx=idx: skellam_parts(m1, m2, int(k))[idx]))
+        out.append(("skellam_log_pmf", m1, m2, [float(k) for k in ks], lambda k, m1=m1, m2=m2: mp.log(skellam_parts(m1, m2, int(k))[0])))
+        out.append(("skellam_skewness", m1, m2, [0.0], lambda _, m1=m1, m2=m2: (mpf(m1) - m2) / (mpf(m1) + m2) ** mpf(1.5)))
+        out.append(("skellam_excess_kurtosis", m1, m2, [0.0], lambda _, m1=m1, m2=m2: 1 / (mpf(m1) + m2)))
     for r, pp in NEGATIVE_BINOMIAL:
         q = 1 - pp
         mean, sd = r * q / pp, math.sqrt(r * q) / pp
@@ -1423,6 +1474,8 @@ def reference_file():
                                     ("beta_binomial_quantile", [(float(n), a) for n, a, _ in BETA_BINOMIAL if n <= 1000],
                                      lambda n, a, k: beta_binomial_cdf(int(n), a, BETA_BINOMIAL_BETA[(int(n), a)], int(k)), lambda n, a, u: n * u),
                                     ("logarithmic_quantile", [(pp, 0.0) for pp in LOGARITHMIC], lambda pp, _, k: mpf(0) if k < 1 else logarithmic_cdf(pp, int(k)), lambda pp, _, u: 1.0),
+                                    ("skellam_quantile", SKELLAM, lambda m1, m2, k: skellam_parts(m1, m2, int(k))[1],
+                                     lambda m1, m2, u: m1 - m2 + _m.sqrt(m1 + m2) * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u))), -10 ** 6),
                                     ("discrete_gaussian_quantile", [(mu, sigma) for mu, sigma in DISCRETE_GAUSSIAN if sigma <= 30],
                                      lambda mu, sigma, k: discrete_gaussian_parts(mu, sigma, int(k))[1], lambda mu, sigma, u: mu + sigma * float(-mp.sqrt(2) * g.erfcinv_exact(2 * mpf(u))), -10 ** 6),
                                     ("hypergeometric_quantile", [(float(N), float(K)) for N, K, _ in HYPERGEOMETRIC],

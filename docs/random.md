@@ -238,7 +238,7 @@ Tout est fait, sauf les lois marquées ◻︎.
 
 | Famille | Lois |
 |---|---|
-| Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf ◻︎, zeta ◻︎, logarithmique, Skellam ◻︎, bêta-binomiale, gaussienne discrète |
+| Discrètes univariées | Bernoulli, binomiale, géométrique, binomiale négative, Poisson, hypergéométrique, uniforme discrète, catégorielle, Zipf ◻︎, zeta ◻︎, logarithmique, Skellam, bêta-binomiale, gaussienne discrète |
 | Continues univariées | uniforme, normale, log-normale, exponentielle, gamma, χ², Erlang, bêta, Student, Fisher, Cauchy, Laplace, logistique, Weibull, Pareto, Gumbel, Fréchet, Rayleigh, Rice ◻︎, von Mises, triangulaire, arcsinus, inverse-gaussienne, normale asymétrique, stables (α, β) |
 | Multivariées | Dirichlet, multinomiale, normale multivariée, Student multivariée, Wishart et inverse-Wishart, uniformes sur la sphère, la boule et le simplexe (Dirichlet(1, …, 1)), von Mises–Fisher, matrices aléatoires (Haar orthogonale et unitaire, GOE, GUE) |
 | Combinatoires | permutations (uniformes, Ewens, Mallows), sous-ensembles, combinaisons, partitions d'entiers et d'ensembles, compositions, graphes (Erdős–Rényi, Barabási–Albert, graphes réguliers), arbres (Cayley, binaires de Catalan), mots |
@@ -1095,3 +1095,16 @@ Références : mêmes intégrales en mpmath (coupure au pic, morceaux géométri
 normalisé), contrôlées par l'inversion de Fourier de la fonction caractéristique et les cas
 Lévy, Cauchy et normal. Tirage : Chambers, Mallows et Stuck (forme de Weron), approché,
 bit-exact.
+
+## 22. Skellam, Zipf, Rice
+
+| Loi | Paramètres | Calcul | Tirage |
+|---|---|---|---|
+| `skellam<I>` | `{.mean1, .mean2}` (> 0) | masse e^{−(μ₁+μ₂)} (μ₁/μ₂)^{k/2} I_|k|(2√(μ₁μ₂)) en logarithme double-double (`log_cyl_bessel_i`, corrigée au premier ordre de l'arrondi de z) ; répartition : la queue du côté de k sommée depuis k, l'autre par complément ; quantiles exacts ; moyenne, variance, asymétrie, kurtosis exactes | N₁ − N₂ (deux Poisson) |
+
+Mesures (références mpmath à 200 bits, table étendue jusqu'à des masses sous 2⁻¹¹³⁰) :
+masse, répartition, survie, asymétrie, kurtosis sous 0,5 ulp, arrondi correct sur tous les
+points ; 600 quantiles exacts, probabilités sous-normales comprises. Le générateur de
+références sommait la survie par différence avec le total quand F > ½ (perte de précision dans
+les queues) : corrigé, pour la gaussienne discrète aussi.
+

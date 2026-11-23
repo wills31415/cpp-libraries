@@ -169,6 +169,8 @@ namespace wsl::random
             detail::scaled const t = detail::normalized(-a_hi, -a_lo) / detail::normalized(-X.log_q_.hi, -X.log_q_.lo);
             if (t.e >= 62)
                 return std::numeric_limits<I>::max();
+            if (t.e < 0)                                                    // 0 < t < 1 : ⌈t⌉ = 1 (t peut sous-dépasser)
+                return 0;
             auto const [t_hi, t_lo] = detail::unscaled(t);
             std::uint64_t const k = detail::ceiling(t_hi, t_lo) - 1;        // t > 0 : ⌈t⌉ >= 1
             return k >= static_cast<std::uint64_t>(std::numeric_limits<I>::max()) ? std::numeric_limits<I>::max() : static_cast<I>(k);
