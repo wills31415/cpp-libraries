@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 #include <algorithm>
 #include <bit>
 #include <cstdint>
@@ -169,6 +170,47 @@ int main()
         assert(hash == 0x93f4e7f5ae31e15a);
     }
 
+    // ---- Lot 2 : événements, probabilités, conditionnement --------------------------------------
+    {
+        wr::variable const X{wr::normal()};
+        wr::variable const Y{wr::normal({.mean = 1.0, .stddev = 2.0})};
+        wr::variable const U{wr::uniform()};
+        wr::variable const K{wr::poisson({.mean = 3.0})};
+        // événements : indicatrices, évaluées sur le même ω
+        for (int i = 0; i < 2000; ++i)
+        {
+            auto const [x, u, a, b, c, d] = wr::evaluate(g, X, U, X > 0, X - X > 0, X - X == 0, (X > 0) && !(U > 0.5));
+            assert(a == (x > 0) && !b && c && d == (x > 0 && !(u > 0.5)));
+        }
+        static_assert(std::is_same_v<decltype((X > 0)(g)), bool> && wr::random_event<decltype(X > Y || U < 0.1)>);
+        // probabilités exactes (E1)
+        assert(wr::P(X > 0) == 0.5 && wr::P(0.0 < X) == 0.5 && wr::P(X == 1.0) == 0 && wr::P(X != 1.0) == 1);
+        assert(wr::P(Y <= 1.0) == 0.5 && wr::P(X > Y) == wr::normal({.mean = -1.0, .variance = 5.0}).ccdf(0.0));   // X − Y ~ N(−1, 5)
+        assert(wr::P(K >= 3) == wr::poisson({.mean = 3.0}).ccdf(2) && wr::P(K > 2.5) == wr::P(K >= 3) && wr::P(K == 2) == wr::poisson({.mean = 3.0}).pmf(2));
+        assert(wr::P(K == 2.5) == 0 && wr::P(K < 0) == 0 && wr::P(K <= -1.0) == 0 && wr::P(K >= 0) == 1);
+        assert(std::abs(wr::P((X > 0) && (U < 0.25)) - 0.125) < 1e-16 && std::abs(wr::P(!(X > 0) || (U < 0.25)) - 0.625) < 1e-16);
+        assert(std::isnan(wr::P((X > 0) && (X < 1))) && std::isnan(wr::P(X * U > 0)));   // même variable, non affine : NaN
+        // conditionnement (E2) : nouvelle variable, loi conditionnelle
+        auto const T = wr::given(X, X > 1.0);
+        assert(T.id() > U.id());
+        wr::truncated const Tr = wr::truncate(wr::normal(), {.lower = 1.0});
+        for (double t : {1.1, 1.5, 3.0})
+            assert(wr::law(T).cdf(t) == Tr.cdf(t) && wr::law(T).pdf(t) == Tr.pdf(t));
+        assert(wr::law(T).quantile(0.5) == Tr.quantile(0.5));
+        for (int i = 0; i < 2000; ++i)
+            assert(T(g) > 1.0);
+        auto const I = wr::given(X, U > 0.5);                               // indépendant : la loi de X
+        assert(wr::law(I).cdf(0.3) == wr::normal().cdf(0.3));
+        auto const Mx = wr::given(X + U, U > 0.5);                          // sans identité : tirage seul
+        double m = 0;
+        for (int i = 0; i < 40000; ++i)
+            m += Mx(g);
+        assert(std::abs(m / 40000 - 0.75) < 0.03);                          // E[X + U | U > ½] = 0,75
+        bool thrown = false;
+        try { (void)wr::given(X, X > INFINITY); } catch (std::domain_error const&) { thrown = true; }
+        assert(thrown);
+    }
+
     // ---- Empreinte (bit-exacte sur toutes les plateformes) -----------------------------------
     {
         wr::xoshiro256pp x(20261121);
@@ -188,6 +230,22 @@ int main()
         }
         std::printf("variables              %016llx\n", static_cast<unsigned long long>(h));
         assert(h == 0x0949c24e8827fb5f);
+    }
+    // ---- Empreinte des événements et du conditionnement ---------------------------------------
+    {
+        wr::xoshiro256pp x(4242);
+        wr::variable const N{wr::normal({.mean = 0.5, .variance = 3.0})};
+        wr::variable const E{wr::exponential({.scale = 2.0})};
+        auto const C = wr::given(N, N > E);
+        std::uint64_t h = 0xcbf29ce484222325;
+        for (int i = 0; i < 4096; ++i)
+        {
+            auto const [a, b, c] = wr::evaluate(x, N - E > 1, (N > 0) || (E < 0.5), C);
+            h = (h ^ (std::uint64_t{a} | std::uint64_t{b} << 1)) * 0x100000001b3;
+            h = (h ^ std::bit_cast<std::uint64_t>(c)) * 0x100000001b3;
+        }
+        std::printf("variables events       %016llx\n", static_cast<unsigned long long>(h));
+        assert(h == 0xd86c1f4992ee39c0);
     }
     std::printf("test_random_variables : ok\n");
 }

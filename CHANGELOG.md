@@ -147,6 +147,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `cbrt`, `expm1`, `log1p`, `atan`, `erf` (bijections monotones déclarées), `sin`, `cos`,
   `tan`, `abs`, `pow`, `hypot`, `atan2`, `min`, `max` (wsl::special) ; `wr::law(f(X))` :
   mesure image de la loi de X (`pushforward`).
+- Variables aléatoires, lot 2 : événements (comparaisons, `&&`, `||`, `!`), décidés
+  exactement pour les comparaisons affines ; `wr::P(A)` exacte (seuils, comparaisons de loi
+  connue, événements indépendants), NaN ailleurs ; `wr::given(Z, A)` (loi conditionnelle, par
+  rejet ; loi tronquée ou loi de Z quand c'est une identité).
 - Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples

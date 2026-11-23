@@ -52,10 +52,14 @@
 #include <wsl/random/engines.hpp>
 #include <wsl/random/law.hpp>
 #include <wsl/random/pushforward.hpp>
+#include <wsl/random/truncated.hpp>
 #include <wsl/special.hpp>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
 #include <atomic>
 #include <concepts>
 #include <cstddef>
@@ -222,6 +226,46 @@ namespace wsl::random
         };
         struct divides_op { constexpr auto operator()(auto const& a, auto const& b) const { return a / b; } };
         struct negate_op { constexpr auto operator()(auto const& a) const { return -a; } };
+        // Événements : comparaisons (indicatrices), et, ou, non.
+        enum class relation
+        {
+            less,
+            less_equal,
+            greater,
+            greater_equal,
+            equal,
+            not_equal
+        };
+        constexpr bool decide(relation r, int sign) noexcept                // sign : signe de a − b
+        {
+            switch (r)
+            {
+            case relation::less: return sign < 0;
+            case relation::less_equal: return sign <= 0;
+            case relation::greater: return sign > 0;
+            case relation::greater_equal: return sign >= 0;
+            case relation::equal: return sign == 0;
+            default: return sign != 0;
+            }
+        }
+        template <relation R>
+        struct compare_op
+        {
+            static constexpr relation kind = R;
+            constexpr bool operator()(auto const& a, auto const& b) const
+            {
+                if constexpr (R == relation::less) return a < b;
+                else if constexpr (R == relation::less_equal) return a <= b;
+                else if constexpr (R == relation::greater) return a > b;
+                else if constexpr (R == relation::greater_equal) return a >= b;
+                else if constexpr (R == relation::equal) return a == b;
+                else return a != b;
+            }
+        };
+        struct and_op { constexpr bool operator()(bool a, bool b) const { return a && b; } };
+        struct or_op { constexpr bool operator()(bool a, bool b) const { return a || b; } };
+        struct not_op { constexpr bool operator()(bool a) const { return !a; } };
+
         // f appliquée aux valeurs ; pour une bijection monotone déclarée, sa partie directe.
         template <class F>
         struct apply_op
@@ -366,6 +410,24 @@ namespace wsl::random
 
         template <class N>
         concept exact_affine = is_affine<N> && lazy_leaves<N> && std::floating_point<typename node_value<N>::type>;
+
+        template <class N>
+        inline constexpr bool is_exact_comparison = false;
+        template <relation R, class A, class B>
+        inline constexpr bool is_exact_comparison<expression<compare_op<R>, A, B>> = is_affine<A> && is_affine<B> && lazy_leaves<A> && lazy_leaves<B>
+                                                                                   && (leaf_count<A> + leaf_count<B> > 0);
+        template <class N>
+        concept exact_comparison = is_exact_comparison<N>;
+        template <class N>
+        inline constexpr bool is_logical = false;
+        template <class A, class B>
+        inline constexpr bool is_logical<expression<and_op, A, B>> = true;
+        template <class A, class B>
+        inline constexpr bool is_logical<expression<or_op, A, B>> = true;
+        template <class A>
+        inline constexpr bool is_logical<expression<not_op, A>> = true;
+        template <class N>
+        concept logical = is_logical<N>;
 
         constexpr bool is_power_of_two(double d) noexcept
         {
@@ -556,6 +618,37 @@ namespace wsl::random
                 exact_form f;
                 std::size_t leaf = first;
                 collect_exact(node, to_dyadic(1.0), 1.0, f, leaf);
+                auto s = exact_sum(std::move(f));
+                if (!s)
+                    return std::nullopt;
+                return s->sum.template rounded<T>(g_, {}, {}, 0, to_dyadic(1.0));
+            }
+
+            // Signe exact de A − B (comparaison affine) ; vide hors de la voie exacte.
+            template <class A, class B>
+            constexpr std::optional<int> exact_sign(A const& a, B const& b, std::size_t first)
+            {
+                exact_form f;
+                std::size_t leaf = first;
+                collect_exact(a, to_dyadic(1.0), 1.0, f, leaf);
+                collect_exact(b, to_dyadic(-1.0), 1.0, f, leaf);
+                auto s = exact_sum(std::move(f));
+                if (!s)
+                    return std::nullopt;
+                if (s->sum.size() == 0)                                     // constante seule (X − X…)
+                    return s->constant.is_zero() ? 0 : s->constant.m.negative ? -1 : 1;
+                return s->sum.compare(g_, {}, {}, 0, to_dyadic(1.0), {});
+            }
+
+            // Somme paresseuse exacte d'une forme affine (et sa constante) ; vide si un
+            // coefficient, un diviseur ou une constante n'est pas représentable exactement.
+            struct exact_result
+            {
+                lazy_sum sum;
+                dyadic_value constant;
+            };
+            constexpr std::optional<exact_result> exact_sum(exact_form f)
+            {
                 if (!f.ok)
                     return std::nullopt;
                 std::ranges::sort(f.terms, [](exact_term const& a, exact_term const& b) { return a.id != b.id ? a.id < b.id : a.leaf < b.leaf; });
@@ -587,18 +680,36 @@ namespace wsl::random
                 if (!constant)
                     return std::nullopt;
                 s.add_constant(*constant);
-                return s.template rounded<T>(g_, {}, {}, 0, to_dyadic(1.0));
+                return exact_result{std::move(s), *constant};
             }
 
-            // Valeur d'une expression dont la première feuille est first.
+            // Valeur d'une expression dont la première feuille est first : combinaison affine et
+            // comparaison affine exactes ; et, ou, non sur les valeurs exactes de leurs opérandes.
             template <std::size_t First, class N>
             constexpr auto value_of(N const& node)
             {
                 using T = typename node_value<N>::type;
                 if constexpr (exact_affine<N>)
+                {
                     if (auto const r = exact<T>(node, First))
                         return *r;
+                }
+                else if constexpr (exact_comparison<N>)
+                {
+                    auto const& args = node.arguments();
+                    if (auto const sign = exact_sign(std::get<0>(args), std::get<1>(args), First))
+                        return decide(N::operation_type::kind, *sign);
+                }
+                else if constexpr (logical<N>)
+                    return children<First>(node);
                 return value_at<First>(node, leaf_values());
+            }
+            template <std::size_t First, class Op, class... A>
+            constexpr auto children(expression<Op, A...> const& e)
+            {
+                return [&]<std::size_t... K>(std::index_sequence<K...>) {
+                    return e.operation()(value_of<First + leaf_offset<K, A...>()>(std::get<K>(e.arguments()))...);
+                }(std::index_sequence_for<A...>{});
             }
 
         private:
@@ -769,6 +880,33 @@ namespace wsl::random
     {
         return expression<detail::negate_op, A>({}, a);
     }
+
+    // Événements : comparaisons (variables indicatrices, valeurs bool), et, ou, non.
+#define WSL_RANDOM_COMPARISON(symbol, kind)                                                                                                   \
+    template <class A, class B>                                                                                                               \
+        requires expression_operands<A, B>                                                                                                    \
+    constexpr auto operator symbol(A const& a, B const& b)                                                                                    \
+    {                                                                                                                                         \
+        return expression<detail::compare_op<detail::relation::kind>, decltype(detail::as_node(a)), decltype(detail::as_node(b))>(           \
+            {}, detail::as_node(a), detail::as_node(b));                                                                                      \
+    }
+    WSL_RANDOM_COMPARISON(<, less)
+    WSL_RANDOM_COMPARISON(<=, less_equal)
+    WSL_RANDOM_COMPARISON(>, greater)
+    WSL_RANDOM_COMPARISON(>=, greater_equal)
+    WSL_RANDOM_COMPARISON(==, equal)
+    WSL_RANDOM_COMPARISON(!=, not_equal)
+#undef WSL_RANDOM_COMPARISON
+
+    template <class A>
+    concept random_event = random_variable<A> && std::same_as<typename detail::node_value<std::remove_cvref_t<A>>::type, bool>;
+
+    template <random_event A, random_event B>
+    constexpr auto operator&&(A const& a, B const& b) { return expression<detail::and_op, A, B>({}, a, b); }
+    template <random_event A, random_event B>
+    constexpr auto operator||(A const& a, B const& b) { return expression<detail::or_op, A, B>({}, a, b); }
+    template <random_event A>
+    constexpr auto operator!(A const& a) { return expression<detail::not_op, A>({}, a); }
 
     // -----------------------------------------------------------------------
     // Constantes, par linéarité : E, Var, Cov (notation des manuels).
@@ -1152,4 +1290,274 @@ namespace wsl::random
     template <class A, class B> requires expression_operands<A, B> constexpr auto atan2(A const& y, B const& x) { return apply(detail::functions::atan2, y, x); }
     template <class A, class B> requires expression_operands<A, B> constexpr auto min(A const& a, B const& b) { return apply(detail::functions::min, a, b); }
     template <class A, class B> requires expression_operands<A, B> constexpr auto max(A const& a, B const& b) { return apply(detail::functions::max, a, b); }
+
+    // -----------------------------------------------------------------------
+    // Probabilités (lot 2, E1) : exactes quand la loi les donne, NaN sinon.
+    // -----------------------------------------------------------------------
+    namespace detail
+    {
+        constexpr relation flipped(relation r) noexcept                     // c R X  ⇔  X R' c
+        {
+            switch (r)
+            {
+            case relation::less: return relation::greater;
+            case relation::less_equal: return relation::greater_equal;
+            case relation::greater: return relation::less;
+            case relation::greater_equal: return relation::less_equal;
+            default: return r;
+            }
+        }
+
+        // P(X > k), k entier.
+        template <class L>
+        double k_survival(L const& law, double k, double lo, double hi)
+        {
+            using T = typename L::value_type;
+            return k < lo ? 1.0 : k >= hi ? 0.0 : double(law.ccdf(static_cast<T>(k)));
+        }
+
+        // P(X R c) par la loi de X (masse comprise pour une loi discrète).
+        template <class L>
+        double threshold_probability(L const& law, relation r, double c)
+        {
+            constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+            using T = typename L::value_type;
+            if constexpr (std::integral<T>)
+            {
+                if constexpr (has_cdf<L> && has_ccdf<L> && has_pmf<L>)
+                {
+                    if (c != c)
+                        return nan;
+                    double const lo = double(law.support().lower), hi = double(law.support().upper);
+                    auto const at = [&](double k) { return static_cast<T>(k < lo ? lo - 1 : k > hi ? hi : k); };
+                    auto const cdf_at = [&](double k) { return k < lo ? 0.0 : k >= hi ? 1.0 : double(law.cdf(at(k))); };     // P(X <= k)
+                    double const fl = std::floor(c), ce = std::ceil(c);
+                    switch (r)
+                    {
+                    case relation::less_equal: return cdf_at(fl);
+                    case relation::less: return cdf_at(ce - 1);
+                    case relation::greater: return k_survival(law, fl, lo, hi);
+                    case relation::greater_equal: return k_survival(law, ce - 1, lo, hi);
+                    case relation::equal: return fl == c && c >= lo && c <= hi ? double(law.pmf(static_cast<T>(c))) : 0.0;
+                    default: return fl == c && c >= lo && c <= hi ? 1.0 - double(law.pmf(static_cast<T>(c))) : 1.0;
+                    }
+                }
+                else
+                    return nan;
+            }
+            else if constexpr (has_cdf<L> && has_ccdf<L>)                    // loi continue : pas d'atome
+            {
+                switch (r)
+                {
+                case relation::less:
+                case relation::less_equal: return double(law.cdf(static_cast<T>(c)));
+                case relation::greater:
+                case relation::greater_equal: return double(law.ccdf(static_cast<T>(c)));
+                case relation::equal: return c == c ? 0.0 : nan;
+                default: return c == c ? 1.0 : nan;
+                }
+            }
+            else
+                return nan;
+        }
+
+        // Identifiants des variables de base d'une expression.
+        template <class N>
+        std::vector<std::uint64_t> ids_of(N const& node)
+        {
+            std::vector<std::uint64_t> ids;
+            std::apply([&](auto const*... v) { (ids.push_back(v->id()), ...); }, leaves(node));
+            std::ranges::sort(ids);
+            return ids;
+        }
+        template <class A, class B>
+        bool disjoint(A const& a, B const& b)
+        {
+            auto const x = ids_of(a), y = ids_of(b);
+            std::size_t i = 0, j = 0;
+            while (i < x.size() && j < y.size())
+            {
+                if (x[i] == y[j])
+                    return false;
+                x[i] < y[j] ? ++i : ++j;
+            }
+            return true;
+        }
+
+        template <class N>
+        double probability(N const& node)
+        {
+            constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+            if constexpr (requires { typename N::law_type; })                // variable indicatrice de base
+            {
+                if constexpr (has_pmf<typename N::law_type>)
+                    return double(node.law().pmf(true));
+                else
+                    return nan;
+            }
+            else
+            {
+                using op = typename N::operation_type;
+                auto const& args = node.arguments();
+                if constexpr (std::is_same_v<op, not_op>)
+                    return 1 - probability(std::get<0>(args));
+                else if constexpr (std::is_same_v<op, and_op> || std::is_same_v<op, or_op>)
+                {
+                    if (!disjoint(std::get<0>(args), std::get<1>(args)))     // même variable : pas de produit
+                        return nan;
+                    double const a = probability(std::get<0>(args)), b = probability(std::get<1>(args));
+                    return std::is_same_v<op, and_op> ? sd::fmul(a, b) : a + b - sd::fmul(a, b);
+                }
+                else if constexpr (requires { op::kind; })
+                {
+                    using A = std::remove_cvref_t<decltype(std::get<0>(args))>;
+                    using B = std::remove_cvref_t<decltype(std::get<1>(args))>;
+                    if constexpr (requires { typename A::law_type; } && requires { std::get<1>(args).value; })
+                        return threshold_probability(std::get<0>(args).law(), op::kind, double(std::get<1>(args).value));
+                    else if constexpr (requires { std::get<0>(args).value; } && requires { typename B::law_type; })
+                        return threshold_probability(std::get<1>(args).law(), flipped(op::kind), double(std::get<0>(args).value));
+                    else if constexpr (is_affine<A> && is_affine<B> && has_family<expression<minus_op, A, B>>)
+                    {
+                        auto const difference = expression<minus_op, A, B>({}, std::get<0>(args), std::get<1>(args));
+                        auto const law = family_law(difference);           // A − B, de loi connue
+                        return law ? threshold_probability(*law, op::kind, 0.0) : nan;
+                    }
+                    else
+                        return nan;
+                }
+                else
+                    return nan;
+            }
+        }
+    }
+
+    namespace detail::cpo
+    {
+        struct probability_fn
+        {
+            template <random_event A>
+            double operator()(A const& a) const { return detail::probability(a); }
+        };
+    }
+    inline namespace operations
+    {
+        inline constexpr detail::cpo::probability_fn P{};
+    }
+
+    // -----------------------------------------------------------------------
+    // Conditionnement (lot 2, E2) : given(Z, A), variable de base nouvelle, de loi celle de
+    // Z sachant A ; tirage par rejet (ω tirés jusqu'à ce que A soit vraie).
+    // -----------------------------------------------------------------------
+    template <random_variable Z, random_event A>
+    class conditional_law : public law_interface
+    {
+        template <class N>
+        static constexpr bool base_variable = requires { typename N::law_type; };
+        static constexpr bool truncatable = [] {
+            if constexpr (base_variable<Z>)
+                return real_law<typename Z::law_type> && has_cdf<typename Z::law_type> && has_ccdf<typename Z::law_type>
+                       && std::floating_point<typename Z::law_type::value_type>;
+            else
+                return false;
+        }();
+        static constexpr bool known = base_variable<Z> && truncatable;
+
+    public:
+        using value_type = typename detail::node_value<Z>::type;
+        static constexpr exactness sampling =
+            (detail::exact_affine<Z> || requires { typename Z::law_type; }) && (detail::exact_comparison<A> || detail::logical<A>) ? exactness::exact
+                                                                                                                            : exactness::approximate;
+
+        conditional_law(Z z, A a) : z_(std::move(z)), a_(std::move(a))
+        {
+            if (detail::probability(a_) == 0)
+                throw std::domain_error("wsl::random::given : événement de probabilité nulle");
+            if constexpr (requires { typename Z::law_type; })
+            {
+                if (detail::disjoint(z_, a_))                               // A indépendant de Z : la loi de Z
+                    independent_ = true;
+                else if constexpr (truncatable)
+                    truncated_ = truncation();
+            }
+        }
+
+        constexpr Z const& variable_of() const noexcept { return z_; }
+        constexpr A const& event() const noexcept { return a_; }
+
+        // Fonctions de la loi, quand une identité la donne : indépendance (loi de Z), seuil sur
+        // Z (loi tronquée) ; NaN sinon.
+        value_type cdf(value_type x) const requires known { return call([&](auto const& l) { return l.cdf(x); }); }
+        value_type ccdf(value_type x) const requires known { return call([&](auto const& l) { return l.ccdf(x); }); }
+        value_type pdf(value_type x) const requires known { return call([&](auto const& l) { return l.pdf(x); }); }
+        value_type quantile(double p) const requires known { return call([&](auto const& l) { return l.quantile(p); }); }
+
+        template <std::uniform_random_bit_generator G>
+        value_type sample(G& g) const
+        {
+            for (;;)
+            {
+                auto const [z, ok] = evaluate(g, z_, a_);
+                if (ok)
+                    return z;
+            }
+        }
+
+    private:
+
+        // A = seuil sur Z lui-même (Z R c ou c R Z) : la loi tronquée.
+        auto truncation() const
+        {
+            using L = typename Z::law_type;
+            using T = typename L::value_type;
+            std::optional<truncated<L>> out;
+            if constexpr (requires { A::operation_type::kind; })
+            {
+                auto const& args = a_.arguments();
+                using X = std::remove_cvref_t<decltype(std::get<0>(args))>;
+                using Y = std::remove_cvref_t<decltype(std::get<1>(args))>;
+                auto make = [&](detail::relation r, double c) {
+                    constexpr double inf = std::numeric_limits<double>::infinity();
+                    if (r == detail::relation::greater || r == detail::relation::greater_equal)
+                        out = truncate(z_.law(), {.lower = c, .upper = inf});
+                    else if (r == detail::relation::less || r == detail::relation::less_equal)
+                        out = truncate(z_.law(), {.lower = -inf, .upper = c});
+                };
+                if constexpr (std::is_same_v<X, Z> && requires { std::get<1>(args).value; })
+                {
+                    if (std::get<0>(args).id() == z_.id())
+                        make(A::operation_type::kind, double(std::get<1>(args).value));
+                }
+                else if constexpr (std::is_same_v<Y, Z> && requires { std::get<0>(args).value; })
+                {
+                    if (std::get<1>(args).id() == z_.id())
+                        make(detail::flipped(A::operation_type::kind), double(std::get<0>(args).value));
+                }
+            }
+            (void)sizeof(T);
+            return out;
+        }
+
+        template <class F>
+        value_type call(F const& f) const
+        {
+            if (independent_)
+                return static_cast<value_type>(f(z_.law()));
+            if constexpr (truncatable)
+                if (truncated_)
+                    return static_cast<value_type>(f(*truncated_));
+            return std::numeric_limits<value_type>::quiet_NaN();
+        }
+
+        Z z_;
+        A a_;
+        bool independent_ = false;
+        std::conditional_t<truncatable, std::optional<truncated<typename std::conditional_t<base_variable<Z>, Z, variable<normal<>>>::law_type>>, char> truncated_{};
+    };
+
+    // Variable aléatoire de loi celle de Z sachant A (nouvelle identité).
+    template <random_variable Z, random_event A>
+    auto given(Z const& z, A const& a)
+    {
+        return variable<conditional_law<Z, A>>{conditional_law<Z, A>(z, a)};
+    }
 }

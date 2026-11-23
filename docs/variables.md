@@ -136,6 +136,16 @@ au-dessus : elle ne modifie aucun tirage existant.
   `hypot`, `atan2`, `min`, `max`, toutes de wsl::special (bit-exactes), en calcul flottant sur
   des valeurs tirées exactement ; `wr::law(f(X))` pour une variable de base : la mesure image
   (`law(exp(X))` est la log-normale par composition : répartition, quantiles, densité).
+- Lot 2 ✅ (décisions E1 à E3, 2026-11-23) : événements `X > 0`, `X <= Y`, `==`, `!=`
+  (variables indicatrices) et `&&`, `||`, `!` ; une comparaison de deux combinaisons affines
+  de variables à tirage paresseux est décidée exactement (signe de A − B sur les réels
+  paresseux, E3). `wr::P(A)` exacte (E1) : seuil sur une variable de base (répartition,
+  survie, masse ; P(K >= c) = ccdf(⌈c⌉ − 1) pour une loi discrète), comparaison de
+  combinaisons affines de loi connue (P(X > Y) par la loi de X − Y), négation, conjonction et
+  disjonction de variables distinctes ; NaN ailleurs (même variable, non affine).
+  `wr::given(Z, A)` (E2) : nouvelle variable de base, de loi celle de Z sachant A, tirée par
+  rejet ; `std::domain_error` si P(A) = 0 ; loi tronquée exacte pour un seuil sur Z, loi de
+  Z si A ne porte pas sur Z.
 
 ## 5. Lots proposés
 
