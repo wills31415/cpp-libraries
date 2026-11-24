@@ -1,8 +1,9 @@
 # Objets mathématiques : algèbre linéaire, tenseurs, analyse
 
 Chantier ouvert le 2026-11-23, en remplacement du chantier `mdarray` de la revue des
-interfaces (docs/interfaces.md, décision 6). Il s'appuiera sur deux chantiers préalables,
-menés à part : `wsl::algebraic` et `wsl::mdindex` (docs/mdindex.md), puis `wsl::mdarray`. Ce document fixe la vision, la méthode et la
+interfaces (docs/interfaces.md, décision 6). Il s'appuiera sur un chantier préalable,
+mené à part : `wsl::mdarray` (docs/mdarray.md), le stockage des composantes, indépendant des
+objets mathématiques. Ce document fixe la vision, la méthode et la
 feuille de route ; les notions y seront ensuite conçues une à une, pan par pan.
 
 ## 1. Vision
@@ -29,18 +30,19 @@ bibliothèques) et un futur projet de mécanique des milieux continus et des flu
 | A2 | **Une définition = un concept C++ ; les hypothèses d'un théorème = les contraintes du code.** Exemple : `grad(f)` n'existe que si l'espace a un produit scalaire (isomorphisme de Riesz) ; sans lui, seule la différentielle Df(x) ∈ E* est définie. |
 | A3 | **Un espace vectoriel est une structure, pas une dimension** : corps des scalaires, dimension, puis structures ajoutées (norme, produit scalaire, forme bilinéaire non dégénérée de signature donnée, orientation, structure affine). |
 | A4 | **Tout à la compilation par défaut** (vérifications, absence de coût à l'exécution, vectorisation, `constexpr`) ; dimension dynamique (`wsl::dynamic`) en exception assumée, là où elle n'est connue qu'à l'exécution (discrétisations). |
-| A5 | (proposée, à reprendre dans le chantier mdarray) **Infrastructure de stockage propre** (étendues, dispositions, vue multidimensionnelle), aux noms et à la sémantique de `<mdspan>`, dont elle ne s'écarte que par des **ajouts** : tout code valide avec `std::mdspan` garde le même sens. Raison : `std::mdspan` manque à GCC 14 et 15 (GCC 16 ou libc++ requis), et la vue gagnera des extensions (multi-indices, indexation partielle). Conversion vers `std::mdspan` là où il existe. |
-| A6 | **Multi-indices** : bibliothèque `wsl::mdindex` à part (docs/mdindex.md), qui remplace `graded` : multi-indices `wsl::mdsize<N>` (ℕᴺ), décalages `wsl::mddiff<N>` (ℤᴺ), axes `wsl::mdaxis`, pour indexer des composantes comme pour dériver (∂^α, x^α, Taylor). |
+| A5 | **Stockage des composantes** : `wsl::mdarray` (docs/mdarray.md), bibliothèque générale, qui ne dépend d'aucune bibliothèque mathématique ; ses positions (`mdsize`) et déplacements (`mddiff`) ne servent qu'à indexer des tableaux. |
+| A6 | **Multi-indices de l'analyse** (∂^α, x^α, Taylor, \|α\|, α!, binomiaux) : le monoïde (ℕᴺ, +), dans une bibliothèque à part, `wsl::mdindex` (pan 3), distincte des positions de tableaux ; elle reprendra ou remplacera `graded` (jets, développements de Taylor tronqués). |
 | A7 | **Plusieurs bibliothèques, pas une** : chaque pan devient une bibliothèque du dépôt (en-tête, cible CMake, dépendances déclarées) ; noms décidés pan par pan. |
 | A8 | **Des lots qui livrent du code utilisable**, testé et poussé ; la conception ne devance le code que d'un pan. |
+| A9 | **Structures algébriques par déclaration explicite** : un type n'est un monoïde, un groupe… que s'il le déclare (trait à spécialiser, qui donne aussi l'élément neutre) ; le concept vérifie la syntaxe en plus. Raison : la syntaxe ne dit pas quelle structure un type modélise (`size_t` avec `+` est ℤ/2⁶⁴ℤ pour la machine, ℕ pour l'intention). Dans une bibliothèque séparée (nom proposé : `wsl::algebraic`) : magma, demi-groupe, monoïde, groupe, actions de groupe, espaces affines, puis anneaux, corps, modules, espaces vectoriels. Les types de `wsl::mdarray` y sont déclarés par un en-tête de liaison, sans dépendance entre les deux bibliothèques. |
 
 ## 3. Feuille de route
 
 | Pan | Contenu | Débloque |
 |---|---|---|
-| 1. Algèbre linéaire | corps des scalaires ; espaces vectoriels (Kⁿ et sa base canonique, espaces généraux, sous-espaces, familles, bases, dimension) ; applications linéaires L(E, F), matrices dans des bases, noyau, image, rang, changement de bases ; dual ; réduction ; formes bilinéaires et produits scalaires, orthogonalité ; espaces normés de dimension finie, normes subordonnées ; espace affine ; en support : multi-indices et stockage des composantes | calcul en coordonnées, systèmes linéaires, valeurs propres ; points et vecteurs en mécanique |
+| 1. Algèbre linéaire | corps des scalaires ; espaces vectoriels (Kⁿ et sa base canonique, espaces généraux, sous-espaces, familles, bases, dimension) ; applications linéaires L(E, F), matrices dans des bases, noyau, image, rang, changement de bases ; dual ; réduction ; formes bilinéaires et produits scalaires, orthogonalité ; espaces normés de dimension finie, normes subordonnées ; espace affine ; en support : structures algébriques (`wsl::algebraic`) ; stockage des composantes par `wsl::mdarray` | calcul en coordonnées, systèmes linéaires, valeurs propres ; points et vecteurs en mécanique |
 | 2. Tenseurs | produit tensoriel, composantes, variances, contractions, notation indicielle (convention d'Einstein), symétries | tenseurs des contraintes et des déformations ; métrique, Riemann |
-| 3. Calcul différentiel | fonctions entre espaces, différentielle, dérivées d'ordre supérieur, ∂^α, Taylor, différentiation automatique (les jets de `graded` sont des développements de Taylor tronqués) | gradients, jacobiennes, hessiennes ; opérateurs grad, div, rot, Δ |
+| 3. Calcul différentiel | fonctions entre espaces, différentielle, dérivées d'ordre supérieur, ∂^α, Taylor, multi-indices (`wsl::mdindex`), différentiation automatique (les jets de `graded` sont des développements de Taylor tronqués) | gradients, jacobiennes, hessiennes ; opérateurs grad, div, rot, Δ |
 | 4. Au-delà (esquisse) | espaces de fonctions et opérateurs, discrétisations (différences finies, éléments finis), variétés, cartes, champs, connexions | équations de la relativité générale, de la MMC et des fluides |
 
 Premier lot visé : scalaires, Kⁿ et espaces vectoriels, applications linéaires et leurs
@@ -57,4 +59,4 @@ matrices, en dimension fixe (A(u), B ∘ A, déterminant, inverse).
   nommées (`contract`, `trace`).
 - Familles de fonctions indexées (`m[i, j](x, y)` et `m(x, y)[i, j]`, curryfications de
   Y^(I×X)) ; diffusion entre rangs (aucune implicite hors scalaires, proposé).
-- Place d'`array2d` (alias d'un tableau de rang 2 ?) et de `square_matrix` (wsl::random).
+- Place de `square_matrix` (wsl::random) ; `array2d` devient un alias de rang 2 de `wsl::mdarray`.
