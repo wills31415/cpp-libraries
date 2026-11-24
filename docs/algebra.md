@@ -1,7 +1,8 @@
 # Objets mathématiques : algèbre linéaire, tenseurs, analyse
 
 Chantier ouvert le 2026-11-23, en remplacement du chantier `mdarray` de la revue des
-interfaces (docs/interfaces.md, décision 6). Ce document fixe la vision, la méthode et la
+interfaces (docs/interfaces.md, décision 6). Il s'appuiera sur deux chantiers préalables,
+menés à part : `wsl::algebraic` et `wsl::mdindex` (docs/mdindex.md), puis `wsl::mdarray`. Ce document fixe la vision, la méthode et la
 feuille de route ; les notions y seront ensuite conçues une à une, pan par pan.
 
 ## 1. Vision
@@ -28,8 +29,8 @@ bibliothèques) et un futur projet de mécanique des milieux continus et des flu
 | A2 | **Une définition = un concept C++ ; les hypothèses d'un théorème = les contraintes du code.** Exemple : `grad(f)` n'existe que si l'espace a un produit scalaire (isomorphisme de Riesz) ; sans lui, seule la différentielle Df(x) ∈ E* est définie. |
 | A3 | **Un espace vectoriel est une structure, pas une dimension** : corps des scalaires, dimension, puis structures ajoutées (norme, produit scalaire, forme bilinéaire non dégénérée de signature donnée, orientation, structure affine). |
 | A4 | **Tout à la compilation par défaut** (vérifications, absence de coût à l'exécution, vectorisation, `constexpr`) ; dimension dynamique (`wsl::dynamic`) en exception assumée, là où elle n'est connue qu'à l'exécution (discrétisations). |
-| A5 | **Infrastructure de stockage propre** (étendues, dispositions, vue multidimensionnelle), aux noms et à la sémantique de `<mdspan>`, dont elle ne s'écarte que par des **ajouts** : tout code valide avec `std::mdspan` garde le même sens. Raison : `std::mdspan` manque à GCC 14 et 15 (GCC 16 ou libc++ requis), et la vue gagnera des extensions (multi-indices, indexation partielle). Conversion vers `std::mdspan` là où il existe. |
-| A6 | **Multi-indices** : `graded` (arité exacte, `index_jet<N>`) devient le multi-indice α ∈ ℕᴺ, pour indexer des composantes comme pour dériver (∂^α, x^α, Taylor) ; il gagnera \|α\|, α!, les binomiaux et l'ordre composante par composante. Nom à trancher (`multi_index` proposé, `mdindex` évoqué). |
+| A5 | (proposée, à reprendre dans le chantier mdarray) **Infrastructure de stockage propre** (étendues, dispositions, vue multidimensionnelle), aux noms et à la sémantique de `<mdspan>`, dont elle ne s'écarte que par des **ajouts** : tout code valide avec `std::mdspan` garde le même sens. Raison : `std::mdspan` manque à GCC 14 et 15 (GCC 16 ou libc++ requis), et la vue gagnera des extensions (multi-indices, indexation partielle). Conversion vers `std::mdspan` là où il existe. |
+| A6 | **Multi-indices** : bibliothèque `wsl::mdindex` à part (docs/mdindex.md), qui remplace `graded` : multi-indices `wsl::mdsize<N>` (ℕᴺ), décalages `wsl::mddiff<N>` (ℤᴺ), axes `wsl::mdaxis`, pour indexer des composantes comme pour dériver (∂^α, x^α, Taylor). |
 | A7 | **Plusieurs bibliothèques, pas une** : chaque pan devient une bibliothèque du dépôt (en-tête, cible CMake, dépendances déclarées) ; noms décidés pan par pan. |
 | A8 | **Des lots qui livrent du code utilisable**, testé et poussé ; la conception ne devance le code que d'un pan. |
 
