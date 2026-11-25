@@ -40,6 +40,12 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   Y compiler les tests **optimisés** (`-O2`, comme les jobs release) : certains
   avertissements de GCC (`-Warray-bounds`…) n'apparaissent qu'avec l'optimisation ;
   `-fsyntax-only` ne suffit pas.
+- La CI ne compile et ne teste que ce qu'un push peut avoir changé : chemins modifiés
+  depuis le dernier passage réussi (`tools/ci/changed_files.sh`), bibliothèques touchées
+  et celles qui en dépendent (`cmake/affected.cmake`, option `WSL_LIBRARIES_AFFECTED_BY`) ;
+  documentation seule (`cmake/ci_ignored_paths.txt`) : rien ; infrastructure, tag,
+  lancement manuel, passage hebdomadaire : tout. Une nouvelle bibliothèque est reconnue
+  par ses chemins (`include/wsl/<nom>…`, `tools/<nom>/`, `tests/test_<nom>…`).
 - Les projets consomment le dépôt par FetchContent figé sur un tag ; cpp-init le
   configure par défaut.
 

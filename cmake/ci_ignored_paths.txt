@@ -1,0 +1,6 @@
+^docs/
+\.md$
+^LICENSE$
+^\.gitignore$
+^tools/cpp-init$
+^tools/release\.sh$

@@ -14,6 +14,10 @@ option(WSL_LIBRARIES_BUILD_TESTS "Construire les tests" ${PROJECT_IS_TOP_LEVEL})
 option(WSL_LIBRARIES_BUILD_EXAMPLES "Construire les exemples" ${PROJECT_IS_TOP_LEVEL})
 option(WSL_LIBRARIES_SANITIZERS "Compiler tests et exemples avec ASan et UBSan" OFF)
 option(WSL_LIBRARIES_WERROR "Traiter les avertissements des tests et exemples comme des erreurs (CI)" OFF)
+# CI : fichier listant les chemins modifiés (un par ligne, « ALL » pour tout) ; seuls
+# les tests et exemples des bibliothèques touchées, et de celles qui en dépendent, sont
+# construits (cmake/affected.cmake). Vide : tout.
+set(WSL_LIBRARIES_AFFECTED_BY "" CACHE FILEPATH "Fichier des chemins modifiés (CI)")
 
 include(GNUInstallDirs)
 
@@ -58,6 +62,8 @@ function(wsl_add_library name)
         target_link_libraries(${target} INTERFACE wsl_${dependency})
     endforeach()
 
+    set_property(GLOBAL APPEND PROPERTY WSL_LIBRARY_NAMES ${name})
+    set_property(GLOBAL PROPERTY WSL_DEPENDS_${name} ${ARG_DEPENDS})
     set(WSL_LIBRARIES_ALL ${WSL_LIBRARIES_ALL} ${target} PARENT_SCOPE)
 endfunction()
 
@@ -73,6 +79,24 @@ wsl_add_library(progress     STANDARD 23)
 wsl_add_library(special      STANDARD 23)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
+
+# Bibliothèques dont on construit les tests et exemples (toutes, sauf en CI).
+set(WSL_LIBRARIES_TESTED ALL)
+set(WSL_LIBRARIES_TESTED_EXAMPLES "")
+if(WSL_LIBRARIES_AFFECTED_BY)
+    include(cmake/affected.cmake)
+    wsl_affected_libraries(${WSL_LIBRARIES_AFFECTED_BY} WSL_LIBRARIES_TESTED)
+    message(STATUS "Bibliothèques testées : ${WSL_LIBRARIES_TESTED}")
+endif()
+
+# Vrai si les tests de <bibliothèque> sont à construire.
+function(wsl_is_tested library variable)
+    if(WSL_LIBRARIES_TESTED STREQUAL "ALL" OR library IN_LIST WSL_LIBRARIES_TESTED)
+        set(${variable} TRUE PARENT_SCOPE)
+    else()
+        set(${variable} FALSE PARENT_SCOPE)
+    endif()
+endfunction()
 
 # Tout d'un coup : wsl::libraries.
 add_library(wsl_libraries INTERFACE)
@@ -114,6 +138,10 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         set(library ${name})
         if(ARG_LIBRARY)
             set(library ${ARG_LIBRARY})
+        endif()
+        wsl_is_tested(${library} tested)
+        if(NOT tested)
+            return()
         endif()
         get_target_property(minimum wsl_${library} WSL_STANDARD)
         foreach(standard IN LISTS WSL_LIBRARIES_STANDARDS)
@@ -173,7 +201,9 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         endif()
     endif()
 
-    if(reference_generator)
+    wsl_is_tested(special special_tested)
+    wsl_is_tested(random random_tested)
+    if(reference_generator AND special_tested)
         set(references ${PROJECT_BINARY_DIR}/generated/data/special_elementary_reference.hpp)
         add_custom_command(
             OUTPUT ${references}
@@ -189,6 +219,8 @@ if(WSL_LIBRARIES_BUILD_TESTS)
             add_dependencies(${test} special_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()
+    endif()
+    if(reference_generator AND random_tested)
         # Lois de wsl::random : même principe, une famille par module de tools/random/references/
         # (seules les familles modifiées sont recalculées) ; l'en-tête commun les inclut toutes.
         set(law_families base derived circular complement inverse_gaussian skew_normal stable discrete skellam zipf rice)
@@ -251,7 +283,8 @@ namespace law_reference_data
             add_dependencies(${test} random_law_references)
             target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
         endforeach()
-    else()
+    endif()
+    if(NOT reference_generator)
         message(WARNING "Ni uv ni python3 avec mpmath : tests de précision de wsl::special et wsl::random sautés")
     endif()
     wsl_add_test(special_bitexact LIBRARY special)
@@ -265,11 +298,13 @@ namespace law_reference_data
     wsl_add_test(random_continuous LIBRARY random)
     wsl_add_test(random_variables LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
-    add_test(NAME special_no_contraction
-             COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
-                     -DSOURCES=${PROJECT_SOURCE_DIR}/tests/special_contraction
-                     -DPROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
-                     -P ${PROJECT_SOURCE_DIR}/cmake/check_no_contraction.cmake)
+    if(special_tested)
+        add_test(NAME special_no_contraction
+                 COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
+                         -DSOURCES=${PROJECT_SOURCE_DIR}/tests/special_contraction
+                         -DPROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
+                         -P ${PROJECT_SOURCE_DIR}/cmake/check_no_contraction.cmake)
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
@@ -279,6 +314,21 @@ if(WSL_LIBRARIES_BUILD_EXAMPLES)
     file(GLOB example_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/examples/*.cpp)
     foreach(source IN LISTS example_sources)
         get_filename_component(example ${source} NAME_WE)
+        # En CI, un exemple n'est construit que s'il a changé ou s'il inclut une
+        # bibliothèque testée.
+        if(NOT WSL_LIBRARIES_TESTED STREQUAL "ALL" AND NOT example IN_LIST WSL_LIBRARIES_TESTED_EXAMPLES)
+            file(STRINGS ${source} includes REGEX "^#include <wsl/[a-z0-9_]+")
+            set(wanted FALSE)
+            foreach(line IN LISTS includes)
+                string(REGEX REPLACE "^#include <wsl/([a-z0-9_]+).*" "\\1" library "${line}")
+                if(library IN_LIST WSL_LIBRARIES_TESTED)
+                    set(wanted TRUE)
+                endif()
+            endforeach()
+            if(NOT wanted)
+                continue()
+            endif()
+        endif()
         add_executable(${example} ${source})
         target_link_libraries(${example} PRIVATE wsl::libraries wsl_libraries_options)
         set_target_properties(${example} PROPERTIES

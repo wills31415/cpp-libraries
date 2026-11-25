@@ -11,6 +11,12 @@
 # s'y vérifie, et les sanitizers sont couverts par les jobs Debug sans FMA.
 #
 # Debug en -O1 : ASan et UBSan restent efficaces, tests 2 à 3 fois plus rapides.
+#
+# Seul ce qu'un push peut avoir changé est compilé et testé : le job « changes »
+# liste les chemins modifiés depuis le dernier passage réussi (tools/ci/changed_files.sh),
+# et CMake n'en garde que les bibliothèques touchées et celles qui en dépendent
+# (cmake/affected.cmake). Documentation seule : rien. Infrastructure, tag, lancement
+# manuel ou passage hebdomadaire : tout.
 name: CI
 
 on:
@@ -19,14 +25,48 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Chemins modifiés
+    runs-on: ubuntu-24.04
+    outputs:
+      files: ${{ steps.list.outputs.files }}
+      tests: ${{ steps.list.outputs.tests }}
+      package: ${{ steps.list.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tools/ci/changed_files.sh changed.txt
+          relevant=$(grep -v -E -f cmake/ci_ignored_paths.txt changed.txt || true)
+          tests=false; package=false
+          if [ -n "$relevant" ]; then package=true; fi
+          if [ -n "$(printf '%s\n' "$relevant" | grep -v '^tests/package/' | grep -v '^$' || true)" ]; then tests=true; fi
+          { echo "files<<FIN"; cat changed.txt; echo "FIN"; } >> "$GITHUB_OUTPUT"
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "Tests : $tests ; paquet : $package"
+
   test:
     name: ${{ matrix.compiler.name }} · ${{ matrix.preset }}
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ${{ matrix.compiler.os }}
     strategy:
       fail-fast: false
@@ -55,9 +95,15 @@ jobs:
           cmake --version
           uname -m
 
+      - name: Chemins modifiés
+        env:
+          FILES: ${{ needs.changes.outputs.files }}
+        run: printf '%s\n' "$FILES" > "$RUNNER_TEMP/changed.txt"
+
       - name: Configuration
         run: >
           cmake --preset ${{ matrix.preset }}
+          "-DWSL_LIBRARIES_AFFECTED_BY=${{ runner.temp }}/changed.txt"
           -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
           "-DCMAKE_CXX_FLAGS=${{ matrix.compiler.flags }}"
           -DWSL_LIBRARIES_WERROR=ON
@@ -67,10 +113,12 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }} -j 4
 
       - name: Tests
-        run: ctest --preset ${{ matrix.preset }} -j 4
+        run: ctest --preset ${{ matrix.preset }} -j 4 --no-tests=ignore
 
   package:
     name: Paquet CMake (installation, FetchContent)
+    needs: changes
+    if: needs.changes.outputs.package == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
