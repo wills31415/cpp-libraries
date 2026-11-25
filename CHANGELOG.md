@@ -91,6 +91,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   long de l'axe intérieur du membre de gauche n'est plus vectorisée par des lectures
   dispersées (gather), plus lentes que la boucle scalaire : champ gₚᵢⱼ vₚᵢ vₚⱼ 19 → 3,4 ns
   par point.
+- Performance : les boucles d'affectation en place sont marquées sans dépendance entre
+  itérations (le contrôle d'alias I12 le garantit) ; `y = a * x + y` et
+  `y[i] = a * x[i] + y[i]` sont vectorisées sans test de chevauchement (1,5 → 1,0 fois la
+  boucle à la main).
 
 ### elo
 

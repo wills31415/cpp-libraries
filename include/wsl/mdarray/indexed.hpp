@@ -17,6 +17,7 @@
 #include <wsl/mdarray/container.hpp>
 #include <wsl/mdarray/detail/expression_base.hpp>
 #include <wsl/mdarray/detail/function_list.hpp>
+#include <wsl/mdarray/detail/loop.hpp>
 #include <wsl/mdarray/detail/precondition.hpp>
 #include <wsl/mdarray/detail/reduce.hpp>
 #include <wsl/mdarray/detail/typelist.hpp>
@@ -31,11 +32,11 @@
 #include <utility>
 #include <vector>
 
-// Boucle d'instruction tenue scalaire (voir contiguous_along).
-#if defined(__clang__) && defined(__AVX2__)
-#    define WSL_MDARRAY_SCALAR_LOOP _Pragma("clang loop vectorize(disable)")
-#else
-#    define WSL_MDARRAY_SCALAR_LOOP
+// WSL_MDARRAY_INDEPENDENT_LOOP demande la vectorisation : Clang avertit quand elle est
+// impossible (mode reproductible, fonctions), ce qui est attendu (detail/loop.hpp).
+#if defined(__clang__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wpass-failed"
 #endif
 
 namespace wsl
@@ -1294,8 +1295,11 @@ namespace wsl
                     constexpr bool contiguous = contiguous_along<inner, Rhs>::value && contiguous_along<inner, leaf>::value;
                     auto loop = [&](auto&& step) {
                         if constexpr (contiguous)
+                        {
+                            WSL_MDARRAY_INDEPENDENT_LOOP
                             for (std::size_t k = 0; k < n; ++k)
                                 step(k);
+                        }
                         else
                         {
                             WSL_MDARRAY_SCALAR_LOOP
@@ -1648,4 +1652,6 @@ namespace wsl
     }
 }
 
-#undef WSL_MDARRAY_SCALAR_LOOP
+#if defined(__clang__)
+#    pragma clang diagnostic pop
+#endif

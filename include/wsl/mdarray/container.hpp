@@ -15,6 +15,7 @@
 
 #include <wsl/mdarray/detail/expression_base.hpp>
 #include <wsl/mdarray/detail/iterate.hpp>
+#include <wsl/mdarray/detail/loop.hpp>
 #include <wsl/mdarray/detail/precondition.hpp>
 #include <wsl/mdarray/extents.hpp>
 #include <wsl/mdarray/layout.hpp>
@@ -30,6 +31,13 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+// WSL_MDARRAY_INDEPENDENT_LOOP demande la vectorisation : Clang avertit quand elle est
+// impossible (mode reproductible, fonctions), ce qui est attendu (detail/loop.hpp).
+#if defined(__clang__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wpass-failed"
+#endif
 
 namespace wsl
 {
@@ -447,6 +455,7 @@ namespace wsl
                     // Ligne majeure de part et d'autre : une boucle sur le stockage.
                     pointer const d = data();
                     std::size_t const n = static_cast<std::size_t>(size());
+                    WSL_MDARRAY_INDEPENDENT_LOOP
                     for (std::size_t k = 0; k < n; ++k)
                         d[k] = static_cast<value_type>(e.flat(k));
                 }
@@ -534,3 +543,7 @@ namespace wsl
         return detail::mdarray::for_each_index(x.extents(), [&](auto... i) { return x[i...] == y[i...]; });
     }
 }
+
+#if defined(__clang__)
+#    pragma clang diagnostic pop
+#endif

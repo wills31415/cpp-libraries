@@ -259,8 +259,8 @@ réservés aux tenseurs (variances).
   | somme d'un tableau | 3,5 | 0,4 (somme par paires vectorisée) | 0,3 |
   | produit scalaire (axes) | 2,5 | 1,0 | 0,4 |
   | matrice × vecteur (axes) | 2,8 | 1,0 | 0,4 |
-  | axpy (axes) | 4,6 | 1,4 | 1,3 |
-  | axpy (tableaux entiers) | 1,4 | 1,6 | 1,5 |
+  | axpy (axes) | 4,6 | 1,4 | 1,0 (itérations indépendantes, voir plus bas) |
+  | axpy (tableaux entiers) | 1,4 | 1,6 | 1,0 (idem) |
   | produit matriciel (axes) | 3,2 | 1,9 | 0,8 |
   | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 | 0,8 (composantes de longueur 3 statique ; boucle scalaire, voir plus bas) |
 
@@ -275,9 +275,8 @@ réservés aux tenseurs (variances).
   sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
-  un tampon local n'y change rien (essayé, retiré). Reste : axpy sur tableaux entiers
-  (faire voir l'égalité des pointeurs) ; produit matriciel en blocs ; barrières vectorielles
-  du mode reproductible.
+  un tampon local n'y change rien (essayé, retiré). Reste : produit matriciel en blocs ;
+  barrières vectorielles du mode reproductible.
 - **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
   de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
   la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
@@ -311,6 +310,16 @@ réservés aux tenseurs (variances).
   par leurs 8 accumulateurs (SLP), n'en dépendent pas. Ailleurs (ARM64 : pas de gather,
   lectures entrelacées `ld3` efficaces ; GCC), rien ne change. La boucle à la main du banc
   d'essai est tenue scalaire de même.
+- **Itérations indépendantes (2026-11-25)** : la boucle d'affectation ne s'exécute en place
+  que si aucune opérande ne lit la destination ailleurs qu'à la position écrite (I12) ; ses
+  itérations sont alors indépendantes en mémoire, ce que le compilateur ne peut pas prouver
+  dans `y = a * x + y` (même pointeur lu et écrit : son test de chevauchement échoue). Choix
+  d'implémentation : `#pragma clang loop vectorize(assume_safety)` / `#pragma GCC ivdep`
+  sur la boucle directe des tableaux entiers et sur celle des instructions à pas fixe
+  contiguës (`detail/loop.hpp`) ; axpy passe de 1,5 à 1,0 fois la boucle à la main. Le
+  pragma de Clang demande la vectorisation, et Clang avertit quand elle est impossible
+  (mode reproductible : `fmul`) ; cet avertissement (`-Wpass-failed`) est tu dans
+  `container.hpp` et `indexed.hpp`.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
