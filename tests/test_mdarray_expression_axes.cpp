@@ -309,6 +309,55 @@ namespace
         Q2[i, k] = wsl::reproducible(wsl::kronecker(i, k) * (B21 * 1.0)[j, k] * x[j]);
         assert(same_bits(Q1, Q2));
 
+        // Découpage du cache le long de l'axe sommé (plus de 128 termes : tranches de la
+        // somme par paires, 37 lignes = un bloc de 32 et un reste) ; rang 3 aussi.
+        M A300(37, 300), B300(300, 21), G1(37, 21), G2(37, 21);
+        fill2(A300, [](double r, double c) { return 1 / (1 + r + 0.25 * c); });
+        fill2(B300, [](double r, double c) { return std::sqrt(2 + r + c); });
+        G1[i, k] = wsl::reproducible(A300[i, j] * B300[j, k]);
+        G2[i, k] = wsl::reproducible(A300[i, j] * (B300 * 1.0)[j, k]);
+        assert(same_bits(G1, G2));
+        V w300(300);
+        for (std::size_t q = 0; q < 300; ++q)
+            w300[q] = 1 / (7.0 + q);
+        G1[i, k] = wsl::reproducible(A300[i, j] * w300[j] * B300[j, k]); // w[j] recopié aussi
+        G2[i, k] = wsl::reproducible(A300[i, j] * w300[j] * (B300 * 1.0)[j, k]);
+        assert(same_bits(G1, G2));
+        T3 X(3, 5, 300), H1(3, 5, 21), H2(3, 5, 21);
+        for (std::size_t a = 0; a < 3; ++a)
+            for (std::size_t b = 0; b < 5; ++b)
+                for (std::size_t c = 0; c < 300; ++c)
+                    X[a, b, c] = 1 / (1.0 + a + 2 * b + 0.5 * c);
+        H1[p, i, k] = wsl::reproducible(X[p, i, j] * B300[j, k]);
+        H2[p, i, k] = wsl::reproducible(X[p, i, j] * (B300 * 1.0)[j, k]);
+        assert(same_bits(H1, H2));
+
+        // Somme le long de deux axes (indice aplati, 12 × 25 = 300 termes) : pas cohérents,
+        // somme aplatie, t[i, j, k] recopié ; uj[j, i], contigu le long de i (pas 1 fixé) :
+        // ni aplatie ni recopiée.
+        auto [l] = wsl::axis<1>();
+        T3 gij(9, 12, 25), t(12, 25, 21);
+        M uj(25, 12), c1(9, 21), c2(9, 21);
+        for (std::size_t a = 0; a < 12; ++a)
+            for (std::size_t b = 0; b < 25; ++b)
+            {
+                uj[b, a] = 1 / (3.0 + a + b);
+                for (std::size_t c = 0; c < 9; ++c)
+                    gij[c, a, b] = 1 / (1.0 + c + 0.5 * a + 0.25 * b);
+                for (std::size_t c = 0; c < 21; ++c)
+                    t[a, b, c] = std::sqrt(1.0 + a + 2 * b + 3 * c);
+            }
+        c1[p, l] = wsl::reproducible(gij[p, i, j] * t[i, j, l]);
+        c2[p, l] = wsl::reproducible(gij[p, i, j] * (t * 1.0)[i, j, l]);
+        assert(same_bits(c1, c2));
+        c1[p, l] = wsl::reproducible(gij[p, i, j] * uj[j, i] * t[i, j, l]);
+        c2[p, l] = wsl::reproducible(gij[p, i, j] * uj[j, i] * (t * 1.0)[i, j, l]);
+        assert(same_bits(c1, c2));
+        // Valeur d'axe dans le corps : somme non aplatie.
+        c1[p, l] = wsl::reproducible(gij[p, i, j] * t[i, j, l] * (j + 1));
+        c2[p, l] = wsl::reproducible(gij[p, i, j] * (t * 1.0)[i, j, l] * (j + 1));
+        assert(same_bits(c1, c2));
+
         // Dispositions layout_left et layout_stride (une colonne sur deux).
         std::vector<double> buffer(2 * n * 5);
         for (std::size_t q = 0; q < buffer.size(); ++q)

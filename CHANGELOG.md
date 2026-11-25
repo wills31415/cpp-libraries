@@ -106,6 +106,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Performance : les voies parcourent les paquets de colonnes à l'extérieur (le paquet reste
   dans le cache) : produit 1024³ 0,60 → 0,37 ns par terme. Banc d'essai : noyau 9
   (produit 1024³).
+- Performance : découpage du cache le long de l'axe sommé (plus de 128 termes), tranche
+  par tranche de la somme par paires puis combinaison selon son arbre (mêmes bits) :
+  produit 1000³ 0,25 → 0,19 ns par terme ; recopie des opérandes qui ne dépendent que des
+  axes sommé et intérieur (B[j, k]) dans un tampon contigu : produit 1024³ 0,37 → 0,18.
+  Sommes le long de plusieurs axes : même découpage (indice aplati), positions par compteur
+  à roues, somme aplatie quand les pas sont cohérents (g[p, i, j] t[i, j, k]) : contraction
+  sur deux axes 0,91 → 0,28 ns par terme. Banc d'essai : noyau 10.
 
 ### elo
 

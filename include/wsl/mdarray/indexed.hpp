@@ -27,6 +27,7 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -798,6 +799,36 @@ namespace wsl
             {
                 offset = index(pos);
             }
+            // Recopie (indexed_target::tiled) : l'accès ne dépend-il que des positions
+            // d'indices I et J (et de J) ? emplacement du pas le long d'une position.
+            static constexpr std::size_t positions_size = Summed::size;
+            static constexpr bool uses(std::size_t i) noexcept
+            {
+                for (std::size_t q = 0; q < P; ++q)
+                    if (where[q] == i)
+                        return true;
+                return false;
+            }
+            // Ne dépend que des positions i et [lo, hi), et de toutes celles de [lo, hi).
+            static constexpr bool only(std::size_t i, std::size_t lo, std::size_t hi) noexcept
+            {
+                for (std::size_t q = 0; q < P; ++q)
+                    if (where[q] != i && (where[q] < lo || where[q] >= hi))
+                        return false;
+                for (std::size_t r = lo; r < hi; ++r)
+                    if (!uses(r))
+                        return false;
+                return true;
+            }
+            static constexpr std::array<bool, P> unit = Unit;
+            static constexpr std::size_t slot(std::size_t i) noexcept
+            {
+                for (std::size_t q = 0; q < P; ++q)
+                    if (where[q] == i)
+                        return q;
+                return P;
+            }
+
             // Pas d'une voie à la suivante (axe d'indice I des positions).
             template <std::size_t I>
             constexpr std::ptrdiff_t lane_step() const noexcept
@@ -867,6 +898,7 @@ namespace wsl
         template <class Access, class T>
         struct strided_leaf
         {
+            static constexpr bool reads_axes = false;
             Access access;
             template <class Pos>
             constexpr T value(Pos const& pos) const noexcept
@@ -877,6 +909,11 @@ namespace wsl
             constexpr void shift(Pos const& pos) noexcept
             {
                 access.shift(pos);
+            }
+            template <class F>
+            constexpr void for_each_access(F&& f)
+            {
+                f(access);
             }
             template <std::size_t I, std::size_t W, class Pos>
             constexpr lane_pack<T, W> lanes(Pos const& pos) const noexcept
@@ -892,6 +929,7 @@ namespace wsl
         template <class T>
         struct strided_scalar
         {
+            static constexpr bool reads_axes = false;
             T v;
             template <class Pos>
             constexpr T value(Pos const&) const
@@ -910,11 +948,16 @@ namespace wsl
                     r.v[l] = v;
                 return r;
             }
+            template <class F>
+            constexpr void for_each_access(F&&)
+            {
+            }
         };
 
         template <class T, class Reader>
         struct strided_axis
         {
+            static constexpr bool reads_axes = true;
             Reader r;
             template <class Pos>
             constexpr T value(Pos const& pos) const noexcept
@@ -934,11 +977,16 @@ namespace wsl
                     out.v[l] = static_cast<T>(r.value(pos) + static_cast<std::ptrdiff_t>(l) * Reader::template lane_step<I>());
                 return out;
             }
+            template <class F>
+            constexpr void for_each_access(F&&)
+            {
+            }
         };
 
         template <class T, class RA, class RB>
         struct strided_kronecker
         {
+            static constexpr bool reads_axes = true;
             RA a;
             RB b;
             template <class Pos>
@@ -965,11 +1013,16 @@ namespace wsl
                 }
                 return out;
             }
+            template <class F>
+            constexpr void for_each_access(F&&)
+            {
+            }
         };
 
         template <class Op, class... C>
         struct strided_node
         {
+            static constexpr bool reads_axes = (C::reads_axes || ...);
             Op const* op;
             std::tuple<C...> children;
             template <class Pos>
@@ -981,6 +1034,11 @@ namespace wsl
             constexpr void shift(Pos const& pos) noexcept
             {
                 std::apply([&](auto&... c) { (c.shift(pos), ...); }, children);
+            }
+            template <class F>
+            constexpr void for_each_access(F&& f)
+            {
+                std::apply([&](auto&... c) { (c.for_each_access(f), ...); }, children);
             }
             template <std::size_t I, std::size_t W, class Pos>
             constexpr auto lanes(Pos const& pos) const
@@ -1091,8 +1149,12 @@ namespace wsl
         template <std::size_t S, std::size_t K, class Body, std::array<std::size_t, K> Static>
         struct strided_home
         {
+            static constexpr bool reads_axes = Body::reads_axes;
             Body body;
             std::array<std::ptrdiff_t, K> length{};
+            // Somme aplatie (flatten) : les termes ne se distinguent que par l'indice aplati,
+            // porté par la dernière position.
+            bool flat = false;
 
             [[gnu::always_inline]] constexpr auto value(positions<S> const& pos) const
             {
@@ -1107,16 +1169,19 @@ namespace wsl
                     return pairwise<T>(axis_terms<S, Body>{std::move(b)}, 0, n, T{}, detail::mdarray::add_op{});
                 // Positions neuves à chaque terme : les S premières, nulles, restent connues
                 // du compilateur (un tableau partagé s'échapperait dans pairwise_split).
+                counter wheel;
                 auto const at = [&](std::size_t k) {
                     positions<S + K> q{};
                     if constexpr (K == 1)
                         q[S] = static_cast<std::ptrdiff_t>(k);
+                    else if (flat)
+                        q[S + K - 1] = static_cast<std::ptrdiff_t>(k);
                     else
-                        for (std::size_t r = K; r-- > 0;)
-                        {
-                            q[S + r] = static_cast<std::ptrdiff_t>(k % len(r));
-                            k /= len(r);
-                        }
+                    {
+                        advance(wheel, k);
+                        for (std::size_t r = 0; r < K; ++r)
+                            q[S + r] = wheel.p[r];
+                    }
                     return b.value(q);
                 };
                 return pairwise<T>(at, 0, n, T{}, detail::mdarray::add_op{});
@@ -1125,6 +1190,103 @@ namespace wsl
             {
                 body.shift(extend(pos));
             }
+            template <class F>
+            constexpr void for_each_access(F&& f)
+            {
+                body.for_each_access(f);
+            }
+            // Somme le long de K ≥ 2 axes : si chaque accès qui lit un axe sommé les lit tous
+            // avec des pas cohérents (pas_r = Mᵣ × pas_dernier, Mᵣ le produit des longueurs
+            // suivantes : g[p, i, j], t[i, j, k] en ligne majeure), la somme ne dépend que de
+            // l'indice aplati t = Σ posᵣ Mᵣ : pas des autres axes mis à 0, t porté par le
+            // dernier ; mêmes éléments, mêmes termes, même ordre. Refusé si le corps lit des
+            // valeurs d'axes ou des δ, ou si une dimension contiguë (pas 1 fixé) s'y oppose.
+            constexpr void flatten() noexcept
+            {
+                if constexpr (K >= 2 && !Body::reads_axes)
+                {
+                    std::array<std::size_t, K> weight{};
+                    for (std::size_t r = K; r-- > 0;)
+                        weight[r] = r + 1 < K ? weight[r + 1] * len(r + 1) : 1;
+                    bool ok = true;
+                    body.for_each_access([&](auto& a) {
+                        using A = std::remove_cvref_t<decltype(a)>;
+                        bool any = false;
+                        for (std::size_t r = 0; r < K; ++r)
+                            any = any || A::uses(S + r);
+                        if (!any)
+                            return;
+                        if (!A::uses(S + K - 1))
+                        {
+                            ok = false;
+                            return;
+                        }
+                        auto const stride = [&](std::size_t r) -> std::ptrdiff_t {
+                            std::size_t const q = A::slot(S + r);
+                            return q == A::P ? 0 : (A::unit[q] ? 1 : a.stride[q]);
+                        };
+                        std::ptrdiff_t const last = stride(K - 1);
+                        for (std::size_t r = 0; r + 1 < K; ++r)
+                            if (stride(r) != static_cast<std::ptrdiff_t>(weight[r]) * last || A::unit[A::slot(S + r)])
+                                ok = false;
+                    });
+                    if (!ok)
+                        return;
+                    body.for_each_access([&](auto& a) {
+                        using A = std::remove_cvref_t<decltype(a)>;
+                        for (std::size_t r = 0; r + 1 < K; ++r)
+                            if (A::slot(S + r) != A::P)
+                                a.stride[A::slot(S + r)] = 0;
+                    });
+                    flat = true;
+                }
+            }
+
+            // Somme le long d'un seul axe : sa longueur, et la somme d'une tranche [begin, end)
+            // de ses termes (au plus 128, pairwise_leaves) pour W positions à la fois.
+            static constexpr std::size_t summed_axes = K;
+            constexpr std::size_t sum_length() const noexcept
+            {
+                std::size_t n = 1;
+                for (std::size_t r = 0; r < K; ++r)
+                    n *= len(r);
+                return n;
+            }
+            // Longueur du r-ième axe sommé.
+            constexpr std::size_t axis_length(std::size_t r) const noexcept
+            {
+                return len(r);
+            }
+            template <std::size_t I, std::size_t W>
+            constexpr auto lanes_partial(positions<S> const& pos, std::size_t begin, std::size_t end) const
+            {
+                using V = decltype(body.value(positions<S + K>{}));
+                using U = decltype(std::declval<V>() + std::declval<V>());
+                using T = lane_pack<U, W>;
+                Body b = body;
+                b.shift(extend(pos));
+                counter wheel;
+                auto const at = [&](std::size_t k) {
+                    positions<S + K> q{};
+                    if constexpr (K == 1)
+                        q[S] = static_cast<std::ptrdiff_t>(k);
+                    else if (flat)
+                        q[S + K - 1] = static_cast<std::ptrdiff_t>(k);
+                    else
+                    {
+                        advance(wheel, k);
+                        for (std::size_t r = 0; r < K; ++r)
+                            q[S + r] = wheel.p[r];
+                    }
+                    auto const x = b.template lanes<I, W>(q);
+                    T t;
+                    for (std::size_t l = 0; l < W; ++l)
+                        t.v[l] = x.v[l];
+                    return t;
+                };
+                return pairwise<T>(at, begin, end, T{}, lane_add<U, W>{});
+            }
+
             // Mêmes termes, même ordre, pour W positions extérieures à la fois.
             template <std::size_t I, std::size_t W>
             [[gnu::always_inline]] constexpr auto lanes(positions<S> const& pos) const
@@ -1136,16 +1298,19 @@ namespace wsl
                 std::size_t n = 1;
                 for (std::size_t r = 0; r < K; ++r)
                     n *= len(r);
+                counter wheel;
                 auto const at = [&](std::size_t k) {
                     positions<S + K> q{};
                     if constexpr (K == 1)
                         q[S] = static_cast<std::ptrdiff_t>(k);
+                    else if (flat)
+                        q[S + K - 1] = static_cast<std::ptrdiff_t>(k);
                     else
-                        for (std::size_t r = K; r-- > 0;)
-                        {
-                            q[S + r] = static_cast<std::ptrdiff_t>(k % len(r));
-                            k /= len(r);
-                        }
+                    {
+                        advance(wheel, k);
+                        for (std::size_t r = 0; r < K; ++r)
+                            q[S + r] = wheel.p[r];
+                    }
                     auto const x = b.template lanes<I, W>(q);
                     T t;
                     for (std::size_t l = 0; l < W; ++l)
@@ -1159,6 +1324,37 @@ namespace wsl
             constexpr std::size_t len(std::size_t r) const noexcept
             {
                 return Static[r] != dynamic_extent ? Static[r] : static_cast<std::size_t>(length[r]);
+            }
+
+            // Positions le long des K axes sommés du k-ième terme : la somme par paires les
+            // visite dans l'ordre au sein d'une tranche, d'où un incrément (sans division),
+            // une division seulement aux sauts.
+            struct counter
+            {
+                std::array<std::ptrdiff_t, K> p{};
+                std::size_t last = static_cast<std::size_t>(-1);
+            };
+            constexpr void advance(counter& c, std::size_t k) const noexcept
+            {
+                if (k == c.last + 1 && c.last != static_cast<std::size_t>(-1))
+                {
+                    for (std::size_t r = K; r-- > 0;)
+                    {
+                        if (++c.p[r] < static_cast<std::ptrdiff_t>(len(r)))
+                            break;
+                        c.p[r] = 0;
+                    }
+                }
+                else
+                {
+                    std::size_t q = k;
+                    for (std::size_t r = K; r-- > 0;)
+                    {
+                        c.p[r] = static_cast<std::ptrdiff_t>(q % len(r));
+                        q /= len(r);
+                    }
+                }
+                c.last = k;
             }
 
             static constexpr positions<S + K> extend(positions<S> const& pos) noexcept
@@ -1188,6 +1384,7 @@ namespace wsl
                 strided_home<S, K, decltype(body), fixed> h{body};
                 for (std::size_t r = 0; r < K; ++r)
                     h.length[r] = env.length[axis_indices<typename Ctx::axes>(own{})[r]];
+                h.flatten();
                 return h;
             }
         }
@@ -1480,6 +1677,18 @@ namespace wsl
                         // pour tout j) restent dans le cache d'une ligne à l'autre. Chaque
                         // élément est indépendant : l'ordre de parcours ne change pas les bits.
                         std::size_t const full = inner_length - inner_length % W;
+                        if constexpr (requires { value.template lanes_partial<K - 1, W>(wheels.local, 0, 0); })
+                            if (value.sum_length() > 128)
+                            {
+                                tiled<W>(value, target, wheels, n, inner_length, full);
+                                for (std::size_t outer = 0; outer < n; outer += inner_length)
+                                    for (std::size_t r = full; r < inner_length; ++r)
+                                    {
+                                        wheels.set_local(outer + r);
+                                        target(wheels.local) = static_cast<typename View::value_type>(value.value(wheels.local));
+                                    }
+                                return;
+                            }
                         for (std::size_t r = 0; r < full; r += W)
                             for (std::size_t outer = 0; outer < n; outer += inner_length)
                             {
@@ -1566,6 +1775,119 @@ namespace wsl
 #undef WSL_MDARRAY_TARGET_COMPOUND
 
         private:
+            // Somme le long d'un axe, plus de 128 termes : découpage du cache le long de
+            // l'axe sommé. Pour un paquet de colonnes et un bloc de Rows positions
+            // extérieures, chaque tranche de la somme par paires (au plus 128 termes : la
+            // tranche de B tient dans le cache L1) est calculée pour tout le bloc, puis les
+            // résultats partiels de chaque élément sont combinés selon l'arbre de la somme
+            // par paires : mêmes bits que la somme d'un trait.
+            template <std::size_t W, class Value, class Target, class Wheels>
+            static void tiled(Value const& value, Target const& target, Wheels& wheels, std::size_t n, std::size_t inner_length,
+                              std::size_t full)
+            {
+                constexpr std::size_t K = lhs_axes::size, Rows = 64;
+                using pack = decltype(value.template lanes_partial<K - 1, W>(wheels.local, 0, 0));
+                std::size_t const length = value.sum_length();
+                std::vector<std::size_t> bounds;
+                pairwise_leaves(0, length, [&](std::size_t b, std::size_t) { bounds.push_back(b); });
+                bounds.push_back(length);
+                std::size_t const chunks = bounds.size() - 1;
+                std::size_t const outer_count = n / inner_length;
+                std::vector<pack> partial(Rows * chunks);
+                std::array<positions<K>, Rows> where{};
+
+                // Recopie : une feuille du corps qui ne dépend que des axes sommés (positions
+                // K à K + Ks − 1, tous) et de l'axe intérieur (K − 1), B[j, k], a les mêmes
+                // valeurs pour tout le bloc ; ses valeurs d'une tranche et d'un paquet de
+                // colonnes sont recopiées dans un tampon contigu (les lignes de B espacées
+                // d'une puissance de 2 tomberaient dans le même ensemble du cache), et la
+                // copie du plan lit ce tampon : mêmes valeurs, mêmes opérations, mêmes bits.
+                // L'indice du tampon, (t − b) × largeur + voie, t = Σ posᵣ Mᵣ l'indice aplati
+                // des termes, est linéaire : il suffit de changer décalage et pas. Une
+                // dimension contiguë a un pas 1 fixé à la compilation : si le tampon en
+                // demande un autre, la feuille reste lue en place.
+                constexpr std::size_t Ks = Value::summed_axes;
+                std::array<std::size_t, Ks> weight{};
+                for (std::size_t r = Ks; r-- > 0;)
+                    weight[r] = r + 1 < Ks ? weight[r + 1] * value.axis_length(r + 1) : 1;
+                Value plan = value;
+                std::vector<std::function<void(std::size_t, std::size_t, std::size_t)>> fills;
+                plan.for_each_access([&](auto& a) {
+                    using A = std::remove_cvref_t<decltype(a)>;
+                    using T = std::remove_cv_t<std::remove_pointer_t<decltype(a.p)>>;
+                    if constexpr (A::positions_size == K + Ks && A::only(K - 1, K, K + Ks) && std::is_trivially_copyable_v<T>)
+                    {
+                        constexpr bool wide = A::uses(K - 1);
+                        constexpr std::size_t width = wide ? W : 1;
+                        for (std::size_t r = 0; r < Ks; ++r)
+                            if (A::unit[A::slot(K + r)] && weight[r] * width != 1)
+                                return;
+                        auto buffer = std::make_shared<std::vector<T>>(128 * width);
+                        A const original = a;
+                        fills.push_back([&a, original, buffer, weight, &value](std::size_t b, std::size_t e, std::size_t r) {
+                            // Constantes redites par des types (GCC refuse ici les constantes
+                            // locales non capturées).
+                            constexpr std::size_t K = lhs_axes::size, Ks = Value::summed_axes;
+                            constexpr bool wide = A::uses(K - 1);
+                            constexpr std::size_t width = wide ? W : 1;
+                            positions<K + Ks> q{};
+                            for (std::size_t t = b; t < e; ++t)
+                            {
+                                if (value.flat)
+                                    q[K + Ks - 1] = static_cast<std::ptrdiff_t>(t);
+                                else
+                                {
+                                    std::size_t rest = t;
+                                    for (std::size_t m = Ks; m-- > 0;)
+                                    {
+                                        q[K + m] = static_cast<std::ptrdiff_t>(rest % value.axis_length(m));
+                                        rest /= value.axis_length(m);
+                                    }
+                                }
+                                for (std::size_t l = 0; l < width; ++l)
+                                {
+                                    q[K - 1] = static_cast<std::ptrdiff_t>(r + l);
+                                    (*buffer)[(t - b) * width + l] = original(q);
+                                }
+                            }
+                            a.p = buffer->data();
+                            a.offset = -static_cast<std::ptrdiff_t>(b * width) - (wide ? static_cast<std::ptrdiff_t>(r) : 0);
+                            for (std::size_t m = 0; m < Ks; ++m)
+                                a.stride[A::slot(K + m)] =
+                                    value.flat ? (m + 1 == Ks ? static_cast<std::ptrdiff_t>(width) : 0)
+                                               : static_cast<std::ptrdiff_t>(weight[m] * width);
+                        });
+                    }
+                });
+
+                for (std::size_t r = 0; r < full; r += W)
+                    for (std::size_t o0 = 0; o0 < outer_count; o0 += Rows)
+                    {
+                        std::size_t const rows = std::min(Rows, outer_count - o0);
+                        for (std::size_t o = 0; o < rows; ++o)
+                        {
+                            wheels.set_local((o0 + o) * inner_length + r);
+                            where[o] = wheels.local;
+                        }
+                        for (std::size_t c = 0; c < chunks; ++c)
+                        {
+                            for (auto const& fill : fills)
+                                fill(bounds[c], bounds[c + 1], r);
+                            for (std::size_t o = 0; o < rows; ++o)
+                                partial[o * chunks + c] = plan.template lanes_partial<K - 1, W>(where[o], bounds[c], bounds[c + 1]);
+                        }
+                        for (std::size_t o = 0; o < rows; ++o)
+                        {
+                            std::size_t next = 0;
+                            auto const sum = pairwise_combine(0, length, partial.data() + o * chunks, next,
+                                                              lane_add<std::remove_cvref_t<decltype(pack{}.v[0])>, W>{});
+                            std::ptrdiff_t const t = target.index(where[o]), step = target.template lane_step<K - 1>();
+                            for (std::size_t l = 0; l < W; ++l)
+                                target.p[t + static_cast<std::ptrdiff_t>(l) * step] = static_cast<typename View::value_type>(sum.v[l]);
+                        }
+                    }
+            }
+
             // La cible relue, aux mêmes positions (affectations composées, V9).
             constexpr leaf reread() const
             {

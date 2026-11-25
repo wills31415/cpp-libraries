@@ -107,6 +107,14 @@ int main()
     double lib = best_ns([&] { C[i, k] = A[i, j] * B[j, k]; }, 2);
     double hand = best_ns([&] { for (std::size_t q = 0; q < n; ++q) for (std::size_t r = 0; r < n; ++r) { double s = 0; for (std::size_t t = 0; t < n; ++t) s += A.data()[q * n + t] * B.data()[t * n + r]; C.data()[q * n + r] = s; } }, 2);
     std::printf("produit 1024³     %8.3f ns/terme    à la main %8.3f  rapport %5.1f\n", lib / (n * n * n), hand / (n * n * n), lib / hand);
+#elif KERNEL == 10 // c[p, k] = g[p, i, j] t[i, j, k], somme le long de deux axes
+    constexpr std::size_t P = 256, I = 32, J = 32, Q = 256;
+    wsl::mdarray<double, wsl::dims<3>> g(P, I, J), t(I, J, Q);
+    M c(P, Q);
+    for (std::size_t a = 0; a < I; ++a) for (std::size_t b = 0; b < J; ++b) { for (std::size_t q = 0; q < P; ++q) g[q, a, b] = 1.0 / (1 + q + a + b); for (std::size_t q = 0; q < Q; ++q) t[a, b, q] = double(a) - double(b) + 0.5 * q; }
+    double lib = best_ns([&] { c[p, k] = g[p, i, j] * t[i, j, k]; }, 3);
+    double hand = best_ns([&] { for (std::size_t q = 0; q < P; ++q) for (std::size_t r = 0; r < Q; ++r) { double s = 0; for (std::size_t a = 0; a < I; ++a) for (std::size_t b = 0; b < J; ++b) s += g.data()[(q * I + a) * J + b] * t.data()[(a * J + b) * Q + r]; c.data()[q * Q + r] = s; } }, 3);
+    std::printf("contraction (i,j) %8.3f ns/terme    à la main %8.3f  rapport %5.1f\n", lib / (P * I * J * Q), hand / (P * I * J * Q), lib / hand);
 #endif
     return 0;
 }

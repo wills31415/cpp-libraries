@@ -355,10 +355,36 @@ réservés aux tenseurs (variances).
   à l'intérieur (le paquet reste en L2 ; chaque élément est indépendant, les bits ne
   changent pas) : 0,37 ns par terme en 1024³ (0,2 fois la boucle à la main), 0,25 en 1000³ ;
   l'écart restant entre 1000 et 1024 vient des conflits de cache des lignes espacées de
-  8 Ko (puissance de 2), la boucle à la main en souffre aussi. Pistes non retenues pour
-  l'instant : découper aussi j (les tranches de 128 termes de la somme par paires tiennent
-  en L1 ; il faudrait garder leurs résultats partiels et les combiner selon l'arbre de la
-  somme par paires, pour les mêmes bits) ; plusieurs lignes à la fois (impossible sans
+  8 Ko (puissance de 2), la boucle à la main en souffre aussi. Découpage le long de l'axe
+  sommé : la somme par paires de plus de 128 termes se décompose en tranches d'au plus 128
+  termes consécutifs (`pairwise_leaves`) combinées selon un arbre fixe (`pairwise_combine`) ;
+  pour un paquet de colonnes et un bloc de 32 positions extérieures, chaque tranche est
+  calculée pour tout le bloc (la tranche de B tient dans le cache L1), puis les résultats
+  partiels de chaque élément sont combinés selon l'arbre : mêmes bits. Produit 1000³ :
+  0,25 → 0,19 ns par terme ; en 1024³, 128 lignes espacées de 8 Ko tombaient dans le même
+  ensemble du cache L1 (8 voies). Recopie (comme les BLAS) : une feuille du corps qui ne
+  dépend que de l'axe sommé et de l'axe intérieur (B[j, k], ou w[j]) a les mêmes valeurs
+  pour tout le bloc de lignes ; pour chaque tranche et chaque paquet de colonnes, ses
+  valeurs sont recopiées dans un tampon contigu, et une copie du plan lit ce tampon (même
+  valeur, mêmes opérations : mêmes bits). Produit : 1024³ 0,37 → 0,18 ns par terme,
+  1000³ 0,19, 2000³ 0,20 (boucle à la main : 2,5, 2,1, 4,9), au niveau du calcul dans le
+  cache (192³ : 0,17).
+  Portée : une somme à la racine du membre de droite, avec voies, de rang quelconque
+  (H[p, i, k] = X[p, i, j] B[j, k]), le long d'un ou de plusieurs axes : une somme sur
+  (i, j) suit l'indice aplati t = i n_j + j, que la somme par paires découpe de même ; une
+  feuille recopiée doit lire tous les axes sommés (l'indice du tampon, (t − début) ×
+  largeur + voie, reste linéaire en i et j : décalage et pas changés), et reste lue en place
+  si une dimension contiguë (pas 1 fixé à la compilation) s'y oppose. Positions des axes
+  sommés : compteur à roues (la somme par paires visite les termes d'une tranche dans
+  l'ordre ; une division seulement aux sauts). Somme aplatie : quand chaque accès qui lit
+  un axe sommé les lit tous avec des pas cohérents (pas_i = n_j × pas_j : g[p, i, j],
+  t[i, j, k] en ligne majeure) et que le corps ne lit ni valeur d'axe ni δ, les pas des
+  premiers axes sont mis à 0 et l'indice aplati porté par le dernier (`flatten`, à la
+  construction du plan, pour toute somme) : une seule contribution par feuille et par terme.
+  Contraction c[p, k] = g[p, i, j] t[i, j, k] (256 × 32 × 32 × 256, noyau 10) : 0,91 → 0,28 ns
+  par terme (0,2 fois la boucle à la main). Choix
+  d'implémentation : blocs de 64 positions, tampons (résultats partiels, recopies) alloués
+  par instruction ; recopie des seuls éléments trivialement copiables. Autre piste non retenue : plusieurs lignes à la fois (impossible sans
   déborder les 16 registres : l'ordre fixé I9 demande 8 accumulateurs par élément). Ordre
   de grandeur : une bibliothèque BLAS optimisée approche 0,03 ns par terme sur ce processeur
   (sans ordre de somme fixé).

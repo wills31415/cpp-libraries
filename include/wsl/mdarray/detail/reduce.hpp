@@ -71,4 +71,34 @@ namespace wsl::detail::mdarray
         half -= half % 8;
         return op(pairwise(x, begin, begin + half, identity, op), pairwise(x, begin + half, end, identity, op));
     }
+
+    // Tranches de la somme par paires : pairwise(x, begin, end) somme d'un bloc chaque
+    // tranche [b, e) de pairwise_leaves (au plus 128 termes, dans l'ordre), puis combine
+    // leurs résultats selon l'arbre de pairwise_combine. Calculer les tranches séparément
+    // (découpage du cache) puis les combiner ainsi donne les mêmes bits.
+    template <class F>
+    constexpr void pairwise_leaves(std::size_t begin, std::size_t end, F&& f)
+    {
+        if (end - begin <= 128)
+        {
+            f(begin, end);
+            return;
+        }
+        std::size_t half = (end - begin) / 2;
+        half -= half % 8;
+        pairwise_leaves(begin, begin + half, f);
+        pairwise_leaves(begin + half, end, f);
+    }
+
+    template <class T, class Op>
+    constexpr T pairwise_combine(std::size_t begin, std::size_t end, T const* leaves, std::size_t& next, Op op)
+    {
+        if (end - begin <= 128)
+            return leaves[next++];
+        std::size_t half = (end - begin) / 2;
+        half -= half % 8;
+        T const left = pairwise_combine(begin, begin + half, leaves, next, op);
+        T const right = pairwise_combine(begin + half, end, leaves, next, op);
+        return op(left, right);
+    }
 }
