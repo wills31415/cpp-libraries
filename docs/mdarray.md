@@ -182,6 +182,20 @@ réservés aux tenseurs (variances).
   (`__cpp_lib_mdspan`). Raisons : `std::mdspan` manque à GCC 14 et à Clang 18 avec
   libstdc++ ; surtout, `m[i, j]` avec des axes exige notre propre vue (on n'ajoute pas de
   surcharge à un type de la norme) ; pas de dépendance externe (Kokkos).
+- **Implémentation (étape 2, 2026-11-25)** : `include/wsl/mdarray/extents.hpp`,
+  `layout.hpp`, `mdspan.hpp` ; test `tests/test_mdarray_mdspan.cpp`, qui compare à
+  `std::mdspan` (libc++) les traits de constructibilité et de conversion, et les places en
+  mémoire, tailles, pas et exhaustivité des trois dispositions. Choix publics, à revoir :
+  `wsl::dynamic_extent` est `std::dynamic_extent` ; conversions implicites dans les deux
+  sens avec `std::mdspan` (même disposition, ou vers `std::layout_stride`), accesseur par
+  défaut seulement ; `at` et `contains` acceptent entiers, `std::array`, `std::span` et
+  `mdposition` ; `contains` est aussi membre de `mdspan`.
+- **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
+  suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
+  soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
+  formulation par permutation ([mdspan.layout.stride.obs] 6.2) répond faux pour une
+  longueur 1 de pas quelconque, où rien ne manque. libc++ fait de même pour un ensemble non
+  vide ; pour un ensemble vide, nous rendons vrai (6.1), libc++ une heuristique.
 - **Ensembles d'indices** (✅ I2, 2026-11-25) : `wsl::extents`, `wsl::dextents` de la norme ;
   un `extents` est l'ensemble d'indices E (ajouts : `contains`, parcours, `wrap`, `clamp`) ;
   pas de conversion vers `mdposition` (une forme est une taille, pas une position) ;

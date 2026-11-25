@@ -24,6 +24,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `std::hash`, `std::formatter` (« (2, 1) ») et `operator<<`. Arithmétique entière :
   `div_euclid`, `rem_euclid`. Préconditions vérifiées en débogage (`WSL_ASSERTIONS`) et
   toujours en évaluation constante.
+- Étendues, dispositions et vue, aux noms et à la sémantique de `<mdspan>` (C++23),
+  disponibles sans `std::mdspan` (GCC 14, Clang 18 avec libstdc++) : `extents`, `dextents`,
+  `dims` (C++26), `layout_right`, `layout_left`, `layout_stride`, `default_accessor`,
+  `mdspan` et ses guides de déduction ; conversions dans les deux sens avec `std::mdspan`
+  là où il existe. Ajouts : `m[p]` pour une `mdposition`, `m.at(…)` (`std::out_of_range`),
+  `contains` (y compris `contains(p, d)`), `wrap` (bord périodique) et `clamp` (bord
+  recopié). `layout_stride::is_exhaustive()` suit la définition de l'exhaustivité (écart
+  documenté avec la formulation par permutation).
 
 ### elo
 

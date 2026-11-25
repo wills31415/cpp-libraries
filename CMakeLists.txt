@@ -187,6 +187,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(progress)
     wsl_add_test(permutation)
     wsl_add_test(mdarray_position LIBRARY mdarray)
+    wsl_add_test(mdarray_mdspan LIBRARY mdarray)
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.
