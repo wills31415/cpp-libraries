@@ -43,12 +43,12 @@ Hors du périmètre :
 | ✅ V1 | **Modèle affine**, celui de `std::chrono` : `mdsize<N>` est une **position** dans un tableau (un point, comme `time_point`), `mddiff<N>` un **déplacement** (un vecteur de ℤᴺ, comme `duration`). Position − position = déplacement ; position ± déplacement = position. On n'ajoute, ne multiplie ni ne divise des positions, comme on ne le fait pas de dates. `mdsize` ne sert **qu'aux positions** : les multi-indices de l'analyse sont un autre type (`wsl::mdindex`, plus tard). |
 | ✅ V2 | **Un axe désigne toutes les positions d'une dimension** (et non une variable qui les parcourt). Dans des crochets, il étiquette une dimension ; comme valeur, il vaut ses positions (`1.0 / (i + j + 1)`, L12). Aucune arithmétique ne produit un axe : `u[i + 1]` est refusé (`i + 1` est une valeur) ; décalages et découpages se font sur les tableaux (vues, §6). Précisé le 2026-11-25. |
 | ✅ V3 | **Sommes : le membre de gauche décide** (convention du mode explicite de `numpy.einsum`, choisie le 2026-11-25 après comparaison avec Einstein, voir §5bis). Un axe présent à gauche n'est jamais sommé : c'est un axe de la boucle, élément par élément à travers toutes les opérations, quel que soit le nombre de ses occurrences. Un axe absent à gauche est sommé sur la plus petite sous-expression qui contient toutes ses occurrences. Un scalaire a un membre de gauche sans axe (`double s = …`, `if (…)`, `f(…)`). Raison décisive : les calculs par point d'un champ (`n2[p] = g[p, i, j] * v[p, i] * v[p, j]`), impossibles avec Einstein. |
-| ✅ V4 | **Diffusion** : un axe de gauche absent à droite se diffuse (`y[i] = 1`, `c[i, j] = a[i]`, `m[i, 0] = 0`, `c[i, j] = a[i] + b[j]` ; un tableau n'a pas de base) ; un axe répété à gauche désigne la diagonale (`A[i, i] = 1`). Refusée dans la future bibliothèque des tenseurs, qui aura sa propre règle (variances). Garde-fous : (1) un axe absent à gauche apparaît au moins deux fois à droite (chaque position d'un crochet compte, `position` et `kronecker` aussi), sinon `sum(j, …)` : rattrape l'oubli d'axe (`c[i] = a[i, j]`) et l'ambiguïté de `exp(a[i, j])` ; (2) un axe sommé n'a pas à la fois au moins deux occurrences dans un argument de fonction et d'autres ailleurs (`sqrt(x[j] * x[j]) + y[j] * y[j]` refusé ; `exp(a[i, j]) * b[j]` et `huber(p[i], t[i])` acceptés : Σ) ; (3) un axe lié par `sum(j, …)` n'apparaît ni à gauche ni hors de cette somme. |
-| ✅ V5 | **Nommage par préfixe**, comme la norme : `wsl::mdsize`, `wsl::mddiff`, `wsl::mdaxis`, `wsl::mdspan`, `wsl::mdarray` ; sans préfixe ce que la norme ne préfixe pas (`wsl::extents`, `wsl::layout_right`…). **Types préfixés, fonctions surchargées** : `wsl::sum`, `wsl::kronecker`, `wsl::position`… Le nom `mdindex` est réservé aux multi-indices de l'analyse. **Espaces de noms** (2026-11-25) : tout dans `wsl` ; toute fonction publique est contrainte à nos types (pas de modèle non contraint dans `wsl`), et se trouve par ADL (`wrap(p, d, E)`, `sum(j, …)`) ; les fonctions sur des entiers ordinaires (`div_euclid`, `rem_euclid`) sont de l'arithmétique générale, dans `wsl` ; internes dans `wsl::detail::mdarray` ; axes prédéfinis dans `wsl::axes`. |
+| ✅ V4 | **Diffusion** : un axe de gauche absent à droite se diffuse (`y[i] = 1`, `c[i, j] = a[i]`, `m[i, 0] = 0`, `c[i, j] = a[i] + b[j]` ; un tableau n'a pas de base) ; un axe répété à gauche désigne la diagonale (`A[i, i] = 1`). Refusée dans la future bibliothèque des tenseurs, qui aura sa propre règle (variances). Garde-fous : (1) un axe absent à gauche apparaît au moins deux fois à droite (chaque position d'un crochet compte, `position` et `kronecker` aussi), sinon `sum(j)(…)` : rattrape l'oubli d'axe (`c[i] = a[i, j]`) et l'ambiguïté de `exp(a[i, j])` ; (2) un axe sommé n'a pas à la fois au moins deux occurrences dans un argument de fonction et d'autres ailleurs (`sqrt(x[j] * x[j]) + y[j] * y[j]` refusé ; `exp(a[i, j]) * b[j]` et `huber(p[i], t[i])` acceptés : Σ) ; (3) un axe lié par `sum(j)(…)` n'apparaît ni à gauche ni hors de cette somme. |
+| ✅ V5 | **Nommage par préfixe**, comme la norme : `wsl::mdsize`, `wsl::mddiff`, `wsl::mdaxis`, `wsl::mdspan`, `wsl::mdarray` ; sans préfixe ce que la norme ne préfixe pas (`wsl::extents`, `wsl::layout_right`…). **Types préfixés, fonctions surchargées** : `wsl::sum`, `wsl::kronecker`, `wsl::position`… Le nom `mdindex` est réservé aux multi-indices de l'analyse. **Espaces de noms** (2026-11-25) : tout dans `wsl` ; toute fonction publique est contrainte à nos types (pas de modèle non contraint dans `wsl`), et se trouve par ADL (`wrap(p, d, E)`, `sum(j)(…)`) ; les fonctions sur des entiers ordinaires (`div_euclid`, `rem_euclid`) sont de l'arithmétique générale, dans `wsl` ; internes dans `wsl::detail::mdarray` ; axes prédéfinis dans `wsl::axes`. |
 | ✅ V6 | **Indépendance de `wsl::algebraic`** : mdarray ne dépend d'aucune bibliothèque mathématique ; ses exigences sur les éléments sont syntaxiques, comme dans la norme (`+`, `*`…). La déclaration des structures (`mddiff` est un ℤ-module, `mdsize` un espace affine) viendra plus tard dans un en-tête de liaison, cible qui dépend des deux ; ni l'une ni l'autre ne dépend de l'autre. |
 | ✅ V7 | **`array2d` devient un alias** de tableau de rang 2. |
 | ✅ V8 | **Deux mondes**. Tableaux entiers : `a + b`, `a * b`, `exp(a)`, `hypot(x, y)`, `2 * a + 1` terme à terme, opérandes de même forme (erreur de compilation entre étendues fixes, précondition sinon), scalaires diffusés, aucune autre diffusion ; paresseux et temporaires seulement (L2) ; indexables (`hypot(x, y)[i]` est un facteur ordinaire) et constructibles (`mdarray c = a * b + 1;`). Axes : V3, V4. |
-| ✅ V9 | **Affectations** : `=` parcourt les axes de gauche ; `*=`, `/=`, `+=`, `−=` sont de vrais raccourcis de la forme développée (`y[i, j] *= w[i]` vaut `y[i, j] = y[i, j] * w[i]` : i est à gauche, jamais sommé). **Scalaires** : une expression dont les sommes implicites dépendent du membre de gauche se range dans un type explicite (`double s = x[i] * x[i];`) ou passe par `wsl::value(…)` ; raison : l'expression est construite avant que C++ ne voie la cible, et seule la conversion en nombre dit « membre de gauche sans axe » (`auto` garderait l'expression, refusée par L2). Les réductions explicites entièrement liées (`sum(i, …)`, `count(i, …)`, `all(i, …)`, `any(i, …)`) et les réductions de tableaux entiers sont calculées immédiatement (`auto` permis), sans détection de la réutilisation de leur axe dans l'instruction (`y[i] = count(i, …) * x[i]` passe : déconseillé, documenté). Précisé le 2026-11-25. |
+| ✅ V9 | **Affectations** : `=` parcourt les axes de gauche ; `*=`, `/=`, `+=`, `−=` sont de vrais raccourcis de la forme développée (`y[i, j] *= w[i]` vaut `y[i, j] = y[i, j] * w[i]` : i est à gauche, jamais sommé). **Scalaires** : une expression dont les sommes implicites dépendent du membre de gauche se range dans un type explicite (`double s = x[i] * x[i];`) ou passe par `wsl::value(…)` ; raison : l'expression est construite avant que C++ ne voie la cible, et seule la conversion en nombre dit « membre de gauche sans axe » (`auto` garderait l'expression, refusée par L2). Les réductions explicites entièrement liées (`sum(i)(…)`, `count(i)(…)`, `all(i)(…)`, `any(i)(…)`) et les réductions de tableaux entiers sont calculées immédiatement (`auto` permis), sans détection de la réutilisation de leur axe dans l'instruction (`y[i] = count(i)(…) * x[i]` passe : déconseillé, documenté). Précisé le 2026-11-25. |
 
 ## 3. Principes
 
@@ -133,7 +133,7 @@ ensemble d'indices E de forme (4, 5).
 | L5 | longueur d'un axe | ✅ celle de chaque dimension qu'il étiquette dans l'instruction, membre de gauche compris ; toutes coïncident (axes sommés compris : `a[i, j] * b[j, k]` exige `a.extent(1) == b.extent(0)`) : erreur de compilation entre étendues fixes, précondition (vérifiée une fois par instruction) sinon ; une étendue fixe donne la longueur à une dynamique. Un axe qui n'étiquette aucune dimension d'un tableau est refusé (`double s = i * i;` : longueur inconnue) |
 | L6 | `u[i + 1]`, `u[2 * i]`, `b[k - j]`… | ✗ ✅ aucune arithmétique sur un axe (V2) |
 | L7 | axe absent à gauche | ✅ sommé sur la plus petite sous-expression qui contient ses occurrences (V3) |
-| L8 | `wsl::sum(j, a[i, j])` | ✅ somme explicite, nécessaire quand l'axe n'apparaît qu'une fois (`r[i] = sum(j, a[i, j])`, `exp(x[i]) / sum(j, exp(x[j]))`) ; même forme pour les autres réductions (noms : I6) |
+| L8 | `wsl::sum(j)(a[i, j])` | ✅ somme explicite, nécessaire quand l'axe n'apparaît qu'une fois (`r[i] = sum(j)(a[i, j])`, `exp(x[i]) / sum(j)(exp(x[j]))`) ; forme des réductions le long d'axes (I6) |
 | L9 | diagonale, produit de Hadamard | ✅ `d[i] = A[i, i]`, `A[i, i] = 1` (V3, V4) ; Hadamard : `a * b` (V8) |
 | L10 | `c[i, j] = a[i] + b[j]` | ✅ diffusion (V4) |
 | L11 | axe multiple (`r[I] = a[I, j]`) | ✅ reporté jusqu'à un besoin réel (précédent : l'ellipse `...` d'`einsum`) ; le calcul élément par élément de tout rang est couvert par V8 ; ajout possible sans rupture |
@@ -150,7 +150,7 @@ ensemble d'indices E de forme (4, 5).
 | diagonale, lignes multipliées, normes de lignes | `d[i] = A[i, i];` `y[i, j] = d[i] * A[i, j];` `n[i] = sqrt(A[i, j] * A[i, j]);` |
 | champ, en chaque point p | `n2[p] = g[p, i, j] * v[p, i] * v[p, j];` `a[p, i] = u[p, j] * du[p, i, j];` |
 | matrice de masse, Hooke | `M[i, j] = w[q] * phi[i, q] * phi[j, q];` `s[i, j] = lambda * e[k, k] * kronecker(i, j) + 2 * mu * e[i, j];` |
-| softmax, distances, perte | `y[i] = exp(x[i]) / sum(j, exp(x[j]));` `D[i, j] = hypot(x[i] - x[j], y[i] - y[j]);` `double L = huber(p[i], t[i]);` |
+| softmax, distances, perte | `y[i] = exp(x[i]) / sum(j)(exp(x[j]));` `D[i, j] = hypot(x[i] - x[j], y[i] - y[j]);` `double L = huber(p[i], t[i]);` |
 | élément par élément | `y = x * x;` `r = hypot(x, y);` `y = x / sqrt(x * x);` |
 
 Conventions écartées (2026-11-24 et 25) : Einstein (un axe répété est sommé ; étendue aux
@@ -216,9 +216,37 @@ réservés aux tenseurs (variances).
   C ; une somme de booléens est refusée (message vers `any`, `all`, `count`), y compris
   `if (a[i] < b[i])` et `double s = a[i] < b[i];` ; une comparaison dans un produit numérique
   est un crochet d'Iverson (`(a[i] < b[i]) * x[i]`) ; réductions `all`, `any`, `count` sur
-  les masques entiers et par les axes (`count(i, …)`) ; `count` rend
+  les masques entiers et par les axes (`count(i)(…)`) ; `count` rend
   `make_signed_t<index_type>` (comme `std::ranges::count`) ; `&&`, `||`, `!` élément par
   élément sans court-circuit (comme `std::valarray`) ; `where(c, x, y)`.
+- **Fonctions** (✅ I11, 2026-11-25) : surcharges des fonctions élément par élément de
+  `<cmath>` pour nos types, dans `wsl`, contraintes, dans les deux mondes (`sqrt(a)`,
+  `sqrt(a[i])`, trouvées par ADL ; `std::sqrt(x)` ne les connaît pas) ; versions de
+  `wsl::special` en mode reproductible. Fonctions de l'utilisateur : `wsl::vectorize(f)` rend
+  une fonction élevée, appelée élément par élément sur des nombres (corps quelconque), sur
+  tableaux entiers, expressions d'axes et scalaires diffusés (`F(x, z)`, `D[i, j] = F(x[i],
+  x[j])`, `F(1.0, 2.0)`), selon la convention C ; type du résultat : celui de f ; en mode
+  reproductible, la garantie s'arrête au corps de f. Pas de `wsl::transform` (deux écritures
+  d'un même calcul, ordre des arguments contraire à `std::views::transform`) : ajout possible
+  plus tard.
+- **Aliasing** (✅ I12, 2026-11-25) : cas sûr reconnu à la compilation (tableau de gauche relu
+  seulement aux mêmes positions, hors somme : `x[i] = x[i] + 1`, `*=`) : calcul sur place ;
+  sinon, une comparaison des plages mémoire par instruction, et, en cas de recouvrement
+  (`y[i] = A[i, j] * y[j]`, `m[i, j] = m[j, i]`, vues qui se recouvrent), calcul dans un
+  tableau temporaire puis copie. Toujours juste ; pas d'échappatoire (`noalias` d'Eigen) pour
+  l'instant.
+- **Réductions** (✅ I6, 2026-11-25) : `sum`, `prod`, `min`, `max`, `argmin`, `argmax`,
+  `all`, `any`, `count`, en trois formes : tableau entier (`max(a)`) ; le long d'axes, par un
+  réducteur (`sum(j)(expr)`, `sum(i, j)(expr)` ; `min`, `max`, `argmin`, `argmax` sur plusieurs
+  axes par imbrication : `max(i)(max(j)(…))`) ; élément par élément pour `min` et `max`
+  (`max(x, 0)`, `max(i, j)`). `max(i, j)(…)` et tout appel sur une expression sont refusés
+  avec un message (aucune expression n'a d'`operator()` ; vérifié sur Apple Clang, GCC 14,
+  Clang 18). Toutes les formes se trouvent sans préfixe (ADL : `sum(j)` prend un axe).
+  Vide : 0, 1, précondition, vrai, faux, 0. `argmax(a)` rend un `mdsize`, première position
+  en cas d'égalité (`argmax(k)(s[b, k])` : des indices). `min`/`max` propagent `NaN` ;
+  `fmin`/`fmax` l'ignorent. `prod` laisse `product` aux bibliothèques mathématiques ;
+  `mean` : plus tard. Écartés : `sum[j](…)` (objets, sans ADL), `j.sum(…)` (plusieurs axes
+  maladroits), `sum_over(j, …)` (noms doublés), `max(j, expr)` (`max(i, j)` trompeur).
 - **Vues de découpage et de décalage**, noms provisoires : `u.slice(a, b)` (positions
   [a, b), comme `submdspan` de C++26), `roll(u, k)` (décalage circulaire, `numpy.roll`),
   `shift(u, k, wsl::clamp)` ou `shift(u, k, wsl::fill(0))` ; décalages de rang N par
@@ -232,7 +260,4 @@ réservés aux tenseurs (variances).
 | # | Sujet |
 |---|---|
 | I3 | Parcours d'un ensemble d'indices (ordre lexicographique, ordre de stockage) |
-| I6 | Noms des réductions (produit, minimum, maximum, tous, au moins un ; conflits avec `std::max`) ; `filled`, comparaison composante par composante, division euclidienne et normes sont réglés (D12, D15, D18, D26) |
 | I8 | Exécution parallèle et GPU (appel depuis le code des noyaux, absence d'exceptions, moteur d'exécution : dépendance externe à décider) ; d'ici là, types `constexpr`, trivialement copiables, sans exception hors `at()` |
-| I11 | Fonctions de l'utilisateur sur des expressions et des tableaux entiers (`wsl::map(f, x, y)`) ; surcharges de `<cmath>` pour les expressions |
-| I12 | Aliasing : `y[i] = A[i, j] * y[j]`, `m[i, j] = m[j, i]` sur place |
