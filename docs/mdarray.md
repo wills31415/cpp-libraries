@@ -253,16 +253,19 @@ réservés aux tenseurs (variances).
 - **Performance (2026-11-25)** : `tools/mdarray/benchmark.sh` (un programme par noyau),
   rapport au temps d'une boucle écrite à la main, Apple Clang -O3 -march=native :
 
-  | Noyau | Avant | Après |
-  |---|---|---|
-  | A∘B + 1 (tableaux entiers) | 1,0 | 1,0 |
-  | somme d'un tableau | 3,5 | 0,4 (somme par paires vectorisée) |
-  | produit scalaire (axes) | 2,5 | 1,0 |
-  | matrice × vecteur (axes) | 2,8 | 1,0 |
-  | axpy (axes) | 4,6 | 1,4 |
-  | axpy (tableaux entiers) | 1,4 | 1,6 |
-  | produit matriciel (axes) | 3,2 | 1,9 |
-  | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 |
+  | Noyau | Avant | 1ʳᵉ passe | Pas fixe |
+  |---|---|---|---|
+  | A∘B + 1 (tableaux entiers) | 1,0 | 1,0 | 1,0 |
+  | somme d'un tableau | 3,5 | 0,4 (somme par paires vectorisée) | 0,3 |
+  | produit scalaire (axes) | 2,5 | 1,0 | 0,4 |
+  | matrice × vecteur (axes) | 2,8 | 1,0 | 0,4 |
+  | axpy (axes) | 4,6 | 1,4 | 1,3 |
+  | axpy (tableaux entiers) | 1,4 | 1,6 | 1,5 |
+  | produit matriciel (axes) | 3,2 | 1,9 | 0,8 |
+  | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 | 1,0 (composantes de longueur 3 statique) |
+
+  Les boucles à la main somment dans l'ordre (une addition attend la précédente) ; nos 8
+  accumulateurs (I9) n'attendent pas, d'où des rapports sous 1.
 
   Moyens : accès direct au stockage (k-ième valeur lexicographique = k-ième du stockage, en
   ligne majeure) ; compteur à roues pour les positions des axes (incrément, division
@@ -272,14 +275,30 @@ réservés aux tenseurs (variances).
   sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
-  un tampon local n'y change rien (essayé, retiré). À reprendre : axpy sur tableaux entiers
-  (faire voir l'égalité des pointeurs) ; monde des axes (produit matriciel 1,9, champ 2,3) :
-  à chaque terme d'une somme, la position de l'axe est écrite dans l'environnement puis
-  relue par chaque feuille, ce qui empêche la vectorisation ; piste retenue : compiler une
-  somme le long d'un axe en accès à pas fixe (pour chaque feuille, un pointeur et un pas le
-  long de l'axe, calculés une fois ; puis op(pA[k·sA], pB[k·sB]) sans environnement) ; produit
-  matriciel (boucles emboîtées générées, blocs), petites sommes (le schéma à 8 accumulateurs
-  coûte sur 9 termes), barrières vectorielles du mode reproductible.
+  un tampon local n'y change rien (essayé, retiré). Reste : axpy sur tableaux entiers
+  (faire voir l'égalité des pointeurs) ; produit matriciel en blocs ; barrières vectorielles
+  du mode reproductible.
+- **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
+  de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
+  la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
+  (layout_right, layout_left, layout_stride ; accesseur par défaut), des scalaires, des axes
+  et des δ est désormais compilée en un plan, construit une fois par instruction : chaque
+  feuille garde son pointeur, son décalage et ses pas le long des axes de l'instruction, et
+  lit p[o + Σ posᵣ · pasᵣ]. Une somme imbriquée (foyer intérieur, V3) décale à son entrée
+  les feuilles de son corps de la contribution des axes extérieurs, puis le parcourt. Hors
+  de ces cas (expression indicée `(a + b)[i]`, réduction explicite dans le membre de droite,
+  accesseur particulier), l'évaluation générale reste, et le plan s'applique encore aux
+  sommes qu'elle contient quand leur sous-arbre s'y prête. Mêmes éléments, mêmes
+  opérations, même ordre : mêmes bits (empreinte du mode reproductible inchangée ; les
+  tests comparent les deux voies bit à bit). Choix d'implémentation : le pas de la dimension
+  contiguë (dernière en layout_right, première en layout_left, si l'axe n'y paraît qu'une
+  fois) est connu égal à 1 à la compilation, et les longueurs statiques des feuilles fixent
+  celles des sommes, pour que le compilateur vectorise et déroule (le champ à composantes
+  de longueur 3 dynamique reste à 2,0) ; les positions d'une somme sont neuves à chaque
+  terme (un tableau partagé s'échappe dans la moitié récursive de la somme par paires, et le
+  compilateur ne voit plus ses zéros) ; la somme par paires (`detail/reduce.hpp`) est
+  intégrée de force (`[[gnu::always_inline]]`), sa moitié récursive tenue hors ligne
+  (`[[gnu::noinline]]`) pour que le compilateur ne la refonde pas en une fonction récursive.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

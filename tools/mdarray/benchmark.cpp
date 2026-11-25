@@ -9,7 +9,9 @@
 
 using V = wsl::mdarray<double, wsl::dims<1>>;
 using M = wsl::mdarray<double, wsl::dims<2>>;
-using T3 = wsl::mdarray<double, wsl::dims<3>>;
+// Champ : composantes de longueur 3 connues à la compilation, comme dans la boucle à la main.
+using F2 = wsl::mdarray<double, wsl::extents<std::size_t, wsl::dynamic_extent, 3>>;
+using F3 = wsl::mdarray<double, wsl::extents<std::size_t, wsl::dynamic_extent, 3, 3>>;
 
 template <class F>
 double best_ns(F f, int repeat)
@@ -78,8 +80,8 @@ int main()
     std::printf("produit matriciel %8.3f ns/terme    à la main %8.3f  rapport %5.1f\n", lib / (n * n * n), hand / (n * n * n), lib / hand);
 #elif KERNEL == 7 // n2[p] = g[p, i, j] v[p, i] v[p, j]
     constexpr std::size_t P = 1 << 16;
-    T3 g(P, 3, 3);
-    M v(P, 3);
+    F3 g(P);
+    F2 v(P);
     V n2(P);
     for (std::size_t q = 0; q < P; ++q) for (std::size_t r = 0; r < 3; ++r) { v[q, r] = 1.0 / (q + r + 1); for (std::size_t t = 0; t < 3; ++t) g[q, r, t] = r == t ? 1.0 : 0.1; }
     double lib = best_ns([&] { n2[p] = g[p, i, j] * v[p, i] * v[p, j]; }, 10);

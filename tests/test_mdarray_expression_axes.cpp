@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <type_traits>
+#include <vector>
 
 namespace
 {
@@ -259,6 +260,113 @@ namespace
         assert((close(mass[0, 0], 0.5 + 0.25) && close(mass[0, 1], 0.25)));
     }
 
+    // Accès à pas fixe : mêmes bits que l'évaluation générale, qu'on force en lisant
+    // (A * 1.0)[i, j] (une expression, hors du chemin à pas fixe ; × 1 est exact). Mode
+    // reproductible : sans fma, les deux formes font exactement les mêmes opérations.
+    template <class X, class Y>
+    bool same_bits(X const& x, Y const& y)
+    {
+        for (std::size_t q = 0; q < x.size(); ++q)
+            if (x.data()[q] != y.data()[q])
+                return false;
+        return true;
+    }
+
+    void strided_access()
+    {
+        auto [i, j, k, p] = wsl::axis<4>();
+        constexpr std::size_t n = 203; // au-delà de 128 termes : somme partagée en deux moitiés
+        M A(n, n), B(n, 5);
+        fill2(A, [](double r, double c) { return 1 / (1 + r + 2 * c); });
+        fill2(B, [](double r, double c) { return std::sqrt(1 + r * c); });
+        V x(n), y1(n), y2(n);
+        for (std::size_t q = 0; q < n; ++q)
+            x[q] = 1 / (3.0 + q);
+
+        // Produit matrice × vecteur, produit matriciel.
+        y1[i] = wsl::reproducible(A[i, j] * x[j]);
+        y2[i] = wsl::reproducible((A * 1.0)[i, j] * x[j]);
+        assert(same_bits(y1, y2));
+        M C1(n, 5), C2(n, 5);
+        C1[i, k] = wsl::reproducible(A[i, j] * B[j, k]);
+        C2[i, k] = wsl::reproducible(A[i, j] * (B * 1.0)[j, k]);
+        assert(same_bits(C1, C2));
+
+        // Dispositions layout_left et layout_stride (une colonne sur deux).
+        std::vector<double> buffer(2 * n * 5);
+        for (std::size_t q = 0; q < buffer.size(); ++q)
+            buffer[q] = 1 / (1.0 + q);
+        wsl::mdspan<double, D2, wsl::layout_left> L(buffer.data(), n, 5);
+        wsl::mdspan<double, D2, wsl::layout_stride> S(buffer.data(), wsl::layout_stride::mapping<D2>(D2(n, 5), std::array{2, 2 * int(n)}));
+        V u(5), v1(5), v2(5);
+        u[i] = wsl::reproducible(L[j, i] * x[j]);
+        v1[i] = wsl::reproducible(S[j, i] * x[j]);
+        for (std::size_t c = 0; c < 5; ++c)
+        {
+            double sl = 0, ss = 0;
+            for (std::size_t r = 0; r < n; ++r)
+            {
+                sl += buffer[r + n * c] * x[r];
+                ss += buffer[2 * r + 2 * n * c] * x[r];
+            }
+            assert((close(u[c], sl) && close(v1[c], ss)));
+        }
+        v2[i] = wsl::reproducible((S * 1.0)[j, i] * x[j]);
+        assert(same_bits(v1, v2));
+
+        // Position fixe, diagonale, deux axes sommés, valeurs d'axes, δ.
+        double const row = wsl::reproducible(A[2, j] * x[j]);
+        assert(row == wsl::reproducible((A * 1.0)[2, j] * x[j]));
+        V d(n);
+        d[i] = A[i, i];
+        assert((d[7] == A[7, 7]));
+        double const frobenius = wsl::reproducible(C1[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
+        double const reference = wsl::reproducible((C1 * 1.0)[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
+        assert(frobenius == reference);
+        double const moment = x[i] * i;
+        double hand = 0;
+        for (std::size_t q = 0; q < n; ++q)
+            hand += x[q] * double(q);
+        assert(close(moment, hand));
+        y1[i] = wsl::kronecker(i, j) * x[j];
+        assert(same_bits(y1, x));
+
+        // Sommes imbriquées : n2[p] = g[p, i, j] v[p, i] v[p, j], longueurs statiques et dynamiques.
+        constexpr std::size_t P = 11;
+        wsl::mdarray<double, wsl::extents<std::size_t, wsl::dynamic_extent, 3, 3>> g(P);
+        wsl::mdarray<double, wsl::extents<std::size_t, wsl::dynamic_extent, 3>> w(P);
+        T3 gd(P, 3, 3);
+        M wd(P, 3);
+        for (std::size_t q = 0; q < P; ++q)
+            for (std::size_t r = 0; r < 3; ++r)
+            {
+                w[q, r] = wd[q, r] = 1 / (1.0 + q + r);
+                for (std::size_t t = 0; t < 3; ++t)
+                    g[q, r, t] = gd[q, r, t] = r == t ? 1 + 0.1 * q : 0.1 * (r + t);
+            }
+        V n1(P), n2(P), n3(P);
+        n1[p] = wsl::reproducible(g[p, i, j] * w[p, i] * w[p, j]);
+        n2[p] = wsl::reproducible(gd[p, i, j] * wd[p, i] * wd[p, j]);
+        n3[p] = wsl::reproducible((gd * 1.0)[p, i, j] * wd[p, i] * wd[p, j]);
+        assert((same_bits(n1, n2) && same_bits(n2, n3)));
+
+        // Réductions explicites, cible relue, longueur nulle.
+        V m1(n), s1(n), s2(n);
+        m1[i] = wsl::max(j)(A[i, j]);
+        assert((m1[4] == A[4, 0]));
+        s1[i] = wsl::reproducible(wsl::sum(j)(A[i, j] * x[j]));
+        s2[i] = wsl::reproducible(A[i, j] * x[j]);
+        assert(same_bits(s1, s2));
+        y1[i] = 2 * x[i] + y1[i];
+        assert((y1[5] == 3 * x[5]));
+        V z(0);
+        M A0(3, 0);
+        V y3(D1(3), 1.0);
+        double const empty = z[i] * z[i];
+        y3[i] = A0[i, j] * z[j];
+        assert((empty == 0 && y3[0] == 0 && y3[2] == 0));
+    }
+
     void aliasing()
     {
         auto [i, j] = wsl::axis<2>();
@@ -285,6 +393,7 @@ int main()
     reductions();
     values_and_functions();
     fields_and_mechanics();
+    strided_access();
     aliasing();
     std::puts("test_mdarray_expression_axes : OK");
 }

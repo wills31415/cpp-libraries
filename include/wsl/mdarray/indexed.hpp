@@ -102,8 +102,23 @@ namespace wsl
             template <class Env>
             constexpr void set(std::size_t k, Env& env) noexcept
             {
+                step(k, [&](std::size_t r) -> std::ptrdiff_t& { return env.position[index[r]]; });
+            }
+
+            // Même parcours, dans des positions locales (accès à pas fixe).
+            constexpr void set_local(std::size_t k) noexcept
+            {
+                step(k, [&](std::size_t r) -> std::ptrdiff_t& { return local[r]; });
+            }
+
+            std::array<std::ptrdiff_t, K> local{};
+
+        private:
+            template <class Position>
+            constexpr void step(std::size_t k, Position position) noexcept
+            {
                 if constexpr (K == 1)
-                    env.position[index[0]] = static_cast<std::ptrdiff_t>(k);
+                    position(0) = static_cast<std::ptrdiff_t>(k);
                 else
                 {
                     if (k == last + 1 && last != static_cast<std::size_t>(-1))
@@ -111,9 +126,9 @@ namespace wsl
                         std::size_t r = K;
                         while (r-- > 0)
                         {
-                            if (++env.position[index[r]] < length[r])
+                            if (++position(r) < length[r])
                                 break;
-                            env.position[index[r]] = 0;
+                            position(r) = 0;
                         }
                     }
                     else
@@ -122,7 +137,7 @@ namespace wsl
                         for (std::size_t r = K; r-- > 0;)
                         {
                             auto const len = static_cast<std::size_t>(length[r]);
-                            env.position[index[r]] = static_cast<std::ptrdiff_t>(q % len);
+                            position(r) = static_cast<std::ptrdiff_t>(q % len);
                             q /= len;
                         }
                     }
@@ -136,6 +151,7 @@ namespace wsl
         template <class Id>
         struct axis_slot
         {
+            using id = Id;
         };
         struct fixed_slot
         {
@@ -186,6 +202,11 @@ namespace wsl
 
         template <class Ctx, class Node, class Env>
         constexpr auto evaluate(Node const& node, Env& env);
+
+        // Le terme k d'une somme le long des axes Summed (à pas fixe si possible) ; Root :
+        // node est le foyer lui-même (terme : node.compute), sinon un enfant (evaluate).
+        template <class Ctx, class Summed, bool Root, class Node, class Env, std::size_t K>
+        constexpr auto terms(Node const& node, Env& env, odometer<K>& wheels);
 
         // Évalue node avec un membre de gauche sans axe (scalaire, V9).
         template <class Node>
@@ -512,10 +533,7 @@ namespace wsl
                 constexpr std::size_t K = Bound::size;
                 odometer<K> wheels(bound_indices<typename Ctx::axes>(Bound{}), env);
                 std::size_t const n = wheels.size();
-                auto at = [&](std::size_t k) {
-                    wheels.set(k, env);
-                    return evaluate<Ctx>(child, env);
-                };
+                auto const at = terms<Ctx, Bound, false>(child, env, wheels);
                 if constexpr (std::is_same_v<Kind, sum_kind>)
                 {
                     using T = decltype(at(0) + at(0));
@@ -632,6 +650,422 @@ namespace wsl
             return {tindex_v<Ids, Axes>...};
         }
 
+        // --- Accès à pas fixe -----------------------------------------------------------
+        // Une somme le long d'axes Summed dont le sous-arbre ne lit que des vues à pas
+        // (layout right, left, stride ; accesseur par défaut), des scalaires, des axes et
+        // des δ, sans réduction explicite : chaque feuille calcule une fois son décalage et
+        // ses pas le long des axes sommés, puis lit p[o + Σ posᵣ · pasᵣ], sans passer par
+        // l'environnement. Un foyer imbriqué (g[p, i, j] v[p, i] v[p, j] : i sommé dans le
+        // premier produit) somme de même ses propres axes, ajoutés aux positions. Mêmes
+        // éléments, mêmes opérations, même ordre : résultats identiques à l'évaluation
+        // générale.
+
+        template <class View, class... Slots>
+        struct indexed_target;
+
+        template <class Ctx, class Node>
+        struct strideable : std::false_type
+        {
+        };
+        template <class Ctx, class V, class... S>
+        struct strideable<Ctx, indexed_leaf<view_source<V>, S...>>
+            : std::bool_constant<std::is_same_v<typename V::accessor_type, default_accessor<typename V::element_type>>
+                                 && V::is_always_strided()>
+        {
+        };
+        template <class Ctx, class V, class... S>
+        struct strideable<Ctx, indexed_target<V, S...>> : strideable<Ctx, indexed_leaf<view_source<V>, S...>>
+        {
+        };
+        template <class Ctx, class T>
+        struct strideable<Ctx, indexed_scalar<T>> : std::true_type
+        {
+        };
+        template <class Ctx, class Id, class T>
+        struct strideable<Ctx, indexed_axis<Id, T>> : std::true_type
+        {
+        };
+        template <class Ctx, class A, class B, class T>
+        struct strideable<Ctx, indexed_kronecker<A, B, T>> : std::true_type
+        {
+        };
+        template <class Ctx, class Op, class... C>
+        struct strideable<Ctx, indexed_node<Op, C...>> : std::bool_constant<(strideable<Ctx, C>::value && ...)>
+        {
+        };
+
+        template <std::size_t N>
+        using positions = std::array<std::ptrdiff_t, N>;
+
+        // Chaque plan a value(pos), sa valeur aux positions pos des axes de Summed, et
+        // shift(pos), qui y ajoute une fois pour toutes la contribution de pos : une somme
+        // imbriquée décale son corps à son entrée, puis le parcourt avec des positions
+        // extérieures nulles (que le compilateur voit nulles).
+
+        template <class Summed, class... Ids>
+        constexpr std::array<std::size_t, sizeof...(Ids)> summed_indices(tlist<Ids...>) noexcept
+        {
+            return {tindex_v<Ids, Summed>...};
+        }
+
+        // Une position d'axe : base + pos[r] le long d'un axe de Summed, base sinon.
+        template <class Summed, class Id>
+        struct axis_reader
+        {
+            std::ptrdiff_t base = 0;
+            constexpr std::ptrdiff_t value(positions<Summed::size> const& pos) const noexcept
+            {
+                if constexpr (tcontains<Id, Summed>)
+                    return base + pos[tindex_v<Id, Summed>];
+                else
+                    return base;
+            }
+            constexpr void shift(positions<Summed::size> const& pos) noexcept
+            {
+                if constexpr (tcontains<Id, Summed>)
+                    base += pos[tindex_v<Id, Summed>];
+            }
+        };
+
+        template <class Summed, class Id, class Env>
+        constexpr axis_reader<Summed, Id> make_reader(Env const& env) noexcept
+        {
+            if constexpr (tcontains<Id, Summed>)
+                return {};
+            else
+                return {env.template at<Id>()};
+        }
+
+        // Accès d'une feuille : p[o + Σ posᵣ · pasᵣ], sur les axes de Summed présents
+        // dans son crochet (Present, dans l'ordre de Summed). Unit[q] : pas connu égal à 1
+        // à la compilation (axe seul à la dimension contiguë de layout_right ou
+        // layout_left), pour que le compilateur voie les accès contigus et vectorise.
+        template <class Summed, class Present, class Pointer, std::array<bool, Present::size> Unit>
+        struct strided_access
+        {
+            static constexpr std::size_t P = Present::size;
+            static constexpr std::array<std::size_t, P> where = summed_indices<Summed>(Present{});
+            Pointer p;
+            std::ptrdiff_t offset = 0;
+            std::array<std::ptrdiff_t, P> stride{};
+
+            constexpr std::ptrdiff_t index(positions<Summed::size> const& pos) const noexcept
+            {
+                return [&]<std::size_t... Q>(std::index_sequence<Q...>) {
+                    return (offset + ... + (Unit[Q] ? pos[where[Q]] : pos[where[Q]] * stride[Q]));
+                }(std::make_index_sequence<P>{});
+            }
+            constexpr decltype(auto) operator()(positions<Summed::size> const& pos) const noexcept
+            {
+                return p[index(pos)];
+            }
+            constexpr void shift(positions<Summed::size> const& pos) noexcept
+            {
+                offset = index(pos);
+            }
+        };
+
+        // Dimension contiguë d'une vue (pas 1 quelles que soient les longueurs), ou rang.
+        template <class V>
+        constexpr std::size_t contiguous_rank() noexcept
+        {
+            if constexpr (V::rank() == 0)
+                return 0;
+            else if constexpr (std::is_same_v<typename V::layout_type, layout_right>)
+                return V::rank() - 1;
+            else if constexpr (std::is_same_v<typename V::layout_type, layout_left>)
+                return 0;
+            else
+                return V::rank();
+        }
+
+        // L'axe Id n'occupe qu'une dimension du crochet, la dimension contiguë.
+        template <class V, class Id, class... S>
+        constexpr bool unit_stride() noexcept
+        {
+            constexpr std::array<bool, sizeof...(S)> is_id{std::is_same_v<S, axis_slot<Id>>...};
+            std::size_t count = 0, rank = 0;
+            for (std::size_t r = 0; r < is_id.size(); ++r)
+                if (is_id[r])
+                {
+                    ++count;
+                    rank = r;
+                }
+            return count == 1 && rank == contiguous_rank<V>();
+        }
+
+        template <class V, class Present, class... S>
+        constexpr std::array<bool, Present::size> unit_strides() noexcept
+        {
+            return []<class... Ids>(tlist<Ids...>) { return std::array<bool, sizeof...(Ids)>{unit_stride<V, Ids, S...>()...}; }(Present{});
+        }
+
+        template <class Summed, class V, class... S, class Env>
+        constexpr auto make_access(indexed_leaf<view_source<V>, S...> const& leaf, Env const& env) noexcept
+        {
+            using present = tminus_t<Summed, tminus_t<Summed, typename indexed_leaf<view_source<V>, S...>::provided>>;
+            auto const& view = leaf.source.view;
+            strided_access<Summed, present, typename V::data_handle_type, unit_strides<V, present, S...>()> access{view.data_handle()};
+            auto place = [&]<std::size_t R, class Slot>(Slot const& slot) {
+                auto const sr = static_cast<std::ptrdiff_t>(view.mapping().stride(R));
+                if constexpr (std::is_same_v<Slot, fixed_slot>)
+                    access.offset += slot.value * sr;
+                else if constexpr (tcontains<typename Slot::id, Summed>)
+                    access.stride[tindex_v<typename Slot::id, present>] += sr;
+                else
+                    access.offset += env.template at<typename Slot::id>() * sr;
+            };
+            [&]<std::size_t... R>(std::index_sequence<R...>) {
+                (place.template operator()<R>(std::get<R>(leaf.slots)), ...);
+            }(std::index_sequence_for<S...>{});
+            return access;
+        }
+
+        template <class Access, class T>
+        struct strided_leaf
+        {
+            Access access;
+            template <class Pos>
+            constexpr T value(Pos const& pos) const noexcept
+            {
+                return access(pos);
+            }
+            template <class Pos>
+            constexpr void shift(Pos const& pos) noexcept
+            {
+                access.shift(pos);
+            }
+        };
+
+        template <class T>
+        struct strided_scalar
+        {
+            T v;
+            template <class Pos>
+            constexpr T value(Pos const&) const
+            {
+                return v;
+            }
+            template <class Pos>
+            constexpr void shift(Pos const&) noexcept
+            {
+            }
+        };
+
+        template <class T, class Reader>
+        struct strided_axis
+        {
+            Reader r;
+            template <class Pos>
+            constexpr T value(Pos const& pos) const noexcept
+            {
+                return static_cast<T>(r.value(pos));
+            }
+            template <class Pos>
+            constexpr void shift(Pos const& pos) noexcept
+            {
+                r.shift(pos);
+            }
+        };
+
+        template <class T, class RA, class RB>
+        struct strided_kronecker
+        {
+            RA a;
+            RB b;
+            template <class Pos>
+            constexpr T value(Pos const& pos) const noexcept
+            {
+                return static_cast<T>(a.value(pos) == b.value(pos) ? 1 : 0);
+            }
+            template <class Pos>
+            constexpr void shift(Pos const& pos) noexcept
+            {
+                a.shift(pos);
+                b.shift(pos);
+            }
+        };
+
+        template <class Op, class... C>
+        struct strided_node
+        {
+            Op const* op;
+            std::tuple<C...> children;
+            template <class Pos>
+            constexpr auto value(Pos const& pos) const
+            {
+                return std::apply([&](auto const&... c) { return (*op)(c.value(pos)...); }, children);
+            }
+            template <class Pos>
+            constexpr void shift(Pos const& pos) noexcept
+            {
+                std::apply([&](auto&... c) { (c.shift(pos), ...); }, children);
+            }
+        };
+
+        template <class Ctx, class Summed, class Node, class Env>
+        constexpr auto make_strided(Node const& node, Env const& env);
+
+        template <class Ctx, class Summed, class V, class... S, class Env>
+        constexpr auto strided_body(indexed_leaf<view_source<V>, S...> const& leaf, Env const& env) noexcept
+        {
+            using access = decltype(make_access<Summed>(leaf, env));
+            return strided_leaf<access, typename indexed_leaf<view_source<V>, S...>::value_type>{make_access<Summed>(leaf, env)};
+        }
+
+        template <class Ctx, class Summed, class T, class Env>
+        constexpr auto strided_body(indexed_scalar<T> const& s, Env const&)
+        {
+            return strided_scalar<T>{s.value};
+        }
+
+        template <class Ctx, class Summed, class Id, class T, class Env>
+        constexpr auto strided_body(indexed_axis<Id, T> const&, Env const& env) noexcept
+        {
+            return strided_axis<T, axis_reader<Summed, Id>>{make_reader<Summed, Id>(env)};
+        }
+
+        template <class Ctx, class Summed, class A, class B, class T, class Env>
+        constexpr auto strided_body(indexed_kronecker<A, B, T> const&, Env const& env) noexcept
+        {
+            return strided_kronecker<T, axis_reader<Summed, A>, axis_reader<Summed, B>>{make_reader<Summed, A>(env),
+                                                                                         make_reader<Summed, B>(env)};
+        }
+
+        template <class Ctx, class Summed, class Op, class... C, class Env>
+        constexpr auto strided_body(indexed_node<Op, C...> const& node, Env const& env)
+        {
+            auto children = std::apply([&](auto const&... c) { return std::tuple{make_strided<Ctx, Summed>(c, env)...}; }, node.nodes);
+            return std::apply([&](auto&... c) { return strided_node<Op, std::remove_cvref_t<decltype(c)>...>{&node.op, children}; },
+                              children);
+        }
+
+        template <class T>
+        constexpr void check_not_bool_sum() noexcept
+        {
+            static_assert(!std::is_same_v<std::remove_cvref_t<T>, bool>,
+                          "wsl::mdarray : somme de booléens (I10) ; écrire count(i)(…), any(i)(…) ou all(i)(…)");
+        }
+
+        // Longueur statique d'un axe dans une liste de static_length, ou dynamic_extent.
+        template <class Id, class L>
+        struct static_length_in : std::integral_constant<std::size_t, dynamic_extent>
+        {
+        };
+        template <class Id, class X, class... Rest>
+        struct static_length_in<Id, tlist<X, Rest...>>
+            : std::conditional_t<std::is_same_v<typename X::id, Id>, std::integral_constant<std::size_t, X::value>,
+                                 static_length_in<Id, tlist<Rest...>>>
+        {
+        };
+
+        // Somme d'un corps le long des K derniers axes de ses positions (S extérieurs) ;
+        // Static : longueurs connues à la compilation (dynamic_extent sinon), pour que les
+        // petites sommes (3 × 3) soient déroulées.
+        template <std::size_t S, std::size_t K, class Body, std::array<std::size_t, K> Static>
+        struct strided_home
+        {
+            Body body;
+            std::array<std::ptrdiff_t, K> length{};
+
+            [[gnu::always_inline]] constexpr auto value(positions<S> const& pos) const
+            {
+                using V = decltype(body.value(positions<S + K>{}));
+                using T = decltype(std::declval<V>() + std::declval<V>());
+                Body b = body;
+                b.shift(extend(pos));
+                std::size_t n = 1;
+                for (std::size_t r = 0; r < K; ++r)
+                    n *= len(r);
+                // Positions neuves à chaque terme : les S premières, nulles, restent connues
+                // du compilateur (un tableau partagé s'échapperait dans pairwise_split).
+                auto const at = [&](std::size_t k) {
+                    positions<S + K> q{};
+                    if constexpr (K == 1)
+                        q[S] = static_cast<std::ptrdiff_t>(k);
+                    else
+                        for (std::size_t r = K; r-- > 0;)
+                        {
+                            q[S + r] = static_cast<std::ptrdiff_t>(k % len(r));
+                            k /= len(r);
+                        }
+                    return b.value(q);
+                };
+                return pairwise<T>(at, 0, n, T{}, detail::mdarray::add_op{});
+            }
+            constexpr void shift(positions<S> const& pos) noexcept
+            {
+                body.shift(extend(pos));
+            }
+
+        private:
+            constexpr std::size_t len(std::size_t r) const noexcept
+            {
+                return Static[r] != dynamic_extent ? Static[r] : static_cast<std::size_t>(length[r]);
+            }
+
+            static constexpr positions<S + K> extend(positions<S> const& pos) noexcept
+            {
+                positions<S + K> p{};
+                for (std::size_t r = 0; r < S; ++r)
+                    p[r] = pos[r];
+                return p;
+            }
+        };
+
+        // Un nœud, et la somme le long de ses propres axes s'il en est le foyer.
+        template <class Ctx, class Summed, class Node, class Env>
+        constexpr auto make_strided(Node const& node, Env const& env)
+        {
+            using own = typename home<Node, Ctx>::type;
+            if constexpr (own::size == 0)
+                return strided_body<Ctx, Summed>(node, env);
+            else
+            {
+                constexpr std::size_t S = Summed::size, K = own::size;
+                auto body = strided_body<Ctx, tconcat_t<Summed, own>>(node, env);
+                check_not_bool_sum<decltype(body.value(positions<S + K>{}))>();
+                constexpr auto fixed = []<class... Ids>(tlist<Ids...>) {
+                    return std::array<std::size_t, K>{static_length_in<Ids, typename Node::static_lengths>::value...};
+                }(own{});
+                strided_home<S, K, decltype(body), fixed> h{body};
+                for (std::size_t r = 0; r < K; ++r)
+                    h.length[r] = env.length[axis_indices<typename Ctx::axes>(own{})[r]];
+                return h;
+            }
+        }
+
+        template <class Ctx, class Summed, bool Root, class Node, class Env, std::size_t K>
+        constexpr auto terms(Node const& node, Env& env, odometer<K>& wheels)
+        {
+            if constexpr (strideable<Ctx, Node>::value)
+            {
+                auto term = [&] {
+                    if constexpr (Root)
+                        return strided_body<Ctx, Summed>(node, env);
+                    else
+                        return make_strided<Ctx, Summed>(node, env);
+                }();
+                if constexpr (K == 1)
+                    return [term](std::size_t k) { return term.value(positions<1>{static_cast<std::ptrdiff_t>(k)}); };
+                else
+                    return [term, &wheels](std::size_t k) {
+                        wheels.set_local(k);
+                        return term.value(wheels.local);
+                    };
+            }
+            else if constexpr (Root)
+                return [&](std::size_t k) {
+                    wheels.set(k, env);
+                    return node.template compute<Ctx>(env);
+                };
+            else
+                return [&](std::size_t k) {
+                    wheels.set(k, env);
+                    return evaluate<Ctx>(node, env);
+                };
+        }
+
         template <class Ctx, class Node, class Env>
         constexpr auto evaluate(Node const& node, Env& env)
         {
@@ -640,15 +1074,11 @@ namespace wsl
                 return node.template compute<Ctx>(env);
             else
             {
-                static_assert(!std::is_same_v<std::remove_cvref_t<decltype(node.template compute<Ctx>(env))>, bool>,
-                              "wsl::mdarray : somme de booléens (I10) ; écrire count(i)(…), any(i)(…) ou all(i)(…)");
+                check_not_bool_sum<decltype(node.template compute<Ctx>(env))>();
                 constexpr std::size_t K = own::size;
                 odometer<K> wheels(axis_indices<typename Ctx::axes>(own{}), env);
                 std::size_t const n = wheels.size();
-                auto at = [&](std::size_t k) {
-                    wheels.set(k, env);
-                    return node.template compute<Ctx>(env);
-                };
+                auto const at = terms<Ctx, own, true>(node, env, wheels);
                 using T = decltype(at(0) + at(0));
                 return pairwise<T>(at, 0, n, T{}, detail::mdarray::add_op{});
             }
@@ -817,6 +1247,35 @@ namespace wsl
                 odometer<K> wheels(axis_indices<axes>(lhs_axes{}), env);
                 std::size_t const n = wheels.size();
                 auto place = [&](std::size_t k) { wheels.set(k, env); };
+                if constexpr (strideable<ctx, Rhs>::value && strideable<ctx, leaf>::value)
+                {
+                    // Accès à pas fixe : le plan est construit une fois pour l'instruction.
+                    auto const value = make_strided<ctx, lhs_axes>(rhs, env);
+                    auto const target = make_access<lhs_axes>(static_cast<leaf const&>(*this), env);
+                    if (aliased<lhs_axes>(rhs))
+                    {
+                        using T = typename View::value_type;
+                        std::vector<T> temporary;
+                        temporary.reserve(n);
+                        for (std::size_t k = 0; k < n; ++k)
+                        {
+                            wheels.set_local(k);
+                            temporary.push_back(static_cast<T>(value.value(wheels.local)));
+                        }
+                        for (std::size_t k = 0; k < n; ++k)
+                        {
+                            wheels.set_local(k);
+                            target(wheels.local) = temporary[k];
+                        }
+                    }
+                    else
+                        for (std::size_t k = 0; k < n; ++k)
+                        {
+                            wheels.set_local(k);
+                            target(wheels.local) = static_cast<typename View::value_type>(value.value(wheels.local));
+                        }
+                    return;
+                }
                 auto& view = this->source.view;
                 auto write = [&](auto const& value) {
                     std::apply([&](auto const&... s) { view[static_cast<typename View::index_type>(slot_value(s, env))...] = value; },

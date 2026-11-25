@@ -12,9 +12,14 @@
 
 namespace wsl::detail::mdarray
 {
-    // x(k) pour k dans [begin, end) ; op associatif « en principe » (+ ou ×).
     template <class T, class X, class Op>
-    constexpr T pairwise(X const& x, std::size_t begin, std::size_t end, T identity, Op op)
+    constexpr T pairwise_split(X const& x, std::size_t begin, std::size_t end, T identity, Op op);
+
+    // x(k) pour k dans [begin, end) ; op associatif « en principe » (+ ou ×). Non
+    // récursive, pour être intégrée aux petites sommes ; le partage en deux moitiés
+    // est dans pairwise_split.
+    template <class T, class X, class Op>
+    [[gnu::always_inline]] constexpr T pairwise(X const& x, std::size_t begin, std::size_t end, T identity, Op op)
     {
         std::size_t const n = end - begin;
         if (n < 8)
@@ -37,7 +42,15 @@ namespace wsl::detail::mdarray
                 s = op(s, x(k));
             return s;
         }
-        std::size_t half = n / 2;
+        return pairwise_split(x, begin, end, identity, op);
+    }
+
+    // Hors ligne : sinon le compilateur la fusionne dans pairwise, qui redevient récursive
+    // et cesse d'être intégrée.
+    template <class T, class X, class Op>
+    [[gnu::noinline]] constexpr T pairwise_split(X const& x, std::size_t begin, std::size_t end, T identity, Op op)
+    {
+        std::size_t half = (end - begin) / 2;
         half -= half % 8;
         return op(pairwise(x, begin, begin + half, identity, op), pairwise(x, begin + half, end, identity, op));
     }

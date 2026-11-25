@@ -82,6 +82,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   majeure ; positions par compteur à roues (sans division) dans le monde des axes et les
   réductions ; fusion en fma permise en mode rapide (Clang). Banc d'essai :
   `tools/mdarray/benchmark.sh`.
+- Performance du monde des axes : accès à pas fixe. Une instruction qui ne lit que des vues
+  à pas (layout_right, layout_left, layout_stride) est compilée en un plan construit une
+  fois (pointeur, décalage et pas par feuille), sommes imbriquées comprises ; mêmes bits
+  qu'avant. Produit matriciel 1,9 → 0,8 fois la boucle à la main, matrice × vecteur
+  1,0 → 0,4, champ gₚᵢⱼ vₚᵢ vₚⱼ 2,3 → 1,0 (composantes de longueur statique).
 
 ### elo
 
