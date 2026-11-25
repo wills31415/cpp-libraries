@@ -65,6 +65,46 @@ namespace wsl
             constexpr explicit moded_op(Op op) : Op(std::move(op)) {}
         };
 
+        // Barrière sur un paquet de voies : comme wsl::special::detail::opaque, mais un
+        // registre vectoriel à la fois, pour que les produits du paquet restent vectorisés.
+        template <class T, std::size_t W>
+        constexpr void opaque_lanes(T (&v)[W]) noexcept
+        {
+            if consteval
+            {
+                return;
+            }
+            if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>)
+            {
+#if defined(__AVX__)
+                constexpr std::size_t bytes = 32;
+#else
+                constexpr std::size_t bytes = 16;
+#endif
+                constexpr std::size_t chunk = bytes / sizeof(T);
+                using vector [[gnu::vector_size(bytes)]] = T;
+                std::size_t l = 0;
+                for (; l + chunk <= W; l += chunk)
+                {
+                    vector x;
+                    __builtin_memcpy(&x, v + l, bytes);
+#if defined(__x86_64__)
+                    asm("" : "+x"(x));
+#elif defined(__aarch64__)
+                    asm("" : "+w"(x));
+#else
+                    asm("" : "+m"(x));
+#endif
+                    __builtin_memcpy(v + l, &x, bytes);
+                }
+                for (; l < W; ++l)
+                    v[l] = wsl::special::detail::opaque(v[l]);
+            }
+            else
+                for (std::size_t l = 0; l < W; ++l)
+                    v[l] = wsl::special::detail::opaque(v[l]);
+        }
+
         // Produit : jamais fusionné avec une addition.
         template <>
         struct moded_op<reproducible_mode, detail::mdarray::multiply_op>
@@ -79,6 +119,18 @@ namespace wsl
                     return wsl::special::detail::fmul(static_cast<C>(a), static_cast<C>(b));
                 else
                     return a * b;
+            }
+            // Un paquet de voies : les W produits, puis une barrière par registre vectoriel.
+            template <class A, class B, std::size_t W>
+            constexpr auto lanes(lane_pack<A, W> const& a, lane_pack<B, W> const& b) const
+            {
+                using C = decltype(a.v[0] * b.v[0]);
+                lane_pack<C, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = static_cast<C>(a.v[l]) * static_cast<C>(b.v[l]);
+                if constexpr (std::is_floating_point_v<C>)
+                    opaque_lanes(r.v);
+                return r;
             }
         };
 

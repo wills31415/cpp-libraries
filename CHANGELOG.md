@@ -98,6 +98,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Performance : une instruction avec somme, contiguë le long de l'axe intérieur du membre
   de gauche, calcule 8 éléments voisins côte à côte, chacun dans son ordre propre (mêmes
   bits) : produit matriciel 0,84 → 0,19 ns par terme.
+- Performance du mode reproductible : barrière contre la fusion en fma posée sur un
+  registre vectoriel entier pour les paquets de 8 termes (voies, sommes le long d'un axe),
+  au lieu d'un registre scalaire par produit : produit matriciel 0,63 → 0,20 ns par terme,
+  produit scalaire 0,66 → 0,43 ; mêmes bits.
 
 ### elo
 

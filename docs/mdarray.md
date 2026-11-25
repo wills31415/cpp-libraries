@@ -275,8 +275,8 @@ réservés aux tenseurs (variances).
   sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
-  un tampon local n'y change rien (essayé, retiré). Reste : barrières vectorielles du mode
-  reproductible ; blocs de cache pour les grandes matrices.
+  un tampon local n'y change rien (essayé, retiré). Reste : blocs de cache pour les grandes
+  matrices ; barrières vectorielles dans le monde des tableaux entiers.
 - **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
   de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
   la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
@@ -333,6 +333,20 @@ réservés aux tenseurs (variances).
   quel que soit le type (8 accumulateurs × 8 voies = 16 registres AVX2 en double) ; les
   voies ne servent qu'aux instructions avec somme (sans somme, la boucle simple se vectorise
   déjà) ; pas de découpage en blocs du cache, à mesurer sur de plus grandes matrices.
+- **Barrières vectorielles du mode reproductible (2026-11-25)** : le produit reproductible
+  passe par une barrière `asm` sur un registre scalaire (`wsl::special::detail::fmul`), que
+  les vectoriseurs ne franchissent pas : produit matriciel 0,63 ns par terme contre 0,17 en
+  mode rapide. Désormais, là où les termes viennent par paquets (voies), le produit d'un
+  paquet calcule ses W produits puis pose une barrière par registre vectoriel
+  (`opaque_lanes`, mode.hpp : 32 octets avec AVX, 16 sinon) : aucune fusion possible, et
+  le paquet reste vectorisé. La somme par paires prend ses termes par paquets de 8 quand
+  la somme suit un seul axe (`axis_terms::pack`, voies le long de l'axe sommé) : mêmes
+  termes, mêmes accumulateurs, même ordre. Mode reproductible : produit scalaire
+  0,66 → 0,43 ns, matrice × vecteur 0,51 → 0,34, produit matriciel 0,63 → 0,20 ; empreinte
+  inchangée, voies et voie générale identiques bit à bit sous `-ffp-contract=fast`. Reste
+  scalaire : les sommes de moins de 8 termes, les lectures non contiguës (champ gₚᵢⱼ vₚᵢ vₚⱼ :
+  7,4 ns par point contre 3,6 en mode rapide), le monde des tableaux entiers (A ∘ B + 1 :
+  1,2 fois la boucle à la main).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

@@ -993,12 +993,22 @@ namespace wsl
             {
                 return std::apply(
                     [&](auto const&... c) {
-                        auto const packs = std::tuple{c.template lanes<I, W>(pos)...};
                         using R = decltype((*op)(c.value(pos)...));
-                        lane_pack<R, W> r;
-                        for (std::size_t l = 0; l < W; ++l)
-                            r.v[l] = std::apply([&](auto const&... x) { return (*op)(x.v[l]...); }, packs);
-                        return r;
+                        return std::apply(
+                            [&](auto const&... x) {
+                                // Une opération qui traite un paquet entier (produit
+                                // reproductible : barrière vectorielle), sinon voie par voie.
+                                if constexpr (requires { op->lanes(x...); })
+                                    return op->lanes(x...);
+                                else
+                                {
+                                    lane_pack<R, W> r;
+                                    for (std::size_t l = 0; l < W; ++l)
+                                        r.v[l] = (*op)(x.v[l]...);
+                                    return r;
+                                }
+                            },
+                            std::tuple{c.template lanes<I, W>(pos)...});
                     },
                     children);
             }
@@ -1060,6 +1070,27 @@ namespace wsl
         {
         };
 
+        // Termes d'une somme le long d'un seul axe, d'indice S des positions : le k-ième, ou
+        // 8 consécutifs à la fois (voies le long de l'axe sommé, pour pairwise).
+        template <std::size_t S, class Body>
+        struct axis_terms
+        {
+            Body body;
+            constexpr auto operator()(std::size_t k) const
+            {
+                positions<S + 1> q{};
+                q[S] = static_cast<std::ptrdiff_t>(k);
+                return body.value(q);
+            }
+            template <std::size_t W>
+            constexpr auto pack(std::size_t k) const
+            {
+                positions<S + 1> q{};
+                q[S] = static_cast<std::ptrdiff_t>(k);
+                return body.template lanes<S, W>(q);
+            }
+        };
+
         // Somme d'un corps le long des K derniers axes de ses positions (S extérieurs) ;
         // Static : longueurs connues à la compilation (dynamic_extent sinon), pour que les
         // petites sommes (3 × 3) soient déroulées.
@@ -1078,6 +1109,8 @@ namespace wsl
                 std::size_t n = 1;
                 for (std::size_t r = 0; r < K; ++r)
                     n *= len(r);
+                if constexpr (K == 1)
+                    return pairwise<T>(axis_terms<S, Body>{std::move(b)}, 0, n, T{}, detail::mdarray::add_op{});
                 // Positions neuves à chaque terme : les S premières, nulles, restent connues
                 // du compilateur (un tableau partagé s'échapperait dans pairwise_split).
                 auto const at = [&](std::size_t k) {
@@ -1208,7 +1241,7 @@ namespace wsl
                         return make_strided<Ctx, Summed>(node, env);
                 }();
                 if constexpr (K == 1)
-                    return [term](std::size_t k) { return term.value(positions<1>{static_cast<std::ptrdiff_t>(k)}); };
+                    return axis_terms<0, decltype(term)>{std::move(term)};
                 else
                     return [term, &wheels](std::size_t k) {
                         wheels.set_local(k);

@@ -31,12 +31,29 @@ namespace wsl::detail::mdarray
         }
         if (n <= 128)
         {
-            T r[8] = {x(begin), x(begin + 1), x(begin + 2), x(begin + 3),
-                      x(begin + 4), x(begin + 5), x(begin + 6), x(begin + 7)};
+            T r[8];
             std::size_t k = begin + 8;
-            for (; k + 8 <= end; k += 8)
+            if constexpr (requires { x.template pack<8>(begin).v[0]; })
+            {
+                // Termes par paquets de 8 (voies, indexed.hpp) : mêmes termes, même ordre.
+                auto const first = x.template pack<8>(begin);
                 for (std::size_t j = 0; j < 8; ++j)
-                    r[j] = op(r[j], x(k + j));
+                    r[j] = first.v[j];
+                for (; k + 8 <= end; k += 8)
+                {
+                    auto const p = x.template pack<8>(k);
+                    for (std::size_t j = 0; j < 8; ++j)
+                        r[j] = op(r[j], p.v[j]);
+                }
+            }
+            else
+            {
+                for (std::size_t j = 0; j < 8; ++j)
+                    r[j] = x(begin + j);
+                for (; k + 8 <= end; k += 8)
+                    for (std::size_t j = 0; j < 8; ++j)
+                        r[j] = op(r[j], x(k + j));
+            }
             T s = op(op(op(r[0], r[1]), op(r[2], r[3])), op(op(r[4], r[5]), op(r[6], r[7])));
             for (; k < end; ++k)
                 s = op(s, x(k));
