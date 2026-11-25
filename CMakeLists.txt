@@ -79,6 +79,7 @@ wsl_add_library(progress     STANDARD 23)
 wsl_add_library(special      STANDARD 23)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
+wsl_add_library(mdarray      STANDARD 23)
 
 # Bibliothèques dont on construit les tests et exemples (toutes, sauf en CI).
 set(WSL_LIBRARIES_TESTED ALL)
@@ -185,6 +186,7 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(elo)
     wsl_add_test(progress)
     wsl_add_test(permutation)
+    wsl_add_test(mdarray_position LIBRARY mdarray)
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.

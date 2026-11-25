@@ -11,6 +11,20 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
   la revue des interfaces (docs/interfaces.md).
 
+### mdarray
+
+- Nouvelle bibliothèque (conception : docs/mdarray.md), lot 1 en cours. Positions
+  `mdposition<N, IndexType = std::size_t>` et déplacements `mddisplacement<N, DiffType =
+  std::ptrdiff_t>` : modèle affine (position − position = déplacement, position ±
+  déplacement = position ; `*`, `/`, `%` par un entier sur les déplacements seulement,
+  troncature vers zéro), construction à exactement N composantes de tout type entier,
+  déduction, conversions depuis `std::array` et `std::span`, décomposition, `first`, `last`,
+  `concat`, `filled`, `unit`, ordre lexicographique (`<=>`) et composante par composante
+  (`all_less`, `all_less_equal`), normes (`norm1`, `norm_inf`, `norm2_squared`),
+  `std::hash`, `std::formatter` (« (2, 1) ») et `operator<<`. Arithmétique entière :
+  `div_euclid`, `rem_euclid`. Préconditions vérifiées en débogage (`WSL_ASSERTIONS`) et
+  toujours en évaluation constante.
+
 ### elo
 
 - Rupture : espace `wsl::elo` (noms trop génériques dans `wsl::`) ; `elo_from_score` →

@@ -122,6 +122,17 @@ ensemble d'indices E de forme (4, 5).
 | D27 | `std::hash`, `std::format`, `<<` | ✓ affichage `(2, 1)`, options appliquées à chaque composante, `<<` par `std::format`, pour `mdposition` et `mddisplacement` ; pas de lecture pour l'instant | ✅ |
 | D28 | types de composantes différents | `p ± d` garde le type de p ; `p - q`, `d ± e` : type commun (signé pour `mddisplacement`) ; comparaisons sur les valeurs mathématiques ; conversions implicites sans perte, explicites sinon (précondition), comme `std::extents` | ✅ |
 
+**Implémentation (étape 1, 2026-11-25)** : `include/wsl/mdarray/position.hpp`,
+`integer.hpp`, `detail/precondition.hpp` ; test `tests/test_mdarray_position.cpp`. Choix
+d'implémentation, publics, à revoir : constructeur à N composantes `explicit` en rang 1
+(sinon `mdposition<1>` se convertirait d'un entier, et `p + 1` passerait, contre D12) ;
+alias `index_type`, `difference_type`, `value_type`, `displacement_type` ; `get<K>` pour la
+décomposition. Dépassements détectés par `__builtin_*_overflow` (GCC, Clang, comme
+wsl::special). Le contexte des préconditions passe par
+`wsl::detail::mdarray::precondition` (message en français, `std::abort`) ; les tests en
+évaluation constante utilisent un concept `constant<F>`, faux quand `F()` viole une
+précondition.
+
 ## 5. Axes
 
 | # | Écriture | Décision |
