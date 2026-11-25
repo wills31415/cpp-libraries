@@ -4,9 +4,11 @@
 
 #include <wsl/mdarray.hpp>
 
+#include <bit>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <type_traits>
 #include <vector>
@@ -267,7 +269,7 @@ namespace
     bool same_bits(X const& x, Y const& y)
     {
         for (std::size_t q = 0; q < x.size(); ++q)
-            if (x.data()[q] != y.data()[q])
+            if (std::bit_cast<std::uint64_t>(x.data()[q]) != std::bit_cast<std::uint64_t>(y.data()[q]))
                 return false;
         return true;
     }
@@ -291,6 +293,21 @@ namespace
         C1[i, k] = wsl::reproducible(A[i, j] * B[j, k]);
         C2[i, k] = wsl::reproducible(A[i, j] * (B * 1.0)[j, k]);
         assert(same_bits(C1, C2));
+
+        // Voies : 21 colonnes (deux paquets de 8 et un reste), valeurs d'axes, position fixe,
+        // scalaire, cible relue.
+        M B21(n, 21), E1(n, 21), E2(n, 21);
+        fill2(B21, [](double r, double c) { return 1 / (2 + r + 0.5 * c); });
+        E1[i, k] = wsl::reproducible((A[i, j] + k) * B21[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
+        E2[i, k] = wsl::reproducible((A[i, j] + k) * (B21 * 1.0)[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
+        assert(same_bits(E1, E2));
+        E1[i, k] = wsl::reproducible(A[i, j] * B21[j, k] + E1[i, k]);
+        E2[i, k] = wsl::reproducible(A[i, j] * (B21 * 1.0)[j, k] + E2[i, k]);
+        assert(same_bits(E1, E2));
+        M Q1(n, 21), Q2(n, 21);
+        Q1[i, k] = wsl::reproducible(wsl::kronecker(i, k) * B21[j, k] * x[j]);
+        Q2[i, k] = wsl::reproducible(wsl::kronecker(i, k) * (B21 * 1.0)[j, k] * x[j]);
+        assert(same_bits(Q1, Q2));
 
         // Dispositions layout_left et layout_stride (une colonne sur deux).
         std::vector<double> buffer(2 * n * 5);

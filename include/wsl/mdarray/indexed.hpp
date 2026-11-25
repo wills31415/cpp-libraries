@@ -716,6 +716,30 @@ namespace wsl
             return {tindex_v<Ids, Summed>...};
         }
 
+        // Voies : W positions consécutives le long de l'axe d'indice I des positions,
+        // calculées côte à côte (C[i, k…k+7] = A[i, j] B[j, k…k+7]) ; chaque voie suit
+        // exactement les opérations et l'ordre de la voie scalaire : mêmes bits, mais des
+        // lectures contiguës que le compilateur vectorise.
+        template <class T, std::size_t W>
+        struct lane_pack
+        {
+            T v[W];
+        };
+
+        // Somme voie à voie, convertie dans le type T de la somme.
+        template <class T, std::size_t W>
+        struct lane_add
+        {
+            template <class A, class B>
+            constexpr lane_pack<T, W> operator()(lane_pack<A, W> const& a, lane_pack<B, W> const& b) const
+            {
+                lane_pack<T, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = detail::mdarray::add_op{}(a.v[l], b.v[l]);
+                return r;
+            }
+        };
+
         // Une position d'axe : base + pos[r] le long d'un axe de Summed, base sinon.
         template <class Summed, class Id>
         struct axis_reader
@@ -732,6 +756,15 @@ namespace wsl
             {
                 if constexpr (tcontains<Id, Summed>)
                     base += pos[tindex_v<Id, Summed>];
+            }
+            // Avance d'une voie à la suivante.
+            template <std::size_t I>
+            static constexpr std::ptrdiff_t lane_step() noexcept
+            {
+                if constexpr (tcontains<Id, Summed>)
+                    return tindex_v<Id, Summed> == I ? 1 : 0;
+                else
+                    return 0;
             }
         };
 
@@ -770,6 +803,14 @@ namespace wsl
             constexpr void shift(positions<Summed::size> const& pos) noexcept
             {
                 offset = index(pos);
+            }
+            // Pas d'une voie à la suivante (axe d'indice I des positions).
+            template <std::size_t I>
+            constexpr std::ptrdiff_t lane_step() const noexcept
+            {
+                return [&]<std::size_t... Q>(std::index_sequence<Q...>) {
+                    return (std::ptrdiff_t{0} + ... + (where[Q] == I ? (Unit[Q] ? 1 : stride[Q]) : 0));
+                }(std::make_index_sequence<P>{});
             }
         };
 
@@ -843,6 +884,15 @@ namespace wsl
             {
                 access.shift(pos);
             }
+            template <std::size_t I, std::size_t W, class Pos>
+            constexpr lane_pack<T, W> lanes(Pos const& pos) const noexcept
+            {
+                std::ptrdiff_t const o = access.index(pos), step = access.template lane_step<I>();
+                lane_pack<T, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = access.p[o + static_cast<std::ptrdiff_t>(l) * step];
+                return r;
+            }
         };
 
         template <class T>
@@ -857,6 +907,14 @@ namespace wsl
             template <class Pos>
             constexpr void shift(Pos const&) noexcept
             {
+            }
+            template <std::size_t I, std::size_t W, class Pos>
+            constexpr lane_pack<T, W> lanes(Pos const&) const
+            {
+                lane_pack<T, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = v;
+                return r;
             }
         };
 
@@ -873,6 +931,14 @@ namespace wsl
             constexpr void shift(Pos const& pos) noexcept
             {
                 r.shift(pos);
+            }
+            template <std::size_t I, std::size_t W, class Pos>
+            constexpr lane_pack<T, W> lanes(Pos const& pos) const noexcept
+            {
+                lane_pack<T, W> out;
+                for (std::size_t l = 0; l < W; ++l)
+                    out.v[l] = static_cast<T>(r.value(pos) + static_cast<std::ptrdiff_t>(l) * Reader::template lane_step<I>());
+                return out;
             }
         };
 
@@ -892,6 +958,19 @@ namespace wsl
                 a.shift(pos);
                 b.shift(pos);
             }
+            template <std::size_t I, std::size_t W, class Pos>
+            constexpr lane_pack<T, W> lanes(Pos const& pos) const noexcept
+            {
+                lane_pack<T, W> out;
+                for (std::size_t l = 0; l < W; ++l)
+                {
+                    auto const d = static_cast<std::ptrdiff_t>(l);
+                    out.v[l] = static_cast<T>(a.value(pos) + d * RA::template lane_step<I>() == b.value(pos) + d * RB::template lane_step<I>()
+                                                  ? 1
+                                                  : 0);
+                }
+                return out;
+            }
         };
 
         template <class Op, class... C>
@@ -908,6 +987,20 @@ namespace wsl
             constexpr void shift(Pos const& pos) noexcept
             {
                 std::apply([&](auto&... c) { (c.shift(pos), ...); }, children);
+            }
+            template <std::size_t I, std::size_t W, class Pos>
+            constexpr auto lanes(Pos const& pos) const
+            {
+                return std::apply(
+                    [&](auto const&... c) {
+                        auto const packs = std::tuple{c.template lanes<I, W>(pos)...};
+                        using R = decltype((*op)(c.value(pos)...));
+                        lane_pack<R, W> r;
+                        for (std::size_t l = 0; l < W; ++l)
+                            r.v[l] = std::apply([&](auto const&... x) { return (*op)(x.v[l]...); }, packs);
+                        return r;
+                    },
+                    children);
             }
         };
 
@@ -1004,6 +1097,35 @@ namespace wsl
             constexpr void shift(positions<S> const& pos) noexcept
             {
                 body.shift(extend(pos));
+            }
+            // Mêmes termes, même ordre, pour W positions extérieures à la fois.
+            template <std::size_t I, std::size_t W>
+            [[gnu::always_inline]] constexpr auto lanes(positions<S> const& pos) const
+            {
+                using V = decltype(body.value(positions<S + K>{}));
+                using T = lane_pack<decltype(std::declval<V>() + std::declval<V>()), W>;
+                Body b = body;
+                b.shift(extend(pos));
+                std::size_t n = 1;
+                for (std::size_t r = 0; r < K; ++r)
+                    n *= len(r);
+                auto const at = [&](std::size_t k) {
+                    positions<S + K> q{};
+                    if constexpr (K == 1)
+                        q[S] = static_cast<std::ptrdiff_t>(k);
+                    else
+                        for (std::size_t r = K; r-- > 0;)
+                        {
+                            q[S + r] = static_cast<std::ptrdiff_t>(k % len(r));
+                            k /= len(r);
+                        }
+                    auto const x = b.template lanes<I, W>(q);
+                    T t;
+                    for (std::size_t l = 0; l < W; ++l)
+                        t.v[l] = x.v[l];
+                    return t;
+                };
+                return pairwise<T>(at, 0, n, T{}, lane_add<decltype(std::declval<V>() + std::declval<V>()), W>{});
             }
 
         private:
@@ -1319,6 +1441,31 @@ namespace wsl
                         {
                             wheels.set_local(k);
                             target(wheels.local) = temporary[k];
+                        }
+                    }
+                    else if constexpr (contiguous && ctx::summed::size > 0)
+                    {
+                        // Une somme : W positions consécutives le long de l'axe intérieur à la
+                        // fois (voies), le reste une à une ; mêmes bits.
+                        constexpr std::size_t W = 8;
+                        auto const inner_length = static_cast<std::size_t>(env.length[tindex_v<inner, axes>]);
+                        for (std::size_t outer = 0; outer < n; outer += inner_length)
+                        {
+                            std::size_t r = 0;
+                            for (; r + W <= inner_length; r += W)
+                            {
+                                wheels.set_local(outer + r);
+                                auto const pack = value.template lanes<K - 1, W>(wheels.local);
+                                std::ptrdiff_t const o = target.index(wheels.local), step = target.template lane_step<K - 1>();
+                                for (std::size_t l = 0; l < W; ++l)
+                                    target.p[o + static_cast<std::ptrdiff_t>(l) * step] =
+                                        static_cast<typename View::value_type>(pack.v[l]);
+                            }
+                            for (; r < inner_length; ++r)
+                            {
+                                wheels.set_local(outer + r);
+                                target(wheels.local) = static_cast<typename View::value_type>(value.value(wheels.local));
+                            }
                         }
                     }
                     else

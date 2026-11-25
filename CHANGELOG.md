@@ -95,6 +95,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   itérations (le contrôle d'alias I12 le garantit) ; `y = a * x + y` et
   `y[i] = a * x[i] + y[i]` sont vectorisées sans test de chevauchement (1,5 → 1,0 fois la
   boucle à la main).
+- Performance : une instruction avec somme, contiguë le long de l'axe intérieur du membre
+  de gauche, calcule 8 éléments voisins côte à côte, chacun dans son ordre propre (mêmes
+  bits) : produit matriciel 0,84 → 0,19 ns par terme.
 
 ### elo
 

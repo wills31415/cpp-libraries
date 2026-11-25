@@ -261,7 +261,7 @@ réservés aux tenseurs (variances).
   | matrice × vecteur (axes) | 2,8 | 1,0 | 0,4 |
   | axpy (axes) | 4,6 | 1,4 | 1,0 (itérations indépendantes, voir plus bas) |
   | axpy (tableaux entiers) | 1,4 | 1,6 | 1,0 (idem) |
-  | produit matriciel (axes) | 3,2 | 1,9 | 0,8 |
+  | produit matriciel (axes) | 3,2 | 1,9 | 0,2 (voies, voir plus bas) |
   | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 | 0,8 (composantes de longueur 3 statique ; boucle scalaire, voir plus bas) |
 
   Les boucles à la main somment dans l'ordre (une addition attend la précédente) ; nos 8
@@ -275,8 +275,8 @@ réservés aux tenseurs (variances).
   sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
-  un tampon local n'y change rien (essayé, retiré). Reste : produit matriciel en blocs ;
-  barrières vectorielles du mode reproductible.
+  un tampon local n'y change rien (essayé, retiré). Reste : barrières vectorielles du mode
+  reproductible ; blocs de cache pour les grandes matrices.
 - **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
   de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
   la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
@@ -320,6 +320,19 @@ réservés aux tenseurs (variances).
   pragma de Clang demande la vectorisation, et Clang avertit quand elle est impossible
   (mode reproductible : `fmul`) ; cet avertissement (`-Wpass-failed`) est tu dans
   `container.hpp` et `indexed.hpp`.
+- **Voies (2026-11-25)** : le produit matriciel C[i, k] = A[i, j] B[j, k] somme chaque
+  élément le long de j, en lisant B à pas n : rien à vectoriser dans une somme, et l'ordre
+  fixé (I9) interdit de réassocier. Les éléments voisins C[i, k…k+7] sont en revanche
+  indépendants : une instruction à pas fixe qui contient une somme et dont toutes les
+  lectures sont contiguës le long de l'axe le plus intérieur du membre de gauche est
+  évaluée par paquets de W = 8 positions consécutives de cet axe (`lanes` des plans) ;
+  chaque voie fait exactement les opérations de la voie scalaire, dans le même ordre (somme
+  par paires voie à voie) : mêmes bits, mais B[j, k…k+7] se lit d'un bloc et le compilateur
+  vectorise. Le reste (moins de 8 positions) passe une à une. Produit matriciel 192³ :
+  0,84 → 0,19 ns par terme (0,2 fois la boucle à la main). Choix d'implémentation : W = 8
+  quel que soit le type (8 accumulateurs × 8 voies = 16 registres AVX2 en double) ; les
+  voies ne servent qu'aux instructions avec somme (sans somme, la boucle simple se vectorise
+  déjà) ; pas de découpage en blocs du cache, à mesurer sur de plus grandes matrices.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
