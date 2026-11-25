@@ -273,7 +273,11 @@ réservés aux tenseurs (variances).
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
   un tampon local n'y change rien (essayé, retiré). À reprendre : axpy sur tableaux entiers
-  (faire voir l'égalité des pointeurs), produit
+  (faire voir l'égalité des pointeurs) ; monde des axes (produit matriciel 1,9, champ 2,3) :
+  à chaque terme d'une somme, la position de l'axe est écrite dans l'environnement puis
+  relue par chaque feuille, ce qui empêche la vectorisation ; piste retenue : compiler une
+  somme le long d'un axe en accès à pas fixe (pour chaque feuille, un pointeur et un pas le
+  long de l'axe, calculés une fois ; puis op(pA[k·sA], pB[k·sB]) sans environnement) ; produit
   matriciel (boucles emboîtées générées, blocs), petites sommes (le schéma à 8 accumulateurs
   coûte sur 9 termes), barrières vectorielles du mode reproductible.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
