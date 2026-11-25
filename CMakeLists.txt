@@ -186,8 +186,14 @@ if(WSL_LIBRARIES_BUILD_TESTS)
     wsl_add_test(elo)
     wsl_add_test(progress)
     wsl_add_test(permutation)
-    wsl_add_test(mdarray_position LIBRARY mdarray)
-    wsl_add_test(mdarray_mdspan LIBRARY mdarray)
+    # wsl::mdarray : un test par fichier tests/test_mdarray_*.cpp (en ajouter un ne
+    # touche pas à ce fichier, donc ne relance pas toute la CI).
+    file(GLOB mdarray_tests CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/tests/test_mdarray_*.cpp)
+    foreach(source IN LISTS mdarray_tests)
+        get_filename_component(test ${source} NAME_WE)
+        string(REGEX REPLACE "^test_" "" test ${test})
+        wsl_add_test(${test} LIBRARY mdarray)
+    endforeach()
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.

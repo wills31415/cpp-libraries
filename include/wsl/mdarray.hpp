@@ -5,8 +5,9 @@
 // Lot 1, en cours : positions et déplacements (mdposition, mddisplacement),
 // arithmétique entière (div_euclid, rem_euclid), étendues (extents, dextents, dims),
 // dispositions (layout_right, layout_left, layout_stride) et vue (mdspan), aux noms
-// et à la sémantique de <mdspan>.
+// et à la sémantique de <mdspan> ; conteneur (mdarray, P1684), equal.
 
+#include <wsl/mdarray/container.hpp>
 #include <wsl/mdarray/extents.hpp>
 #include <wsl/mdarray/integer.hpp>
 #include <wsl/mdarray/layout.hpp>

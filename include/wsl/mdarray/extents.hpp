@@ -49,6 +49,22 @@ namespace wsl
             return count;
         }
 
+        // Étendues dynamiques ; vide (sans octet) quand il n'y en a aucune, pour que
+        // des étendues fixes n'occupent aucune place.
+        template <class I, std::size_t N>
+        struct dynamic_storage
+        {
+            std::array<I, N> values{};
+            constexpr I operator[](std::size_t k) const noexcept { return values[k]; }
+            constexpr void set(std::size_t k, I v) noexcept { values[k] = v; }
+        };
+        template <class I>
+        struct dynamic_storage<I, 0>
+        {
+            constexpr I operator[](std::size_t) const noexcept { return I{}; }
+            constexpr void set(std::size_t, I) noexcept {}
+        };
+
         template <class To, class From>
         constexpr To index_cast(From value, char const* message) noexcept
         {
@@ -102,7 +118,7 @@ namespace wsl
             {
                 auto const v = other.extent(r);
                 if (static_extent(r) == dynamic_extent)
-                    dynamic_[dynamic_index(r)] = detail::mdarray::index_cast<index_type>(v, "extents : étendue non représentable");
+                    dynamic_.set(dynamic_index(r), detail::mdarray::index_cast<index_type>(v, "extents : étendue non représentable"));
                 else
                     detail::mdarray::precondition(std::cmp_equal(v, static_extent(r)), "extents : étendue fixe différente");
             }
@@ -224,21 +240,21 @@ namespace wsl
             if constexpr (N == rank_dynamic())
             {
                 for (std::size_t k = 0; k < N; ++k)
-                    dynamic_[k] = v[k];
+                    dynamic_.set(k, v[k]);
             }
             else
             {
                 for (rank_type r = 0; r < rank(); ++r)
                 {
                     if (static_extent(r) == dynamic_extent)
-                        dynamic_[dynamic_index(r)] = v[r];
+                        dynamic_.set(dynamic_index(r), v[r]);
                     else
                         detail::mdarray::precondition(std::cmp_equal(v[r], static_extent(r)), "extents : étendue fixe différente");
                 }
             }
         }
 
-        std::array<index_type, rank_dynamic()> dynamic_{};
+        [[no_unique_address]] detail::mdarray::dynamic_storage<index_type, rank_dynamic()> dynamic_{};
     };
 
     namespace detail::mdarray

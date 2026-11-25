@@ -190,6 +190,13 @@ réservés aux tenseurs (variances).
   sens avec `std::mdspan` (même disposition, ou vers `std::layout_stride`), accesseur par
   défaut seulement ; `at` et `contains` acceptent entiers, `std::array`, `std::span` et
   `mdposition` ; `contains` est aussi membre de `mdspan`.
+- **Implémentation (étape 3, 2026-11-25)** : `include/wsl/mdarray/container.hpp`,
+  `detail/iterate.hpp` ; test `tests/test_mdarray_container.cpp`. Choix publics, à revoir :
+  littéral imbriqué en rang ≥ 2 seulement (en rang 1, `{3}` serait ambigu : une étendue ou
+  un élément, le piège de `std::vector{3}`) ; copie depuis une vue implicite quand les
+  étendues le permettent (P1684) ; `operator==` n'est pas encore défini (il sera élément par
+  élément, avec les expressions, étape 5) ; `all`, `any`, `count` viendront aussi avec les
+  masques. Les tests `tests/test_mdarray_*.cpp` sont trouvés par CMake sans le modifier.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

@@ -32,6 +32,15 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `contains` (y compris `contains(p, d)`), `wrap` (bord périodique) et `clamp` (bord
   recopié). `layout_stride::is_exhaustive()` suit la définition de l'exhaustivité (écart
   documenté avec la formulation par permutation).
+- Conteneur `mdarray<T, Extents, Layout, Container>` (P1684) : sémantique de valeur ;
+  conteneur par défaut `std::array` quand toutes les étendues sont fixes et la disposition
+  exhaustive (aucune allocation, `constexpr` complet), `std::vector` sinon ; construction
+  depuis des étendues (éléments initialisés), une valeur, un conteneur, une vue, un autre
+  tableau, ou un littéral imbriqué en rang ≥ 2 (`{{1, 2, 3}, {4, 5, 6}}`, étendues
+  dynamiques prises au littéral) ; accès de `mdspan`, `to_mdspan()` et conversions en vue,
+  `data()`, `container()`, `extract_container()`, parcours à plat `begin()`/`end()`,
+  `fill`, `swap`. `equal(a, b)` compare deux tableaux ou vues (`bool`). Des étendues
+  entièrement fixes n'occupent plus aucun octet.
 
 ### elo
 
