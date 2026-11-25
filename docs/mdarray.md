@@ -275,8 +275,7 @@ réservés aux tenseurs (variances).
   sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
-  un tampon local n'y change rien (essayé, retiré). Reste : blocs de cache pour les grandes
-  matrices.
+  un tampon local n'y change rien (essayé, retiré). Reste : voir « Grandes matrices ».
 - **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
   de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
   la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
@@ -350,6 +349,19 @@ réservés aux tenseurs (variances).
   consécutives du stockage (`flat_lanes`, boucle directe et `sum`), le reste une à une ;
   mode reproductible : axpy 1,5 → 1,1 fois la boucle à la main, A ∘ B + 1 1,2 → 0,9 ; le test
   compare bit à bit à la voie scalaire (tableaux layout_left, sans accès direct).
+- **Grandes matrices (2026-11-25)** : produit 1024³, 0,60 ns par terme (0,17 en 192³) : pour
+  chaque ligne i, le paquet de colonnes B[·, k…k+7] (1024 × 64 octets) était relu depuis le
+  cache L3. Les voies parcourent désormais les paquets de colonnes à l'extérieur, les lignes
+  à l'intérieur (le paquet reste en L2 ; chaque élément est indépendant, les bits ne
+  changent pas) : 0,37 ns par terme en 1024³ (0,2 fois la boucle à la main), 0,25 en 1000³ ;
+  l'écart restant entre 1000 et 1024 vient des conflits de cache des lignes espacées de
+  8 Ko (puissance de 2), la boucle à la main en souffre aussi. Pistes non retenues pour
+  l'instant : découper aussi j (les tranches de 128 termes de la somme par paires tiennent
+  en L1 ; il faudrait garder leurs résultats partiels et les combiner selon l'arbre de la
+  somme par paires, pour les mêmes bits) ; plusieurs lignes à la fois (impossible sans
+  déborder les 16 registres : l'ordre fixé I9 demande 8 accumulateurs par élément). Ordre
+  de grandeur : une bibliothèque BLAS optimisée approche 0,03 ns par terme sur ce processeur
+  (sans ordre de somme fixé).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

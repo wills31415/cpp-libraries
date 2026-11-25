@@ -1476,10 +1476,12 @@ namespace wsl
                         // fois (voies), le reste une à une ; mêmes bits.
                         constexpr std::size_t W = 8;
                         auto const inner_length = static_cast<std::size_t>(env.length[tindex_v<inner, axes>]);
-                        for (std::size_t outer = 0; outer < n; outer += inner_length)
-                        {
-                            std::size_t r = 0;
-                            for (; r + W <= inner_length; r += W)
+                        // Paquet de colonnes à l'extérieur : les lectures d'un paquet (B[j, k…k+7]
+                        // pour tout j) restent dans le cache d'une ligne à l'autre. Chaque
+                        // élément est indépendant : l'ordre de parcours ne change pas les bits.
+                        std::size_t const full = inner_length - inner_length % W;
+                        for (std::size_t r = 0; r < full; r += W)
+                            for (std::size_t outer = 0; outer < n; outer += inner_length)
                             {
                                 wheels.set_local(outer + r);
                                 auto const pack = value.template lanes<K - 1, W>(wheels.local);
@@ -1488,12 +1490,12 @@ namespace wsl
                                     target.p[o + static_cast<std::ptrdiff_t>(l) * step] =
                                         static_cast<typename View::value_type>(pack.v[l]);
                             }
-                            for (; r < inner_length; ++r)
+                        for (std::size_t outer = 0; outer < n; outer += inner_length)
+                            for (std::size_t r = full; r < inner_length; ++r)
                             {
                                 wheels.set_local(outer + r);
                                 target(wheels.local) = static_cast<typename View::value_type>(value.value(wheels.local));
                             }
-                        }
                     }
                     else
                         loop([&](std::size_t k) {

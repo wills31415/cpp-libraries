@@ -7,7 +7,7 @@ cxx=${1:-/usr/bin/clang++}
 shift || true
 flags=${*:--O3 -march=native}
 out=$(mktemp -d)
-for kernel in ${KERNELS:-1 2 3 4 5 6 7 8}; do
+for kernel in ${KERNELS:-1 2 3 4 5 6 7 8 9}; do
     "$cxx" -std=c++23 $flags -DNDEBUG -Iinclude -DKERNEL=$kernel tools/mdarray/benchmark.cpp -o "$out/k$kernel"
     "$out/k$kernel"
 done

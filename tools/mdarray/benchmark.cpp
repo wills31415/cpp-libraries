@@ -100,6 +100,13 @@ int main()
     double lib = best_ns([&] { C = A * B + 1; }, 10);
     double hand = best_ns([&] { for (std::size_t q = 0; q < n * n; ++q) C.data()[q] = A.data()[q] * B.data()[q] + 1; }, 10);
     std::printf("A∘B + 1 (2D)      %8.3f ns/élément  à la main %8.3f  rapport %5.1f\n", lib / (n * n), hand / (n * n), lib / hand);
+#elif KERNEL == 9 // C[i, k] = A[i, j] B[j, k], grandes matrices (cache)
+    constexpr std::size_t n = 1024;
+    M A(n, n), B(n, n), C(n, n);
+    for (std::size_t q = 0; q < n; ++q) for (std::size_t r = 0; r < n; ++r) { A[q, r] = double(q + r) / n; B[q, r] = double(q) - double(r); }
+    double lib = best_ns([&] { C[i, k] = A[i, j] * B[j, k]; }, 2);
+    double hand = best_ns([&] { for (std::size_t q = 0; q < n; ++q) for (std::size_t r = 0; r < n; ++r) { double s = 0; for (std::size_t t = 0; t < n; ++t) s += A.data()[q * n + t] * B.data()[t * n + r]; C.data()[q * n + r] = s; } }, 2);
+    std::printf("produit 1024³     %8.3f ns/terme    à la main %8.3f  rapport %5.1f\n", lib / (n * n * n), hand / (n * n * n), lib / hand);
 #endif
     return 0;
 }
