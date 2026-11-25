@@ -142,7 +142,7 @@ namespace wsl
                 requires(std::is_arithmetic_v<T> || std::is_class_v<T>) && (!indexed<T>)
             constexpr operator T() &&
             {
-                return static_cast<T>(evaluate_scalar(static_cast<Node const&>(*this)));
+                return static_cast<T>(evaluate_scalar(default_mode(static_cast<Node&&>(*this))));
             }
 
             template <class T>
@@ -816,7 +816,7 @@ namespace wsl
                 requires(indexed_operand<Rhs> || scalar_operand<Rhs> || array_operand<Rhs>)
             constexpr void operator=(Rhs&& rhs) &&
             {
-                assign(to_indexed(std::forward<Rhs>(rhs)));
+                assign(default_mode(to_indexed(std::forward<Rhs>(rhs))));
             }
 
             constexpr void operator=(indexed_target&& rhs) &&
@@ -836,7 +836,7 @@ namespace wsl
         requires(indexed_operand<Rhs> || scalar_operand<Rhs>)                                                          \
     constexpr void operator op(Rhs&& rhs) &&                                                                           \
     {                                                                                                                  \
-        assign(make_node(base{}, reread(), std::forward<Rhs>(rhs)));                                                   \
+        assign(default_mode(make_node(base{}, reread(), std::forward<Rhs>(rhs))));                                     \
     }
             WSL_MDARRAY_TARGET_COMPOUND(+=, std::plus<>)
             WSL_MDARRAY_TARGET_COMPOUND(-=, std::minus<>)
@@ -1048,7 +1048,7 @@ namespace wsl
     constexpr auto value(E&& e)
     {
         static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2)");
-        return detail::mdarray::evaluate_scalar(e);
+        return detail::mdarray::evaluate_scalar(detail::mdarray::default_mode(std::move(e)));
     }
 
     // --- Réducteurs le long d'axes : sum(j)(…) (I6) ------------------------------------------
@@ -1064,7 +1064,7 @@ namespace wsl
             using node = detail::mdarray::indexed_reduction<Kind, detail::mdarray::tlist<Ids...>, decltype(child)>;
             node r(std::move(child));
             if constexpr (node::occurrences::size == 0)
-                return detail::mdarray::evaluate_scalar(r); // entièrement liée : calculée tout de suite (V9)
+                return detail::mdarray::evaluate_scalar(detail::mdarray::default_mode(std::move(r))); // entièrement liée (V9)
             else
                 return r;
         }

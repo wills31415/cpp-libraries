@@ -235,6 +235,21 @@ réservés aux tenseurs (variances).
   reprendre : l'évaluation passe par un environnement de positions (pas de boucles
   emboîtées ni de vectorisation explicite) ; l'ordre des boucles suit la première apparition
   des axes à gauche, pas encore le stockage.
+- **Implémentation (étape 6, 2026-11-25)** : `include/wsl/mdarray/mode.hpp` ; tests
+  `tests/test_mdarray_modes.cpp` (empreinte 0xf33b15d552bca1bc du mode reproductible,
+  mesurée identique avec Apple Clang, GCC 14 et Clang 18, de -O0 à -O3, avec ou sans
+  `-march=x86-64-v3 -ffp-contract=fast` ; seul `-ffast-math`, qui autorise la
+  réassociation, la change, comme pour wsl::special), `tests/test_mdarray_modes_default.cpp`
+  (mode par défaut reproductible), `tests/compile_fail/mdarray/modes.cpp`. Mécanique :
+  `wsl::reproducible(e)` réécrit l'arbre, chaque opération devient `moded_op<mode, op>` ; en
+  mode reproductible, le produit passe par `wsl::special::detail::fmul` et les fonctions par
+  `wsl::special` ; une opération déjà dans un mode le garde (`wsl::fast` dans une
+  instruction reproductible) ; le mode par défaut s'applique aux affectations, conversions en
+  scalaire et réductions. Choix, à revoir : les opérations exactes (abs, floor, fmod, fmin,
+  copysign…) et les fonctions de l'utilisateur gardent leur forme ; l'accès à un élément
+  d'une expression, `(a + b)[1, 2]`, ne prend pas le mode par défaut. La barrière est
+  scalaire (l'évaluation n'est pas encore vectorisée : à reprendre avec la performance, par
+  des barrières sur des vecteurs, I9).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

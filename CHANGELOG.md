@@ -71,6 +71,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   longueur inconnue ou fixe incompatible, `u[i + 1]`, `+i`, `max(i, j)(…)`, expression ou
   cible nommée, tableau entier mêlé à une expression indicée.
 - `mdarray<bool>` : tampon contigu au lieu de `std::vector<bool>`.
+- Modes de calcul flottant : `wsl::fast(…)` (fusion en fma permise, `<cmath>`) et
+  `wsl::reproducible(…)` (aucun produit fusionné, fonctions de `wsl::special` : mêmes bits
+  sur toute plateforme et avec toutes les options sauf `-ffast-math`, et calcul possible à
+  la compilation) ; une fonction non couverte par `wsl::special` (`tanh`, `asin`…) est une
+  erreur de compilation en mode reproductible. Mode des instructions non marquées : option
+  CMake `WSL_LIBRARIES_MDARRAY_REPRODUCIBLE` (rapide par défaut). `wsl::mdarray` dépend
+  désormais de `wsl::special`.
 
 ### elo
 

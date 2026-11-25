@@ -22,6 +22,15 @@ namespace wsl::detail::mdarray
     template <class T>
     concept indexed = std::derived_from<std::remove_cvref_t<T>, indexed_tag>;
 
+    // Modes de calcul (mode.hpp) : réécriture d'un arbre, mode par défaut d'une
+    // instruction non marquée. Inclure <wsl/mdarray.hpp>.
+    template <class Mode, class T>
+    constexpr auto with_mode(T&& t);
+    template <class Mode, class Op>
+    constexpr auto with_mode_op(Op op);
+    template <class T>
+    constexpr decltype(auto) default_mode(T&& t);
+
     // m[i, j] avec au moins un axe : défini dans indexed.hpp.
     template <class Source, class... Args>
     constexpr auto make_indexed(Source&& source, Args const&... args);

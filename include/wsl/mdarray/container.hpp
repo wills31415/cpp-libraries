@@ -255,7 +255,7 @@ namespace wsl
         constexpr mdarray(E&& e) : map_(extents_type(e.extents())), ctr_(make_container(map_))
         {
             static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2) ; std::move(e) si c'est voulu");
-            assign_elements(e);
+            assign_elements(detail::mdarray::default_mode(std::move(e)));
         }
 
         // y = expr : formes égales (précondition), pas de redimensionnement (I13).
@@ -264,7 +264,7 @@ namespace wsl
         {
             static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2) ; std::move(e) si c'est voulu");
             check_shape(e.extents());
-            assign_elements(e);
+            assign_elements(detail::mdarray::default_mode(std::move(e)));
             return *this;
         }
 

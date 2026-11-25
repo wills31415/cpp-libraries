@@ -79,7 +79,14 @@ wsl_add_library(progress     STANDARD 23)
 wsl_add_library(special      STANDARD 23)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
-wsl_add_library(mdarray      STANDARD 23)
+wsl_add_library(mdarray      STANDARD 23 DEPENDS special)
+# Mode de calcul flottant des instructions non marquées de wsl::mdarray (docs/mdarray.md,
+# I9) : rapide par défaut ; reproductible au bit près partout si ON. Transmis à tout le
+# projet consommateur (une même valeur partout : règle de définition unique).
+option(WSL_LIBRARIES_MDARRAY_REPRODUCIBLE "wsl::mdarray : mode reproductible par défaut" OFF)
+if(WSL_LIBRARIES_MDARRAY_REPRODUCIBLE)
+    target_compile_definitions(wsl_mdarray INTERFACE WSL_MDARRAY_REPRODUCIBLE=1)
+endif()
 
 # Bibliothèques dont on construit les tests et exemples (toutes, sauf en CI).
 set(WSL_LIBRARIES_TESTED ALL)

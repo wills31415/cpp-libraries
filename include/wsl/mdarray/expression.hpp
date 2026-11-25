@@ -178,6 +178,7 @@ namespace wsl
             using rank_type = std::size_t;
             using value_type =
                 typename value_type_of<Op, index_type, std::make_index_sequence<extents_type::rank()>, Leaves...>::type;
+            using op_type = Op;
 
             static constexpr rank_type rank() noexcept { return extents_type::rank(); }
 
@@ -243,6 +244,18 @@ namespace wsl
             constexpr value_type operator[](mdposition<rank(), I> const& p) const
             {
                 return [&]<std::size_t... K>(std::index_sequence<K...>) { return (*this)[p[K]...]; }(std::make_index_sequence<rank()>{});
+            }
+
+            // Le même arbre, dans un mode (mode.hpp).
+            template <class Mode>
+            constexpr auto rebuild() &&
+            {
+                return std::apply(
+                    [&](auto&&... l) {
+                        return elementwise<decltype(with_mode_op<Mode>(std::move(op_))), decltype(with_mode<Mode>(std::move(l)))...>(
+                            with_mode_op<Mode>(std::move(op_)), with_mode<Mode>(std::move(l))...);
+                    },
+                    std::move(leaves_));
             }
 
             // Plages mémoire lues (aliasing, I12).
@@ -591,6 +604,16 @@ namespace wsl
         template <class A>
         concept reducible = array_operand<A>;
 
+        // Opérande d'une réduction : une expression prend le mode par défaut.
+        template <class A>
+        constexpr decltype(auto) reduction_operand(A&& a)
+        {
+            if constexpr (expression<A> && !std::is_lvalue_reference_v<A>)
+                return default_mode(std::move(a));
+            else
+                return (a);
+        }
+
         // Les valeurs dans l'ordre lexicographique, accédées par rang k.
         template <class A>
         struct flat
@@ -632,26 +655,31 @@ namespace wsl
 
     // Somme de tous les éléments, dans l'ordre fixé d'I9.
     template <detail::mdarray::reducible A>
-    constexpr auto sum(A&& a)
+    constexpr auto sum(A&& source)
     {
-        detail::mdarray::flat<std::remove_cvref_t<A>> x(a);
-        using T = decltype(std::declval<detail::mdarray::value_of<std::remove_cvref_t<A>>>() + std::declval<detail::mdarray::value_of<std::remove_cvref_t<A>>>());
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
+        detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
+        using V = detail::mdarray::value_of<std::remove_cvref_t<decltype(a)>>;
+        using T = decltype(std::declval<V>() + std::declval<V>());
         return detail::mdarray::pairwise<T>(x, 0, x.size(), T{}, std::plus<>{});
     }
 
     template <detail::mdarray::reducible A>
-    constexpr auto prod(A&& a)
+    constexpr auto prod(A&& source)
     {
-        detail::mdarray::flat<std::remove_cvref_t<A>> x(a);
-        using T = decltype(std::declval<detail::mdarray::value_of<std::remove_cvref_t<A>>>() * std::declval<detail::mdarray::value_of<std::remove_cvref_t<A>>>());
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
+        detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
+        using V = detail::mdarray::value_of<std::remove_cvref_t<decltype(a)>>;
+        using T = decltype(std::declval<V>() * std::declval<V>());
         return detail::mdarray::pairwise<T>(x, 0, x.size(), T{1}, std::multiplies<>{});
     }
 
     // min, max d'un tableau entier (précondition : non vide), NaN propagé.
     template <detail::mdarray::reducible A>
-    constexpr auto min(A&& a)
+    constexpr auto min(A&& source)
     {
-        detail::mdarray::flat<std::remove_cvref_t<A>> x(a);
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
+        detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
         std::size_t const n = x.size();
         detail::mdarray::precondition(n > 0, "min : tableau vide");
         auto m = x(0);
@@ -661,9 +689,10 @@ namespace wsl
     }
 
     template <detail::mdarray::reducible A>
-    constexpr auto max(A&& a)
+    constexpr auto max(A&& source)
     {
-        detail::mdarray::flat<std::remove_cvref_t<A>> x(a);
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
+        detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
         std::size_t const n = x.size();
         detail::mdarray::precondition(n > 0, "max : tableau vide");
         auto m = x(0);
@@ -703,35 +732,40 @@ namespace wsl
     // Position du minimum, du maximum : la première en ordre lexicographique ; un NaN
     // l'emporte (comme NumPy).
     template <detail::mdarray::reducible A>
-    constexpr auto argmin(A&& a)
+    constexpr auto argmin(A&& source)
     {
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
         return detail::mdarray::arg_extremum(a, [](auto const& w, auto const& v) { return w < v; });
     }
 
     template <detail::mdarray::reducible A>
-    constexpr auto argmax(A&& a)
+    constexpr auto argmax(A&& source)
     {
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
         return detail::mdarray::arg_extremum(a, [](auto const& w, auto const& v) { return v < w; });
     }
 
     // Masques (I10, I13).
     template <detail::mdarray::reducible A>
-    constexpr bool all(A&& a)
+    constexpr bool all(A&& source)
     {
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
         return detail::mdarray::for_each_index(detail::mdarray::extents_of_array(a),
                                                [&](auto... i) { return static_cast<bool>(detail::mdarray::value_at(a, i...)); });
     }
 
     template <detail::mdarray::reducible A>
-    constexpr bool any(A&& a)
+    constexpr bool any(A&& source)
     {
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
         return !detail::mdarray::for_each_index(detail::mdarray::extents_of_array(a),
                                                 [&](auto... i) { return !static_cast<bool>(detail::mdarray::value_at(a, i...)); });
     }
 
     template <detail::mdarray::reducible A>
-    constexpr auto count(A&& a)
+    constexpr auto count(A&& source)
     {
+        auto&& a = detail::mdarray::reduction_operand(std::forward<A>(source));
         using I = typename std::remove_cvref_t<decltype(detail::mdarray::extents_of_array(a))>::index_type;
         std::make_signed_t<I> n = 0;
         detail::mdarray::for_each_index(detail::mdarray::extents_of_array(a), [&](auto... i) {

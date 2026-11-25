@@ -10,7 +10,7 @@
 # sont rendus dans <variable>_EXAMPLES.
 #
 # Correspondance : include/wsl/<nom>.hpp et include/wsl/<nom>/ -> <nom> ;
-# tools/<nom>/ -> <nom> ; tests/test_<nom>[_…].cpp -> la plus longue bibliothèque
+# tools/<nom>/ -> <nom> ; tests/test_<nom>[_…].cpp ou .hpp -> la plus longue bibliothèque
 # préfixe ; tests/compile_fail/<nom>/ -> <nom> ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
 # -> random ; tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
 # exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
@@ -45,7 +45,7 @@ function(wsl_affected_libraries file variable)
             set(library ${CMAKE_MATCH_1})
         elseif(path MATCHES "^tools/([a-z0-9_]+)/")
             set(library ${CMAKE_MATCH_1})
-        elseif(path MATCHES "^tests/test_([a-z0-9_]+)\\.cpp$")
+        elseif(path MATCHES "^tests/test_([a-z0-9_]+)\\.(cpp|hpp)$")
             set(test ${CMAKE_MATCH_1})
             set(length 0)
             foreach(candidate IN LISTS libraries)
