@@ -48,7 +48,7 @@ Hors du périmètre :
 | ✅ V6 | **Indépendance de `wsl::algebraic`** : mdarray ne dépend d'aucune bibliothèque mathématique ; ses exigences sur les éléments sont syntaxiques, comme dans la norme (`+`, `*`…). La déclaration des structures (`mddiff` est un ℤ-module, `mdsize` un espace affine) viendra plus tard dans un en-tête de liaison, cible qui dépend des deux ; ni l'une ni l'autre ne dépend de l'autre. |
 | ✅ V7 | **`array2d` devient un alias** de tableau de rang 2. |
 | ✅ V8 | **Deux mondes**. Tableaux entiers : `a + b`, `a * b`, `exp(a)`, `hypot(x, y)`, `2 * a + 1` terme à terme, opérandes de même forme (erreur de compilation entre étendues fixes, précondition sinon), scalaires diffusés, aucune autre diffusion ; paresseux et temporaires seulement (L2) ; indexables (`hypot(x, y)[i]` est un facteur ordinaire) et constructibles (`mdarray c = a * b + 1;`). Axes : V3, V4. |
-| ✅ V9 | **Affectations** : `=` parcourt les axes de gauche ; `*=`, `/=`, `+=`, `−=` sont de vrais raccourcis de la forme développée (`y[i, j] *= w[i]` vaut `y[i, j] = y[i, j] * w[i]` : i est à gauche, jamais sommé). Scalaires : une expression sans axe à gauche se convertit en nombre et se range dans un type explicite (`double n = sqrt(v[i] * v[i]);`) ; `auto` est refusé (expression nommée, L2). |
+| ✅ V9 | **Affectations** : `=` parcourt les axes de gauche ; `*=`, `/=`, `+=`, `−=` sont de vrais raccourcis de la forme développée (`y[i, j] *= w[i]` vaut `y[i, j] = y[i, j] * w[i]` : i est à gauche, jamais sommé). **Scalaires** : une expression dont les sommes implicites dépendent du membre de gauche se range dans un type explicite (`double s = x[i] * x[i];`) ou passe par `wsl::value(…)` ; raison : l'expression est construite avant que C++ ne voie la cible, et seule la conversion en nombre dit « membre de gauche sans axe » (`auto` garderait l'expression, refusée par L2). Les réductions explicites entièrement liées (`sum(i, …)`, `count(i, …)`, `all(i, …)`, `any(i, …)`) et les réductions de tableaux entiers sont calculées immédiatement (`auto` permis), sans détection de la réutilisation de leur axe dans l'instruction (`y[i] = count(i, …) * x[i]` passe : déconseillé, documenté). Précisé le 2026-11-25. |
 
 ## 3. Principes
 
@@ -193,6 +193,32 @@ réservés aux tenseurs (variances).
   un masque ; `if (masque)` refusé avec un message. Coût accepté : le tableau n'est pas
   `std::equality_comparable`. `array2d` (V7) : décidé à la fin du lot 2, quand les vues de
   lignes et de colonnes existeront ; inchangé d'ici là.
+- **Algèbre des expressions** (✅ I5, 2026-11-25) : toutes les vérifications à la compilation
+  (garde-fous de V4, longueurs fixes, mélanges interdits), messages en français nommant la
+  règle ; seules les longueurs dynamiques sont vérifiées à l'exécution, une fois par
+  instruction. Une boucle fusionnée par instruction, sans tableau intermédiaire caché ; ordre
+  des boucles de gauche choisi par la bibliothèque (ordre du stockage du tableau de gauche),
+  sans effet sur le résultat ; axes sommés parcourus dans l'ordre de l'écriture (première
+  apparition), indépendamment des dispositions ; sommes imbriquées calculées à leur niveau ;
+  représentation interne libre.
+- **Calcul flottant** (✅ I9 et fusion, 2026-11-25) : ordre des sommes et réductions fixé par
+  la bibliothèque, par paires avec des feuilles en K accumulateurs (K fixé, comme NumPy) :
+  reproductible, vectorisable, erreur en O(log n ε). Deux modes : **rapide** (fusion en `fma`
+  permise, fonctions de `<cmath>` ; mêmes résultats pour un même programme, une même machine,
+  les mêmes options) et **reproductible** (sans fusion : barrières placées par le moteur sur
+  des vecteurs, évaluation par paquets ; fonctions de `wsl::special` ; une fonction non
+  couverte est une erreur de compilation ; mêmes bits partout, `constexpr` = exécution).
+  Choix par instruction (`wsl::fast(…)`, `wsl::reproducible(…)`) ; mode par défaut fixé par
+  une option CMake de la cible (rapide par défaut), cohérente dans tout le projet (une macro
+  libre violerait la règle de définition unique). Mesure (Apple Clang, AVX2) : la barrière
+  scalaire de `wsl::special` empêche la vectorisation, la barrière sur un vecteur la garde.
+- **Comparaisons avec des axes** (✅ I10, 2026-11-25) : élément par élément selon la convention
+  C ; une somme de booléens est refusée (message vers `any`, `all`, `count`), y compris
+  `if (a[i] < b[i])` et `double s = a[i] < b[i];` ; une comparaison dans un produit numérique
+  est un crochet d'Iverson (`(a[i] < b[i]) * x[i]`) ; réductions `all`, `any`, `count` sur
+  les masques entiers et par les axes (`count(i, …)`) ; `count` rend
+  `make_signed_t<index_type>` (comme `std::ranges::count`) ; `&&`, `||`, `!` élément par
+  élément sans court-circuit (comme `std::valarray`) ; `where(c, x, y)`.
 - **Vues de découpage et de décalage**, noms provisoires : `u.slice(a, b)` (positions
   [a, b), comme `submdspan` de C++26), `roll(u, k)` (décalage circulaire, `numpy.roll`),
   `shift(u, k, wsl::clamp)` ou `shift(u, k, wsl::fill(0))` ; décalages de rang N par
@@ -206,10 +232,7 @@ réservés aux tenseurs (variances).
 | # | Sujet |
 |---|---|
 | I3 | Parcours d'un ensemble d'indices (ordre lexicographique, ordre de stockage) |
-| I5 | Algèbre des expressions d'axes à la compilation : axes de gauche, sommés, portée des sommes, garde-fous de V4 |
 | I6 | Noms des réductions (produit, minimum, maximum, tous, au moins un ; conflits avec `std::max`) ; `filled`, comparaison composante par composante, division euclidienne et normes sont réglés (D12, D15, D18, D26) |
 | I8 | Exécution parallèle et GPU (appel depuis le code des noyaux, absence d'exceptions, moteur d'exécution : dépendance externe à décider) ; d'ici là, types `constexpr`, trivialement copiables, sans exception hors `at()` |
-| I9 | Ordre des additions des sommes et réductions (flottants) : fixé par la bibliothèque (par blocs de K accumulateurs ?), vectorisable et identique partout |
-| I10 | Comparaisons par les axes : `y[i] = a[i] < b[i]` élément par élément ; une somme de comparaisons (`bool t = a[i] < b[i];`, i sommé) serait refusée, avec renvoi vers `any`/`all` (proposé) ; masques d'axes (`where(i >= j, …)`) |
 | I11 | Fonctions de l'utilisateur sur des expressions et des tableaux entiers (`wsl::map(f, x, y)`) ; surcharges de `<cmath>` pour les expressions |
 | I12 | Aliasing : `y[i] = A[i, j] * y[j]`, `m[i, j] = m[j, i]` sur place |
