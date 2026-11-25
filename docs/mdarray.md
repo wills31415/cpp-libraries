@@ -163,11 +163,36 @@ réservés aux tenseurs (variances).
 
 ## 6. Stockage, vues, calcul (à concevoir : stockage et calcul au lot 1, vues au lot 2)
 
-- **Infrastructure** (◻︎, proposée le 2026-11-23) : étendues, dispositions et vue propres, aux
-  noms et à la sémantique de `<mdspan>`, dont elles ne s'écartent que par des **ajouts** :
-  tout code valide avec `std::mdspan` garde le même sens. Raison : `std::mdspan` manque à
-  GCC 14 et 15 (GCC 16 ou libc++ requis), et la vue gagnera des extensions (positions
-  `mdsize`, axes, indexation partielle). Conversion vers `std::mdspan` là où il existe.
+- **Infrastructure** (✅ A5, validée le 2026-11-25) : `wsl::extents`, `wsl::dextents`,
+  `layout_right`, `layout_left`, `layout_stride`, `wsl::mdspan`, aux noms et à la sémantique
+  de `<mdspan>`, dont ils ne s'écartent que par des **ajouts** (axes, `mdsize`, `contains`,
+  `at`, `concat`… ; ajouts de C++26 repris sous leur nom) : tout code valide avec
+  `std::mdspan` garde le même sens. Conversions avec `std::mdspan` là où il existe
+  (`__cpp_lib_mdspan`). Raisons : `std::mdspan` manque à GCC 14 et à Clang 18 avec
+  libstdc++ ; surtout, `m[i, j]` avec des axes exige notre propre vue (on n'ajoute pas de
+  surcharge à un type de la norme) ; pas de dépendance externe (Kokkos).
+- **Ensembles d'indices** (✅ I2, 2026-11-25) : `wsl::extents`, `wsl::dextents` de la norme ;
+  un `extents` est l'ensemble d'indices E (ajouts : `contains`, parcours, `wrap`, `clamp`) ;
+  pas de conversion vers `mdsize` (une forme est une taille, pas une position) ;
+  `wsl::dims<N>` (C++26, P2389) ; étendues nulles et rang 0 permis ; boîtes [lo, hi) : I3 et
+  lot 2.
+- **Conteneur** (✅ I13, 2026-11-25) : `wsl::mdarray<T, Extents, Layout = layout_right,
+  Container>` (P1684), possédant, sémantique de valeur (copie profonde). Conteneur par défaut :
+  `std::array<T, n₁ ⋯ n_N>` si toutes les étendues sont fixes (aucune allocation, `constexpr`
+  complet : tenseurs 3 × 3, 4 × 4), `std::vector<T>` sinon (écart assumé avec P1684).
+  Construction : `(extents)`, `(n₁, n₂…)` (valeurs initialisées), `(extents, valeur)`, depuis
+  un `mdspan` (copie), depuis une expression de tableaux entiers (V8) ; littérale pour des
+  étendues fixes (`{{1, 2}, {3, 4}}`, ajout). Affectation d'une expression : formes égales
+  (précondition), pas de redimensionnement implicite. `m.fill(v)` ; `to_mdspan()` et
+  conversion implicite en `wsl::mdspan` (P1684), en `std::mdspan` là où il existe ; accès de
+  `mdspan` plus `data()`, `container()`, `extract_container()`, `size()`, `extents()`,
+  `mapping()` ; parcours à plat `begin()`/`end()` sur le stockage (ajout) ; `constexpr`
+  partout. **Comparaisons des tableaux entiers** (`==`, `!=`, `<`, `<=`, `>`, `>=`) :
+  élément par élément, des masques (cohérent avec V8 ; précédent : `std::valarray`) ;
+  `equal(a, b)` rend un `bool` (nom de `std::ranges::equal`) ; `all(m)`, `any(m)` réduisent
+  un masque ; `if (masque)` refusé avec un message. Coût accepté : le tableau n'est pas
+  `std::equality_comparable`. `array2d` (V7) : décidé à la fin du lot 2, quand les vues de
+  lignes et de colonnes existeront ; inchangé d'ici là.
 - **Vues de découpage et de décalage**, noms provisoires : `u.slice(a, b)` (positions
   [a, b), comme `submdspan` de C++26), `roll(u, k)` (décalage circulaire, `numpy.roll`),
   `shift(u, k, wsl::clamp)` ou `shift(u, k, wsl::fill(0))` ; décalages de rang N par
@@ -180,12 +205,11 @@ réservés aux tenseurs (variances).
 
 | # | Sujet |
 |---|---|
-| I2 | Ensembles d'indices : `extents` fixes ou dynamiques, alignement sur `std::extents`, lien avec `mdsize` (forme d'un tableau) |
 | I3 | Parcours d'un ensemble d'indices (ordre lexicographique, ordre de stockage) |
 | I5 | Algèbre des expressions d'axes à la compilation : axes de gauche, sommés, portée des sommes, garde-fous de V4 |
-| I6 | Fonctions nommées : `filled`, comparaison composante par composante, division euclidienne, normes ; noms des réductions (produit, min, max, tous, au moins un ; conflits avec `std::max`) |
+| I6 | Noms des réductions (produit, minimum, maximum, tous, au moins un ; conflits avec `std::max`) ; `filled`, comparaison composante par composante, division euclidienne et normes sont réglés (D12, D15, D18, D26) |
 | I8 | Exécution parallèle et GPU (appel depuis le code des noyaux, absence d'exceptions, moteur d'exécution : dépendance externe à décider) ; d'ici là, types `constexpr`, trivialement copiables, sans exception hors `at()` |
 | I9 | Ordre des additions des sommes et réductions (flottants) : fixé par la bibliothèque (par blocs de K accumulateurs ?), vectorisable et identique partout |
-| I10 | Comparaisons : `y[i] = a[i] < b[i]` élément par élément ; sens d'un scalaire (`bool b = a[i] < b[i];` compterait-il ?) |
+| I10 | Comparaisons par les axes : `y[i] = a[i] < b[i]` élément par élément ; une somme de comparaisons (`bool t = a[i] < b[i];`, i sommé) serait refusée, avec renvoi vers `any`/`all` (proposé) ; masques d'axes (`where(i >= j, …)`) |
 | I11 | Fonctions de l'utilisateur sur des expressions et des tableaux entiers (`wsl::map(f, x, y)`) ; surcharges de `<cmath>` pour les expressions |
 | I12 | Aliasing : `y[i] = A[i, j] * y[j]`, `m[i, j] = m[j, i]` sur place |
