@@ -720,12 +720,6 @@ namespace wsl
         // calculées côte à côte (C[i, k…k+7] = A[i, j] B[j, k…k+7]) ; chaque voie suit
         // exactement les opérations et l'ordre de la voie scalaire : mêmes bits, mais des
         // lectures contiguës que le compilateur vectorise.
-        template <class T, std::size_t W>
-        struct lane_pack
-        {
-            T v[W];
-        };
-
         // Somme voie à voie, convertie dans le type T de la somme.
         template <class T, std::size_t W>
         struct lane_add

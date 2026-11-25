@@ -3,6 +3,7 @@
 // Marqueur commun des expressions paresseuses (docs/mdarray.md, V8, L2).
 
 #include <concepts>
+#include <cstddef>
 #include <type_traits>
 
 namespace wsl::detail::mdarray
@@ -13,6 +14,14 @@ namespace wsl::detail::mdarray
 
     template <class T>
     concept expression = std::derived_from<std::remove_cvref_t<T>, expression_tag>;
+
+    // Paquet de W valeurs (voies) : W positions calculées côte à côte, chacune par les
+    // mêmes opérations que seule (indexed.hpp, expression.hpp).
+    template <class T, std::size_t W>
+    struct lane_pack
+    {
+        T v[W];
+    };
 
     // Expressions indicées (monde des axes, docs/mdarray.md V3, V4).
     struct indexed_tag

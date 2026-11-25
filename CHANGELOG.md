@@ -101,7 +101,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 - Performance du mode reproductible : barrière contre la fusion en fma posée sur un
   registre vectoriel entier pour les paquets de 8 termes (voies, sommes le long d'un axe),
   au lieu d'un registre scalaire par produit : produit matriciel 0,63 → 0,20 ns par terme,
-  produit scalaire 0,66 → 0,43 ; mêmes bits.
+  produit scalaire 0,66 → 0,43 ; mêmes bits. De même pour les tableaux entiers (boucle
+  directe et `sum`) : `y = a * x + y` reproductible 1,5 → 1,1 fois la boucle à la main.
 
 ### elo
 

@@ -71,6 +71,17 @@ namespace wsl
                                             && std::is_same_v<typename View::accessor_type,
                                                               wsl::default_accessor<typename View::element_type>>;
             constexpr decltype(auto) flat(std::size_t k) const { return view.data_handle()[k]; }
+            // W valeurs consécutives du stockage.
+            using lane_value = std::remove_cv_t<typename View::element_type>;
+            static constexpr bool lane_barrier = false;
+            template <std::size_t W>
+            constexpr auto flat_lanes(std::size_t k) const
+            {
+                lane_pack<std::remove_cv_t<typename View::element_type>, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = view.data_handle()[k + l];
+                return r;
+            }
         };
 
         template <class T>
@@ -78,6 +89,16 @@ namespace wsl
         {
             static constexpr bool flat_ok = true;
             constexpr T const& flat(std::size_t) const noexcept { return value; }
+            using lane_value = T;
+            static constexpr bool lane_barrier = false;
+            template <std::size_t W>
+            constexpr lane_pack<T, W> flat_lanes(std::size_t) const
+            {
+                lane_pack<T, W> r;
+                for (std::size_t l = 0; l < W; ++l)
+                    r.v[l] = value;
+                return r;
+            }
             T value;
             template <class... I>
             constexpr T const& operator()(I...) const noexcept
@@ -236,6 +257,41 @@ namespace wsl
             constexpr value_type flat(std::size_t k) const
             {
                 return std::apply([&](auto const&... l) { return op_(l.flat(k)...); }, leaves_);
+            }
+
+            // Paquets de W valeurs consécutives (voies) : une opération qui traite un paquet
+            // entier (produit reproductible : une barrière par registre vectoriel au lieu
+            // d'une par produit, mode.hpp), sinon voie par voie ; mêmes bits que flat.
+            // lane_barrier : l'expression contient une telle opération (sinon, la boucle
+            // simple se vectorise déjà).
+            using lane_value = value_type;
+            static constexpr bool lane_barrier =
+                requires(Op const& o) { o.lanes(std::declval<lane_pack<typename Leaves::lane_value, 8>>()...); }
+                || (Leaves::lane_barrier || ...);
+            template <std::size_t W>
+            constexpr lane_pack<value_type, W> flat_lanes(std::size_t k) const
+            {
+                return std::apply(
+                    [&](auto const&... l) {
+                        return [&](auto const&... x) {
+                            if constexpr (requires { op_.lanes(x...); })
+                            {
+                                auto const p = op_.lanes(x...);
+                                lane_pack<value_type, W> r;
+                                for (std::size_t q = 0; q < W; ++q)
+                                    r.v[q] = static_cast<value_type>(p.v[q]);
+                                return r;
+                            }
+                            else
+                            {
+                                lane_pack<value_type, W> r;
+                                for (std::size_t q = 0; q < W; ++q)
+                                    r.v[q] = op_(x.v[q]...);
+                                return r;
+                            }
+                        }(l.template flat_lanes<W>(k)...);
+                    },
+                    leaves_);
             }
 
             // Un élément d'une expression : (a + b)[1, 2].
@@ -677,6 +733,15 @@ namespace wsl
                 }
                 else
                     return unravelled(k);
+            }
+
+            // 8 valeurs consécutives à la fois, pour la somme par paires (reduce.hpp) :
+            // seulement quand l'expression a une barrière à poser par paquets.
+            template <std::size_t W>
+                requires direct && expression<std::remove_cvref_t<A>> && std::remove_cvref_t<A>::lane_barrier
+            constexpr auto pack(std::size_t k) const
+            {
+                return a.template flat_lanes<W>(k);
             }
 
             constexpr auto unravelled(std::size_t k) const

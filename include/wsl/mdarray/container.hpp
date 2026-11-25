@@ -455,8 +455,22 @@ namespace wsl
                     // Ligne majeure de part et d'autre : une boucle sur le stockage.
                     pointer const d = data();
                     std::size_t const n = static_cast<std::size_t>(size());
+                    std::size_t k = 0;
+                    if constexpr (requires { E::lane_barrier; })
+                        if constexpr (E::lane_barrier)
+                        {
+                            // Produit reproductible : par paquets de 8, une barrière par
+                            // registre vectoriel (mêmes bits que la boucle simple).
+                            constexpr std::size_t W = 8;
+                            for (; k + W <= n; k += W)
+                            {
+                                auto const p = e.template flat_lanes<W>(k);
+                                for (std::size_t l = 0; l < W; ++l)
+                                    d[k + l] = static_cast<value_type>(p.v[l]);
+                            }
+                        }
                     WSL_MDARRAY_INDEPENDENT_LOOP
-                    for (std::size_t k = 0; k < n; ++k)
+                    for (; k < n; ++k)
                         d[k] = static_cast<value_type>(e.flat(k));
                 }
                 else

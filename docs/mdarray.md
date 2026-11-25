@@ -276,7 +276,7 @@ réservés aux tenseurs (variances).
   chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
   à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
   un tampon local n'y change rien (essayé, retiré). Reste : blocs de cache pour les grandes
-  matrices ; barrières vectorielles dans le monde des tableaux entiers.
+  matrices.
 - **Accès à pas fixe (monde des axes, 2026-11-25)** : à chaque terme d'une somme, la position
   de l'axe était écrite dans l'environnement puis relue par chaque feuille, ce qui empêchait
   la vectorisation. Une instruction dont le membre de droite ne lit que des vues à pas
@@ -345,8 +345,11 @@ réservés aux tenseurs (variances).
   0,66 → 0,43 ns, matrice × vecteur 0,51 → 0,34, produit matriciel 0,63 → 0,20 ; empreinte
   inchangée, voies et voie générale identiques bit à bit sous `-ffp-contract=fast`. Reste
   scalaire : les sommes de moins de 8 termes, les lectures non contiguës (champ gₚᵢⱼ vₚᵢ vₚⱼ :
-  7,4 ns par point contre 3,6 en mode rapide), le monde des tableaux entiers (A ∘ B + 1 :
-  1,2 fois la boucle à la main).
+  7,4 ns par point contre 3,6 en mode rapide). Monde des tableaux entiers, de même : une
+  expression qui contient un produit reproductible s'évalue par paquets de 8 valeurs
+  consécutives du stockage (`flat_lanes`, boucle directe et `sum`), le reste une à une ;
+  mode reproductible : axpy 1,5 → 1,1 fois la boucle à la main, A ∘ B + 1 1,2 → 0,9 ; le test
+  compare bit à bit à la voie scalaire (tableaux layout_left, sans accès direct).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
