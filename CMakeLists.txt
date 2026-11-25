@@ -194,6 +194,20 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         string(REGEX REPLACE "^test_" "" test ${test})
         wsl_add_test(${test} LIBRARY mdarray)
     endforeach()
+    # Refus à la compilation : tests/compile_fail/<bibliothèque>/<nom>.cpp, chaque cas
+    # doit échouer avec le message attendu (cmake/check_compile_fails.cmake).
+    file(GLOB compile_fail_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/tests/compile_fail/*/*.cpp)
+    foreach(source IN LISTS compile_fail_sources)
+        get_filename_component(name ${source} NAME_WE)
+        get_filename_component(directory ${source} DIRECTORY)
+        get_filename_component(library ${directory} NAME)
+        wsl_is_tested(${library} tested)
+        if(tested)
+            add_test(NAME compile_fail_${library}_${name}
+                     COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
+                             -DSOURCE=${source} -P ${PROJECT_SOURCE_DIR}/cmake/check_compile_fails.cmake)
+        endif()
+    endforeach()
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.

@@ -41,6 +41,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `data()`, `container()`, `extract_container()`, parcours à plat `begin()`/`end()`,
   `fill`, `swap`. `equal(a, b)` compare deux tableaux ou vues (`bool`). Des étendues
   entièrement fixes n'occupent plus aucun octet.
+- Axes `mdaxis<Id>` : identité par le type, sans copie ; `wsl::axis()`,
+  `wsl::axis<"mu">()`, `wsl::axis<"mu", "nu">()`, `wsl::axis<N>()` (un axe distinct à chaque
+  appel ; étiquettes en double, groupe vide et déclaration groupée refusés) ; axes
+  prédéfinis étiquetés `wsl::axes::i`, `j`, `k`, `l`, `m`, `n`, `p`, `q`, `r`, `s` ;
+  `name_of`. Les expressions qui les utilisent viendront ensuite.
 
 ### elo
 

@@ -197,6 +197,15 @@ réservés aux tenseurs (variances).
   étendues le permettent (P1684) ; `operator==` n'est pas encore défini (il sera élément par
   élément, avec les expressions, étape 5) ; `all`, `any`, `count` viendront aussi avec les
   masques. Les tests `tests/test_mdarray_*.cpp` sont trouvés par CMake sans le modifier.
+- **Implémentation (étape 4, 2026-11-25)** : `include/wsl/mdarray/axis.hpp` ; tests
+  `tests/test_mdarray_axis.cpp` et, pour les refus à la compilation,
+  `tests/compile_fail/mdarray/axis.cpp` : chaque cas `#if CASE == n` doit échouer avec le
+  texte de sa ligne `// ERREUR n : …` (`cmake/check_compile_fails.cmake`, test
+  `compile_fail_mdarray_axis` ; le fichier sans CASE doit compiler). Choix publics, à
+  revoir : `mdaxis<Id>::name()` et `name_of(axe)` rendent l'étiquette (vide sans étiquette) ;
+  un axe n'est ni copiable ni déplaçable ; étiquettes prédéfinies dans `wsl::axes::tags`.
+  Le message du mélange nombre et étiquettes reste celui du compilateur (« no matching
+  function »).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

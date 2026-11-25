@@ -11,7 +11,7 @@
 #
 # Correspondance : include/wsl/<nom>.hpp et include/wsl/<nom>/ -> <nom> ;
 # tools/<nom>/ -> <nom> ; tests/test_<nom>[_…].cpp -> la plus longue bibliothèque
-# préfixe ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
+# préfixe ; tests/compile_fail/<nom>/ -> <nom> ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
 # -> random ; tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
 # exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
 # (CMakeLists.txt, cmake/, presets, .github/…) -> ALL.
@@ -56,6 +56,8 @@ function(wsl_affected_libraries file variable)
                     set(length ${candidate_length})
                 endif()
             endforeach()
+        elseif(path MATCHES "^tests/compile_fail/([a-z0-9_]+)/")
+            set(library ${CMAKE_MATCH_1})
         elseif(path MATCHES "^tests/special_contraction/")
             set(library special)
         elseif(path STREQUAL "tests/random_engine_vectors.hpp")
