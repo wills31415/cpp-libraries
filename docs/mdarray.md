@@ -267,8 +267,13 @@ réservés aux tenseurs (variances).
   Moyens : accès direct au stockage (k-ième valeur lexicographique = k-ième du stockage, en
   ligne majeure) ; compteur à roues pour les positions des axes (incrément, division
   seulement aux sauts de la somme par paires) ; `+`, `−`, `×` propres, marqués
-  `#pragma clang fp contract(fast)` en mode rapide (sans effet mesurable ici). À reprendre :
-  axpy sur tableaux entiers (vectorisation de la boucle sur le stockage ?), produit
+  `#pragma clang fp contract(fast)` en mode rapide (sans effet mesurable ici). Cause de
+  l'écart d'axpy (`y = a * x + y`) : la boucle est vectorisée (fma), mais le compilateur ne
+  sait pas que l'opérande `y` et la destination sont le même pointeur ; il insère un test de
+  chevauchement, qui échoue : une boucle écrite à la main dont on cache cette égalité tombe
+  à la même vitesse (0,84 contre 0,88 ns/élément, 0,62 sinon). Le calcul par tranches dans
+  un tampon local n'y change rien (essayé, retiré). À reprendre : axpy sur tableaux entiers
+  (faire voir l'égalité des pointeurs), produit
   matriciel (boucles emboîtées générées, blocs), petites sommes (le schéma à 8 accumulateurs
   coûte sur 9 termes), barrières vectorielles du mode reproductible.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
