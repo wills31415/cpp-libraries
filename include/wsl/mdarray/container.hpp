@@ -440,6 +440,22 @@ namespace wsl
                 detail::mdarray::for_each_index(extents(), [&](auto... i) { t[i...] = static_cast<value_type>(e(i...)); });
                 ctr_ = std::move(temporary);
             }
+            else if constexpr (std::is_same_v<layout_type, layout_right> && requires { E::flat_ok; })
+            {
+                if constexpr (E::flat_ok)
+                {
+                    // Ligne majeure de part et d'autre : une boucle sur le stockage.
+                    pointer const d = data();
+                    std::size_t const n = static_cast<std::size_t>(size());
+                    for (std::size_t k = 0; k < n; ++k)
+                        d[k] = static_cast<value_type>(e.flat(k));
+                }
+                else
+                {
+                    auto self = to_mdspan();
+                    detail::mdarray::for_each_index(extents(), [&](auto... i) { self[i...] = static_cast<value_type>(e(i...)); });
+                }
+            }
             else
             {
                 auto self = to_mdspan();

@@ -8,6 +8,8 @@
 
 #include <cstddef>
 
+#include <wsl/mdarray/detail/expression_base.hpp>
+
 namespace wsl::detail::mdarray
 {
     // x(k) pour k dans [begin, end) ; op associatif « en principe » (+ ou ×).

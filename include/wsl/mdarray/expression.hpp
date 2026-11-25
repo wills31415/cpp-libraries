@@ -64,11 +64,20 @@ namespace wsl
                 return view[i...];
             }
             constexpr void const* storage() const noexcept { return view.data_handle(); }
+
+            // Accès direct : la k-ième valeur en ordre lexicographique est la k-ième du
+            // stockage (ligne majeure, accesseur par défaut).
+            static constexpr bool flat_ok = std::is_same_v<typename View::layout_type, wsl::layout_right>
+                                            && std::is_same_v<typename View::accessor_type,
+                                                              wsl::default_accessor<typename View::element_type>>;
+            constexpr decltype(auto) flat(std::size_t k) const { return view.data_handle()[k]; }
         };
 
         template <class T>
         struct scalar_leaf
         {
+            static constexpr bool flat_ok = true;
+            constexpr T const& flat(std::size_t) const noexcept { return value; }
             T value;
             template <class... I>
             constexpr T const& operator()(I...) const noexcept
@@ -220,6 +229,13 @@ namespace wsl
             constexpr value_type operator()(I... i) const
             {
                 return std::apply([&](auto const&... l) { return op_(l(i...)...); }, leaves_);
+            }
+
+            // Accès direct, quand toutes les feuilles le permettent (formes égales).
+            static constexpr bool flat_ok = (Leaves::flat_ok && ...);
+            constexpr value_type flat(std::size_t k) const
+            {
+                return std::apply([&](auto const&... l) { return op_(l.flat(k)...); }, leaves_);
             }
 
             // Un élément d'une expression : (a + b)[1, 2].
@@ -442,9 +458,9 @@ namespace wsl
         return detail::mdarray::make_elementwise(functor{}, std::forward<A>(a), std::forward<B>(b));                   \
     }
 
-    WSL_MDARRAY_BINARY_OPERATOR(+, std::plus<>)
-    WSL_MDARRAY_BINARY_OPERATOR(-, std::minus<>)
-    WSL_MDARRAY_BINARY_OPERATOR(*, std::multiplies<>)
+    WSL_MDARRAY_BINARY_OPERATOR(+, detail::mdarray::add_op)
+    WSL_MDARRAY_BINARY_OPERATOR(-, detail::mdarray::subtract_op)
+    WSL_MDARRAY_BINARY_OPERATOR(*, detail::mdarray::multiply_op)
     WSL_MDARRAY_BINARY_OPERATOR(/, std::divides<>)
     WSL_MDARRAY_BINARY_OPERATOR(%, std::modulus<>)
     WSL_MDARRAY_BINARY_OPERATOR(==, std::equal_to<>)
@@ -640,7 +656,30 @@ namespace wsl
                 return n;
             }
 
+            static constexpr bool direct = [] {
+                using U = std::remove_cvref_t<A>;
+                if constexpr (expression<U>)
+                    return U::flat_ok;
+                else if constexpr (is_mdarray<U> || is_mdspan<U>)
+                    return std::is_same_v<typename U::layout_type, wsl::layout_right>;
+                else
+                    return false;
+            }();
+
             constexpr auto operator()(std::size_t k) const
+            {
+                if constexpr (direct)
+                {
+                    if constexpr (expression<std::remove_cvref_t<A>>)
+                        return a.flat(k);
+                    else
+                        return as_view(a).data_handle()[k];
+                }
+                else
+                    return unravelled(k);
+            }
+
+            constexpr auto unravelled(std::size_t k) const
             {
                 using I = typename std::remove_cvref_t<decltype(extents_of_array(a))>::index_type;
                 return [&]<std::size_t... R>(std::index_sequence<R...>) {
@@ -661,7 +700,7 @@ namespace wsl
         detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
         using V = detail::mdarray::value_of<std::remove_cvref_t<decltype(a)>>;
         using T = decltype(std::declval<V>() + std::declval<V>());
-        return detail::mdarray::pairwise<T>(x, 0, x.size(), T{}, std::plus<>{});
+        return detail::mdarray::pairwise<T>(x, 0, x.size(), T{}, detail::mdarray::add_op{});
     }
 
     template <detail::mdarray::reducible A>
@@ -671,7 +710,7 @@ namespace wsl
         detail::mdarray::flat<std::remove_cvref_t<decltype(a)>> x(a);
         using V = detail::mdarray::value_of<std::remove_cvref_t<decltype(a)>>;
         using T = decltype(std::declval<V>() * std::declval<V>());
-        return detail::mdarray::pairwise<T>(x, 0, x.size(), T{1}, std::multiplies<>{});
+        return detail::mdarray::pairwise<T>(x, 0, x.size(), T{1}, detail::mdarray::multiply_op{});
     }
 
     // min, max d'un tableau entier (précondition : non vide), NaN propagé.

@@ -78,6 +78,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   erreur de compilation en mode reproductible. Mode des instructions non marquées : option
   CMake `WSL_LIBRARIES_MDARRAY_REPRODUCIBLE` (rapide par défaut). `wsl::mdarray` dépend
   désormais de `wsl::special`.
+- Performance : accès direct au stockage quand toutes les opérandes sont contiguës en ligne
+  majeure ; positions par compteur à roues (sans division) dans le monde des axes et les
+  réductions ; fusion en fma permise en mode rapide (Clang). Banc d'essai :
+  `tools/mdarray/benchmark.sh`.
 
 ### elo
 

@@ -250,6 +250,27 @@ réservés aux tenseurs (variances).
   d'une expression, `(a + b)[1, 2]`, ne prend pas le mode par défaut. La barrière est
   scalaire (l'évaluation n'est pas encore vectorisée : à reprendre avec la performance, par
   des barrières sur des vecteurs, I9).
+- **Performance (2026-11-25)** : `tools/mdarray/benchmark.sh` (un programme par noyau),
+  rapport au temps d'une boucle écrite à la main, Apple Clang -O3 -march=native :
+
+  | Noyau | Avant | Après |
+  |---|---|---|
+  | A∘B + 1 (tableaux entiers) | 1,0 | 1,0 |
+  | somme d'un tableau | 3,5 | 0,4 (somme par paires vectorisée) |
+  | produit scalaire (axes) | 2,5 | 1,0 |
+  | matrice × vecteur (axes) | 2,8 | 1,0 |
+  | axpy (axes) | 4,6 | 1,4 |
+  | axpy (tableaux entiers) | 1,4 | 1,6 |
+  | produit matriciel (axes) | 3,2 | 1,9 |
+  | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 |
+
+  Moyens : accès direct au stockage (k-ième valeur lexicographique = k-ième du stockage, en
+  ligne majeure) ; compteur à roues pour les positions des axes (incrément, division
+  seulement aux sauts de la somme par paires) ; `+`, `−`, `×` propres, marqués
+  `#pragma clang fp contract(fast)` en mode rapide (sans effet mesurable ici). À reprendre :
+  axpy sur tableaux entiers (vectorisation de la boucle sur le stockage ?), produit
+  matriciel (boucles emboîtées générées, blocs), petites sommes (le schéma à 8 accumulateurs
+  coûte sur 9 termes), barrières vectorielles du mode reproductible.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

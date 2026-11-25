@@ -74,6 +74,63 @@ namespace wsl
             using root = Root;
         };
 
+        // Compteur à roues sur K axes de l'environnement : la k-ième position dans l'ordre
+        // lexicographique, par incrément quand k suit le précédent (sans division), par
+        // division sinon (saut de la somme par paires).
+        template <std::size_t K>
+        struct odometer
+        {
+            std::array<std::size_t, K> index{};
+            std::array<std::ptrdiff_t, K> length{};
+            std::size_t last = static_cast<std::size_t>(-1);
+
+            template <class Env>
+            constexpr odometer(std::array<std::size_t, K> const& indices, Env const& env) noexcept : index(indices)
+            {
+                for (std::size_t r = 0; r < K; ++r)
+                    length[r] = env.length[index[r]];
+            }
+
+            constexpr std::size_t size() const noexcept
+            {
+                std::size_t n = 1;
+                for (std::size_t r = 0; r < K; ++r)
+                    n *= static_cast<std::size_t>(length[r]);
+                return n;
+            }
+
+            template <class Env>
+            constexpr void set(std::size_t k, Env& env) noexcept
+            {
+                if constexpr (K == 1)
+                    env.position[index[0]] = static_cast<std::ptrdiff_t>(k);
+                else
+                {
+                    if (k == last + 1 && last != static_cast<std::size_t>(-1))
+                    {
+                        std::size_t r = K;
+                        while (r-- > 0)
+                        {
+                            if (++env.position[index[r]] < length[r])
+                                break;
+                            env.position[index[r]] = 0;
+                        }
+                    }
+                    else
+                    {
+                        std::size_t q = k;
+                        for (std::size_t r = K; r-- > 0;)
+                        {
+                            auto const len = static_cast<std::size_t>(length[r]);
+                            env.position[index[r]] = static_cast<std::ptrdiff_t>(q % len);
+                            q /= len;
+                        }
+                    }
+                    last = k;
+                }
+            }
+        };
+
         // --- Emplacements d'un crochet ------------------------------------------------
 
         template <class Id>
@@ -453,28 +510,21 @@ namespace wsl
             constexpr auto compute(Env& env) const
             {
                 constexpr std::size_t K = Bound::size;
-                auto const indices = bound_indices<typename Ctx::axes>(Bound{});
-                std::size_t n = 1;
-                for (std::size_t r = 0; r < K; ++r)
-                    n *= static_cast<std::size_t>(env.length[indices[r]]);
+                odometer<K> wheels(bound_indices<typename Ctx::axes>(Bound{}), env);
+                std::size_t const n = wheels.size();
                 auto at = [&](std::size_t k) {
-                    for (std::size_t r = K; r-- > 0;)
-                    {
-                        auto const len = static_cast<std::size_t>(env.length[indices[r]]);
-                        env.position[indices[r]] = static_cast<std::ptrdiff_t>(k % len);
-                        k /= len;
-                    }
+                    wheels.set(k, env);
                     return evaluate<Ctx>(child, env);
                 };
                 if constexpr (std::is_same_v<Kind, sum_kind>)
                 {
                     using T = decltype(at(0) + at(0));
-                    return pairwise<T>(at, 0, n, T{}, std::plus<>{});
+                    return pairwise<T>(at, 0, n, T{}, detail::mdarray::add_op{});
                 }
                 else if constexpr (std::is_same_v<Kind, prod_kind>)
                 {
                     using T = decltype(at(0) * at(0));
-                    return pairwise<T>(at, 0, n, T{1}, std::multiplies<>{});
+                    return pairwise<T>(at, 0, n, T{1}, detail::mdarray::multiply_op{});
                 }
                 else if constexpr (std::is_same_v<Kind, min_kind> || std::is_same_v<Kind, max_kind>)
                 {
@@ -593,21 +643,14 @@ namespace wsl
                 static_assert(!std::is_same_v<std::remove_cvref_t<decltype(node.template compute<Ctx>(env))>, bool>,
                               "wsl::mdarray : somme de booléens (I10) ; écrire count(i)(…), any(i)(…) ou all(i)(…)");
                 constexpr std::size_t K = own::size;
-                auto const indices = axis_indices<typename Ctx::axes>(own{});
-                std::size_t n = 1;
-                for (std::size_t r = 0; r < K; ++r)
-                    n *= static_cast<std::size_t>(env.length[indices[r]]);
+                odometer<K> wheels(axis_indices<typename Ctx::axes>(own{}), env);
+                std::size_t const n = wheels.size();
                 auto at = [&](std::size_t k) {
-                    for (std::size_t r = K; r-- > 0;)
-                    {
-                        auto const len = static_cast<std::size_t>(env.length[indices[r]]);
-                        env.position[indices[r]] = static_cast<std::ptrdiff_t>(k % len);
-                        k /= len;
-                    }
+                    wheels.set(k, env);
                     return node.template compute<Ctx>(env);
                 };
                 using T = decltype(at(0) + at(0));
-                return pairwise<T>(at, 0, n, T{}, std::plus<>{});
+                return pairwise<T>(at, 0, n, T{}, detail::mdarray::add_op{});
             }
         }
 
@@ -771,18 +814,9 @@ namespace wsl
                 this->lengths(env);
                 rhs.lengths(env);
                 constexpr std::size_t K = lhs_axes::size;
-                auto const indices = axis_indices<axes>(lhs_axes{});
-                std::size_t n = 1;
-                for (std::size_t r = 0; r < K; ++r)
-                    n *= static_cast<std::size_t>(env.length[indices[r]]);
-                auto place = [&](std::size_t k) {
-                    for (std::size_t r = K; r-- > 0;)
-                    {
-                        auto const len = static_cast<std::size_t>(env.length[indices[r]]);
-                        env.position[indices[r]] = static_cast<std::ptrdiff_t>(k % len);
-                        k /= len;
-                    }
-                };
+                odometer<K> wheels(axis_indices<axes>(lhs_axes{}), env);
+                std::size_t const n = wheels.size();
+                auto place = [&](std::size_t k) { wheels.set(k, env); };
                 auto& view = this->source.view;
                 auto write = [&](auto const& value) {
                     std::apply([&](auto const&... s) { view[static_cast<typename View::index_type>(slot_value(s, env))...] = value; },
@@ -838,9 +872,9 @@ namespace wsl
     {                                                                                                                  \
         assign(default_mode(make_node(base{}, reread(), std::forward<Rhs>(rhs))));                                     \
     }
-            WSL_MDARRAY_TARGET_COMPOUND(+=, std::plus<>)
-            WSL_MDARRAY_TARGET_COMPOUND(-=, std::minus<>)
-            WSL_MDARRAY_TARGET_COMPOUND(*=, std::multiplies<>)
+            WSL_MDARRAY_TARGET_COMPOUND(+=, detail::mdarray::add_op)
+            WSL_MDARRAY_TARGET_COMPOUND(-=, detail::mdarray::subtract_op)
+            WSL_MDARRAY_TARGET_COMPOUND(*=, detail::mdarray::multiply_op)
             WSL_MDARRAY_TARGET_COMPOUND(/=, std::divides<>)
 #undef WSL_MDARRAY_TARGET_COMPOUND
 
@@ -945,9 +979,9 @@ namespace wsl
         return detail::mdarray::make_node(functor{}, std::forward<A>(a), std::forward<B>(b));                          \
     }
 
-    WSL_MDARRAY_INDEXED_BINARY(+, std::plus<>)
-    WSL_MDARRAY_INDEXED_BINARY(-, std::minus<>)
-    WSL_MDARRAY_INDEXED_BINARY(*, std::multiplies<>)
+    WSL_MDARRAY_INDEXED_BINARY(+, detail::mdarray::add_op)
+    WSL_MDARRAY_INDEXED_BINARY(-, detail::mdarray::subtract_op)
+    WSL_MDARRAY_INDEXED_BINARY(*, detail::mdarray::multiply_op)
     WSL_MDARRAY_INDEXED_BINARY(/, std::divides<>)
     WSL_MDARRAY_INDEXED_BINARY(%, std::modulus<>)
     WSL_MDARRAY_INDEXED_BINARY(==, std::equal_to<>)

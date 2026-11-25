@@ -67,10 +67,10 @@ namespace wsl
 
         // Produit : jamais fusionné avec une addition.
         template <>
-        struct moded_op<reproducible_mode, std::multiplies<>>
+        struct moded_op<reproducible_mode, detail::mdarray::multiply_op>
         {
             constexpr moded_op() = default;
-            constexpr explicit moded_op(std::multiplies<>) {}
+            constexpr explicit moded_op(detail::mdarray::multiply_op) {}
             template <class A, class B>
             constexpr auto operator()(A const& a, B const& b) const
             {
