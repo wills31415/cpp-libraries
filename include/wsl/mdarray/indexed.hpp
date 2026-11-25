@@ -31,6 +31,13 @@
 #include <utility>
 #include <vector>
 
+// Boucle d'instruction tenue scalaire (voir contiguous_along).
+#if defined(__clang__) && defined(__AVX2__)
+#    define WSL_MDARRAY_SCALAR_LOOP _Pragma("clang loop vectorize(disable)")
+#else
+#    define WSL_MDARRAY_SCALAR_LOOP
+#endif
+
 namespace wsl
 {
     namespace detail::mdarray
@@ -1035,6 +1042,37 @@ namespace wsl
             }
         }
 
+        // Toutes les lectures le long de l'axe Id sont-elles contiguës (pas unité) ? Sinon,
+        // Clang vectorise la boucle de l'instruction par des lectures dispersées (gather
+        // d'AVX2), bien plus lentes ici que la boucle scalaire (gₚᵢⱼ vₚᵢ vₚⱼ : 19 ns par point
+        // contre 3,4 sur un i7-9750H ; la même boucle écrite à la main aussi) ; GCC ne le
+        // fait pas.
+        template <class Id, class Node>
+        struct contiguous_along : std::true_type
+        {
+        };
+        template <class Id, class V, class... S>
+        struct contiguous_along<Id, indexed_leaf<view_source<V>, S...>>
+            : std::bool_constant<!(std::is_same_v<S, axis_slot<Id>> || ...) || unit_stride<V, Id, S...>()>
+        {
+        };
+        template <class Id, class V, class... S>
+        struct contiguous_along<Id, indexed_target<V, S...>> : contiguous_along<Id, indexed_leaf<view_source<V>, S...>>
+        {
+        };
+        template <class Id, class Op, class... C>
+        struct contiguous_along<Id, indexed_node<Op, C...>> : std::bool_constant<(contiguous_along<Id, C>::value && ...)>
+        {
+        };
+
+        template <class L>
+        struct last_of;
+        template <class... T>
+        struct last_of<tlist<T...>>
+        {
+            using type = typename decltype((std::type_identity<T>{}, ...))::type;
+        };
+
         template <class Ctx, class Summed, bool Root, class Node, class Env, std::size_t K>
         constexpr auto terms(Node const& node, Env& env, odometer<K>& wheels)
         {
@@ -1252,16 +1290,27 @@ namespace wsl
                     // Accès à pas fixe : le plan est construit une fois pour l'instruction.
                     auto const value = make_strided<ctx, lhs_axes>(rhs, env);
                     auto const target = make_access<lhs_axes>(static_cast<leaf const&>(*this), env);
+                    using inner = typename last_of<lhs_axes>::type;
+                    constexpr bool contiguous = contiguous_along<inner, Rhs>::value && contiguous_along<inner, leaf>::value;
+                    auto loop = [&](auto&& step) {
+                        if constexpr (contiguous)
+                            for (std::size_t k = 0; k < n; ++k)
+                                step(k);
+                        else
+                        {
+                            WSL_MDARRAY_SCALAR_LOOP
+                            for (std::size_t k = 0; k < n; ++k)
+                                step(k);
+                        }
+                    };
                     if (aliased<lhs_axes>(rhs))
                     {
                         using T = typename View::value_type;
-                        std::vector<T> temporary;
-                        temporary.reserve(n);
-                        for (std::size_t k = 0; k < n; ++k)
-                        {
+                        std::vector<T> temporary(n);
+                        loop([&](std::size_t k) {
                             wheels.set_local(k);
-                            temporary.push_back(static_cast<T>(value.value(wheels.local)));
-                        }
+                            temporary[k] = static_cast<T>(value.value(wheels.local));
+                        });
                         for (std::size_t k = 0; k < n; ++k)
                         {
                             wheels.set_local(k);
@@ -1269,11 +1318,10 @@ namespace wsl
                         }
                     }
                     else
-                        for (std::size_t k = 0; k < n; ++k)
-                        {
+                        loop([&](std::size_t k) {
                             wheels.set_local(k);
                             target(wheels.local) = static_cast<typename View::value_type>(value.value(wheels.local));
-                        }
+                        });
                     return;
                 }
                 auto& view = this->source.view;
@@ -1599,3 +1647,5 @@ namespace wsl
         return {};
     }
 }
+
+#undef WSL_MDARRAY_SCALAR_LOOP

@@ -262,7 +262,7 @@ réservés aux tenseurs (variances).
   | axpy (axes) | 4,6 | 1,4 | 1,3 |
   | axpy (tableaux entiers) | 1,4 | 1,6 | 1,5 |
   | produit matriciel (axes) | 3,2 | 1,9 | 0,8 |
-  | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 | 1,0 (composantes de longueur 3 statique) |
+  | champ gₚᵢⱼ vₚᵢ vₚⱼ (axes) | 3,1 | 2,3 | 0,8 (composantes de longueur 3 statique ; boucle scalaire, voir plus bas) |
 
   Les boucles à la main somment dans l'ordre (une addition attend la précédente) ; nos 8
   accumulateurs (I9) n'attendent pas, d'où des rapports sous 1.
@@ -299,6 +299,18 @@ réservés aux tenseurs (variances).
   compilateur ne voit plus ses zéros) ; la somme par paires (`detail/reduce.hpp`) est
   intégrée de force (`[[gnu::always_inline]]`), sa moitié récursive tenue hors ligne
   (`[[gnu::noinline]]`) pour que le compilateur ne la refonde pas en une fonction récursive.
+- **Boucle d'instruction scalaire (2026-11-25)** : sur le champ gₚᵢⱼ vₚᵢ vₚⱼ, le mode rapide
+  prenait 19 ns par point, le mode reproductible 5. Cause : Clang (Apple Clang, Clang 18)
+  vectorise la boucle de l'instruction le long de p par des lectures dispersées (gather
+  d'AVX2, pas de 9 et de 3), bien plus lentes que la boucle scalaire (3,4 ns sur un
+  i7-9750H) ; la même boucle écrite à la main en souffre aussi (18 ns) ; GCC 14 ne vectorise
+  pas ainsi (5,4 ns) ; en mode reproductible, `fmul` empêchait la vectorisation. Choix
+  d'implémentation : avec Clang sur une cible AVX2, la boucle d'une instruction à pas fixe
+  n'est pas vectorisée (`#pragma clang loop vectorize(disable)`) quand une feuille lit à pas
+  non unité le long de l'axe le plus intérieur du membre de gauche ; les sommes, vectorisées
+  par leurs 8 accumulateurs (SLP), n'en dépendent pas. Ailleurs (ARM64 : pas de gather,
+  lectures entrelacées `ld3` efficaces ; GCC), rien ne change. La boucle à la main du banc
+  d'essai est tenue scalaire de même.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

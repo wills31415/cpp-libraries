@@ -85,7 +85,13 @@ int main()
     V n2(P);
     for (std::size_t q = 0; q < P; ++q) for (std::size_t r = 0; r < 3; ++r) { v[q, r] = 1.0 / (q + r + 1); for (std::size_t t = 0; t < 3; ++t) g[q, r, t] = r == t ? 1.0 : 0.1; }
     double lib = best_ns([&] { n2[p] = g[p, i, j] * v[p, i] * v[p, j]; }, 10);
-    double hand = best_ns([&] { for (std::size_t q = 0; q < P; ++q) { double s = 0; for (std::size_t r = 0; r < 3; ++r) for (std::size_t t = 0; t < 3; ++t) s += g.data()[q * 9 + r * 3 + t] * v.data()[q * 3 + r] * v.data()[q * 3 + t]; n2.data()[q] = s; } }, 10);
+    // Boucle tenue scalaire : vectorisée par Clang avec des lectures dispersées (AVX2),
+    // elle est 5 fois plus lente (même remède que dans la bibliothèque, indexed.hpp).
+    double hand = best_ns([&] {
+#if defined(__clang__)
+#    pragma clang loop vectorize(disable)
+#endif
+        for (std::size_t q = 0; q < P; ++q) { double s = 0; for (std::size_t r = 0; r < 3; ++r) for (std::size_t t = 0; t < 3; ++t) s += g.data()[q * 9 + r * 3 + t] * v.data()[q * 3 + r] * v.data()[q * 3 + t]; n2.data()[q] = s; } }, 10);
     std::printf("champ g v v       %8.3f ns/point    à la main %8.3f  rapport %5.1f\n", lib / P, hand / P, lib / hand);
 #elif KERNEL == 8 // C = A ∘ B + 1, 2D tableaux entiers
     constexpr std::size_t n = 1024;

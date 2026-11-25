@@ -87,6 +87,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   fois (pointeur, décalage et pas par feuille), sommes imbriquées comprises ; mêmes bits
   qu'avant. Produit matriciel 1,9 → 0,8 fois la boucle à la main, matrice × vecteur
   1,0 → 0,4, champ gₚᵢⱼ vₚᵢ vₚⱼ 2,3 → 1,0 (composantes de longueur statique).
+- Performance : avec Clang sur une cible AVX2, une instruction qui lit à pas non unité le
+  long de l'axe intérieur du membre de gauche n'est plus vectorisée par des lectures
+  dispersées (gather), plus lentes que la boucle scalaire : champ gₚᵢⱼ vₚᵢ vₚⱼ 19 → 3,4 ns
+  par point.
 
 ### elo
 
