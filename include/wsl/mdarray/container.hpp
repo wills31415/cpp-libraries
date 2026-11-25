@@ -13,6 +13,7 @@
 // std::vector (écart assumé avec P1684). Le littéral imbriqué n'existe qu'en
 // rang ≥ 2 : en rang 1, {3} resterait ambigu (une étendue ou un élément ?).
 
+#include <wsl/mdarray/detail/expression_base.hpp>
 #include <wsl/mdarray/detail/iterate.hpp>
 #include <wsl/mdarray/detail/precondition.hpp>
 #include <wsl/mdarray/extents.hpp>
@@ -21,6 +22,7 @@
 #include <wsl/mdarray/position.hpp>
 
 #include <algorithm>
+#include <functional>
 #include <array>
 #include <cstddef>
 #include <initializer_list>
@@ -211,6 +213,25 @@ namespace wsl
             copy_from(other.to_mdspan());
         }
 
+        // Depuis une expression de tableaux entiers : mdarray c = a * b + 1; (V8)
+        template <detail::mdarray::expression E>
+            requires std::is_constructible_v<extents_type, typename std::remove_cvref_t<E>::extents_type>
+        constexpr mdarray(E&& e) : map_(extents_type(e.extents())), ctr_(make_container(map_))
+        {
+            static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2) ; std::move(e) si c'est voulu");
+            assign_elements(e);
+        }
+
+        // y = expr : formes égales (précondition), pas de redimensionnement (I13).
+        template <detail::mdarray::expression E>
+        constexpr mdarray& operator=(E&& e)
+        {
+            static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2) ; std::move(e) si c'est voulu");
+            check_shape(e.extents());
+            assign_elements(e);
+            return *this;
+        }
+
         // --- Accès : ceux de mdspan ----------------------------------------------
 
         template <class... I>
@@ -333,6 +354,61 @@ namespace wsl
         {
             detail::mdarray::precondition(std::ranges::size(ctr_) >= static_cast<std::size_t>(map_.required_span_size()),
                                           "mdarray : conteneur trop petit pour la disposition");
+        }
+
+        template <class E>
+        constexpr void check_shape(E const& e) const
+        {
+            static_assert(E::rank() == rank(), "wsl::mdarray : expression de rang différent");
+            for (rank_type r = 0; r < rank(); ++r)
+                detail::mdarray::precondition(std::cmp_equal(e.extent(r), extent(r)),
+                                              "wsl::mdarray : affectation d'une expression d'une autre forme (I13)");
+        }
+
+        // Une opérande lit-elle notre stockage à d'autres positions que la nôtre ? (I12)
+        template <class E>
+        constexpr bool aliased(E const& e) const
+        {
+            if consteval
+            {
+                return true; // pas d'ordre entre pointeurs en évaluation constante : par prudence
+            }
+            else
+            {
+                bool result = false;
+                void const* lo = data();
+                void const* hi = data() + std::ranges::size(ctr_);
+                e.for_each_storage([&](auto const& view) {
+                    void const* p = view.data_handle();
+                    void const* q = view.data_handle() + view.mapping().required_span_size();
+                    std::less<void const*> less;
+                    bool const overlap = less(p, hi) && less(lo, q);
+                    if (!overlap)
+                        return;
+                    if constexpr (std::is_same_v<typename std::remove_cvref_t<decltype(view)>::mapping_type, mapping_type>)
+                        if (view.data_handle() == data() && view.mapping() == map_)
+                            return; // mêmes positions : sûr
+                    result = true;
+                });
+                return result;
+            }
+        }
+
+        template <class E>
+        constexpr void assign_elements(E const& e)
+        {
+            if (aliased(e))
+            {
+                container_type temporary = make_container(map_);
+                mdspan_type t(std::to_address(temporary.begin()), map_);
+                detail::mdarray::for_each_index(extents(), [&](auto... i) { t[i...] = static_cast<value_type>(e(i...)); });
+                ctr_ = std::move(temporary);
+            }
+            else
+            {
+                auto self = to_mdspan();
+                detail::mdarray::for_each_index(extents(), [&](auto... i) { self[i...] = static_cast<value_type>(e(i...)); });
+            }
         }
 
         template <class View>

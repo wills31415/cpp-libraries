@@ -46,6 +46,17 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   appel ; étiquettes en double, groupe vide et déclaration groupée refusés) ; axes
   prédéfinis étiquetés `wsl::axes::i`, `j`, `k`, `l`, `m`, `n`, `p`, `q`, `r`, `s` ;
   `name_of`. Les expressions qui les utilisent viendront ensuite.
+- Monde des tableaux entiers : `+`, `-`, `*`, `/`, `%`, comparaisons (des masques, comme
+  `std::valarray`), `&&`, `||`, `!` terme à terme, paresseux, sur des opérandes de même forme
+  (rangs et étendues fixes vérifiés à la compilation, dynamiques en précondition) ; un
+  scalaire se diffuse. Fonctions de `<cmath>` élément par élément (`sqrt`, `exp`, `pow`,
+  `hypot`, `atan2`…), `min` et `max` à deux arguments (NaN propagé), `where`,
+  `vectorize(f)`. Une expression n'est utilisable que comme temporaire (`auto e = a + b;
+  y = e;` refusé avec un message ; `std::move(e)` permis). `mdarray` se construit et
+  s'affecte depuis une expression (`mdarray c = a * b + 1;`, `y = x * x;`, `y += x`), avec
+  détection de l'aliasing (temporaire si une opérande lit le stockage à d'autres positions).
+  Réductions immédiates : `sum` et `prod` (ordre fixé, par paires comme NumPy), `min`,
+  `max`, `argmin`, `argmax` (une `mdposition`), `all`, `any`, `count`.
 
 ### elo
 

@@ -206,6 +206,19 @@ réservés aux tenseurs (variances).
   un axe n'est ni copiable ni déplaçable ; étiquettes prédéfinies dans `wsl::axes::tags`.
   Le message du mélange nombre et étiquettes reste celui du compilateur (« no matching
   function »).
+- **Implémentation (étape 5a, 2026-11-25)** : `include/wsl/mdarray/expression.hpp`,
+  `detail/expression_base.hpp`, `detail/reduce.hpp` ; tests
+  `tests/test_mdarray_expression_array.cpp` et `tests/compile_fail/mdarray/expression_array.cpp`.
+  Choix, à revoir : **un `mdspan` ne reçoit pas `v = expr`** (dans la norme, `v = w`
+  réassocie la vue : la même écriture aurait deux sens ; une vue s'écrit par les axes,
+  `v[i, j] = …`, étape 5b) ; `mdarray` reçoit `y = expr` et `y += x` ; rangs ou étendues
+  fixes différents : erreur de compilation avec message (et non absence de l'opérateur) ;
+  les fonctions de `<cmath>` ne sont pas `constexpr` en C++23 (C++26 seulement) : pas de
+  calcul à la compilation avec elles en mode rapide (le mode reproductible, étape 6, passera
+  par `wsl::special`, `constexpr`) ; aliasing en évaluation constante : toujours un
+  temporaire (pas d'ordre entre pointeurs) ; `argmin`/`argmax` : un NaN l'emporte (comme
+  NumPy). Performance à reprendre : les réductions recalculent la position de chaque
+  élément (division), et l'évaluation ne vectorise pas encore explicitement.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
