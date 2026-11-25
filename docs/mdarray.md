@@ -21,8 +21,8 @@ simple et lisible, et des opérations vectorisées (réordonnés le 2026-11-24) 
 | Objet | En mathématiques | Type |
 |---|---|---|
 | indice entier | une position i ∈ {0, …, n − 1} d'une dimension | `std::size_t` (le type d'indice des étendues) |
-| position | un point p ∈ ℕᴺ de l'espace affine ℤᴺ | `wsl::mdsize<N>` |
-| déplacement | un vecteur d ∈ ℤᴺ (ℤ-module), différence de deux positions | `wsl::mddiff<N>` |
+| position | un point p ∈ ℕᴺ de l'espace affine ℤᴺ | `wsl::mdposition<N>` |
+| déplacement | un vecteur d ∈ ℤᴺ (ℤ-module), différence de deux positions | `wsl::mddisplacement<N>` |
 | ensemble d'indices | I = [0, n₁) × ⋯ × [0, n_N), décrit par ses étendues | `wsl::extents`, `wsl::dextents` (I2) |
 | axe | un nom pour toutes les positions d'une dimension | `wsl::mdaxis` |
 | vue, conteneur | un tableau de composantes indexé par I | `wsl::mdspan`, `wsl::mdarray` |
@@ -40,12 +40,12 @@ Hors du périmètre :
 
 | # | Décision |
 |---|---|
-| ✅ V1 | **Modèle affine**, celui de `std::chrono` : `mdsize<N>` est une **position** dans un tableau (un point, comme `time_point`), `mddiff<N>` un **déplacement** (un vecteur de ℤᴺ, comme `duration`). Position − position = déplacement ; position ± déplacement = position. On n'ajoute, ne multiplie ni ne divise des positions, comme on ne le fait pas de dates. `mdsize` ne sert **qu'aux positions** : les multi-indices de l'analyse sont un autre type (`wsl::mdindex`, plus tard). |
+| ✅ V1 | **Modèle affine**, celui de `std::chrono` : `mdposition<N>` est une **position** dans un tableau (un point, comme `time_point`), `mddisplacement<N>` un **déplacement** (un vecteur de ℤᴺ, comme `duration`). Position − position = déplacement ; position ± déplacement = position. On n'ajoute, ne multiplie ni ne divise des positions, comme on ne le fait pas de dates. `mdposition` ne sert **qu'aux positions** : les multi-indices de l'analyse sont un autre type (`wsl::mdindex`, plus tard). |
 | ✅ V2 | **Un axe désigne toutes les positions d'une dimension** (et non une variable qui les parcourt). Dans des crochets, il étiquette une dimension ; comme valeur, il vaut ses positions (`1.0 / (i + j + 1)`, L12). Aucune arithmétique ne produit un axe : `u[i + 1]` est refusé (`i + 1` est une valeur) ; décalages et découpages se font sur les tableaux (vues, §6). Précisé le 2026-11-25. |
 | ✅ V3 | **Sommes : le membre de gauche décide** (convention du mode explicite de `numpy.einsum`, choisie le 2026-11-25 après comparaison avec Einstein, voir §5bis). Un axe présent à gauche n'est jamais sommé : c'est un axe de la boucle, élément par élément à travers toutes les opérations, quel que soit le nombre de ses occurrences. Un axe absent à gauche est sommé sur la plus petite sous-expression qui contient toutes ses occurrences. Un scalaire a un membre de gauche sans axe (`double s = …`, `if (…)`, `f(…)`). Raison décisive : les calculs par point d'un champ (`n2[p] = g[p, i, j] * v[p, i] * v[p, j]`), impossibles avec Einstein. |
 | ✅ V4 | **Diffusion** : un axe de gauche absent à droite se diffuse (`y[i] = 1`, `c[i, j] = a[i]`, `m[i, 0] = 0`, `c[i, j] = a[i] + b[j]` ; un tableau n'a pas de base) ; un axe répété à gauche désigne la diagonale (`A[i, i] = 1`). Refusée dans la future bibliothèque des tenseurs, qui aura sa propre règle (variances). Garde-fous : (1) un axe absent à gauche apparaît au moins deux fois à droite (chaque position d'un crochet compte, `position` et `kronecker` aussi), sinon `sum(j)(…)` : rattrape l'oubli d'axe (`c[i] = a[i, j]`) et l'ambiguïté de `exp(a[i, j])` ; (2) un axe sommé n'a pas à la fois au moins deux occurrences dans un argument de fonction et d'autres ailleurs (`sqrt(x[j] * x[j]) + y[j] * y[j]` refusé ; `exp(a[i, j]) * b[j]` et `huber(p[i], t[i])` acceptés : Σ) ; (3) un axe lié par `sum(j)(…)` n'apparaît ni à gauche ni hors de cette somme. |
-| ✅ V5 | **Nommage par préfixe**, comme la norme : `wsl::mdsize`, `wsl::mddiff`, `wsl::mdaxis`, `wsl::mdspan`, `wsl::mdarray` ; sans préfixe ce que la norme ne préfixe pas (`wsl::extents`, `wsl::layout_right`…). **Types préfixés, fonctions surchargées** : `wsl::sum`, `wsl::kronecker`, `wsl::position`… Le nom `mdindex` est réservé aux multi-indices de l'analyse. **Espaces de noms** (2026-11-25) : tout dans `wsl` ; toute fonction publique est contrainte à nos types (pas de modèle non contraint dans `wsl`), et se trouve par ADL (`wrap(p, d, E)`, `sum(j)(…)`) ; les fonctions sur des entiers ordinaires (`div_euclid`, `rem_euclid`) sont de l'arithmétique générale, dans `wsl` ; internes dans `wsl::detail::mdarray` ; axes prédéfinis dans `wsl::axes`. |
-| ✅ V6 | **Indépendance de `wsl::algebraic`** : mdarray ne dépend d'aucune bibliothèque mathématique ; ses exigences sur les éléments sont syntaxiques, comme dans la norme (`+`, `*`…). La déclaration des structures (`mddiff` est un ℤ-module, `mdsize` un espace affine) viendra plus tard dans un en-tête de liaison, cible qui dépend des deux ; ni l'une ni l'autre ne dépend de l'autre. |
+| ✅ V5 | **Nommage par préfixe**, comme la norme : `wsl::mdposition`, `wsl::mddisplacement`, `wsl::mdaxis`, `wsl::mdspan`, `wsl::mdarray` ; sans préfixe ce que la norme ne préfixe pas (`wsl::extents`, `wsl::layout_right`…). **Types préfixés, fonctions surchargées** : `wsl::sum`, `wsl::kronecker`, `wsl::position`… Le nom `mdindex` est réservé aux multi-indices de l'analyse. Noms des positions et déplacements : `mdposition` et `mddisplacement` (2026-11-25, d'abord `mdsize` et `mddiff` : une forme est une taille, pas une position ; mots entiers comme `time_point` et `duration`). **Espaces de noms** (2026-11-25) : tout dans `wsl` ; toute fonction publique est contrainte à nos types (pas de modèle non contraint dans `wsl`), et se trouve par ADL (`wrap(p, d, E)`, `sum(j)(…)`) ; les fonctions sur des entiers ordinaires (`div_euclid`, `rem_euclid`) sont de l'arithmétique générale, dans `wsl` ; internes dans `wsl::detail::mdarray` ; axes prédéfinis dans `wsl::axes`. |
+| ✅ V6 | **Indépendance de `wsl::algebraic`** : mdarray ne dépend d'aucune bibliothèque mathématique ; ses exigences sur les éléments sont syntaxiques, comme dans la norme (`+`, `*`…). La déclaration des structures (`mddisplacement` est un ℤ-module, `mdposition` un espace affine) viendra plus tard dans un en-tête de liaison, cible qui dépend des deux ; ni l'une ni l'autre ne dépend de l'autre. |
 | ✅ V7 | **`array2d` devient un alias** de tableau de rang 2. |
 | ✅ V8 | **Deux mondes**. Tableaux entiers : `a + b`, `a * b`, `exp(a)`, `hypot(x, y)`, `2 * a + 1` terme à terme, opérandes de même forme (erreur de compilation entre étendues fixes, précondition sinon), scalaires diffusés, aucune autre diffusion ; paresseux et temporaires seulement (L2) ; indexables (`hypot(x, y)[i]` est un facteur ordinaire) et constructibles (`mdarray c = a * b + 1;`). Axes : V3, V4. |
 | ✅ V9 | **Affectations** : `=` parcourt les axes de gauche ; `*=`, `/=`, `+=`, `−=` sont de vrais raccourcis de la forme développée (`y[i, j] *= w[i]` vaut `y[i, j] = y[i, j] * w[i]` : i est à gauche, jamais sommé). **Scalaires** : une expression dont les sommes implicites dépendent du membre de gauche se range dans un type explicite (`double s = x[i] * x[i];`) ou passe par `wsl::value(…)` ; raison : l'expression est construite avant que C++ ne voie la cible, et seule la conversion en nombre dit « membre de gauche sans axe » (`auto` garderait l'expression, refusée par L2). Les réductions explicites entièrement liées (`sum(i)(…)`, `count(i)(…)`, `all(i)(…)`, `any(i)(…)`) et les réductions de tableaux entiers sont calculées immédiatement (`auto` permis), sans détection de la réutilisation de leur axe dans l'instruction (`y[i] = count(i)(…) * x[i]` passe : déconseillé, documenté). Précisé le 2026-11-25. |
@@ -66,33 +66,33 @@ Hors du périmètre :
 Toutes les décisions sont validées (2026-11-25). Écrits au lot 1 (petits, autonomes) ; leur maintien est réexaminé avant la première version
 publiée qui les contient (les retirer ensuite serait une rupture).
 
-Exemples : `wsl::mdsize<2> p{2, 1}, q{1, 3};`, `wsl::mddiff<2> d{0, 1}, e{-3, 0};`, un
+Exemples : `wsl::mdposition<2> p{2, 1}, q{1, 3};`, `wsl::mddisplacement<2> d{0, 1}, e{-3, 0};`, un
 ensemble d'indices E de forme (4, 5).
 
 **Types et construction**
 
 | # | Cas | Décision | État |
 |---|---|---|---|
-| D1 | type des composantes | `mdsize<N, IndexType = std::size_t>` (tout entier, comme `std::extents` ; signé : composantes ≥ 0 en précondition), `mddiff<N, DiffType = std::ptrdiff_t>` (signé) ; `p - q` donne `mddiff<N, make_signed_t<IndexType>>`. Rang d'abord : il est toujours donné, le type rarement. Alias `mdsize_for<E>` pour des étendues E (I2) | ✅ |
-| D2 | nombre de composantes | exactement N (`mdsize<2>{2}` refusé) ; `mdsize<N>{}` est l'origine, `mddiff<N>{}` le déplacement nul ; pas d'agrégat : constructeurs, comme `std::extents` | ✅ |
-| D3 | `mdsize<2>{-1, 0}` | constructeurs acceptant tout type entier, comme `std::extents` ; précondition : composante d'un `mdsize` positive et représentable dans `IndexType`, d'un `mddiff` représentable dans `DiffType` (P3) | ✅ |
-| D4 | construction, décomposition, accès | déduction (`mdsize{2, 1}` → `mdsize<2>` en `size_t`, `mddiff{0, -1}` → `mddiff<2>` en `ptrdiff_t`), rang 0, depuis `std::array<I, N>` et `std::span<I, N>` (implicites), depuis `std::span<I>` (explicite, précondition `size() == N`) ; décomposition par le protocole des tuples ; composantes en lecture seule (`p[k]`), `rank()` statique ; `to_array()` vers `std::array<IndexType, N>` | ✅ |
+| D1 | type des composantes | `mdposition<N, IndexType = std::size_t>` (tout entier, comme `std::extents` ; signé : composantes ≥ 0 en précondition), `mddisplacement<N, DiffType = std::ptrdiff_t>` (signé) ; `p - q` donne `mddisplacement<N, make_signed_t<IndexType>>`. Rang d'abord : il est toujours donné, le type rarement. Alias `mdposition_for<E>` pour des étendues E (I2) | ✅ |
+| D2 | nombre de composantes | exactement N (`mdposition<2>{2}` refusé) ; `mdposition<N>{}` est l'origine, `mddisplacement<N>{}` le déplacement nul ; pas d'agrégat : constructeurs, comme `std::extents` | ✅ |
+| D3 | `mdposition<2>{-1, 0}` | constructeurs acceptant tout type entier, comme `std::extents` ; précondition : composante d'un `mdposition` positive et représentable dans `IndexType`, d'un `mddisplacement` représentable dans `DiffType` (P3) | ✅ |
+| D4 | construction, décomposition, accès | déduction (`mdposition{2, 1}` → `mdposition<2>` en `size_t`, `mddisplacement{0, -1}` → `mddisplacement<2>` en `ptrdiff_t`), rang 0, depuis `std::array<I, N>` et `std::span<I, N>` (implicites), depuis `std::span<I>` (explicite, précondition `size() == N`) ; décomposition par le protocole des tuples ; composantes en lecture seule (`p[k]`), `rank()` statique ; `to_array()` vers `std::array<IndexType, N>` | ✅ |
 | D5 | rangs différents | refusés à la compilation dans toutes les opérations et conversions (P2) ; étendue dynamique de taille différente : précondition (D4) ; assemblage par `concat` (D24) | ✅ |
-| D6 | position ↔ déplacement | aucune conversion : `p - mdsize<2>{}` (déplacement depuis l'origine, comme `time_since_epoch()`), `mdsize<2>{} + d` (précondition : composantes ≥ 0) | ✅ (V1) |
+| D6 | position ↔ déplacement | aucune conversion : `p - mdposition<2>{}` (déplacement depuis l'origine, comme `time_since_epoch()`), `mdposition<2>{} + d` (précondition : composantes ≥ 0) | ✅ (V1) |
 
 **Opérations**
 
 | # | Cas | Résultat | Décision | État |
 |---|---|---|---|---|
-| D7 | `p - q` | `mddiff` | ✓ toujours défini | ✅ (P1) |
-| D8 | `p ± d`, `d + p`, `+=`, `-=` | `mdsize` | ✓ précondition : résultat ≥ 0 | ✅ (P1) |
-| D9 | `d ± e`, `-d`, `+=`, `-=` | `mddiff` | ✓ | ✅ (P1) |
-| D10 | `k * d`, `d * k`, `d / k`, `d % k`, `*=`, `/=`, `%=` | `mddiff` | ✓ troncature vers zéro ; k ≠ 0 : précondition | ✅ (P1) |
+| D7 | `p - q` | `mddisplacement` | ✓ toujours défini | ✅ (P1) |
+| D8 | `p ± d`, `d + p`, `+=`, `-=` | `mdposition` | ✓ précondition : résultat ≥ 0 | ✅ (P1) |
+| D9 | `d ± e`, `-d`, `+=`, `-=` | `mddisplacement` | ✓ | ✅ (P1) |
+| D10 | `k * d`, `d * k`, `d / k`, `d % k`, `*=`, `/=`, `%=` | `mddisplacement` | ✓ troncature vers zéro ; k ≠ 0 : précondition | ✅ (P1) |
 | D11 | `p + q`, `-p`, `k * p`, `p / k`, `p % k` | — | ✗ | ✅ (V1) |
-| D12 | `p + 1`, `d + 1`, `d * e` | — | refusés (P1) ; `mddiff<N>::filled(k)`, `mdsize<N>::filled(k)` : toutes les composantes à k (`p + mddiff<2>::filled(1)`) ; nom du vocabulaire de la norme (`fill`) | ✅ |
+| D12 | `p + 1`, `d + 1`, `d * e` | — | refusés (P1) ; `mddisplacement<N>::filled(k)`, `mdposition<N>::filled(k)` : toutes les composantes à k (`p + mddisplacement<2>::filled(1)`) ; nom du vocabulaire de la norme (`fill`) | ✅ |
 | D13 | `++p`, `--p`, `++d` | — | refusés : la position suivante dépend d'un ensemble d'indices ; parcours (I3), où une éventuelle `next(p, E)` sera décidée | ✅ |
 | D14 | dépassement du type des composantes (`p + d`, `p - q`, `d + e`, `k * d`) | — | précondition (P3) ; variantes saturées éventuelles en fonctions nommées (I6) | ✅ |
-| D15 | division euclidienne | `mddiff` | `div_euclid(d, k)`, `rem_euclid(d, k)` (noms de Rust), composante par composante, reste dans {0, …, k − 1}, précondition k > 0 ; aussi pour les entiers (`wrap`) | ✅ |
+| D15 | division euclidienne | `mddisplacement` | `div_euclid(d, k)`, `rem_euclid(d, k)` (noms de Rust), composante par composante, reste dans {0, …, k − 1}, précondition k > 0 ; aussi pour les entiers (`wrap`) | ✅ |
 
 **Comparaisons**
 
@@ -100,7 +100,7 @@ ensemble d'indices E de forme (4, 5).
 |---|---|---|---|
 | D16 | `==`, `!=` | ✓ entre positions, entre déplacements ; ✗ entre une position et un déplacement | ✅ (V1) |
 | D17 | `<`, `<=`, `<=>` | ordre lexicographique total (`std::strong_ordering`), comme `std::array` : ordre du parcours en ligne majeure, algorithmes et conteneurs ordonnés standard ; appartenance au tableau : `E.contains(p)`, pas `p < shape` | ✅ |
-| D18 | q ≤ p composante par composante | `all_less(q, p)`, `all_less_equal(q, p)` (ordre partiel), `mdsize` et `mddiff` de même rang ; boîte [lo, hi) : I2 | ✅ |
+| D18 | q ≤ p composante par composante | `all_less(q, p)`, `all_less_equal(q, p)` (ordre partiel), `mdposition` et `mddisplacement` de même rang ; boîte [lo, hi) : I2 | ✅ |
 
 **Ensembles d'indices et bords**
 
@@ -116,11 +116,11 @@ ensemble d'indices E de forme (4, 5).
 
 | # | Cas | Décision | État |
 |---|---|---|---|
-| D24 | `concat(p, q, …)` | ✓ `mdsize<N + M + …>`, de même pour `mddiff` ; position et déplacement mêlés : refusés ; inverse : `p.first<K>()`, `p.last<K>()`, comme `std::span` | ✅ |
-| D25 | `mddiff<N>::unit(k)` | ✓ vecteur de base eₖ ; précondition k < N ; pas de `mdsize::unit` ; voisinages (von Neumann, Moore) : lot 2 | ✅ |
+| D24 | `concat(p, q, …)` | ✓ `mdposition<N + M + …>`, de même pour `mddisplacement` ; position et déplacement mêlés : refusés ; inverse : `p.first<K>()`, `p.last<K>()`, comme `std::span` | ✅ |
+| D25 | `mddisplacement<N>::unit(k)` | ✓ vecteur de base eₖ ; précondition k < N ; pas de `mdposition::unit` ; voisinages (von Neumann, Moore) : lot 2 | ✅ |
 | D26 | normes | ✓ `norm1(d)`, `norm_inf(d)`, `norm2_squared(d)`, de type `DiffType` (dépassement : précondition) ; pas de norme d'une position (`norm1(p - q)`) | ✅ |
-| D27 | `std::hash`, `std::format`, `<<` | ✓ affichage `(2, 1)`, options appliquées à chaque composante, `<<` par `std::format`, pour `mdsize` et `mddiff` ; pas de lecture pour l'instant | ✅ |
-| D28 | types de composantes différents | `p ± d` garde le type de p ; `p - q`, `d ± e` : type commun (signé pour `mddiff`) ; comparaisons sur les valeurs mathématiques ; conversions implicites sans perte, explicites sinon (précondition), comme `std::extents` | ✅ |
+| D27 | `std::hash`, `std::format`, `<<` | ✓ affichage `(2, 1)`, options appliquées à chaque composante, `<<` par `std::format`, pour `mdposition` et `mddisplacement` ; pas de lecture pour l'instant | ✅ |
+| D28 | types de composantes différents | `p ± d` garde le type de p ; `p - q`, `d ± e` : type commun (signé pour `mddisplacement`) ; comparaisons sur les valeurs mathématiques ; conversions implicites sans perte, explicites sinon (précondition), comme `std::extents` | ✅ |
 
 ## 5. Axes
 
@@ -129,7 +129,7 @@ ensemble d'indices E de forme (4, 5).
 | L1 | `auto i = wsl::axis();`, `auto mu = wsl::axis<"mu">();`, `auto [mu, nu] = wsl::axis<"mu", "nu">();`, `auto [i, j] = wsl::axis<2>();` | ✅ Un axe est un objet de type `wsl::mdaxis<Id>`, non copiable, dont l'identité est le type ; chaque appel de `wsl::axis` crée des axes distincts (lambda en argument par défaut d'un modèle de fonction). Refusés : étiquettes en double, groupe vide, mélange nombre et étiquettes, déclaration groupée (`auto i = axis(), j = axis();`, règle de `auto`), copie (`auto j = i;`). `wsl::axes` fournit des axes prédéfinis étiquetés (`i, j, k…`). Au niveau d'un espace de noms dans un en-tête : étiquette de type explicite (`inline constexpr wsl::mdaxis<tag> i;`), le lambda n'y étant fiable sur aucun compilateur. Les opérations prennent les axes par référence. Avec Clang 18, une décomposition non `static` ne sert pas directement dans un `static_assert` (P2280). Mesures (2026-11-24, Apple Clang, GCC 14, Clang 18) : `source_location` en argument de modèle donne la ligne du modèle ; `mdaxis i;` par guide de déduction échoue dans les modèles avec Clang ; `mdaxis<> a, b;` fusionne les axes ; réflexion absente (GCC 16 seulement, sans auto-nommage) |
 | L2 | `m[1, 2]` contre `m[i, j]` | ✅ entiers : l'élément (référence, comme `mdspan`) ; axes : une expression paresseuse, **utilisable seulement comme temporaire** (opérations sur `Expr&&`) : calculée à l'affectation (`c[i, k] = …`) en une boucle fusionnée ; une expression nommée (`auto e = …; y[i] = e;`) est refusée, avec un message clair ; `std::move` reste une échappatoire explicite ; on nomme une sous-expression par un lambda ou une fonction. Un résultat scalaire se range dans un type explicite (V9). Raisons : pas de référence pendante (les temporaires vivent jusqu'à la fin de l'instruction), pas de surprise si un tableau change entre création et calcul, pas de calcul caché répété. Vérifié sur Apple Clang, GCC 14, Clang 18 (2026-11-24) |
 | L3 | `m[1, j]`, `m[i, k]` (k entier, constant ou variable) | ✅ une ligne, une colonne, et en rang N toute section par des positions fixées ; une expression au sens de L2 (temporaire seulement), en lecture comme en affectation (`m[1, j] = v[j]`). Entiers : ceux qu'accepte `mdspan` ; hors du tableau : précondition (P3). Une section qu'on garde est une vue (lot 2) |
-| L4 | `m[p]` | ✅ p : `mdsize`, `std::array` ou `std::span` de rang `m.rank()` (comme `mdspan` : compatibilité, positions venues d'ailleurs) : l'élément, comme `m[1, 2]` ; nécessaire au code générique en rang. Position partielle mêlée d'axes (`m[q, j]`) et rang différent : refusés (ajout possible plus tard) |
+| L4 | `m[p]` | ✅ p : `mdposition`, `std::array` ou `std::span` de rang `m.rank()` (comme `mdspan` : compatibilité, positions venues d'ailleurs) : l'élément, comme `m[1, 2]` ; nécessaire au code générique en rang. Position partielle mêlée d'axes (`m[q, j]`) et rang différent : refusés (ajout possible plus tard) |
 | L5 | longueur d'un axe | ✅ celle de chaque dimension qu'il étiquette dans l'instruction, membre de gauche compris ; toutes coïncident (axes sommés compris : `a[i, j] * b[j, k]` exige `a.extent(1) == b.extent(0)`) : erreur de compilation entre étendues fixes, précondition (vérifiée une fois par instruction) sinon ; une étendue fixe donne la longueur à une dynamique. Un axe qui n'étiquette aucune dimension d'un tableau est refusé (`double s = i * i;` : longueur inconnue) |
 | L6 | `u[i + 1]`, `u[2 * i]`, `b[k - j]`… | ✗ ✅ aucune arithmétique sur un axe (V2) |
 | L7 | axe absent à gauche | ✅ sommé sur la plus petite sous-expression qui contient ses occurrences (V3) |
@@ -165,7 +165,7 @@ réservés aux tenseurs (variances).
 
 - **Infrastructure** (✅ A5, validée le 2026-11-25) : `wsl::extents`, `wsl::dextents`,
   `layout_right`, `layout_left`, `layout_stride`, `wsl::mdspan`, aux noms et à la sémantique
-  de `<mdspan>`, dont ils ne s'écartent que par des **ajouts** (axes, `mdsize`, `contains`,
+  de `<mdspan>`, dont ils ne s'écartent que par des **ajouts** (axes, `mdposition`, `contains`,
   `at`, `concat`… ; ajouts de C++26 repris sous leur nom) : tout code valide avec
   `std::mdspan` garde le même sens. Conversions avec `std::mdspan` là où il existe
   (`__cpp_lib_mdspan`). Raisons : `std::mdspan` manque à GCC 14 et à Clang 18 avec
@@ -173,7 +173,7 @@ réservés aux tenseurs (variances).
   surcharge à un type de la norme) ; pas de dépendance externe (Kokkos).
 - **Ensembles d'indices** (✅ I2, 2026-11-25) : `wsl::extents`, `wsl::dextents` de la norme ;
   un `extents` est l'ensemble d'indices E (ajouts : `contains`, parcours, `wrap`, `clamp`) ;
-  pas de conversion vers `mdsize` (une forme est une taille, pas une position) ;
+  pas de conversion vers `mdposition` (une forme est une taille, pas une position) ;
   `wsl::dims<N>` (C++26, P2389) ; étendues nulles et rang 0 permis ; boîtes [lo, hi) : I3 et
   lot 2.
 - **Conteneur** (✅ I13, 2026-11-25) : `wsl::mdarray<T, Extents, Layout = layout_right,
@@ -242,7 +242,7 @@ réservés aux tenseurs (variances).
   (`max(x, 0)`, `max(i, j)`). `max(i, j)(…)` et tout appel sur une expression sont refusés
   avec un message (aucune expression n'a d'`operator()` ; vérifié sur Apple Clang, GCC 14,
   Clang 18). Toutes les formes se trouvent sans préfixe (ADL : `sum(j)` prend un axe).
-  Vide : 0, 1, précondition, vrai, faux, 0. `argmax(a)` rend un `mdsize`, première position
+  Vide : 0, 1, précondition, vrai, faux, 0. `argmax(a)` rend un `mdposition`, première position
   en cas d'égalité (`argmax(k)(s[b, k])` : des indices). `min`/`max` propagent `NaN` ;
   `fmin`/`fmax` l'ignorent. `prod` laisse `product` aux bibliothèques mathématiques ;
   `mean` : plus tard. Écartés : `sum[j](…)` (objets, sans ADL), `j.sum(…)` (plusieurs axes
@@ -250,7 +250,7 @@ réservés aux tenseurs (variances).
 - **Vues de découpage et de décalage**, noms provisoires : `u.slice(a, b)` (positions
   [a, b), comme `submdspan` de C++26), `roll(u, k)` (décalage circulaire, `numpy.roll`),
   `shift(u, k, wsl::clamp)` ou `shift(u, k, wsl::fill(0))` ; décalages de rang N par
-  `mddiff`. Stencil : `v.slice(1, n - 1)[i] = u.slice(2, n)[i] - 2 * u.slice(1, n - 1)[i]
+  `mddisplacement`. Stencil : `v.slice(1, n - 1)[i] = u.slice(2, n)[i] - 2 * u.slice(1, n - 1)[i]
   + u.slice(0, n - 2)[i]` ; périodique : `v[i] = roll(u, 1)[i] - 2 * u[i] + roll(u, -1)[i]`.
 - **Calcul des expressions** : évaluation paresseuse, aliasing (`m[i, j] = m[j, i]` sur
   place).
