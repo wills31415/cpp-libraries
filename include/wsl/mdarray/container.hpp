@@ -44,10 +44,46 @@ namespace wsl
             return n;
         }
 
+        // Tampon contigu sur le tas, pour bool (std::vector<bool> ne stocke pas de
+        // vrais bool et n'offre aucun pointeur sur ses éléments).
+        template <class T>
+        class heap_buffer
+        {
+        public:
+            using value_type = T;
+            using iterator = T*;
+            using const_iterator = T const*;
+
+            constexpr heap_buffer() = default;
+            constexpr explicit heap_buffer(std::size_t n) : data_(n ? new T[n]() : nullptr), size_(n) {}
+            constexpr heap_buffer(std::size_t n, T const& v) : heap_buffer(n) { std::ranges::fill(*this, v); }
+            constexpr heap_buffer(heap_buffer const& o) : heap_buffer(o.size_) { std::ranges::copy(o, begin()); }
+            constexpr heap_buffer(heap_buffer&& o) noexcept : data_(std::exchange(o.data_, nullptr)), size_(std::exchange(o.size_, 0)) {}
+            constexpr heap_buffer& operator=(heap_buffer o) noexcept
+            {
+                std::swap(data_, o.data_);
+                std::swap(size_, o.size_);
+                return *this;
+            }
+            constexpr ~heap_buffer() { delete[] data_; }
+
+            constexpr T* begin() noexcept { return data_; }
+            constexpr T* end() noexcept { return data_ + size_; }
+            constexpr T const* begin() const noexcept { return data_; }
+            constexpr T const* end() const noexcept { return data_ + size_; }
+            constexpr std::size_t size() const noexcept { return size_; }
+            constexpr T& operator[](std::size_t k) noexcept { return data_[k]; }
+            constexpr T const& operator[](std::size_t k) const noexcept { return data_[k]; }
+
+        private:
+            T* data_ = nullptr;
+            std::size_t size_ = 0;
+        };
+
         template <class T, class Extents, class Layout>
         struct default_container
         {
-            using type = std::vector<T>;
+            using type = std::conditional_t<std::is_same_v<T, bool>, heap_buffer<bool>, std::vector<T>>;
         };
 
         template <class T, class Extents, class Layout>
@@ -235,29 +271,29 @@ namespace wsl
         // --- Accès : ceux de mdspan ----------------------------------------------
 
         template <class... I>
-            requires requires(mdspan_type m, I... i) { m[i...]; }
-        constexpr reference operator[](I... indices)
+            requires requires(mdspan_type m, I const&... i) { m[i...]; }
+        constexpr decltype(auto) operator[](I const&... indices)
         {
             return to_mdspan()[indices...];
         }
 
         template <class... I>
-            requires requires(const_mdspan_type m, I... i) { m[i...]; }
-        constexpr const_reference operator[](I... indices) const
+            requires requires(const_mdspan_type m, I const&... i) { m[i...]; }
+        constexpr decltype(auto) operator[](I const&... indices) const
         {
             return to_mdspan()[indices...];
         }
 
         template <class... I>
-            requires requires(mdspan_type m, I... i) { m.at(i...); }
-        constexpr reference at(I... indices)
+            requires requires(mdspan_type m, I const&... i) { m.at(i...); }
+        constexpr reference at(I const&... indices)
         {
             return to_mdspan().at(indices...);
         }
 
         template <class... I>
-            requires requires(const_mdspan_type m, I... i) { m.at(i...); }
-        constexpr const_reference at(I... indices) const
+            requires requires(const_mdspan_type m, I const&... i) { m.at(i...); }
+        constexpr const_reference at(I const&... indices) const
         {
             return to_mdspan().at(indices...);
         }

@@ -14,6 +14,7 @@
 #include <wsl/mdarray/axis.hpp>
 #include <wsl/mdarray/container.hpp>
 #include <wsl/mdarray/detail/expression_base.hpp>
+#include <wsl/mdarray/detail/function_list.hpp>
 #include <wsl/mdarray/detail/iterate.hpp>
 #include <wsl/mdarray/detail/precondition.hpp>
 #include <wsl/mdarray/detail/reduce.hpp>
@@ -41,7 +42,7 @@ namespace wsl
         // Opérande scalaire : tout ce qui n'est pas l'un de nos objets d'indices.
         template <class T>
         concept scalar_operand = !array_operand<T> && !axis_like<T> && !position_like<T> && !displacement_like<T>
-                                 && !is_extents<std::remove_cvref_t<T>>;
+                                 && !is_extents<std::remove_cvref_t<T>> && !indexed<T>;
 
         template <class T>
         concept operand = array_operand<T> || scalar_operand<T>;
@@ -229,6 +230,15 @@ namespace wsl
                 return (*this)(static_cast<index_type>(i)...);
             }
 
+            // (a + b)[i, j] : une expression indicée (monde des axes).
+            template <class... A>
+                requires(sizeof...(A) == rank() && (axis_like<A> || ...)
+                         && ((axis_like<A> || index_integer<std::remove_cvref_t<A>>) && ...))
+            constexpr auto operator[](A const&... a) &&
+            {
+                return make_indexed(std::move(*this), a...);
+            }
+
             template <class I>
             constexpr value_type operator[](mdposition<rank(), I> const& p) const
             {
@@ -353,6 +363,7 @@ namespace wsl
         // min, max élément par élément, propageant NaN (I6).
         struct min_op
         {
+            static constexpr bool is_function = true;
             template <class A, class B>
             constexpr auto operator()(A const& a, B const& b) const
             {
@@ -369,6 +380,7 @@ namespace wsl
         };
         struct max_op
         {
+            static constexpr bool is_function = true;
             template <class A, class B>
             constexpr auto operator()(A const& a, B const& b) const
             {
@@ -385,6 +397,7 @@ namespace wsl
         };
         struct where_op
         {
+            static constexpr bool is_function = true;
             template <class C, class A, class B>
             constexpr auto operator()(C const& c, A const& a, B const& b) const
             {
@@ -396,6 +409,7 @@ namespace wsl
         template <class F>
         struct call_op
         {
+            static constexpr bool is_function = true;
             F f;
             template <class... T>
             constexpr auto operator()(T const&... t) const -> decltype(std::invoke(f, t...))
@@ -473,6 +487,7 @@ namespace wsl
     {                                                                                                                  \
         struct name##_op                                                                                               \
         {                                                                                                              \
+            static constexpr bool is_function = true;                                                                  \
             template <class T>                                                                                         \
             constexpr auto operator()(T const& x) const -> decltype(std::name(x))                                      \
             {                                                                                                          \
@@ -492,6 +507,7 @@ namespace wsl
     {                                                                                                                  \
         struct name##_op                                                                                               \
         {                                                                                                              \
+            static constexpr bool is_function = true;                                                                  \
             template <class T, class U>                                                                                \
             constexpr auto operator()(T const& x, U const& y) const -> decltype(std::name(x, y))                       \
             {                                                                                                          \
@@ -506,46 +522,8 @@ namespace wsl
         return detail::mdarray::make_elementwise(detail::mdarray::name##_op{}, std::forward<A>(a), std::forward<B>(b)); \
     }
 
-    WSL_MDARRAY_UNARY_FUNCTION(abs)
-    WSL_MDARRAY_UNARY_FUNCTION(sqrt)
-    WSL_MDARRAY_UNARY_FUNCTION(cbrt)
-    WSL_MDARRAY_UNARY_FUNCTION(exp)
-    WSL_MDARRAY_UNARY_FUNCTION(exp2)
-    WSL_MDARRAY_UNARY_FUNCTION(expm1)
-    WSL_MDARRAY_UNARY_FUNCTION(log)
-    WSL_MDARRAY_UNARY_FUNCTION(log2)
-    WSL_MDARRAY_UNARY_FUNCTION(log10)
-    WSL_MDARRAY_UNARY_FUNCTION(log1p)
-    WSL_MDARRAY_UNARY_FUNCTION(sin)
-    WSL_MDARRAY_UNARY_FUNCTION(cos)
-    WSL_MDARRAY_UNARY_FUNCTION(tan)
-    WSL_MDARRAY_UNARY_FUNCTION(asin)
-    WSL_MDARRAY_UNARY_FUNCTION(acos)
-    WSL_MDARRAY_UNARY_FUNCTION(atan)
-    WSL_MDARRAY_UNARY_FUNCTION(sinh)
-    WSL_MDARRAY_UNARY_FUNCTION(cosh)
-    WSL_MDARRAY_UNARY_FUNCTION(tanh)
-    WSL_MDARRAY_UNARY_FUNCTION(asinh)
-    WSL_MDARRAY_UNARY_FUNCTION(acosh)
-    WSL_MDARRAY_UNARY_FUNCTION(atanh)
-    WSL_MDARRAY_UNARY_FUNCTION(erf)
-    WSL_MDARRAY_UNARY_FUNCTION(erfc)
-    WSL_MDARRAY_UNARY_FUNCTION(tgamma)
-    WSL_MDARRAY_UNARY_FUNCTION(lgamma)
-    WSL_MDARRAY_UNARY_FUNCTION(floor)
-    WSL_MDARRAY_UNARY_FUNCTION(ceil)
-    WSL_MDARRAY_UNARY_FUNCTION(trunc)
-    WSL_MDARRAY_UNARY_FUNCTION(round)
-    WSL_MDARRAY_UNARY_FUNCTION(isnan)
-    WSL_MDARRAY_UNARY_FUNCTION(isinf)
-    WSL_MDARRAY_UNARY_FUNCTION(isfinite)
-    WSL_MDARRAY_BINARY_FUNCTION(pow)
-    WSL_MDARRAY_BINARY_FUNCTION(atan2)
-    WSL_MDARRAY_BINARY_FUNCTION(hypot)
-    WSL_MDARRAY_BINARY_FUNCTION(fmod)
-    WSL_MDARRAY_BINARY_FUNCTION(fmin)
-    WSL_MDARRAY_BINARY_FUNCTION(fmax)
-    WSL_MDARRAY_BINARY_FUNCTION(copysign)
+    WSL_MDARRAY_UNARY_FUNCTIONS(WSL_MDARRAY_UNARY_FUNCTION)
+    WSL_MDARRAY_BINARY_FUNCTIONS(WSL_MDARRAY_BINARY_FUNCTION)
 #undef WSL_MDARRAY_UNARY_FUNCTION
 #undef WSL_MDARRAY_BINARY_FUNCTION
 
@@ -584,13 +562,19 @@ namespace wsl
         template <class... T>
         constexpr auto operator()(T&&... t) const
         {
-            if constexpr (detail::mdarray::with_array<T...>)
+            if constexpr ((detail::mdarray::indexed<T> || ...) || (detail::mdarray::axis_like<T> || ...))
+                return make_indexed_call(std::forward<T>(t)...);
+            else if constexpr (detail::mdarray::with_array<T...>)
                 return detail::mdarray::make_elementwise(detail::mdarray::call_op<F>{f_}, std::forward<T>(t)...);
             else
                 return std::invoke(f_, std::forward<T>(t)...);
         }
 
     private:
+        // Défini dans indexed.hpp (monde des axes) : F(x[i], x[j]).
+        template <class... T>
+        constexpr auto make_indexed_call(T&&... t) const;
+
         F f_;
     };
 

@@ -6,6 +6,8 @@
 //   std::out_of_range (D20, comme std::mdspan::at de C++26) ; m.contains(…) (D19) ;
 //   conversions avec std::mdspan là où il existe (__cpp_lib_mdspan).
 
+#include <wsl/mdarray/axis.hpp>
+#include <wsl/mdarray/detail/expression_base.hpp>
 #include <wsl/mdarray/detail/precondition.hpp>
 #include <wsl/mdarray/extents.hpp>
 #include <wsl/mdarray/layout.hpp>
@@ -231,7 +233,26 @@ namespace wsl
             return (*this)[std::span<OtherIndexType const, rank()>(indices)];
         }
 
-        // --- Ajouts : position (L4), at (D20), contains (D19) --------------------
+        // --- Ajouts : axes (L2, L3), position (L4), at (D20), contains (D19) -------
+
+        // m[i, j], m[1, j] : une expression indicée (monde des axes) ; une cible si la
+        // vue est modifiable (m[i, j] = …).
+        template <class... A>
+            requires(sizeof...(A) == rank() && (detail::mdarray::axis_like<A> || ...)
+                     && ((detail::mdarray::axis_like<A> || detail::mdarray::index_integer<std::remove_cvref_t<A>>) && ...))
+        constexpr auto operator[](A const&... a) const
+        {
+            return detail::mdarray::make_indexed(*this, a...);
+        }
+
+        // u[i + 1] : refusé, i + 1 est une valeur, pas un axe (V2).
+        template <class... A>
+            requires(detail::mdarray::indexed<A> || ...)
+        void operator[](A const&...) const
+        {
+            static_assert(sizeof...(A) == 0, "wsl::mdarray : i + 1 est une valeur, pas un axe (V2) ; pour décaler, "
+                                             "utiliser une vue (roll, shift, slice : lot 2)");
+        }
 
         template <class I>
         constexpr reference operator[](mdposition<rank(), I> const& p) const

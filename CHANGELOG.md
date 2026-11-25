@@ -57,6 +57,20 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   détection de l'aliasing (temporaire si une opérande lit le stockage à d'autres positions).
   Réductions immédiates : `sum` et `prod` (ordre fixé, par paires comme NumPy), `min`,
   `max`, `argmin`, `argmax` (une `mdposition`), `all`, `any`, `count`.
+- Monde des axes : `m[i, j]`, `m[1, j]` sur tableaux, vues et expressions de tableaux
+  entiers ; le membre de gauche décide (un axe présent à gauche n'est jamais sommé, un axe
+  absent est sommé sur la plus petite sous-expression qui contient ses occurrences, dans
+  l'ordre fixé par paires) ; diffusion le long des axes de gauche, diagonale (`A[i, i] = 1`,
+  `d[i] = A[i, i]`), affectations composées ; scalaires (`double s = x[i] * x[i];`,
+  `wsl::value(…)`) ; réducteurs `sum(j)(…)`, `prod`, `min`, `max`, `argmin`, `argmax`,
+  `all`, `any`, `count` (calculés tout de suite quand tous leurs axes sont liés) ; axes comme
+  valeurs (`1.0 / (i + j + 1)`, `position<T>(i)`), `kronecker(i, j)` ; fonctions de
+  `<cmath>`, `min`, `max`, `where` et `vectorize` sur les expressions indicées ; aliasing
+  détecté (temporaire). Refus à la compilation, avec message : axe absent à gauche présent
+  une seule fois, portée ambiguë autour d'une fonction, axe lié réutilisé, somme de booléens,
+  longueur inconnue ou fixe incompatible, `u[i + 1]`, `+i`, `max(i, j)(…)`, expression ou
+  cible nommée, tableau entier mêlé à une expression indicée.
+- `mdarray<bool>` : tampon contigu au lieu de `std::vector<bool>`.
 
 ### elo
 

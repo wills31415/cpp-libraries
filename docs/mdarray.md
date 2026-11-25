@@ -219,6 +219,22 @@ réservés aux tenseurs (variances).
   temporaire (pas d'ordre entre pointeurs) ; `argmin`/`argmax` : un NaN l'emporte (comme
   NumPy). Performance à reprendre : les réductions recalculent la position de chaque
   élément (division), et l'évaluation ne vectorise pas encore explicitement.
+- **Implémentation (étape 5b, 2026-11-25)** : `include/wsl/mdarray/indexed.hpp`,
+  `detail/typelist.hpp`, `detail/function_list.hpp` ; tests
+  `tests/test_mdarray_expression_axes.cpp` (chaque exemple du §5bis comparé à une boucle) et
+  `tests/compile_fail/mdarray/axes.cpp` (14 refus). Mécanique : chaque nœud porte la liste
+  de ses occurrences d'axes ; à l'affectation, le contexte connaît les axes de gauche, les
+  axes sommés et le foyer de chaque somme (nœud qui contient toutes les occurrences, sans
+  qu'aucun enfant les contienne toutes) ; les garde-fous sont des `static_assert`, le (3)
+  avant le (1) (message le plus précis). Choix, à revoir : un axe comme valeur est un
+  `std::ptrdiff_t` (l'axe ne connaît pas encore le type d'indice des tableaux ;
+  `position<T>(i)` pour un autre type) ; une valeur écrite prend le type des éléments de la
+  cible ; `min`, `max`, `argmin`, `argmax` le long d'un seul axe, `argmax(j)(…)` rend un
+  `std::ptrdiff_t` ; une cible `m[i, j]` nommée est refusée ; `mdarray<bool>` utilise un
+  tampon contigu (`std::vector<bool>` n'a pas de pointeur sur ses éléments). Performance à
+  reprendre : l'évaluation passe par un environnement de positions (pas de boucles
+  emboîtées ni de vectorisation explicite) ; l'ordre des boucles suit la première apparition
+  des axes à gauche, pas encore le stockage.
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la
