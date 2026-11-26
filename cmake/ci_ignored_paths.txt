@@ -4,3 +4,4 @@
 ^\.gitignore$
 ^tools/cpp-init$
 ^tools/release\.sh$
+^tools/check\.sh$

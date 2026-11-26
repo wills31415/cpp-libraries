@@ -43,13 +43,15 @@
             "name": "debug",
             "displayName": "Debug",
             "configurePreset": "debug",
-            "output": { "outputOnFailure": true }
+            "output": { "outputOnFailure": true },
+            "execution": { "jobs": 8 }
         },
         {
             "name": "release",
             "displayName": "Release",
             "configurePreset": "release",
-            "output": { "outputOnFailure": true }
+            "output": { "outputOnFailure": true },
+            "execution": { "jobs": 8 }
         }
     ]
 }

@@ -52,7 +52,13 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 ## Commandes
 
 - Compiler : `cmake --preset debug && cmake --build --preset debug -j`
-- Tests : `ctest --preset debug` (ASan + UBSan) ; `ctest --preset release`
+- Tests : `ctest --preset debug` (ASan + UBSan) ; `ctest --preset release` (8 tests en
+  parallèle ; la suite complète en séquentiel : près de 3 min en release, bien plus en
+  debug, où les tests de `wsl::random` prennent 30 à 90 s chacun)
+- Vérification rapide : `tools/check.sh [release|fma|debug]…` (par défaut release et fma)
+  ne compile et ne teste que les bibliothèques touchées depuis le dernier push (même règle
+  que la CI, `cmake/affected.cmake`), dans `build/check-<configuration>` ; `--all` pour
+  tout. La suite debug complète est laissée à la CI.
 - Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++23,
   sur les trois compilateurs de la CI.
 
