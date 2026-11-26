@@ -388,6 +388,32 @@ réservés aux tenseurs (variances).
   déborder les 16 registres : l'ordre fixé I9 demande 8 accumulateurs par élément). Ordre
   de grandeur : une bibliothèque BLAS optimisée approche 0,03 ns par terme sur ce processeur
   (sans ordre de somme fixé).
+- **Voies sans somme, mode reproductible (2026-11-26)** : une instruction du monde des axes
+  sans somme qui contient un produit reproductible (`y[i] = a * x[i] + y[i]`) passe aussi par
+  les voies (une barrière par registre vectoriel) : axpy 1,4 → 1,1 fois la boucle à la main.
+- **Pistes d'amélioration (à reprendre plus tard, 2026-11-26)** : état mesuré au point
+  complet du 2026-11-26 (i7-9750H, Apple Clang -O3 -march=native).
+  - Champ gₚᵢⱼ vₚᵢ vₚⱼ en mode reproductible (6,6 ns par point contre 3,8 en mode rapide) :
+    sommes de 3 termes (moins de 8 : pas de paquets) et lectures non contiguës le long de
+    p (pas de voies) ; barrières scalaires. Piste : paquets de positions non contiguës
+    (lectures une à une, produits et barrière en vecteur).
+  - Lectures non contiguës le long de l'axe intérieur (matrice × vecteur transposée,
+    A[j, i] x[j]) : pas de voies ; avec Clang sur AVX2, boucle scalaire. Piste : voies le
+    long d'un autre axe du membre de gauche, ou recopie transposée.
+  - Longueurs dynamiques de petites sommes (champ à composantes de longueur 3 dynamique,
+    environ 2 fois la boucle à la main) : déroulement impossible. Piste : versions
+    spécialisées pour les petites longueurs (2, 3, 4) choisies à l'exécution.
+  - Produit matriciel : 25 à 35 % du maximum de la machine (une bibliothèque BLAS : 80 à
+    90 %, sans ordre de somme fixé) ; l'ordre fixé (8 accumulateurs par élément) occupe
+    tous les registres. Piste : W = 4 voies et 2 lignes à la fois, à mesurer.
+  - Découpage du cache et recopie : seulement pour une somme à la racine du membre de
+    droite (pas `A[i, j] B[j, k] + C[i, k]`) et avec voies. Piste : découper aussi les
+    sommes intérieures.
+  - Réductions explicites (`sum(j)(…)`) dans un membre de droite : évaluation générale (pas
+    de plan à pas fixe pour l'instruction). Piste : plans pour indexed_reduction.
+  - Coût de compilation : tests/test_mdarray_expression_axes.cpp demande 1,2 Go et 39 s à
+    GCC 14 -O2. Piste : scinder le fichier, réduire les instanciations des voies.
+  - Mesures sur ARM64 (Apple Silicon) : jamais faites (la CI n'y vérifie que l'exactitude).
 - **Écart assumé avec le texte de la norme** (2026-11-25) : `layout_stride::is_exhaustive()`
   suit la définition de l'exhaustivité ([mdspan.layout.reqmts] : toute place atteinte),
   soit `required_span_size()` == taille de l'ensemble pour une correspondance injective ; la

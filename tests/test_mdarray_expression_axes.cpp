@@ -294,6 +294,14 @@ namespace
         C2[i, k] = wsl::reproducible(A[i, j] * (B * 1.0)[j, k]);
         assert(same_bits(C1, C2));
 
+        // Voies sans somme, pour un produit reproductible : y[i] = a x[i] + y[i].
+        V z1(n), z2(n);
+        for (std::size_t q = 0; q < n; ++q)
+            z1[q] = z2[q] = 0.25 * q;
+        z1[i] = wsl::reproducible(2.5 * x[i] + z1[i] * x[i]);
+        z2[i] = wsl::reproducible(2.5 * (x * 1.0)[i] + z2[i] * x[i]);
+        assert(same_bits(z1, z2));
+
         // Voies : 21 colonnes (deux paquets de 8 et un reste), valeurs d'axes, position fixe,
         // scalaire, cible relue.
         M B21(n, 21), E1(n, 21), E2(n, 21);

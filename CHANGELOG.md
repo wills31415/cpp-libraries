@@ -113,6 +113,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   Sommes le long de plusieurs axes : même découpage (indice aplati), positions par compteur
   à roues, somme aplatie quand les pas sont cohérents (g[p, i, j] t[i, j, k]) : contraction
   sur deux axes 0,91 → 0,28 ns par terme. Banc d'essai : noyau 10.
+- Performance du mode reproductible : les instructions du monde des axes sans somme qui
+  contiennent un produit passent aussi par paquets (`y[i] = a * x[i] + y[i]` : 1,4 → 1,1
+  fois la boucle à la main).
 
 ### elo
 

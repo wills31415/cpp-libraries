@@ -1412,6 +1412,21 @@ namespace wsl
         {
         };
 
+        // Le membre de droite contient-il une opération qui traite un paquet entier (produit
+        // reproductible : barrière vectorielle, mode.hpp) ? Alors les voies servent aussi
+        // sans somme (y[i] = a x[i] + y[i] : une barrière par registre au lieu d'une par
+        // produit).
+        template <class Op>
+        inline constexpr bool lane_op = requires(Op const& o, lane_pack<double, 8> const& p) { o.lanes(p, p); };
+        template <class Node>
+        struct has_lane_op : std::false_type
+        {
+        };
+        template <class Op, class... C>
+        struct has_lane_op<indexed_node<Op, C...>> : std::bool_constant<lane_op<Op> || (has_lane_op<C>::value || ...)>
+        {
+        };
+
         template <class L>
         struct last_of;
         template <class... T>
@@ -1667,10 +1682,11 @@ namespace wsl
                             target(wheels.local) = temporary[k];
                         }
                     }
-                    else if constexpr (contiguous && ctx::summed::size > 0)
+                    else if constexpr (contiguous && (ctx::summed::size > 0 || has_lane_op<Rhs>::value))
                     {
-                        // Une somme : W positions consécutives le long de l'axe intérieur à la
-                        // fois (voies), le reste une à une ; mêmes bits.
+                        // Une somme, ou un produit reproductible : W positions consécutives le
+                        // long de l'axe intérieur à la fois (voies), le reste une à une ; mêmes
+                        // bits.
                         constexpr std::size_t W = 8;
                         auto const inner_length = static_cast<std::size_t>(env.length[tindex_v<inner, axes>]);
                         // Paquet de colonnes à l'extérieur : les lectures d'un paquet (B[j, k…k+7]
