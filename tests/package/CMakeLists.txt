@@ -20,7 +20,7 @@ else()
 endif()
 
 add_executable(consumer main.cpp)
-target_link_libraries(consumer PRIVATE wsl::array2d wsl::graded_io)
+target_link_libraries(consumer PRIVATE wsl::array2d wsl::graded_io wsl::random wsl::special wsl::mdarray)
 
 enable_testing()
 add_test(NAME consumer COMMAND consumer)

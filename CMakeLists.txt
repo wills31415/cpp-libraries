@@ -40,6 +40,10 @@ set(WSL_LIBRARIES_STANDARDS 23)
 
 set(WSL_LIBRARIES_ALL "")
 
+# En-têtes sans extension : relais engendrés à la configuration (cmake/relays.cmake).
+include(cmake/relays.cmake)
+wsl_generate_relays(${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/relays WSL_RELAY_ROOTS)
+
 function(wsl_add_library name)
     cmake_parse_arguments(PARSE_ARGV 1 ARG "" "STANDARD" "DEPENDS")
     if(NOT ARG_STANDARD)
@@ -58,6 +62,11 @@ function(wsl_add_library name)
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include
         FILES ${PROJECT_SOURCE_DIR}/include/wsl/${name}.hpp ${headers})
+    foreach(root IN LISTS WSL_RELAY_ROOTS)
+        target_include_directories(${target} INTERFACE
+            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/relays/${root}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/wsl-relays/${root}>)
+    endforeach()
     foreach(dependency IN LISTS ARG_DEPENDS)
         target_link_libraries(${target} INTERFACE wsl_${dependency})
     endforeach()
@@ -382,6 +391,9 @@ set(WSL_LIBRARIES_CMAKE_DIR ${CMAKE_INSTALL_DATADIR}/cmake/wsl_libraries)
 install(TARGETS ${WSL_LIBRARIES_ALL} wsl_libraries
         EXPORT wsl_librariesTargets
         FILE_SET HEADERS)
+
+install(DIRECTORY ${PROJECT_BINARY_DIR}/relays/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wsl-relays)
 
 install(EXPORT wsl_librariesTargets
         NAMESPACE wsl::

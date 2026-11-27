@@ -7,6 +7,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- En-têtes sans extension, la forme documentée désormais (docs/interfaces.md, décision 30) :
+  `#include <wsl/random>`, `#include <wsl/random/engines>`, `#include <wsl/special/gamma>`…
+  La forme `.hpp` reste valable. Le dépôt ne contient que des `.hpp` ; CMake engendre à la
+  configuration un relais sans extension par en-tête public (`cmake/relays.cmake`), les
+  parapluies dans des racines d'inclusion séparées (un fichier et un dossier ne peuvent
+  porter le même nom), et les installe sous `include/wsl-relays/`. Vérifié avec CMake 3.28,
+  GCC 14, Clang 18 et Apple Clang, par le paquet installé et par FetchContent
+  (`tests/package/`).
 - Rupture : C++23 exigé partout (dlist, graded, graded_io, elo, special, permutation et
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
   la revue des interfaces (docs/interfaces.md).
