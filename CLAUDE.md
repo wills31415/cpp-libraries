@@ -1,15 +1,17 @@
 # cpp-libraries
 
-Collection centrale des bibliothèques C++ génériques de l'utilisateur, en en-têtes
-seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
+Grande bibliothèque scientifique C++23 en en-têtes seuls (mathématiques, physique, calcul
+scientifique, et leurs fondations : mdarray, hasard, fonctions spéciales…), espace de noms
+`wsl` (**nom provisoire**, à remplacer avant la première version stable), paquet CMake
+`wsl_libraries` (cibles `wsl::<nom>`) jusqu'à la refonte. Identité : docs/interfaces.md,
+décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 
 ## Règles
 
 - **Claude implémente** (demande de l'utilisateur, 2026-11-16) : écrire, corriger et
-  faire évoluer le code des bibliothèques et de leurs tests est attendu. Exception à
-  la règle par défaut de `cpp-init`.
-- **Objectif** : centraliser le maximum de code générique, aussi optimisé, générique
-  et proche de la bibliothèque standard que possible (nommage, garanties,
+  faire évoluer le code des bibliothèques et de leurs tests est attendu.
+- **Objectif** : une bibliothèque cohérente, aussi optimisée, générique et proche de la
+  bibliothèque standard que possible (nommage, garanties,
   `constexpr`/`noexcept`, concepts, comportement aligné sur les conteneurs et
   algorithmes standard).
 - **Langue** : identifiants, noms de fichiers et de cibles en anglais ; commentaires
@@ -19,6 +21,14 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   `wsl_add_library(... STANDARD ...)`.
 - Interfaces : les décisions de la revue (espaces de noms, paramètres, types, erreurs…) sont
   dans `docs/interfaces.md` ; tout nouveau code les suit.
+- **Charte** (docs/interfaces.md §6, décisions 10 à 36) : reproductibilité (10), espaces de
+  noms, bibliothèques, abréviations et alias (11 à 23), modes `deterministic`/`portable` et
+  `approximate`/`exact`, le défaut étant la permission (24 à 27), registre provisoire de `wsl::`
+  (28), chemins, en-têtes sans extension, cibles, organisation du dépôt, paquet (29 à 33),
+  identité du dépôt et sort des anciennes bibliothèques (34 à 36). Tout nouveau code la suit ;
+  les sections ci-dessous marquées « jusqu'à la refonte » décrivent l'état actuel.
+- **Priorités de conception** : simple pour l'utilisateur, compatibilités vérifiées à la
+  compilation, options les plus rapides, reproductibilité.
 - Objets mathématiques (algèbre linéaire, tenseurs, analyse) : vision, méthode et feuille
   de route dans `docs/algebra.md`. Ne citer que des ouvrages publiés, jamais de supports de
   cours (ni formation, ni école, ni enseignants).
@@ -62,14 +72,14 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 - Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++23,
   sur les trois compilateurs de la CI.
 
-## Outils
+## Outils (jusqu'à la refonte)
 
 - `tools/cpp-init` : **source unique** du script de création de projets ;
   `~/.local/bin/cpp-init` est un lien vers lui, et le skill `cpp-init`
   (`~/.claude/skills/cpp-init/`) le lance. Le modifier ici.
 - `tools/release.sh` : publication d'une version.
 
-## wsl::special (fonctions bit-exactes)
+## wsl::special (fonctions bit-exactes ; jusqu'à la refonte)
 
 - Conception et mesures : `docs/special.md` ; lois de probabilité à venir : `docs/random.md`.
 - **Règle d'écriture** : uniquement `+ − × ÷` (et `sqrt`, `fma` explicites), jamais de
@@ -108,7 +118,7 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
   `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
 
-## wsl::random
+## wsl::random (jusqu'à la refonte)
 
 - Conception : `docs/random.md`. Mêmes exigences que wsl::special : algorithmes fixés,
   tirages bit-exacts partout ; le nombre de valeurs consommées sur le moteur fait partie
@@ -131,7 +141,7 @@ seuls, namespace `wsl`, paquet CMake `wsl_libraries` (cibles `wsl::<nom>`).
   s'il est certain, pour que résultat et nombre de mots tirés soient ceux de la voie
   exacte ; ses décisions dépendent de flottants : produits par `fmul` là aussi.
 
-## Structure
+## Structure (jusqu'à la refonte)
 
 - `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via
   `DEPENDS`, p. ex. `graded_io` → `graded`).
@@ -148,8 +158,27 @@ d'ici depuis, remplacée par `wsl::random`),
 `cpp-traversal/src/util/{array2d,progress}.hpp`, `cpp-traversal/src/agents/elo.hpp`.
 cpp-traversal utilise encore sa propre copie d'`array2d.hpp`.
 
-cpp-libraries est le **dépôt principal** : il regroupe toutes les bibliothèques de
-l'utilisateur ; les autres dépôts sont des projets qui en consomment une partie. Les noms
-s'y choisissent librement : le paquet `wsl` de `~/projets/cpp-tensors` (même espace, même
+Les autres dépôts de l'utilisateur sont des projets qui peuvent consommer la bibliothèque.
+Les noms s'y choisissent librement : le paquet `wsl` de `~/projets/cpp-tensors` (même espace, même
 dossier d'en-têtes) est un premier essai, qui s'adaptera en étant refondu sur les objets
 mathématiques d'ici (docs/algebra.md). Aucun projet ne combine aujourd'hui les deux.
+
+## Refonte à faire (décidée, pas encore exécutée)
+
+- Organisation (décision 32) : `include/wsl/`, `docs/` (guides, `README.md` par dossier),
+  `examples/<domaine>/`, `tests/` (sans préfixe, nom dérivé du chemin, dossier dès deux
+  batteries, étiquettes de nature et `long`), `tools/`, `design/` (conception et charte).
+- Chemins d'après les espaces de noms (29) ; relais sans extension engendrés par CMake, après
+  un prototype qui étend `tests/package/` (30) ; cibles nommées par l'espace de noms,
+  `wsl::wsl` pour tout, contrôle des inclusions en CI (31).
+- Paquet `find_package(wsl)`, options et macros `WSL_*` (`WSL_PORTABLE`, `WSL_EXACT`,
+  `WSL_WERROR`, `WSL_AFFECTED_BY`) (33).
+- Modes (24 à 27) : `wsl::fast` et `wsl::random::fast` disparaissent, `wsl::reproducible`
+  devient `wsl::portable`, `approximate` par défaut, `wsl::provides`, `wsl::assume_portable`,
+  espace de noms en ligne du défaut.
+- Découpage de special et random selon les domaines (`floating_point_arithmetic`,
+  `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`).
+- Anciennes bibliothèques dans `legacy/` (array2d, graded, graded_io, elo, progress) ; `dlist`
+  rendue à `~/projets/cpp-container-distance-list` (dossier simple, pas un dépôt git :
+  regarder avant de remplacer) (36).
+- cpp-init vers un dépôt privé à lui, sur confirmation (35) ; README réécrit à la refonte.
