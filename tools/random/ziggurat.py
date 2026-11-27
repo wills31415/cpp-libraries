@@ -51,11 +51,11 @@ def main():
     fs = [f(x) for x in xs]
     fs[0] = f(r)                                            # couche de base : f au bord du rectangle
     lines = ["// ENGENDRÉ par tools/random/ziggurat.py — ne pas modifier à la main.\n",
-             "#pragma once\n\n",
+             "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
              f"// Ziggourat normale, N = {N} couches, R = {mp.nstr(r, 20)}, V = {mp.nstr(v, 20)}.\n",
              "// x[i] : bord droit de la couche i (x[0] = V/f(R), x[1] = R, x[N] = 0) ;\n",
              "// f[i] = e^{−x[i]²/2} (f[0] = f(R)).\n\n",
-             "namespace wsl::random::detail\n{\n",
+             "namespace wsl::inline WSL_DEFAULTS::random::detail\n{\n",
              f"    inline constexpr double ziggurat_r = {float(r).hex()};\n",
              f"    inline constexpr double ziggurat_inv_r = {float(1 / r).hex()};\n\n",
              f"    inline constexpr double ziggurat_x[{N + 1}] = {{\n"]

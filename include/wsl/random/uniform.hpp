@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Primitives uniformes exactes : la fondation de wsl::random.
 //
 //   random_bits(g)              64 bits uniformes, de n'importe quel générateur
@@ -33,7 +35,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace wsl::random
+namespace wsl::inline WSL_DEFAULTS::random
 {
     // -----------------------------------------------------------------------
     // 64 bits uniformes. Générateur de plage 2^64 : une valeur. Plage 2^w :

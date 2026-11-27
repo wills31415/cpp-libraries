@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Intensités rationnelles exactes (design/interfaces.md, décision 5) : λ = P/Q · 2^e, P et Q
 // entiers impairs premiers entre eux (< 2^53, exacts en double). Une intensité r et une
 // échelle s données en double, ou un rapport wr::ratio(a, b), s'y écrivent exactement :
@@ -14,7 +16,7 @@
 #include <optional>
 #include <stdexcept>
 
-namespace wsl::random
+namespace wsl::inline WSL_DEFAULTS::random
 {
     // Rapport a/b de deux doubles, pour donner exactement une intensité ou une échelle :
     // gamma({.rate = wr::ratio(1, 3), .shape = 2}). Un double v s'y convertit (v/1).

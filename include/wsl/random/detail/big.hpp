@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Grands entiers non signés, minimaux, pour les tirages exacts : addition,
 // soustraction, multiplication, décalages, comparaison, division euclidienne.
 // Mots de 64 bits, poids faible d'abord, sans mot nul de tête. constexpr.
@@ -17,7 +19,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace wsl::random::detail
+namespace wsl::inline WSL_DEFAULTS::random::detail
 {
     class big
     {

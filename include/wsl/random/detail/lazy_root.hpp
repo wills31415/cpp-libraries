@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Tirage exact de μ ± √v · V (normale donnée par sa variance, √v irrationnel) : arrondi
 // correct sans jamais calculer √v. Pour un point dyadique x, le signe de μ ± √A − x
 // (A = v t², t rationnel) se décide exactement en comparant A au carré de x − μ, en
@@ -19,7 +21,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace wsl::random::detail
+namespace wsl::inline WSL_DEFAULTS::random::detail
 {
     // m · 2^e, exact.
     struct exact_dyadic

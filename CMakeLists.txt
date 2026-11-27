@@ -154,8 +154,13 @@ wsl_add_library(special_functions         STANDARD 23 DEPENDS modes floating_poi
 # Transition : wsl::special réexporte les trois précédentes jusqu'aux étapes 5 et 6.
 wsl_add_library(special                   STANDARD 23 DEPENDS modes elementary_functions special_functions)
 wsl_add_library(permutation  STANDARD 23)
-wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
-wsl_add_library(mdarray      STANDARD 23 DEPENDS modes special)
+wsl_add_library(measure_theory            STANDARD 23 DEPENDS modes)
+wsl_add_library(random                    STANDARD 23 DEPENDS modes special permutation)
+wsl_add_library(probability               STANDARD 23
+                DEPENDS modes random measure_theory special permutation)
+wsl_add_library(probability::stochastic_processes STANDARD 23 DEPENDS modes probability)
+wsl_add_library(mdarray                   STANDARD 23
+                DEPENDS modes floating_point_arithmetic elementary_functions special_functions)
 wsl_finalize_libraries()
 # Défauts des modes de tout le projet (design/interfaces.md, décisions 26 et 27) : une option
 # globale peut renforcer une garantie, jamais l'affaiblir. Transmis à tout consommateur (une
@@ -211,52 +216,11 @@ endif()
 # Tests
 # ---------------------------------------------------------------------------
 #
-#     wsl_add_test(<nom> [LIBRARY <bibliothèque>])
-#
-# tests/test_<nom>.cpp, lié à wsl::<bibliothèque> (par défaut wsl::<nom>), et
-# compilé une fois par standard supporté par cette bibliothèque :
-# test_<nom> en C++23 (celui que lancent l'éditeur et le débogueur), et
-# test_<nom>_cxx<standard> pour chaque standard inférieur supporté. Un test
-# réussit s'il renvoie 0.
+# Tests : rangés comme les espaces de noms (voir plus bas).
 
 if(WSL_BUILD_TESTS)
     enable_testing()
 
-    function(wsl_add_test name)
-        cmake_parse_arguments(PARSE_ARGV 1 ARG "" "LIBRARY" "LABELS")
-        if(NOT ARG_LABELS)
-            set(ARG_LABELS properties)
-        endif()
-        set(library ${name})
-        if(ARG_LIBRARY)
-            set(library ${ARG_LIBRARY})
-        endif()
-        wsl_is_tested(${library} tested)
-        if(NOT tested)
-            return()
-        endif()
-        get_target_property(minimum wsl_${library} WSL_STANDARD)
-        foreach(standard IN LISTS WSL_STANDARDS)
-            if(standard LESS minimum)
-                continue()
-            endif()
-            if(standard EQUAL 23)
-                set(test test_${name})
-            else()
-                set(test test_${name}_cxx${standard})
-            endif()
-            add_executable(${test} tests/test_${name}.cpp)
-            target_link_libraries(${test} PRIVATE wsl::${library} wsl_options)
-            set_target_properties(${test} PROPERTIES
-                CXX_STANDARD ${standard}
-                CXX_STANDARD_REQUIRED ON
-                RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/tests)
-            # Les assert restent actifs, même en Release (qui définit NDEBUG).
-            target_compile_options(${test} PRIVATE -UNDEBUG)
-            add_test(NAME ${test} COMMAND ${test})
-            set_tests_properties(${test} PROPERTIES LABELS "${ARG_LABELS}")
-        endforeach()
-    endfunction()
 
     # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
     # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
@@ -281,12 +245,11 @@ if(WSL_BUILD_TESTS)
     # attendu (cmake/check_compile_fails.cmake). Étiquettes CTest : la nature de la batterie
     # et son coût, déclarés en tête du fichier par une ligne
     #     // Étiquettes : precision long
-    # (par défaut « properties » ; « compile_fail » pour un cas de refus). Les tests de
-    # special et random (tests/test_*.cpp) suivront avec leur découpage.
+    # (par défaut « properties » ; « compile_fail » pour un cas de refus).
     file(GLOB_RECURSE tree_tests CONFIGURE_DEPENDS RELATIVE ${PROJECT_SOURCE_DIR}/tests
          ${PROJECT_SOURCE_DIR}/tests/*.cpp)
     foreach(relative IN LISTS tree_tests)
-        if(relative MATCHES "^(test_|package/)|(^|/)no_contraction/")
+        if(relative MATCHES "^package/|(^|/)no_contraction/")
             continue()
         endif()
         string(REGEX REPLACE "\\.cpp$" "" stem ${relative})
@@ -299,7 +262,7 @@ if(WSL_BUILD_TESTS)
         if(NOT tested)
             continue()
         endif()
-        if(stem STREQUAL "special_functions/precision" AND NOT reference_generator)
+        if(stem MATCHES "^(special_functions|probability)/precision$" AND NOT reference_generator)
             continue()   # valeurs de référence (mpmath) indisponibles
         endif()
         set(source ${PROJECT_SOURCE_DIR}/tests/${relative})
@@ -336,7 +299,7 @@ if(WSL_BUILD_TESTS)
     set_tests_properties(infrastructure.includes PROPERTIES LABELS properties)
 
     wsl_is_tested(special_functions special_tested)
-    wsl_is_tested(random random_tested)
+    wsl_is_tested(probability random_tested)
     if(reference_generator AND special_tested)
         set(references ${PROJECT_BINARY_DIR}/generated/data/special_elementary_reference.hpp)
         add_custom_command(
@@ -350,10 +313,10 @@ if(WSL_BUILD_TESTS)
         target_include_directories(special_functions.precision PRIVATE ${PROJECT_BINARY_DIR}/generated)
     endif()
     if(reference_generator AND random_tested)
-        # Lois de wsl::random : même principe, une famille par module de tools/random/references/
+        # Lois de wsl::random : même principe, une famille par module de tools/probability/references/
         # (seules les familles modifiées sont recalculées) ; l'en-tête commun les inclut toutes.
         set(law_families base derived circular complement inverse_gaussian skew_normal stable discrete skellam zipf rice)
-        set(law_sources ${PROJECT_SOURCE_DIR}/tools/random/references)
+        set(law_sources ${PROJECT_SOURCE_DIR}/tools/probability/references)
         set(law_outputs "")
         set(law_includes "")
         foreach(family IN LISTS law_families)
@@ -366,8 +329,8 @@ if(WSL_BUILD_TESTS)
             endif()
             add_custom_command(
                 OUTPUT ${output}
-                COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${family} ${output}
-                DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_sources}/${family}.py ${law_sources}/common.py
+                COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${family} ${output}
+                DEPENDS ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${law_sources}/${family}.py ${law_sources}/common.py
                         ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py ${extra}
                 COMMENT "Valeurs de référence des lois de wsl::random : ${family} (mpmath)")
             list(APPEND law_outputs ${output})
@@ -404,27 +367,13 @@ namespace law_reference_data
 
 @law_includes@]] @ONLY)
         add_custom_target(random_law_references DEPENDS ${law_outputs})
-        wsl_add_test(random_precision LIBRARY random LABELS precision long)
-        foreach(test test_random_precision test_random_precision_cxx20)
-            if(NOT TARGET ${test})
-                continue()
-            endif()
-            add_dependencies(${test} random_law_references)
-            target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
-        endforeach()
+        # tests/probability/precision.cpp (enregistré avec l'arbre des tests).
+        add_dependencies(probability.precision random_law_references)
+        target_include_directories(probability.precision PRIVATE ${PROJECT_BINARY_DIR}/generated)
     endif()
     if(NOT reference_generator)
         message(WARNING "Ni uv ni python3 avec mpmath : tests de précision de wsl::special et wsl::random sautés")
     endif()
-    wsl_add_test(random_engines LIBRARY random)
-    wsl_add_test(random_uniform LIBRARY random)
-    wsl_add_test(random_laws LIBRARY random)
-    wsl_add_test(random_algebra LIBRARY random)
-    wsl_add_test(random_multivariate LIBRARY random)
-    wsl_add_test(random_combinatorics LIBRARY random)
-    wsl_add_test(random_processes LIBRARY random)
-    wsl_add_test(random_continuous LIBRARY random)
-    wsl_add_test(random_variables LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     if(special_tested)
         add_test(NAME special_functions.no_contraction

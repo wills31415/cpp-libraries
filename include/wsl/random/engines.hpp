@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Moteurs aléatoires : sources de bits uniformes, entièrement spécifiées, donc
 // reproductibles au bit près sur toute plateforme. Tous satisfont
 // std::uniform_random_bit_generator (utilisables avec <random> et avec
@@ -28,7 +30,7 @@
 #include <iosfwd>
 #include <type_traits>
 
-namespace wsl::random
+namespace wsl::inline WSL_DEFAULTS::random::engines
 {
     namespace detail
     {
@@ -526,4 +528,11 @@ namespace wsl::random
         counter_type buffer_{};
         int index_ = 4;                                                     // 4 : tampon vide
     };
+}
+
+// Transition (refonte, étape 5a) : les outils internes des moteurs restent visibles comme
+// wsl::random::detail, où les emploient les primitives et les tirages exacts.
+namespace wsl::inline WSL_DEFAULTS::random::detail
+{
+    using namespace engines::detail;
 }

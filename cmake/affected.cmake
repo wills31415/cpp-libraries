@@ -11,9 +11,7 @@
 #
 # Correspondance : include/wsl/<chemin> et tests/<chemin> -> la bibliothèque la plus
 # profonde dont le chemin relève (wsl_owner, décision 32) ; tools/<nom>/ -> <nom> ;
-# tests/test_<nom>[_…].cpp ou .hpp (special et random, jusqu'à leur découpage) -> la plus
-# longue bibliothèque préfixe ; tests/special_functions/no_contraction/ -> special_functions (rangé avec l'arbre) ; tests/random_engine_vectors.hpp
-# -> random ; tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
+# tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
 # exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
 # (CMakeLists.txt, cmake/, presets, .github/…) -> ALL.
 
@@ -46,26 +44,11 @@ function(wsl_affected_libraries file variable)
             wsl_owner(${CMAKE_MATCH_1} library)
         elseif(path MATCHES "^tools/([a-z0-9_]+)/")
             set(library ${CMAKE_MATCH_1})
-        elseif(path MATCHES "^tests/test_([a-z0-9_]+)\\.(cpp|hpp)$")
-            set(test ${CMAKE_MATCH_1})
-            set(length 0)
-            foreach(candidate IN LISTS libraries)
-                string(LENGTH ${candidate} candidate_length)
-                if((test STREQUAL candidate OR test MATCHES "^${candidate}_")
-                   AND candidate_length GREATER length)
-                    set(library ${candidate})
-                    set(length ${candidate_length})
-                endif()
-            endforeach()
-        elseif(path MATCHES "^tests/random_engine_vectors")
-            # voir plus bas
         elseif(path MATCHES "^tests/(.+)\\.(cpp|hpp)$")
             # Tests rangés comme les espaces de noms (décision 32).
             wsl_owner(${CMAKE_MATCH_1} library)
         endif()
-        if(path STREQUAL "tests/random_engine_vectors.hpp")
-            set(library random)
-        elseif(path MATCHES "^examples/([a-z0-9_]+)\\.cpp$")
+        if(path MATCHES "^examples/([a-z0-9_]+)\\.cpp$")
             list(APPEND examples ${CMAKE_MATCH_1})
             continue()
         endif()

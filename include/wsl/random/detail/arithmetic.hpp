@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp), et ses
 // compléments communs (opposé, somme, différence et complément à l'échelle, e^l arrondi…).
 
@@ -9,7 +11,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace wsl::random::detail
+namespace wsl::inline WSL_DEFAULTS::random::detail
 {
     namespace sd = wsl::special::detail;
     namespace xd = wsl::special::detail::extended;

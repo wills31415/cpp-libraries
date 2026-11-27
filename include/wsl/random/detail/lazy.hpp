@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Réels paresseux et tirages exacts (exponentielle, normale).
 //
 // Un réel uniforme paresseux U dans [0, 1) n'existe que par les mots de 64 bits
@@ -37,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-namespace wsl::random::detail
+namespace wsl::inline WSL_DEFAULTS::random::detail
 {
     // Le premier mot est rangé sur place (sans allocation) : presque tous les
     // réels paresseux s'en contentent.

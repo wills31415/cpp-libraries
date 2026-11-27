@@ -12,7 +12,7 @@
   long_jump : 2^192) sont vérifiés par la puissance de la matrice de transition
   dans GF(2), sans les constantes de saut.
 
-Écrit tests/random_engine_vectors.hpp (petit, versionné).
+Écrit tests/random/engine_vectors.hpp (petit, versionné).
 """
 
 from pathlib import Path
@@ -212,8 +212,8 @@ def main():
     lines.append(cpp_array("philox_carry_outputs", numpy_philox(key, carry, 8)))
     lines.append("}\n")
 
-    (ROOT / "tests/random_engine_vectors.hpp").write_text("".join(lines))
-    print("tests/random_engine_vectors.hpp écrit ; sauts de xoshiro vérifiés par GF(2).")
+    (ROOT / "tests/random/engine_vectors.hpp").write_text("".join(lines))
+    print("tests/random/engine_vectors.hpp écrit ; sauts de xoshiro vérifiés par GF(2).")
 
 
 if __name__ == "__main__":

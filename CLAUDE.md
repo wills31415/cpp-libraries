@@ -124,11 +124,11 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   du contrat. Jamais de loi de `<random>` (non reproductibles d'une bibliothèque à
   l'autre) ; les moteurs standard sont acceptés.
 - Vecteurs des moteurs : `uv run --no-project --with numpy python
-  tools/random/engine_vectors.py` écrit `tests/random_engine_vectors.hpp` (versionné,
+  tools/random/engine_vectors.py` écrit `tests/random/engine_vectors.hpp` (versionné,
   petit ; NumPy pour pcg64 et philox4x64, sauts de xoshiro vérifiés par GF(2)).
-- Empreintes des suites tirées : `tests/test_random_uniform.cpp`, `tests/test_random_laws.cpp`.
+- Empreintes des suites tirées : `tests/random/uniform.cpp`, `tests/probability/laws.cpp`.
 - Précision des lois : références mpmath non versionnées, engendrées par CMake, **une
-  famille par module** de `tools/random/references/` (`common.py` : outils et écriture ;
+  famille par module** de `tools/probability/references/` (`common.py` : outils et écriture ;
   la famille `base` vérifie aussi les constantes de `wsl/special_functions/detail/extended.hpp`).
   Seules les familles modifiées sont recalculées : une nouvelle loi a son propre module
   (déclaré dans `law_families` du CMakeLists). Mesurer le temps d'un module seul
@@ -140,12 +140,11 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   s'il est certain, pour que résultat et nombre de mots tirés soient ceux de la voie
   exacte ; ses décisions dépendent de flottants : produits par `fmul` là aussi.
 
-## Structure (jusqu'à la refonte)
+## Structure
 
-- `include/wsl/<nom>.hpp` : une bibliothèque par en-tête (dépendances internes via
-  `DEPENDS`, p. ex. `graded_io` → `graded`).
-- `tests/test_<nom>.cpp` : `test_<nom>`, en C++23 (une variante `_cxx20` par standard
-  inférieur supporté, aucune aujourd'hui).
+- `include/wsl/<chemin>.hpp` : le chemin est l'espace de noms (décision 29) ; une
+  bibliothèque par espace de noms de domaine, `wsl_add_library(<nom avec ::> … DEPENDS …)`.
+- `tests/<chemin>.cpp` : test « chemin.avec.points », en C++23 (décision 32).
 - `examples/*.cpp` : un exécutable chacun, lié à `wsl::wsl`.
 - Compilateur imposé : `/usr/bin/clang++` (miniconda est en tête du PATH).
 
@@ -188,6 +187,12 @@ et `approximate` par défaut), fonction par fonction, bornes vérifiées dans le
   découpage : `wsl::random::fast` et `sampling` (étape 5, `approximate` par défaut) ; special
   et random entreront dans l'espace de noms en ligne du défaut (`namespace
   wsl::inline WSL_DEFAULTS…`, générateurs de tables compris) aux étapes 4 et 5.
+- ~~Découpage mécanique de special (4a) et random (5a)~~ : fait. random : `wsl::random`
+  (moteurs `random::engines`, primitives, tirages exacts), `wsl::probability` (lois
+  `probability::laws`, variables, algèbre des lois provisoirement), `wsl::probability::
+  stochastic_processes` (`processes`, `trajectory`), `wsl::measure_theory` (mesures de
+  référence) ; transitions `<wsl/special>` et `probability/detail/transition.hpp` (noms non
+  qualifiés), à retirer en 6a et 5b.
 - Découpage de special et random selon les domaines (`floating_point_arithmetic`,
   `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`) ; carte : décision 37 ;
   audit de chaque `fmul` en `fpa::mul` (selon le mode) ou `fpa::unfused_mul` (justesse) : décision 38.

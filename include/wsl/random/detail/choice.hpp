@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Choix exacts à poids flottants : un flottant est un entier à une puissance de 2
 // près (w = m 2^e), deux poids le sont donc à une même puissance près ; un entier
 // uniforme sous leur somme décide exactement. Sur 128 bits quand les entiers y
@@ -17,7 +19,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace wsl::random::detail
+namespace wsl::inline WSL_DEFAULTS::random::detail
 {
     // Entier uniforme sur [0, n), n > 0 en grand entier : k = bit_length(n) bits
     // tirés (mot de tête d'abord), rejetés s'ils dépassent n (moins de 2 essais en moyenne).

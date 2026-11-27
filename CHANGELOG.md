@@ -7,6 +7,18 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Rupture : `wsl::random` est découpée (design/interfaces.md, décisions 37, 39, 40) :
+  `wsl::random` garde les moteurs, désormais dans le catalogue `wsl::random::engines`
+  (`wsl::random::engines::pcg64`…), les fonctions de tirage (`random_bits`, `uniform_below`,
+  `uniform_int`, `uniform_real`, `uniform_real_fast`, `bernoulli_trial`, `shuffle`) et les
+  tirages exacts ; `wsl::probability` reçoit le concept de loi, le catalogue
+  `wsl::probability::laws` (`wsl::probability::laws::normal`…), les variables aléatoires et,
+  provisoirement, l'algèbre des lois ; `wsl::probability::stochastic_processes` les processus
+  (catalogue `processes`, `trajectory`) ; `wsl::measure_theory` les mesures de référence
+  (`lebesgue`, `counting`, `surface`). En-têtes : `<wsl/random>`, `<wsl/probability>`,
+  `<wsl/probability/laws/normal>`, `<wsl/probability/stochastic_processes>`… Comportement et
+  empreintes inchangés ; ziggourat régénérée (identique hors en-tête). Tests :
+  `random.engines`, `random.uniform`, `probability.laws`, `probability.precision`…
 - Rupture : `wsl::special` est découpée en trois bibliothèques (design/interfaces.md, décision
   37) : `wsl::floating_point_arithmetic` (primitives flottantes, encore internes),
   `wsl::elementary_functions` (`sqrt`, `cbrt`, `hypot`, `exp`, `exp2`, `expm1`, `log`, `log2`,
@@ -59,6 +71,10 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   la revue des interfaces (design/interfaces.md).
 
 ### mdarray
+
+- Dépend désormais de `wsl::floating_point_arithmetic`, `wsl::elementary_functions` et
+  `wsl::special_functions` (au lieu de `wsl::special`) ; le message de refus d'une fonction
+  sans version portable les nomme.
 
 - Rupture : modes renommés (design/interfaces.md, décision 24) : `wsl::reproducible(…)` devient
   `wsl::portable(…)`, `wsl::fast(…)` devient `wsl::deterministic(…)`, le mode par défaut se

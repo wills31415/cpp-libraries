@@ -9,15 +9,18 @@
 //
 // Déterministe (défaut) : fusion en fma permise, fonctions de <cmath> ; mêmes résultats pour
 // une même configuration (compilateur, options, machine). Portable : aucun produit ne se
-// fusionne (barrière de wsl::special), fonctions de wsl::special (bit-exactes, constexpr) ;
-// une fonction que wsl::special ne couvre pas est une erreur de compilation, comme une
+// fusionne (barrière de wsl::floating_point_arithmetic), fonctions de wsl::elementary_functions
+// et wsl::special_functions (bit-exactes, constexpr) ; une fonction qu'elles ne couvrent pas
+// est une erreur de compilation, comme une
 // fonction de l'utilisateur non signée wsl::assume_portable(f). L'ordre des sommes est fixé
 // dans les deux modes. Mode des instructions non marquées : wsl::default_reproducibility
 // (option CMake WSL_PORTABLE, la même dans tout le projet).
 
 #include <wsl/mdarray/expression.hpp>
 #include <wsl/mdarray/indexed.hpp>
-#include <wsl/special.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/floating_point_arithmetic.hpp>
+#include <wsl/special_functions.hpp>
 
 #include <type_traits>
 #include <utility>
@@ -27,6 +30,13 @@ namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {
+        // Fonctions portables (au bit près partout, constexpr) : élémentaires et spéciales.
+        namespace portable_functions
+        {
+            using namespace elementary_functions;
+            using namespace special_functions;
+        }
+
         using fast_mode = deterministic_t;
         using reproducible_mode = portable_t;
 
@@ -71,7 +81,7 @@ namespace wsl::inline WSL_DEFAULTS
             constexpr explicit moded_op(call_op<F> op) : call_op<F>(std::move(op)) {}
         };
 
-        // Barrière sur un paquet de voies : comme wsl::special::detail::opaque, mais un
+        // Barrière sur un paquet de voies : comme wsl::floating_point_arithmetic::detail::opaque, mais un
         // registre vectoriel à la fois, pour que les produits du paquet restent vectorisés.
         template <class T, std::size_t W>
         constexpr void opaque_lanes(T (&v)[W]) noexcept
@@ -104,11 +114,11 @@ namespace wsl::inline WSL_DEFAULTS
                     __builtin_memcpy(v + l, &x, bytes);
                 }
                 for (; l < W; ++l)
-                    v[l] = wsl::special::detail::opaque(v[l]);
+                    v[l] = wsl::floating_point_arithmetic::detail::opaque(v[l]);
             }
             else
                 for (std::size_t l = 0; l < W; ++l)
-                    v[l] = wsl::special::detail::opaque(v[l]);
+                    v[l] = wsl::floating_point_arithmetic::detail::opaque(v[l]);
         }
 
         // Produit : jamais fusionné avec une addition.
@@ -122,7 +132,7 @@ namespace wsl::inline WSL_DEFAULTS
             {
                 using C = decltype(a * b);
                 if constexpr (std::is_floating_point_v<C>)
-                    return wsl::special::detail::fmul(static_cast<C>(a), static_cast<C>(b));
+                    return wsl::floating_point_arithmetic::detail::fmul(static_cast<C>(a), static_cast<C>(b));
                 else
                     return a * b;
             }
@@ -150,7 +160,7 @@ namespace wsl::inline WSL_DEFAULTS
         template <class T>                                                                                             \
         constexpr auto operator()(T const& x) const                                                                    \
         {                                                                                                              \
-            return wsl::special::name(as_floating(x));                                                                 \
+            return detail::mdarray::portable_functions::name(as_floating(x));                                                                 \
         }                                                                                                              \
     };
 #define WSL_MDARRAY_REPRODUCIBLE_BINARY(name)                                                                          \
@@ -164,7 +174,7 @@ namespace wsl::inline WSL_DEFAULTS
         constexpr auto operator()(T const& x, U const& y) const                                                        \
         {                                                                                                              \
             using C = std::common_type_t<decltype(as_floating(x)), decltype(as_floating(y))>;                          \
-            return wsl::special::name(static_cast<C>(x), static_cast<C>(y));                                           \
+            return detail::mdarray::portable_functions::name(static_cast<C>(x), static_cast<C>(y));                                           \
         }                                                                                                              \
     };
 #define WSL_MDARRAY_REPRODUCIBLE_UNCOVERED(name)                                                                       \
@@ -177,8 +187,9 @@ namespace wsl::inline WSL_DEFAULTS
         template <class T>                                                                                             \
         constexpr auto operator()(T const& x) const                                                                    \
         {                                                                                                              \
-            static_assert(sizeof(T) == 0, "wsl::mdarray : " #name " n'est pas couverte par wsl::special : pas de mode " \
-                                          "portable pour elle (I9) ; wsl::deterministic(…) pour la calculer");             \
+            static_assert(sizeof(T) == 0, "wsl::mdarray : " #name " n'a pas de version portable (wsl::elementary_functions, " \
+                                          "wsl::special_functions) : pas de mode portable pour elle (I9) ; "             \
+                                          "wsl::deterministic(…) pour la calculer");                                     \
             return x;                                                                                                  \
         }                                                                                                              \
     };

@@ -11,7 +11,7 @@
 int main()
 {
     static_assert(__cplusplus > 202002L, "wsl::mdarray doit imposer C++23");
-    wsl::random::pcg64 g(42);
+    wsl::random::engines::pcg64 g(42);
     bool const ok = wsl::special_functions::lgamma(1.0) == 0.0 && g() != g();
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

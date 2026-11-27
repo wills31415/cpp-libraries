@@ -1,9 +1,9 @@
 // Modes de calcul : refus à la compilation (design/mdarray.md, I9, L2 ; design/interfaces.md, décision 25).
 #include <wsl/mdarray.hpp>
 
-// ERREUR 1 : n'est pas couverte par wsl::special
+// ERREUR 1 : n'a pas de version portable
 // ERREUR 2 : ne se garde pas
-// ERREUR 3 : n'est pas couverte par wsl::special
+// ERREUR 3 : n'a pas de version portable
 // ERREUR 4 : doit être signée wsl::assume_portable
 // ERREUR 5 : doit être signée wsl::assume_portable
 
