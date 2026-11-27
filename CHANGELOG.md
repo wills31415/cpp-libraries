@@ -7,6 +7,18 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- `wsl::elementary_functions` : chaque fonction prend ses étiquettes de mode
+  (design/interfaces.md, décisions 24 à 27, 38) : `ef::exp(x)` est déterministe (le défaut :
+  le compilateur peut fusionner des produits), `ef::exp(x, wsl::portable)` donne les mêmes
+  bits partout ; `wsl::approximate` est accepté, `wsl::exact` refusé à la compilation sauf
+  par `sqrt`, correctement arrondie. Les barrières sont classées : `fpa::mul<R>`
+  (portabilité, selon le mode) ou `fpa::unfused_mul` (justesse : la réduction de Cody-Waite,
+  le résidu du logarithme). Bornes inchangées dans les deux modes (< 0,51 ulp en double,
+  vérifiées sous `-ffp-contract=fast` : `elementary_functions.precision`). Mesuré
+  (i7-9750H, `-O3 -march=native -ffp-contract=fast`), mode déterministe contre portable :
+  `exp` ×1,21, `exp2` ×1,49, `expm1` ×1,31, `log` ×1,32, `sin` ×1,35, `cbrt` ×1,11,
+  `atan` ×1,08. special_functions, random et mdarray appellent encore la version portable
+  (transition), jusqu'à leur propre conversion.
 - Rupture : `wsl::random` est découpée (design/interfaces.md, décisions 37, 39, 40) :
   `wsl::random` garde les moteurs, désormais dans le catalogue `wsl::random::engines`
   (`wsl::random::engines::pcg64`…), les fonctions de tirage (`random_bits`, `uniform_below`,

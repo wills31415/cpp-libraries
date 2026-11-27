@@ -7,13 +7,14 @@
 // ensuite. Tout nouveau code emploie les nouveaux domaines.
 
 #include <wsl/elementary_functions.hpp>
+#include <wsl/elementary_functions/detail/pinned_portable.hpp>
 #include <wsl/floating_point_arithmetic.hpp>
 #include <wsl/modes.hpp>
 #include <wsl/special_functions.hpp>
 
 namespace wsl::inline WSL_DEFAULTS::special
 {
-    using namespace elementary_functions;
+    using namespace elementary_functions::detail::pinned_portable;   // figées en mode portable
     using namespace special_functions;
 
     namespace detail

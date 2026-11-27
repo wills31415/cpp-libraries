@@ -13,11 +13,14 @@
 // atan(±∞) = ±π/2 ; sin, cos, tan de ±∞ : NaN ; atan2 selon les signes et les
 // infinis (voir atan2) ; NaN donne NaN.
 //
-// Règle d'écriture : tout produit dont le résultat entre dans une addition ou une
-// soustraction passe par fmul (voir detail/fp.hpp).
+// Règle d'écriture (design/interfaces.md, décision 38) : tout produit dont le résultat entre
+// dans une addition ou une soustraction passe par mul<R> (barrière en mode portable, fusion
+// permise en mode déterministe) ou, si l'algorithme s'appuie sur sa valeur arrondie, par
+// unfused_mul (jamais fusionné). Modes : détail dans detail/moded.hpp.
 
 #include <wsl/floating_point_arithmetic/detail/primitives.hpp>
 #include <wsl/elementary_functions/detail/trigonometric_tables.hpp>
+#include <wsl/elementary_functions/detail/moded.hpp>
 
 #include <bit>
 #include <concepts>
@@ -49,17 +52,18 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         // chaque k pio2_n est exact (|k| < 2^20, 20 + 33 bits), et les trois
         // premiers sont retranchés exactement (two_sum) ; les deux derniers, de
         // l'ordre de 2^-99 au plus, ne pèsent que sur la queue.
+        template <reproducibility_mode R = portable_t>
         constexpr trig_reduction reduce_trig_medium(double x) noexcept
         {
             constexpr double shift = 0x1.8p52;
-            double const t = fmul(x, inv_pio2) + shift;
+            double const t = mul<R>(x, inv_pio2) + shift;
             auto const k = static_cast<std::int64_t>(bits(t) - bits(shift));   // round(2x/π)
             double const kd = t - shift;
 
-            double const a = x - fmul(kd, pio2_1);                  // exact (Sterbenz)
-            auto const [t2, e2] = two_sum(a, -fmul(kd, pio2_2));
-            auto const [t3, e3] = two_sum(t2, -fmul(kd, pio2_3));
-            double const lo = (e2 + e3) - (fmul(kd, pio2_4) + fmul(kd, pio2_5));
+            double const a = x - mul<R>(kd, pio2_1);                  // exact (Sterbenz)
+            auto const [t2, e2] = two_sum(a, -unfused_mul(kd, pio2_2));   // justesse : entrées des sommes exactes
+            auto const [t3, e3] = two_sum(t2, -unfused_mul(kd, pio2_3));
+            double const lo = (e2 + e3) - (mul<R>(kd, pio2_4) + mul<R>(kd, pio2_5));
             auto const [r_hi, r_lo] = two_sum(t3, lo);
             return {static_cast<int>(k & 3), r_hi, r_lo};
         }
@@ -77,6 +81,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             return (two_over_pi_bits[word] << offset) | (two_over_pi_bits[word + 1] >> (64 - offset));
         }
 
+        template <reproducibility_mode R = portable_t>
         constexpr trig_reduction reduce_trig_large(double ax) noexcept   // ax >= 2^20, fini
         {
             std::uint64_t const b = bits(ax);
@@ -130,12 +135,12 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             std::uint64_t const top = c == 0 ? a0 : (a0 << c) | (a1 >> (64 - c));
             std::uint64_t const next = c == 0 ? a1 : (a1 << c) | (a2 >> (64 - c));
             int const weight = 64 * (3 - first) - c - 254;              // poids du bit de tête : 2^(weight + 63)
-            double const f_hi = fmul(static_cast<double>(top >> 11), power_of_two(weight + 11));   // exacts
-            double const f_lo = fmul(static_cast<double>(((top & 0x7ff) << 42) | (next >> 22)), power_of_two(weight - 42));
+            double const f_hi = mul<R>(static_cast<double>(top >> 11), power_of_two(weight + 11));   // exacts
+            double const f_lo = mul<R>(static_cast<double>(((top & 0x7ff) << 42) | (next >> 22)), power_of_two(weight - 42));
 
             // r = fraction · π/2.
             auto const [p, p_error] = two_product(f_hi, pio2_hi);
-            double const lo = p_error + (fmul(f_hi, pio2_lo) + fmul(f_lo, pio2_hi));
+            double const lo = p_error + (mul<R>(f_hi, pio2_lo) + mul<R>(f_lo, pio2_hi));
             auto const [r_hi, r_lo] = fast_two_sum(p, lo);
             if (negative)
                 return {quadrant & 3, -r_hi, -r_lo};
@@ -143,13 +148,14 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         }
 
         // ax >= 0 fini.
+        template <reproducibility_mode R = portable_t>
         constexpr trig_reduction reduce_trig(double ax) noexcept
         {
             if (ax <= 0x1.921fb54442d18p-1)                             // <= π/4 : rien à réduire
                 return {0, ax, 0.0};
             if (ax < 0x1p20)
-                return reduce_trig_medium(ax);
-            return reduce_trig_large(ax);
+                return reduce_trig_medium<R>(ax);
+            return reduce_trig_large<R>(ax);
         }
 
         // -------------------------------------------------------------------
@@ -170,6 +176,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             double d, d_lo, sm, cm;             // d, sin d − d, cos d − 1
         };
 
+        template <reproducibility_mode R = portable_t>
         constexpr sincos_point sincos_prepare(double r_hi, double r_lo) noexcept
         {
             bool const negative = r_hi < 0;
@@ -177,51 +184,54 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             double const a_lo = negative ? -r_lo : r_lo;
 
             constexpr double shift = 0x1.8p52;
-            double const t = fmul(a_hi, 64.0) + shift;                 // produit exact
+            double const t = mul<R>(a_hi, 64.0) + shift;                 // produit exact
             auto const i = static_cast<int>(bits(t) - bits(shift));     // dans [0, 51]
-            double const d = a_hi - fmul(t - shift, 0x1p-6);           // exact
+            double const d = a_hi - mul<R>(t - shift, 0x1p-6);           // exact
             double const d_lo = a_lo;
 
             double const d2 = d * d;
             // sin d − d = d³ (−1/6 + d²/120 − d⁴/5040)
-            double const sm = fmul(d * d2, -0x1.5555555555555p-3 + fmul(d2, 0x1.1111111111111p-7
-                                        + fmul(d2, -0x1.a01a01a01a01ap-13)));
+            double const sm = mul<R>(d * d2, -0x1.5555555555555p-3 + mul<R>(d2, 0x1.1111111111111p-7
+                                        + mul<R>(d2, -0x1.a01a01a01a01ap-13)));
             // cos(d + d_lo) − 1 = d² (−1/2 + d²/24 − d⁴/720 + d⁶/40320) − d d_lo
-            double const cm = fmul(d2, -0x1p-1 + fmul(d2, 0x1.5555555555555p-5 + fmul(d2, -0x1.6c16c16c16c17p-10
-                                        + fmul(d2, 0x1.a01a01a01a01ap-16)))) - fmul(d, d_lo);
+            double const cm = mul<R>(d2, -0x1p-1 + mul<R>(d2, 0x1.5555555555555p-5 + mul<R>(d2, -0x1.6c16c16c16c17p-10
+                                        + mul<R>(d2, 0x1.a01a01a01a01ap-16)))) - mul<R>(d, d_lo);
 
             auto const& entry = sincos_table[i];
             return {negative, entry[0], entry[1], entry[2], entry[3], d, d_lo, sm, cm};
         }
 
         // sin(r) = S + C d + S (cos d − 1) + C (sin d − d)
+        template <reproducibility_mode R = portable_t>
         constexpr double_double sin_of(sincos_point const& u) noexcept
         {
             auto const [p, p_error] = two_product(u.c_hi, u.d);
             auto const [s0, s_error] = two_sum(u.s_hi, p);
-            double const tail = ((s_error + p_error) + (u.s_lo + (fmul(u.c_hi, u.d_lo) + fmul(u.c_lo, u.d))))
-                              + (fmul(u.s_hi, u.cm) + fmul(u.c_hi, u.sm));
+            double const tail = ((s_error + p_error) + (u.s_lo + (mul<R>(u.c_hi, u.d_lo) + mul<R>(u.c_lo, u.d))))
+                              + (mul<R>(u.s_hi, u.cm) + mul<R>(u.c_hi, u.sm));
             auto const [hi, lo] = fast_two_sum(s0, tail);
             return u.negative ? double_double{-hi, -lo} : double_double{hi, lo};
         }
 
         // cos(r) = C − S d + C (cos d − 1) − S (sin d − d)
+        template <reproducibility_mode R = portable_t>
         constexpr double_double cos_of(sincos_point const& u) noexcept
         {
             auto const [q, q_error] = two_product(u.s_hi, u.d);
             auto const [c0, c_error] = two_sum(u.c_hi, -q);
-            double const tail = ((c_error - q_error) + (u.c_lo - (fmul(u.s_hi, u.d_lo) + fmul(u.s_lo, u.d))))
-                              + (fmul(u.c_hi, u.cm) - fmul(u.s_hi, u.sm));
+            double const tail = ((c_error - q_error) + (u.c_lo - (mul<R>(u.s_hi, u.d_lo) + mul<R>(u.s_lo, u.d))))
+                              + (mul<R>(u.c_hi, u.cm) - mul<R>(u.s_hi, u.sm));
             auto const [hi, lo] = fast_two_sum(c0, tail);
             return {hi, lo};
         }
 
         // n / d en double-double, n et d en double-double.
+        template <reproducibility_mode R = portable_t>
         constexpr double divide(double_double n, double_double d) noexcept
         {
             double const q = n.hi / d.hi;
             auto const [p, p_error] = two_product(q, d.hi);
-            double const q_lo = (((n.hi - p) - p_error) + (n.lo - fmul(q, d.lo))) / d.hi;
+            double const q_lo = (((n.hi - p) - p_error) + (n.lo - mul<R>(q, d.lo))) / d.hi;
             return q + q_lo;
         }
 
@@ -232,27 +242,28 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         // |t| <= 1/128, et atan(v) = atan(c) + atan(t), atan(c) tabulé en
         // double-double, atan(t) − t en Taylor (reste < 2^-73 relativement à t).
         // -------------------------------------------------------------------
+        template <reproducibility_mode R = portable_t>
         constexpr double_double atan_kernel(double v_hi, double v_lo) noexcept
         {
             constexpr double shift = 0x1.8p52;
-            double const t = fmul(v_hi, 64.0) + shift;
+            double const t = mul<R>(v_hi, 64.0) + shift;
             auto const i = static_cast<int>(bits(t) - bits(shift));     // dans [0, 64]
             double t_hi = v_hi, t_lo = v_lo;
             if (i != 0)
             {
-                double const c = fmul(t - shift, 0x1p-6);
+                double const c = mul<R>(t - shift, 0x1p-6);
                 double const n = v_hi - c;                              // exact (Sterbenz)
                 auto const [m, m_error] = two_product(v_hi, c);
                 auto const [den, den_error] = two_sum(1.0, m);
-                double const den_lo = (den_error + m_error) + fmul(v_lo, c);
+                double const den_lo = (den_error + m_error) + mul<R>(v_lo, c);
                 t_hi = n / den;
                 auto const [p, p_error] = two_product(t_hi, den);
-                t_lo = (((n - p) - p_error) + (v_lo - fmul(t_hi, den_lo))) / den;
+                t_lo = (((n - p) - p_error) + (v_lo - mul<R>(t_hi, den_lo))) / den;
             }
             double const t2 = t_hi * t_hi;
             // atan t − t = t³ (−1/3 + t²/5 − t⁴/7 + t⁶/9)
-            double const at = fmul(t_hi * t2, -0x1.5555555555555p-2 + fmul(t2, 0x1.999999999999ap-3
-                                        + fmul(t2, -0x1.2492492492492p-3 + fmul(t2, 0x1.c71c71c71c71cp-4))));
+            double const at = mul<R>(t_hi * t2, -0x1.5555555555555p-2 + mul<R>(t2, 0x1.999999999999ap-3
+                                        + mul<R>(t2, -0x1.2492492492492p-3 + mul<R>(t2, 0x1.c71c71c71c71cp-4))));
             auto const& entry = atan_table[i];
             auto const [s, s_error] = two_sum(entry[0], t_hi);
             auto const [hi, lo] = fast_two_sum(s, (s_error + entry[1]) + (t_lo + at));
@@ -260,6 +271,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         }
 
         // (c_hi + c_lo) − a, en double-double.
+        template <reproducibility_mode R = portable_t>
         constexpr double_double subtract_from(double c_hi, double c_lo, double_double a) noexcept
         {
             auto const [u, u_error] = two_sum(c_hi, -a.hi);
@@ -273,6 +285,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     // -----------------------------------------------------------------------
     // sin, cos, tan
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double sin(double x) noexcept
     {
         using namespace detail;
@@ -283,13 +298,17 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double const ax = x < 0 ? -x : x;
         if (ax < 0x1p-27)                                               // sin x = x (1 − x²/6), x²/6 < 2^-55
             return x;
-        auto const [quadrant, r_hi, r_lo] = reduce_trig(ax);
-        auto const point = sincos_prepare(r_hi, r_lo);
-        auto const [hi, lo] = (quadrant & 1) == 0 ? sin_of(point) : cos_of(point);   // seul celui qui sert
+        auto const [quadrant, r_hi, r_lo] = reduce_trig<R>(ax);
+        auto const point = sincos_prepare<R>(r_hi, r_lo);
+        auto const [hi, lo] = (quadrant & 1) == 0 ? sin_of<R>(point) : cos_of<R>(point);   // seul celui qui sert
         double const y = quadrant < 2 ? hi + lo : -(hi + lo);
         return x < 0 ? -y : y;
     }
+    }
 
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double cos(double x) noexcept
     {
         using namespace detail;
@@ -300,14 +319,18 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double const ax = x < 0 ? -x : x;
         if (ax < 0x1p-27)                                               // cos x = 1 − x²/2, x²/2 < 2^-55
             return 1.0;
-        auto const [quadrant, r_hi, r_lo] = reduce_trig(ax);
-        auto const point = sincos_prepare(r_hi, r_lo);
-        auto const [hi, lo] = (quadrant & 1) == 0 ? cos_of(point) : sin_of(point);
+        auto const [quadrant, r_hi, r_lo] = reduce_trig<R>(ax);
+        auto const point = sincos_prepare<R>(r_hi, r_lo);
+        auto const [hi, lo] = (quadrant & 1) == 0 ? cos_of<R>(point) : sin_of<R>(point);
         return (quadrant == 0 || quadrant == 3) ? hi + lo : -(hi + lo);
+    }
     }
 
     // tan = sin/cos, ou −cos/sin dans les quadrants impairs, la division en
     // double-double.
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double tan(double x) noexcept
     {
         using namespace detail;
@@ -318,16 +341,20 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double const ax = x < 0 ? -x : x;
         if (ax < 0x1p-27)                                               // tan x = x (1 + x²/3), x²/3 < 2^-55
             return x;
-        auto const [quadrant, r_hi, r_lo] = reduce_trig(ax);
-        auto const point = sincos_prepare(r_hi, r_lo);
-        double_double const s = sin_of(point), c = cos_of(point);
-        double const y = (quadrant & 1) == 0 ? divide(s, c) : -divide(c, s);
+        auto const [quadrant, r_hi, r_lo] = reduce_trig<R>(ax);
+        auto const point = sincos_prepare<R>(r_hi, r_lo);
+        double_double const s = sin_of<R>(point), c = cos_of<R>(point);
+        double const y = (quadrant & 1) == 0 ? divide<R>(s, c) : -divide<R>(c, s);
         return x < 0 ? -y : y;
+    }
     }
 
     // -----------------------------------------------------------------------
     // atan, atan2
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double atan(double x) noexcept
     {
         using namespace detail;
@@ -341,7 +368,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             y = pio2_hi;
         else if (ax <= 1)
         {
-            auto const [hi, lo] = atan_kernel(ax, 0.0);
+            auto const [hi, lo] = atan_kernel<R>(ax, 0.0);
             y = hi + lo;
         }
         else                                                            // π/2 − atan(1/x), 1/x en double-double
@@ -349,10 +376,11 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             double const v = 1.0 / ax;
             auto const [m, m_error] = two_product(v, ax);
             double const v_lo = ((1.0 - m) - m_error) / ax;
-            auto const [hi, lo] = subtract_from(pio2_hi, pio2_lo, atan_kernel(v, v_lo));
+            auto const [hi, lo] = subtract_from<R>(pio2_hi, pio2_lo, atan_kernel<R>(v, v_lo));
             y = hi + lo;
         }
         return x < 0 ? -y : y;
+    }
     }
 
     // Angle de (x, y), dans [−π, π]. Cas à part de l'Annexe F de C :
@@ -362,6 +390,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     //   atan2(±∞, x fini) = ±π/2, atan2(±∞, −∞) = ±3π/4, atan2(±∞, +∞) = ±π/4.
     // Sinon, rapport q <= 1 des valeurs absolues en double-double, atan(q),
     // puis π/2 − ·, π − · selon l'octant, toujours en double-double.
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double atan2(double y, double x) noexcept
     {
         using namespace detail;
@@ -397,13 +428,13 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double const smallest = ay > ax ? ax : ay;
         if (largest > 0x1p900)
         {
-            ay = fmul(ay, 0x1p-200);                                    // exacts, mais entrent dans n − p
-            ax = fmul(ax, 0x1p-200);
+            ay = mul<R>(ay, 0x1p-200);                                    // exacts, mais entrent dans n − p
+            ax = mul<R>(ax, 0x1p-200);
         }
         else if (smallest < 0x1p-800 && largest < 0x1p700)
         {
-            ay = fmul(ay, 0x1p200);
-            ax = fmul(ax, 0x1p200);
+            ay = mul<R>(ay, 0x1p200);
+            ax = mul<R>(ax, 0x1p200);
         }
 
         bool const swap = ay > ax;
@@ -416,30 +447,23 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             auto const [p, p_error] = two_product(q, d);
             q_lo = ((n - p) - p_error) / d;
         }
-        double_double a = atan_kernel(q, q_lo);
+        double_double a = atan_kernel<R>(q, q_lo);
         if (swap)
-            a = subtract_from(pio2_hi, pio2_lo, a);
+            a = subtract_from<R>(pio2_hi, pio2_lo, a);
         if (x_negative)
-            a = subtract_from(pi_hi, pi_lo, a);
+            a = subtract_from<R>(pi_hi, pi_lo, a);
         return with_sign(a.hi + a.lo);
+    }
     }
 
     // -----------------------------------------------------------------------
     // float : calcul en double, puis un seul arrondi vers float.
     // -----------------------------------------------------------------------
-    constexpr float sin(float x) noexcept { return static_cast<float>(sin(static_cast<double>(x))); }
-    constexpr float cos(float x) noexcept { return static_cast<float>(cos(static_cast<double>(x))); }
-    constexpr float tan(float x) noexcept { return static_cast<float>(tan(static_cast<double>(x))); }
-    constexpr float atan(float x) noexcept { return static_cast<float>(atan(static_cast<double>(x))); }
-    constexpr float atan2(float y, float x) noexcept
-    {
-        return static_cast<float>(atan2(static_cast<double>(y), static_cast<double>(x)));
-    }
-
-    template <std::integral I> constexpr double sin(I x) noexcept { return sin(static_cast<double>(x)); }
-    template <std::integral I> constexpr double cos(I x) noexcept { return cos(static_cast<double>(x)); }
-    template <std::integral I> constexpr double tan(I x) noexcept { return tan(static_cast<double>(x)); }
-    template <std::integral I> constexpr double atan(I x) noexcept { return atan(static_cast<double>(x)); }
+    WSL_EF_UNARY(sin, static_cast<float>, false)
+    WSL_EF_UNARY(cos, static_cast<float>, false)
+    WSL_EF_UNARY(tan, static_cast<float>, false)
+    WSL_EF_UNARY(atan, static_cast<float>, false)
+    WSL_EF_BINARY(atan2, static_cast<float>, false)
 
     long double sin(long double) = delete;
     long double cos(long double) = delete;
@@ -447,7 +471,4 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     long double atan(long double) = delete;
     long double atan2(long double, long double) = delete;
 
-    // Arguments mêlés, comme <cmath>.
-    template <class A, class B> requires detail::mixed_arithmetic<A, B>
-    constexpr double atan2(A y, B x) noexcept { return atan2(static_cast<double>(y), static_cast<double>(x)); }
 }

@@ -14,6 +14,7 @@
 // NaN, hypot(x, ±0) = |x| ; NaN donne NaN.
 
 #include <wsl/floating_point_arithmetic/detail/primitives.hpp>
+#include <wsl/elementary_functions/detail/moded.hpp>
 
 #include <concepts>
 #include <cstdint>
@@ -32,6 +33,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         // Racine carrée correctement arrondie, en arithmétique entière : ne sert
         // qu'à l'évaluation constante, où l'instruction matérielle n'est pas
         // disponible. Même résultat qu'elle, puisque l'arrondi correct est unique.
+        template <reproducibility_mode R = portable_t>
         constexpr double sqrt_by_integers(double x) noexcept     // x > 0 fini
         {
             std::uint64_t const b = bits(x);
@@ -75,10 +77,13 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
                 result >>= 1;
                 ++result_exponent;
             }
-            return fmul(static_cast<double>(result), power_of_two(result_exponent));
+            return mul<R>(static_cast<double>(result), power_of_two(result_exponent));
         }
     }
 
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double sqrt(double x) noexcept
     {
         if (!std::is_constant_evaluated())
@@ -87,7 +92,8 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             return x;
         if (x < 0)
             return detail::quiet_nan;
-        return detail::sqrt_by_integers(x);
+        return detail::sqrt_by_integers<R>(x);
+    }
     }
 
     // -----------------------------------------------------------------------
@@ -98,6 +104,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     // (y ← y (y³ + 2z)/(2y³ + z), convergence cubique : 2^-45), puis un pas de
     // Newton à résidu exact (z − y³ en double-double) : 2^-89, un seul arrondi.
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double cbrt(double x) noexcept
     {
         using namespace detail;
@@ -108,7 +117,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         int adjust = 0;
         if (ax < 0x1p-1022)                                             // sous-normal : × 2^54, exact
         {
-            ax = fmul(ax, 0x1p54);
+            ax = mul<R>(ax, 0x1p54);
             adjust = -18;
         }
 
@@ -121,18 +130,19 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double y = from_bits(bits(z) / 3 + 0x2a9f789300000000);
         for (int i = 0; i < 2; ++i)                                     // Halley
         {
-            double const y3 = fmul(y * y, y);
-            y = y * (y3 + fmul(2.0, z)) / (fmul(2.0, y3) + z);
+            double const y3 = mul<R>(y * y, y);
+            y = y * (y3 + mul<R>(2.0, z)) / (mul<R>(2.0, y3) + z);
         }
 
         // Pas de Newton exact : y ← y + (z − y³)/(3y²).
         auto const [a, a_error] = two_product(y, y);                    // y² exactement
         auto const [c, c_error] = two_product(a, y);
-        double const residual = ((z - c) - c_error) - fmul(a_error, y); // z − y³, à 2^-106 près
-        y = y + residual / fmul(3.0, a);
+        double const residual = ((z - c) - c_error) - mul<R>(a_error, y); // z − y³, à 2^-106 près
+        y = y + residual / mul<R>(3.0, a);
 
-        double const result = fmul(y, power_of_two(q + adjust));        // exact
+        double const result = mul<R>(y, power_of_two(q + adjust));        // exact
         return negative ? -result : result;
+    }
     }
 
     // -----------------------------------------------------------------------
@@ -142,6 +152,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     // de 2 (exacte) quand a est très grand ou très petit, a² + b² en
     // double-double, puis √ corrigée par son résidu exact : un seul arrondi.
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double hypot(double x, double y) noexcept
     {
         using namespace detail;
@@ -155,7 +168,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         double b = ax > ay ? ay : ax;
         if (b == 0)
             return a;
-        if (b < fmul(a, 0x1p-54))                                       // b²/a² < 2^-108 : √ arrondie à a
+        if (b < mul<R>(a, 0x1p-54))                                       // b²/a² < 2^-108 : √ arrondie à a
             return a;
 
         // a ramené dans [1, 2) par une puissance de 2 (exact ; b >= a 2^-54 reste
@@ -169,36 +182,25 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         auto const [s, s_error] = two_sum(a2, b2);
         double const s_lo = (s_error + a2_error) + b2_error;
 
-        double const h = sqrt(s);
+        double const h = detail::sqrt<R>(s);
         auto const [hh, hh_error] = two_product(h, h);
         double const residual = ((s - hh) - hh_error) + s_lo;           // s − h², à 2^-106 près
-        double const result = h + residual / fmul(2.0, h);
+        double const result = h + residual / mul<R>(2.0, h);
         return scale_by_power_of_two(result, exponent);                 // un seul arrondi s'il est sous-normal
+    }
     }
 
     // -----------------------------------------------------------------------
     // float : calcul en double, puis un seul arrondi vers float.
     // -----------------------------------------------------------------------
-    constexpr float sqrt(float x) noexcept
-    {
-        // √ en double puis arrondi en float : arrondi correct (double précision
-        // plus que double de celle du float, pas de double arrondi possible).
-        return static_cast<float>(sqrt(static_cast<double>(x)));
-    }
-    constexpr float cbrt(float x) noexcept { return static_cast<float>(cbrt(static_cast<double>(x))); }
-    constexpr float hypot(float x, float y) noexcept
-    {
-        return static_cast<float>(hypot(static_cast<double>(x), static_cast<double>(y)));
-    }
-
-    template <std::integral I> constexpr double sqrt(I x) noexcept { return sqrt(static_cast<double>(x)); }
-    template <std::integral I> constexpr double cbrt(I x) noexcept { return cbrt(static_cast<double>(x)); }
+    // sqrt : arrondi correct (IEEE 754), donc exacte et identique dans les deux modes ; la
+    // racine en double puis arrondie en float l'est aussi (pas de double arrondi possible).
+    WSL_EF_UNARY(sqrt, static_cast<float>, true)
+    WSL_EF_UNARY(cbrt, static_cast<float>, false)
+    WSL_EF_BINARY(hypot, static_cast<float>, false)
 
     long double sqrt(long double) = delete;
     long double cbrt(long double) = delete;
     long double hypot(long double, long double) = delete;
 
-    // Arguments mêlés, comme <cmath>.
-    template <class A, class B> requires detail::mixed_arithmetic<A, B>
-    constexpr double hypot(A x, B y) noexcept { return hypot(static_cast<double>(x), static_cast<double>(y)); }
 }

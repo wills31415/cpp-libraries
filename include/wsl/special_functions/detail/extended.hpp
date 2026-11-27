@@ -20,6 +20,7 @@
 #include <limits>
 
 #include <wsl/elementary_functions.hpp>
+#include <wsl/elementary_functions/detail/pinned_portable.hpp>
 
 // Couches du dessous : primitives flottantes et fonctions élémentaires.
 namespace wsl::inline WSL_DEFAULTS::special_functions::detail
@@ -31,22 +32,22 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 // de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
 namespace wsl::inline WSL_DEFAULTS::special_functions
 {
-    using elementary_functions::sqrt;
-    using elementary_functions::cbrt;
-    using elementary_functions::hypot;
-    using elementary_functions::exp;
-    using elementary_functions::exp2;
-    using elementary_functions::expm1;
-    using elementary_functions::log;
-    using elementary_functions::log2;
-    using elementary_functions::log10;
-    using elementary_functions::log1p;
-    using elementary_functions::pow;
-    using elementary_functions::sin;
-    using elementary_functions::cos;
-    using elementary_functions::tan;
-    using elementary_functions::atan;
-    using elementary_functions::atan2;
+    using elementary_functions::detail::pinned_portable::sqrt;
+    using elementary_functions::detail::pinned_portable::cbrt;
+    using elementary_functions::detail::pinned_portable::hypot;
+    using elementary_functions::detail::pinned_portable::exp;
+    using elementary_functions::detail::pinned_portable::exp2;
+    using elementary_functions::detail::pinned_portable::expm1;
+    using elementary_functions::detail::pinned_portable::log;
+    using elementary_functions::detail::pinned_portable::log2;
+    using elementary_functions::detail::pinned_portable::log10;
+    using elementary_functions::detail::pinned_portable::log1p;
+    using elementary_functions::detail::pinned_portable::pow;
+    using elementary_functions::detail::pinned_portable::sin;
+    using elementary_functions::detail::pinned_portable::cos;
+    using elementary_functions::detail::pinned_portable::tan;
+    using elementary_functions::detail::pinned_portable::atan;
+    using elementary_functions::detail::pinned_portable::atan2;
 }
 
 namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
@@ -140,7 +141,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
     // log(hi + lo), hi > 0 : log(hi) + lo/hi, à moins d'un ulp.
     constexpr double log_dd(double hi, double lo) noexcept
     {
-        return wsl::elementary_functions::log(hi) + lo / hi;
+        return wsl::elementary_functions::log(hi, wsl::portable) + lo / hi;
     }
 
     // ---------------------------------------------------------------------
@@ -309,7 +310,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
             a.lo = sd::fmul(a.lo, 2.0);
             --a.e;
         }
-        double const s = wsl::elementary_functions::sqrt(a.hi);
+        double const s = wsl::elementary_functions::sqrt(a.hi, wsl::portable);
         auto const [p, p_error] = sd::two_product(s, s);
         auto const [hi, lo] = sd::fast_two_sum(s, (((a.hi - p) - p_error) + a.lo) / (s + s));
         return normalized(hi, lo, a.e / 2);

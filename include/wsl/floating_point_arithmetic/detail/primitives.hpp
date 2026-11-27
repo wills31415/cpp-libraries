@@ -59,11 +59,37 @@ namespace wsl::inline WSL_DEFAULTS::floating_point_arithmetic::detail
         return value;
     }
 
-    // Produit destiné à une addition : arrondi une fois, jamais fusionné.
+    // Les deux rôles d'une barrière contre la fusion en fma (design/interfaces.md, décision 38).
+    //
+    // unfused_mul : justesse. Le produit doit être arrondi exactement une fois, parce que
+    // l'algorithme s'appuie sur sa valeur arrondie (découpage de Veltkamp, produit d'une
+    // transformation sans erreur, astuce d'arrondi par addition) : jamais fusionné, dans
+    // aucun mode.
+    //
+    // mul<R> : portabilité. En mode portable, une barrière (mêmes bits partout) ; en mode
+    // déterministe, un simple produit que le compilateur peut fusionner (un arrondi de
+    // moins : les bornes d'erreur, établies opération par opération, restent valables).
+    template <class T>
+    constexpr T unfused_mul(T a, T b) noexcept
+    {
+        return opaque(a * b);
+    }
+
+    template <reproducibility_mode R, class T>
+    constexpr T mul(T a, T b) noexcept
+    {
+        if constexpr (std::is_same_v<R, portable_t>)
+            return opaque(a * b);
+        else
+            return a * b;
+    }
+
+    // Ancien nom, le temps de l'audit : toute barrière non encore classée reste une barrière
+    // de justesse (le comportement d'avant).
     template <class T>
     constexpr T fmul(T a, T b) noexcept
     {
-        return opaque(a * b);
+        return unfused_mul(a, b);
     }
 
     // Somme et erreur exactes : a + b == sum + error exactement (Knuth).

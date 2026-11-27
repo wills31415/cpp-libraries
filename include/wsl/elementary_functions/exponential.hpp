@@ -14,11 +14,14 @@
 // expm1(−∞) = −1 ; log(1) = +0, log(±0) = −∞, log(+∞) = +∞, log(x < 0) = NaN,
 // log1p(±0) = ±0, log1p(−1) = −∞ ; NaN donne NaN.
 //
-// Règle d'écriture : tout produit dont le résultat entre dans une addition ou une
-// soustraction passe par fmul (voir detail/fp.hpp).
+// Règle d'écriture (design/interfaces.md, décision 38) : tout produit dont le résultat entre
+// dans une addition ou une soustraction passe par mul<R> (barrière en mode portable, fusion
+// permise en mode déterministe) ou, si l'algorithme s'appuie sur sa valeur arrondie, par
+// unfused_mul (jamais fusionné). Modes : détail dans detail/moded.hpp.
 
 #include <wsl/floating_point_arithmetic/detail/primitives.hpp>
 #include <wsl/elementary_functions/detail/exponential_tables.hpp>
+#include <wsl/elementary_functions/detail/moded.hpp>
 
 #include <concepts>
 #include <cstdint>
@@ -50,13 +53,16 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             double r_hi, r_lo;
         };
 
+        // Mode R (décision 38) : barrières de portabilité selon R ; justesse toujours. Le
+        // défaut portable garde le comportement des appelants pas encore convertis.
+        template <reproducibility_mode R = portable_t>
         constexpr exp_reduction reduce_exp(double x) noexcept
         {
-            double const z = fmul(x, exp_inv_ln2_n);
+            double const z = mul<R>(x, exp_inv_ln2_n);              // k à une unité près : sans effet
             auto const k = static_cast<std::int64_t>(z < 0 ? z - 0.5 : z + 0.5);
             double const kd = static_cast<double>(k);
-            double const a = x - fmul(kd, exp_ln2_n_hi);            // exact
-            double const b = fmul(kd, exp_ln2_n_lo);
+            double const a = x - mul<R>(kd, exp_ln2_n_hi);          // exact : fusionné ou non, même valeur
+            double const b = unfused_mul(kd, exp_ln2_n_lo);         // justesse : la paire (r_hi, r_lo) ci-dessous
             double const r_hi = a - b;
             return {k, r_hi, (a - r_hi) - b};                       // Fast2Sum : |a| >= |b|
         }
@@ -73,14 +79,15 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
 
         // 2^e · (t_hi + tail), avec t_hi + tail dans [0,99 ; 2) : un seul arrondi,
         // résultats sous-normaux compris.
+        template <reproducibility_mode R = portable_t>
         constexpr double scale_exp(double t_hi, double tail, int e) noexcept
         {
             if (e >= -1022)
             {
                 double const y = t_hi + tail;
                 if (e > 1023)                                       // résultat juste sous DBL_MAX
-                    return fmul(fmul(y, power_of_two(1023)), 2.0);   // produits rendus : protégés aussi (l'appelant peut les additionner)
-                return fmul(y, power_of_two(e));
+                    return mul<R>(mul<R>(y, power_of_two(1023)), 2.0);   // produits rendus (l'appelant peut les additionner)
+                return mul<R>(y, power_of_two(e));
             }
 
             // Résultat sous-normal. Arrondir y à 53 bits puis le ramener dans la
@@ -91,27 +98,28 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             // que le résultat n'est arrondi qu'une fois. La remise à l'échelle
             // finale est exacte.
             double const scale = power_of_two(e + 1022);             // e + 1022 dans [-58, -1]
-            double const a = fmul(scale, t_hi);                     // exacts : puissance de 2
-            double const b = fmul(scale, tail);
+            double const a = mul<R>(scale, t_hi);                   // exacts : puissance de 2
+            double const b = mul<R>(scale, tail);
             double const y = a + b;
             double const y_error = (a - y) + b;                     // exacte, |a| >= |b|
             double const high = 1.0 + y;
             double const low = ((1.0 - high) + y) + y_error;
-            return fmul((high + low) - 1.0, 0x1p-1022);
+            return mul<R>((high + low) - 1.0, 0x1p-1022);
         }
 
         // 2^e 2^(j/N) exp(r) pour k = N e + j. exp(r) − 1 : Taylor de degré 5
         // (reste < 2^-60 sur l'intervalle). T_hi + (T_lo + T_hi p) n'est arrondi
         // qu'une fois, d'où une erreur à peine supérieure à 1/2 ulp.
+        template <reproducibility_mode R = portable_t>
         constexpr double exp_finish(std::int64_t k, double r) noexcept
         {
             // exp(r) − 1 = r + r²/2 + r³/6 + r⁴/24 + r⁵/120
             double const r2 = r * r;
-            double const p = r + fmul(r2, 0x1p-1 + fmul(r, 0x1.5555555555555p-3
-                                       + fmul(r, 0x1.5555555555555p-5 + fmul(r, 0x1.1111111111111p-7))));
+            double const p = r + mul<R>(r2, 0x1p-1 + mul<R>(r, 0x1.5555555555555p-3
+                                       + mul<R>(r, 0x1.5555555555555p-5 + mul<R>(r, 0x1.1111111111111p-7))));
             int const j = exp_index(k);
             double const t_hi = exp_table[j][0];
-            return scale_exp(t_hi, exp_table[j][1] + fmul(t_hi, p), exp_exponent(k));
+            return scale_exp<R>(t_hi, exp_table[j][1] + mul<R>(t_hi, p), exp_exponent(k));
         }
 
         // -------------------------------------------------------------------
@@ -142,13 +150,14 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
 
         // log1p(r) − r pour |r| < 2^-9,5 : Taylor de degré 7, Estrin.
         //     r² [(−1/2 + r/3) + r² (−1/4 + r/5) + r⁴ (−1/6 + r/7)]
+        template <reproducibility_mode R = portable_t>
         constexpr double log1p_minus_identity(double r) noexcept
         {
             double const rr = r * r;
-            double const p01 = -0x1p-1 + fmul(r, 0x1.5555555555555p-2);
-            double const p23 = -0x1p-2 + fmul(r, 0x1.999999999999ap-3);
-            double const p45 = -0x1.5555555555555p-3 + fmul(r, 0x1.2492492492492p-3);
-            return fmul(rr, (p01 + fmul(rr, p23)) + fmul(rr * rr, p45));
+            double const p01 = -0x1p-1 + mul<R>(r, 0x1.5555555555555p-2);
+            double const p23 = -0x1p-2 + mul<R>(r, 0x1.999999999999ap-3);
+            double const p45 = -0x1.5555555555555p-3 + mul<R>(r, 0x1.2492492492492p-3);
+            return mul<R>(rr, (p01 + mul<R>(rr, p23)) + mul<R>(rr * rr, p45));
         }
 
         // Cas à part : renvoie vrai, avec le résultat, si x n'est pas un réel > 0
@@ -178,6 +187,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             return false;
         }
 
+        template <reproducibility_mode R = portable_t>
         constexpr double_double log_kernel(std::uint64_t ix) noexcept
         {
             constexpr std::uint64_t half_sqrt2 = 0x3fe6a09e667f3bcd;   // bits de √2/2
@@ -187,24 +197,24 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
 
             constexpr double shift = 0x1.8p52;                      // ulp 1 : t − shift = round(512 z)
             constexpr double scale = static_cast<double>(1 << log_table_bits);
-            double const t = fmul(z, scale) + shift;                // produit exact
+            double const t = mul<R>(z, scale) + shift;                // produit exact
             auto const j = static_cast<int>(bits(t) - bits(shift)); // dans [362, 724]
-            double const c = fmul(t - shift, 1.0 / scale);          // exact, mais entre dans z − c
+            double const c = mul<R>(t - shift, 1.0 / scale);          // exact, mais entre dans z − c
             double const d = z - c;                                 // exact
 
             auto const& entry = log_table[j - log_table_first];
             double const inverse_c = entry[2];
-            double const r_hi = fmul(d, inverse_c);
+            double const r_hi = unfused_mul(d, inverse_c);       // justesse : découpé puis corrigé ci-dessous
             auto const [r1, r2] = split(r_hi);
-            double const r_lo = fmul((d - fmul(r1, c)) - fmul(r2, c), inverse_c);
+            double const r_lo = mul<R>((d - mul<R>(r1, c)) - mul<R>(r2, c), inverse_c);
 
-            double const q = log1p_minus_identity(r_hi);
+            double const q = log1p_minus_identity<R>(r_hi);
 
             double const ed = static_cast<double>(e);
-            double const w = fmul(ed, log_ln2_hi) + entry[0];      // exact
+            double const w = mul<R>(ed, log_ln2_hi) + entry[0];      // exact
             double const s = w + r_hi;
             double const s_error = (w - s) + r_hi;                  // exact : |w| >= |r_hi| ou w = 0
-            double const tail = (fmul(ed, log_ln2_lo) + entry[1]) + r_lo;
+            double const tail = (mul<R>(ed, log_ln2_lo) + entry[1]) + r_lo;
             return {s, (s_error + tail) + q};
         }
 
@@ -212,6 +222,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         // relatif près de 1), pour pow : même réduction que log_kernel, mais −r²/2
         // exact (produit de Dekker), le terme croisé −r_hi r_lo, le reste r³ (…)
         // en Taylor jusqu'à r⁸ (reste < 2^-88), et des sommes exactes.
+        template <reproducibility_mode R = portable_t>
         constexpr double_double log_accurate(std::uint64_t ix) noexcept
         {
             constexpr std::uint64_t half_sqrt2 = 0x3fe6a09e667f3bcd;
@@ -221,33 +232,33 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
 
             constexpr double shift = 0x1.8p52;
             constexpr double scale = static_cast<double>(1 << log_table_bits);
-            double const t = fmul(z, scale) + shift;
+            double const t = mul<R>(z, scale) + shift;
             auto const j = static_cast<int>(bits(t) - bits(shift));
-            double const c = fmul(t - shift, 1.0 / scale);
+            double const c = mul<R>(t - shift, 1.0 / scale);
             double const d = z - c;
 
             auto const& entry = log_table[j - log_table_first];
             double const inverse_c = entry[2];
-            double const r_hi = fmul(d, inverse_c);
+            double const r_hi = unfused_mul(d, inverse_c);       // justesse : découpé puis corrigé ci-dessous
             auto const [r1, r2] = split(r_hi);
-            double const r_lo = fmul((d - fmul(r1, c)) - fmul(r2, c), inverse_c);
+            double const r_lo = mul<R>((d - mul<R>(r1, c)) - mul<R>(r2, c), inverse_c);
 
             // log1p(r) = r − r²/2 + r³ [1/3 − r/4 + r²/5 − r³/6 + r⁴/7 − r⁵/8]
             double const r = r_hi;
             auto const [rr, rr_error] = two_product(r, r);
             double const r2v = r * r;
-            double const c01 = 0x1.5555555555555p-2 + fmul(r, -0x1p-2);
-            double const c23 = 0x1.999999999999ap-3 + fmul(r, -0x1.5555555555555p-3);
-            double const c45 = 0x1.2492492492492p-3 + fmul(r, -0x1p-3);
-            double const cubic = fmul(r * r2v, (c01 + fmul(r2v, c23)) + fmul(r2v * r2v, c45));
+            double const c01 = 0x1.5555555555555p-2 + mul<R>(r, -0x1p-2);
+            double const c23 = 0x1.999999999999ap-3 + mul<R>(r, -0x1.5555555555555p-3);
+            double const c45 = 0x1.2492492492492p-3 + mul<R>(r, -0x1p-3);
+            double const cubic = mul<R>(r * r2v, (c01 + mul<R>(r2v, c23)) + mul<R>(r2v * r2v, c45));
 
             double const ed = static_cast<double>(e);
-            double const w = fmul(ed, log_ln2_hi) + entry[0];      // exact
+            double const w = mul<R>(ed, log_ln2_hi) + entry[0];      // exact
             double const s1 = w + r_hi;
             double const e1 = (w - s1) + r_hi;                      // exact : |w| >= |r_hi| ou w = 0
-            auto const [s2, e2] = two_sum(s1, fmul(-0.5, rr));      // −r²/2 : exact
-            double const small = (fmul(ed, log_ln2_lo) + entry[1]) + (r_lo - fmul(0.5, rr_error));
-            double const lo = ((e1 + e2) + small) + (cubic - fmul(r, r_lo));
+            auto const [s2, e2] = two_sum(s1, mul<R>(-0.5, rr));      // −r²/2 : exact
+            double const small = (mul<R>(ed, log_ln2_lo) + entry[1]) + (r_lo - mul<R>(0.5, rr_error));
+            double const lo = ((e1 + e2) + small) + (cubic - mul<R>(r, r_lo));
             double const hi = s2 + lo;
             return {hi, (s2 - hi) + lo};                            // Fast2Sum
         }
@@ -264,20 +275,22 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             int e;
         };
 
+        template <reproducibility_mode R = portable_t>
         constexpr exp_parts exp_parts_dd(std::int64_t k, double r, double t) noexcept
         {
             double const r2 = r * r;
-            double const p = r + ((t + fmul(r, t)) + fmul(r2, 0x1p-1 + fmul(r, 0x1.5555555555555p-3
-                                       + fmul(r, 0x1.5555555555555p-5 + fmul(r, 0x1.1111111111111p-7)))));
+            double const p = r + ((t + mul<R>(r, t)) + mul<R>(r2, 0x1p-1 + mul<R>(r, 0x1.5555555555555p-3
+                                       + mul<R>(r, 0x1.5555555555555p-5 + mul<R>(r, 0x1.1111111111111p-7)))));
             int const j = exp_index(k);
             double const t_hi = exp_table[j][0];
-            return {t_hi, exp_table[j][1] + fmul(t_hi, p), exp_exponent(k)};
+            return {t_hi, exp_table[j][1] + mul<R>(t_hi, p), exp_exponent(k)};
         }
 
+        template <reproducibility_mode R = portable_t>
         constexpr double exp_finish_dd(std::int64_t k, double r, double t) noexcept
         {
-            auto const [t_hi, tail, e] = exp_parts_dd(k, r, t);
-            return scale_exp(t_hi, tail, e);
+            auto const [t_hi, tail, e] = exp_parts_dd<R>(k, r, t);
+            return scale_exp<R>(t_hi, tail, e);
         }
 
         // Entier ? Impair ? (y fini.)
@@ -299,23 +312,27 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         }
 
         // log(x) · (c_hi + c_lo), le produit en double-double, arrondi une fois.
+        template <reproducibility_mode R = portable_t>
         constexpr double log_times(double x, double c_hi, double c_lo) noexcept
         {
             std::uint64_t ix = 0;
             double special = 0;
             if (log_special_case(x, ix, special))
                 return special;                                     // ±∞, NaN : inchangés (c > 0)
-            auto const [hi, lo] = log_kernel(ix);
+            auto const [hi, lo] = log_kernel<R>(ix);
             auto const [p, p_error] = two_product(hi, c_hi);
-            return p + ((p_error + fmul(hi, c_lo)) + fmul(lo, c_hi));
+            return p + ((p_error + mul<R>(hi, c_lo)) + mul<R>(lo, c_hi));
         }
     }
 
     // -----------------------------------------------------------------------
     // exp, exp2, expm1
     // -----------------------------------------------------------------------
-    constexpr double exp(double x) noexcept
+    namespace detail
     {
+        template <reproducibility_mode R >
+        constexpr double exp(double x) noexcept
+        {
         using namespace detail;
         if (!(x == x))
             return detail::opaque(x + x);                                           // NaN
@@ -323,15 +340,19 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             return infinity;
         if (x < -746.0)                                             // exp(x) < 2^-1076 : +0
             return 0.0;
-        auto const [k, r, r_lo] = reduce_exp(x);
-        return exp_finish(k, r);
+        auto const [k, r, r_lo] = reduce_exp<R>(x);
+        return exp_finish<R>(k, r);
+        }
     }
 
     // 2^x : x = k/N + f, réduction exacte (N = 128 est une puissance de 2), puis
     // 2^f = exp(f ln2), |f ln2| <= ln2/(2N) : le noyau de exp. 2^n est exact pour
     // tout entier n.
-    constexpr double exp2(double x) noexcept
+    namespace detail
     {
+        template <reproducibility_mode R >
+        constexpr double exp2(double x) noexcept
+        {
         using namespace detail;
         if (!(x == x))
             return detail::opaque(x + x);
@@ -340,10 +361,11 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         if (x < -1080.0)                                            // 2^x < 2^-1076 : +0
             return 0.0;
         constexpr double shift = 0x1.8p52;
-        double const t = fmul(x, 128.0) + shift;                    // produit exact
+        double const t = mul<R>(x, 128.0) + shift;                  // produit exact
         auto const k = static_cast<std::int64_t>(bits(t) - bits(shift));   // round(128 x)
-        double const f = x - fmul(t - shift, 0x1p-7);               // exact (Sterbenz)
-        return exp_finish(k, fmul(f, ln2_hi));
+        double const f = x - mul<R>(t - shift, 0x1p-7);             // exact (Sterbenz)
+        return exp_finish<R>(k, mul<R>(f, ln2_hi));
+        }
     }
 
     // e^x − 1, précis aussi quand le résultat est petit. Même réduction que exp,
@@ -351,8 +373,11 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     //     2^e T (1 + p) − 1 = (2^e T_hi − 1) + 2^e T_hi r_hi + 2^e [T_hi p_lo + T_lo (1 + p)],
     // les deux premiers termes ajoutés exactement (two_sum, produit de Dekker), si
     // bien que les annulations entre eux ne coûtent rien.
-    constexpr double expm1(double x) noexcept
+    namespace detail
     {
+        template <reproducibility_mode R >
+        constexpr double expm1(double x) noexcept
+        {
         using namespace detail;
         if (!(x == x))
             return detail::opaque(x + x);
@@ -363,7 +388,7 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         if (x > -0x1p-54 && x < 0x1p-54)                            // x + x²/2 s'arrondit à x ; ±0 compris
             return x;
 
-        auto const [k, r_hi, r_lo] = reduce_exp(x);
+        auto const [k, r_hi, r_lo] = reduce_exp<R>(x);
         int const j = exp_index(k);
         int const e = exp_exponent(k);                              // dans [-55, 1024]
         double const t_hi = exp_table[j][0];
@@ -372,44 +397,57 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         // exp(r) − 1 = r + r² [(1/2 + r/6) + r² (1/24 + r/120) + r⁴ (1/720 + r/5040)] = r_hi + p_lo
         double const r = r_hi;
         double const rr = r * r;
-        double const a = 0x1p-1 + fmul(r, 0x1.5555555555555p-3);
-        double const b = 0x1.5555555555555p-5 + fmul(r, 0x1.1111111111111p-7);
-        double const c = 0x1.6c16c16c16c17p-10 + fmul(r, 0x1.a01a01a01a01ap-13);
-        double const p_lo = r_lo + fmul(rr, (a + fmul(rr, b)) + fmul(rr * rr, c));
+        double const a = 0x1p-1 + mul<R>(r, 0x1.5555555555555p-3);
+        double const b = 0x1.5555555555555p-5 + mul<R>(r, 0x1.1111111111111p-7);
+        double const c = 0x1.6c16c16c16c17p-10 + mul<R>(r, 0x1.a01a01a01a01ap-13);
+        double const p_lo = r_lo + mul<R>(rr, (a + mul<R>(rr, b)) + mul<R>(rr * rr, c));
 
         if (e > 60)                                                 // e^x > 2^60 : le −1 est négligeable
-            return scale_exp(t_hi, t_lo + fmul(t_hi, r_hi + p_lo), e);
+            return scale_exp<R>(t_hi, t_lo + mul<R>(t_hi, r_hi + p_lo), e);
 
         double const scale = power_of_two(e);
-        auto const [s, s_error] = two_sum(fmul(scale, t_hi), -1.0);
+        auto const [s, s_error] = two_sum(mul<R>(scale, t_hi), -1.0);       // exact : puissance de 2
         auto const [m, m_error] = two_product(t_hi, r_hi);
-        auto const [s2, s2_error] = two_sum(s, fmul(scale, m));
-        double const rest = fmul(scale, (m_error + fmul(t_hi, p_lo)) + fmul(t_lo, 1.0 + (r_hi + p_lo)));
+        auto const [s2, s2_error] = two_sum(s, mul<R>(scale, m));           // exact : puissance de 2
+        double const rest = mul<R>(scale, (m_error + mul<R>(t_hi, p_lo)) + mul<R>(t_lo, 1.0 + (r_hi + p_lo)));
         return s2 + ((s2_error + s_error) + rest);
+        }
     }
 
     // -----------------------------------------------------------------------
     // log, log2, log10, log1p
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double log(double x) noexcept
     {
         std::uint64_t ix = 0;
         double special = 0;
         if (detail::log_special_case(x, ix, special))
             return special;
-        auto const [hi, lo] = detail::log_kernel(ix);
+        auto const [hi, lo] = detail::log_kernel<R>(ix);
         return hi + lo;
+    }
     }
 
     // log(x) · (1/ln 2) en double-double : log2(2^n) = n exactement.
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double log2(double x) noexcept
     {
-        return detail::log_times(x, detail::inv_ln2_hi, detail::inv_ln2_lo);
+        return detail::log_times<R>(x, detail::inv_ln2_hi, detail::inv_ln2_lo);
+    }
     }
 
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double log10(double x) noexcept
     {
-        return detail::log_times(x, detail::inv_ln10_hi, detail::inv_ln10_lo);
+        return detail::log_times<R>(x, detail::inv_ln10_hi, detail::inv_ln10_lo);
+    }
     }
 
     // log(1 + x), précis aussi pour x petit.
@@ -419,6 +457,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     // - sinon : 1 + x = u + u_error exactement (two_sum), puis
     //   log(1 + x) = log(u) + log1p(u_error/u) ≈ log(u) + u_error/u, le terme
     //   négligé étant inférieur à 2^-106 relativement.
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double log1p(double x) noexcept
     {
         using namespace detail;
@@ -433,10 +474,11 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         if (x == infinity)
             return x;
         if (x > -0x1p-10 && x < 0x1p-10)
-            return x + log1p_minus_identity(x);
+            return x + log1p_minus_identity<R>(x);
         auto const [u, u_error] = two_sum(1.0, x);                  // u >= 2^-53 : normal
-        auto const [hi, lo] = log_kernel(bits(u));
+        auto const [hi, lo] = log_kernel<R>(bits(u));
         return hi + (lo + u_error / u);
+    }
     }
 
     // -----------------------------------------------------------------------
@@ -450,6 +492,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
     // pour NaN ; base nulle ou infinie selon le signe et la parité de y ; base
     // négative : NaN si y n'est pas entier, signe négatif si y est impair.
     // -----------------------------------------------------------------------
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double pow(double x, double y) noexcept
     {
         using namespace detail;
@@ -501,10 +546,10 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         std::uint64_t ix = bits(ax);
         if (ax < 0x1p-1022)
             ix = bits(ax * 0x1p52) - (std::uint64_t{52} << 52);      // sous-normal
-        auto const [l_hi, l_lo] = log_accurate(ix);
+        auto const [l_hi, l_lo] = log_accurate<R>(ix);
 
         auto const [a_hi0, a_error] = two_product(y, l_hi);
-        double const a_lo0 = a_error + fmul(y, l_lo);
+        double const a_lo0 = a_error + mul<R>(y, l_lo);
         double const a_hi = a_hi0 + a_lo0;
         double const a_lo = (a_hi0 - a_hi) + a_lo0;                 // Fast2Sum
 
@@ -512,8 +557,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
             return with_sign(infinity);
         if (a_hi < -746.0)
             return with_sign(0.0);
-        auto const [k, r_hi, r_lo] = reduce_exp(a_hi);
-        return with_sign(exp_finish_dd(k, r_hi, r_lo + a_lo));
+        auto const [k, r_hi, r_lo] = reduce_exp<R>(a_hi);
+        return with_sign(exp_finish_dd<R>(k, r_hi, r_lo + a_lo));
+    }
     }
 
     // -----------------------------------------------------------------------
@@ -533,34 +579,17 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions
         }
     }
 
-    constexpr float exp(float x) noexcept { return detail::to_float(exp(static_cast<double>(x))); }
-    constexpr float exp2(float x) noexcept { return detail::to_float(exp2(static_cast<double>(x))); }
-    constexpr float expm1(float x) noexcept { return detail::to_float(expm1(static_cast<double>(x))); }
-    constexpr float log(float x) noexcept { return static_cast<float>(log(static_cast<double>(x))); }
-    constexpr float log2(float x) noexcept { return static_cast<float>(log2(static_cast<double>(x))); }
-    constexpr float log10(float x) noexcept { return static_cast<float>(log10(static_cast<double>(x))); }
-    constexpr float log1p(float x) noexcept { return static_cast<float>(log1p(static_cast<double>(x))); }
-    constexpr float pow(float x, float y) noexcept
-    {
-        return detail::to_float(pow(static_cast<double>(x), static_cast<double>(y)));
-    }
-
-    // Entiers : comme <cmath>, traités en double.
-    template <std::integral I> constexpr double exp(I x) noexcept { return exp(static_cast<double>(x)); }
-    template <std::integral I> constexpr double exp2(I x) noexcept { return exp2(static_cast<double>(x)); }
-    template <std::integral I> constexpr double expm1(I x) noexcept { return expm1(static_cast<double>(x)); }
-    template <std::integral I> constexpr double log(I x) noexcept { return log(static_cast<double>(x)); }
-    template <std::integral I> constexpr double log2(I x) noexcept { return log2(static_cast<double>(x)); }
-    template <std::integral I> constexpr double log10(I x) noexcept { return log10(static_cast<double>(x)); }
-    template <std::integral I> constexpr double log1p(I x) noexcept { return log1p(static_cast<double>(x)); }
-
-    // pow à arguments mixtes (entier, float et double mêlés) : en double, comme <cmath>.
-    template <class A, class B>
-        requires detail::mixed_arithmetic<A, B>
-    constexpr double pow(A x, B y) noexcept
-    {
-        return pow(static_cast<double>(x), static_cast<double>(y));
-    }
+    // exp, exp2, expm1 dans le mode des étiquettes (design/interfaces.md, décisions 24 à 27) :
+    // déterministe par défaut, wsl::portable sur demande ; wsl::approximate accepté (c'est
+    // la seule version), wsl::exact refusé (erreur < 0,51 ulp, pas l'arrondi correct).
+    WSL_EF_UNARY(exp, detail::to_float, false)
+    WSL_EF_UNARY(exp2, detail::to_float, false)
+    WSL_EF_UNARY(expm1, detail::to_float, false)
+    WSL_EF_UNARY(log, static_cast<float>, false)
+    WSL_EF_UNARY(log2, static_cast<float>, false)
+    WSL_EF_UNARY(log10, static_cast<float>, false)
+    WSL_EF_UNARY(log1p, static_cast<float>, false)
+    WSL_EF_BINARY(pow, detail::to_float, false)
 
     // long double n'a pas la même taille partout (64, 80 ou 128 bits) : aucun
     // résultat bit-exact n'est possible.

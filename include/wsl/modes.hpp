@@ -97,6 +97,50 @@ namespace wsl::inline WSL_DEFAULTS
     using default_reproducibility = std::conditional_t<WSL_PORTABLE != 0, portable_t, deterministic_t>;
     using default_algorithm = std::conditional_t<WSL_EXACT != 0, exact_t, approximate_t>;
 
+    // Mode résultant des étiquettes passées à une fonction : au plus une par axe, le défaut
+    // du projet pour un axe sans étiquette (f(x), f(x, wsl::portable), f(x, wsl::exact,
+    // wsl::portable)…).
+    namespace detail::modes
+    {
+        template <class Default, template <class> class Is, class... M>
+        struct select
+        {
+            using type = Default;
+        };
+        template <class Default, template <class> class Is, class First, class... Rest>
+        struct select<Default, Is, First, Rest...>
+        {
+            using type = std::conditional_t<Is<First>::value, First, typename select<Default, Is, Rest...>::type>;
+        };
+        template <class T>
+        struct is_reproducibility : std::bool_constant<reproducibility_mode<T>>
+        {
+        };
+        template <class T>
+        struct is_algorithm : std::bool_constant<algorithm_mode<T>>
+        {
+        };
+    }
+
+    // Un jeu d'étiquettes valide : au plus une par axe.
+    template <class... M>
+    concept mode_set = (mode<M> && ...) && (reproducibility_mode<M> + ... + 0) <= 1
+                    && (algorithm_mode<M> + ... + 0) <= 1;
+
+    template <mode... M>
+        requires((reproducibility_mode<M> + ... + 0) <= 1 && (algorithm_mode<M> + ... + 0) <= 1)
+    using reproducibility_of =
+        typename detail::modes::select<default_reproducibility, detail::modes::is_reproducibility, M...>::type;
+
+    template <mode... M>
+        requires((reproducibility_mode<M> + ... + 0) <= 1 && (algorithm_mode<M> + ... + 0) <= 1)
+    using algorithm_of = typename detail::modes::select<default_algorithm, detail::modes::is_algorithm, M...>::type;
+
+    // Vrai si exact est demandé explicitement parmi les étiquettes M (une fonction qui ne
+    // sait pas être exacte refuse alors l'appel, décision 25).
+    template <mode... M>
+    inline constexpr bool exact_requested = (std::same_as<M, exact_t> || ...);
+
     // wsl::provides<F, M> : F a une vraie variante pour le mode M (une permission sans
     // variante propre est acceptée, mais rend le résultat le plus fort). Chaque
     // bibliothèque spécialise ce trait pour ses fonctions.
