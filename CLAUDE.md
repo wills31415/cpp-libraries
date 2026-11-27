@@ -177,7 +177,8 @@ mathématiques d'ici (docs/algebra.md). Aucun projet ne combine aujourd'hui les 
   devient `wsl::portable`, `approximate` par défaut, `wsl::provides`, `wsl::assume_portable`,
   espace de noms en ligne du défaut.
 - Découpage de special et random selon les domaines (`floating_point_arithmetic`,
-  `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`).
+  `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`) ; carte : décision 37 ;
+  audit de chaque `fmul` en `fpa::mul` (selon le mode) ou `fpa::unfused_mul` (justesse) : décision 38.
 - Anciennes bibliothèques dans `legacy/` (array2d, graded, graded_io, elo, progress) ; `dlist`
   rendue à `~/projets/cpp-container-distance-list` (dossier simple, pas un dépôt git :
   regarder avant de remplacer) (36).
