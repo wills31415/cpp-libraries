@@ -771,13 +771,18 @@ struct std::formatter<wsl::mddisplacement<N, D>, char> : wsl::detail::mdarray::t
 {
 };
 
-template <std::size_t N, class I>
-std::ostream& wsl::operator<<(std::ostream& out, wsl::mdposition<N, I> const& p)
+// Définies dans l'espace de noms de leur déclaration : GCC ne rattache pas une définition
+// qualifiée wsl::operator<< à une déclaration de l'espace de noms en ligne (WSL_DEFAULTS).
+namespace wsl::inline WSL_DEFAULTS
 {
-    return out << std::format("{}", p);
-}
-template <std::size_t N, class D>
-std::ostream& wsl::operator<<(std::ostream& out, wsl::mddisplacement<N, D> const& d)
-{
-    return out << std::format("{}", d);
+    template <std::size_t N, class I>
+    std::ostream& operator<<(std::ostream& out, mdposition<N, I> const& p)
+    {
+        return out << std::format("{}", p);
+    }
+    template <std::size_t N, class D>
+    std::ostream& operator<<(std::ostream& out, mddisplacement<N, D> const& d)
+    {
+        return out << std::format("{}", d);
+    }
 }
