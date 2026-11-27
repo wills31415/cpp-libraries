@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Arithmétique entière générale (design/mdarray.md, D15) : division euclidienne,
 // reste dans {0, …, k − 1} (noms de Rust). `/` et `%` de C++ tronquent vers zéro :
 // (−1) / 4 == 0 et (−1) % 4 == −1, alors que div_euclid(−1, 4) == −1 et
@@ -10,7 +12,7 @@
 #include <concepts>
 #include <type_traits>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {

@@ -241,9 +241,9 @@ réservés aux tenseurs (variances).
   `-march=x86-64-v3 -ffp-contract=fast` ; seul `-ffast-math`, qui autorise la
   réassociation, la change, comme pour wsl::special), `tests/test_mdarray_modes_default.cpp`
   (mode par défaut reproductible), `tests/compile_fail/mdarray/modes.cpp`. Mécanique :
-  `wsl::reproducible(e)` réécrit l'arbre, chaque opération devient `moded_op<mode, op>` ; en
+  `wsl::portable(e)` réécrit l'arbre, chaque opération devient `moded_op<mode, op>` ; en
   mode reproductible, le produit passe par `wsl::special::detail::fmul` et les fonctions par
-  `wsl::special` ; une opération déjà dans un mode le garde (`wsl::fast` dans une
+  `wsl::special` ; une opération déjà dans un mode le garde (`wsl::deterministic` dans une
   instruction reproductible) ; le mode par défaut s'applique aux affectations, conversions en
   scalaire et réductions. Choix, à revoir : les opérations exactes (abs, floor, fmod, fmin,
   copysign…) et les fonctions de l'utilisateur gardent leur forme ; l'accès à un élément
@@ -457,7 +457,7 @@ réservés aux tenseurs (variances).
   les mêmes options) et **reproductible** (sans fusion : barrières placées par le moteur sur
   des vecteurs, évaluation par paquets ; fonctions de `wsl::special` ; une fonction non
   couverte est une erreur de compilation ; mêmes bits partout, `constexpr` = exécution).
-  Choix par instruction (`wsl::fast(…)`, `wsl::reproducible(…)`) ; mode par défaut fixé par
+  Choix par instruction (`wsl::deterministic(…)`, `wsl::portable(…)`) ; mode par défaut fixé par
   une option CMake de la cible (rapide par défaut), cohérente dans tout le projet (une macro
   libre violerait la règle de définition unique). Mesure (Apple Clang, AVX2) : la barrière
   scalaire de `wsl::special` empêche la vectorisation, la barrière sur un vecteur la garde.

@@ -24,8 +24,8 @@ namespace
         wsl::mdarray<double, wsl::extents<std::size_t, 3>> x{}, y{};
         x[0] = 3;
         x[1] = 4;
-        double const n = wsl::reproducible(sqrt(x[i] * x[i]));
-        y[i] = wsl::reproducible(exp(x[i] * 0) + x[j] * x[j] * 0);
+        double const n = wsl::portable(sqrt(x[i] * x[i]));
+        y[i] = wsl::portable(exp(x[i] * 0) + x[j] * x[j] * 0);
         return n == 5 && y[2] == 1;
     }
     static_assert(compile_time());
@@ -46,12 +46,12 @@ namespace
                 a[r, q] = al[r, q] = 1 / (1.0 + r + 3 * q);
                 b[r, q] = bl[r, q] = 0.1 * r - 0.7 * q + 1 / 3.0;
             }
-        c = wsl::reproducible(a * b + 1 - a * a * b);
-        cl = wsl::reproducible(al * bl + 1 - al * al * bl);
+        c = wsl::portable(a * b + 1 - a * a * b);
+        cl = wsl::portable(al * bl + 1 - al * al * bl);
         for (std::size_t r = 0; r < n; ++r)
             for (std::size_t q = 0; q < m; ++q)
                 assert(same(c[r, q], cl[r, q]));
-        assert(same(wsl::sum(wsl::reproducible(a * b + a)), wsl::sum(wsl::reproducible(al * bl + al))));
+        assert(same(wsl::sum(wsl::portable(a * b + a)), wsl::sum(wsl::portable(al * bl + al))));
     }
 }
 

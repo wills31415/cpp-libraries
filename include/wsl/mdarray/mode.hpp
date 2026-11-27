@@ -1,17 +1,19 @@
 #pragma once
 
-// Modes de calcul flottant (design/mdarray.md, I9) :
+#include <wsl/modes.hpp>
+
+// Modes de calcul flottant (design/mdarray.md, I9 ; design/interfaces.md, décisions 24 à 27) :
 //
-//   y[i] = wsl::reproducible(A[i, j] * x[j] + b[i]);   // mêmes bits partout
-//   y = wsl::fast(exp(x) * 2);                          // fusion en fma permise, <cmath>
+//   y[i] = wsl::portable(A[i, j] * x[j] + b[i]);       // mêmes bits partout
+//   y = wsl::deterministic(exp(x) * 2);                 // fusion en fma permise, <cmath>
 //
-// Rapide : fusion en fma permise, fonctions de <cmath> ; mêmes résultats pour un même
-// programme, une même machine, les mêmes options. Reproductible : aucun produit ne se
-// fusionne (barrière de wsl::special), fonctions de wsl::special (bit-exactes,
-// constexpr) ; une fonction que wsl::special ne couvre pas est une erreur de
-// compilation. L'ordre des sommes est fixé dans les deux modes. Mode des instructions
-// non marquées : WSL_MDARRAY_REPRODUCIBLE (option CMake WSL_MDARRAY_REPRODUCIBLE
-// de la cible, la même dans tout le projet ; rapide par défaut).
+// Déterministe (défaut) : fusion en fma permise, fonctions de <cmath> ; mêmes résultats pour
+// une même configuration (compilateur, options, machine). Portable : aucun produit ne se
+// fusionne (barrière de wsl::special), fonctions de wsl::special (bit-exactes, constexpr) ;
+// une fonction que wsl::special ne couvre pas est une erreur de compilation, comme une
+// fonction de l'utilisateur non signée wsl::assume_portable(f). L'ordre des sommes est fixé
+// dans les deux modes. Mode des instructions non marquées : wsl::default_reproducibility
+// (option CMake WSL_PORTABLE, la même dans tout le projet).
 
 #include <wsl/mdarray/expression.hpp>
 #include <wsl/mdarray/indexed.hpp>
@@ -20,20 +22,13 @@
 #include <type_traits>
 #include <utility>
 
-#if !defined(WSL_MDARRAY_REPRODUCIBLE)
-#    define WSL_MDARRAY_REPRODUCIBLE 0
-#endif
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {
-        struct fast_mode
-        {
-        };
-        struct reproducible_mode
-        {
-        };
+        using fast_mode = deterministic_t;
+        using reproducible_mode = portable_t;
 
         // Une opération, dans un mode.
         template <class Mode, class Op>
@@ -55,14 +50,25 @@ namespace wsl
                 return x;
         }
 
-        // Reproductible : par défaut, l'opération telle quelle (exacte ou sans risque de
-        // fusion : +, −, ÷, comparaisons, min, max, where, abs, floor…, fonctions de
-        // l'utilisateur, dont la garantie s'arrête au corps).
+        // Portable : par défaut, l'opération telle quelle (exacte ou sans risque de
+        // fusion : +, −, ÷, comparaisons, min, max, where, abs, floor…).
         template <class Op>
         struct moded_op<reproducible_mode, Op> : Op
         {
             constexpr moded_op() = default;
             constexpr explicit moded_op(Op op) : Op(std::move(op)) {}
+        };
+
+        // Fonction de l'utilisateur : la bibliothèque ne peut pas inspecter son corps, qui
+        // peut fusionner des produits ; l'utilisateur la signe (décision 25).
+        template <class F>
+        struct moded_op<reproducible_mode, call_op<F>> : call_op<F>
+        {
+            static_assert(is_assumed_portable<F>,
+                          "wsl::portable : une fonction de l'utilisateur doit être signée wsl::assume_portable(f), "
+                          "la garantie reposant sur son corps (design/interfaces.md, décision 25)");
+            constexpr moded_op() = default;
+            constexpr explicit moded_op(call_op<F> op) : call_op<F>(std::move(op)) {}
         };
 
         // Barrière sur un paquet de voies : comme wsl::special::detail::opaque, mais un
@@ -172,7 +178,7 @@ namespace wsl
         constexpr auto operator()(T const& x) const                                                                    \
         {                                                                                                              \
             static_assert(sizeof(T) == 0, "wsl::mdarray : " #name " n'est pas couverte par wsl::special : pas de mode " \
-                                          "reproductible pour elle (I9) ; wsl::fast(…) pour la calculer");             \
+                                          "portable pour elle (I9) ; wsl::deterministic(…) pour la calculer");             \
             return x;                                                                                                  \
         }                                                                                                              \
     };
@@ -209,8 +215,8 @@ namespace wsl
 #undef WSL_MDARRAY_REPRODUCIBLE_BINARY
 #undef WSL_MDARRAY_REPRODUCIBLE_UNCOVERED
 
-        // Une opération déjà dans un mode le garde (wsl::fast dans une instruction
-        // reproductible, et inversement).
+        // Une opération déjà dans un mode le garde (wsl::deterministic dans une instruction
+        // portable, et inversement).
         template <class Mode, class Op>
         struct mode_of_op
         {
@@ -297,7 +303,7 @@ namespace wsl
                 return true;
         }
 
-        using default_mode_t = std::conditional_t<WSL_MDARRAY_REPRODUCIBLE != 0, reproducible_mode, fast_mode>;
+        using default_mode_t = default_reproducibility;
 
         // Mode par défaut d'une instruction non marquée.
         template <class T>
@@ -310,20 +316,13 @@ namespace wsl
         }
     }
 
-    // wsl::fast(e), wsl::reproducible(e) : le mode d'une expression (I9).
-    template <class E>
+    // wsl::deterministic(e), wsl::portable(e) : le mode d'une expression (I9), par les
+    // étiquettes de <wsl/modes>, qui appellent apply_mode.
+    template <reproducibility_mode M, class E>
         requires(detail::mdarray::expression<E> || detail::mdarray::indexed<E>)
-    constexpr auto fast(E&& e)
+    constexpr auto apply_mode(M, E&& e)
     {
         static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2)");
-        return detail::mdarray::with_mode<detail::mdarray::fast_mode>(std::move(e));
-    }
-
-    template <class E>
-        requires(detail::mdarray::expression<E> || detail::mdarray::indexed<E>)
-    constexpr auto reproducible(E&& e)
-    {
-        static_assert(!std::is_lvalue_reference_v<E>, "wsl::mdarray : une expression ne se garde pas (L2)");
-        return detail::mdarray::with_mode<detail::mdarray::reproducible_mode>(std::move(e));
+        return detail::mdarray::with_mode<M>(std::move(e));
     }
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Étendues d'un tableau multidimensionnel : l'ensemble d'indices
 // E = [0, n₁) × ⋯ × [0, n_N) (design/mdarray.md, A5, I2).
 //
@@ -21,7 +23,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     using std::dynamic_extent;
 

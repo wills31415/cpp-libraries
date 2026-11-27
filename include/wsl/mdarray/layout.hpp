@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Dispositions : correspondance entre une position et une place en mémoire
 // (design/mdarray.md, A5). Noms et sémantique de <mdspan> (C++23) : layout_right
 // (ligne majeure, le dernier indice varie le plus vite), layout_left (colonne
@@ -14,7 +16,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     struct layout_right
     {

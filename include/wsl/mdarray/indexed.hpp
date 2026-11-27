@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Monde des axes (design/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10, I12) :
 //
 //   c[i, k] = a[i, j] * b[j, k];          // j absent à gauche : sommé (V3)
@@ -40,7 +42,7 @@
 #    pragma clang diagnostic ignored "-Wpass-failed"
 #endif
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {

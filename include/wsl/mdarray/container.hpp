@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Tableau multidimensionnel possédant ses éléments (design/mdarray.md, I13) : la
 // sémantique de std::mdarray proposée (P1684), valeur (copie profonde).
 //
@@ -39,7 +41,7 @@
 #    pragma clang diagnostic ignored "-Wpass-failed"
 #endif
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {

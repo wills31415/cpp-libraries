@@ -1,11 +1,13 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Listes de types, pour l'algèbre des axes à la compilation (design/mdarray.md, I5).
 
 #include <cstddef>
 #include <type_traits>
 
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     template <class... T>
     struct tlist

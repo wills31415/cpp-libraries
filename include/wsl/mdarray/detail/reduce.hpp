@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Ordre fixé des sommes et produits flottants (design/mdarray.md, I9) : par paires,
 // comme NumPy (pairwise_sum) — en dessous de 8 termes, dans l'ordre ; jusqu'à 128,
 // 8 accumulateurs entrelacés combinés ((r₀ + r₁) + (r₂ + r₃)) + ((r₄ + r₅) + (r₆ + r₇)),
@@ -10,7 +12,7 @@
 
 #include <wsl/mdarray/detail/expression_base.hpp>
 
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     template <class T, class X, class Op>
     constexpr T pairwise_split(X const& x, std::size_t begin, std::size_t end, T identity, Op op);

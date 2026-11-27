@@ -147,17 +147,22 @@ define_property(TARGET PROPERTY WSL_STANDARD
 # Anciennes bibliothèques (array2d, graded, graded_io, elo, progress) : dans legacy/,
 # figées, ni construites ni installées, en attendant leur refonte (design/interfaces.md,
 # décision 36).
+wsl_add_library(modes        STANDARD 23)
 wsl_add_library(special      STANDARD 23)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
-wsl_add_library(mdarray      STANDARD 23 DEPENDS special)
+wsl_add_library(mdarray      STANDARD 23 DEPENDS modes special)
 wsl_finalize_libraries()
-# Mode de calcul flottant des instructions non marquées de wsl::mdarray (design/mdarray.md,
-# I9) : rapide par défaut ; reproductible au bit près partout si ON. Transmis à tout le
-# projet consommateur (une même valeur partout : règle de définition unique).
-option(WSL_MDARRAY_REPRODUCIBLE "wsl::mdarray : mode reproductible par défaut" OFF)
-if(WSL_MDARRAY_REPRODUCIBLE)
-    target_compile_definitions(wsl_mdarray INTERFACE WSL_MDARRAY_REPRODUCIBLE=1)
+# Défauts des modes de tout le projet (design/interfaces.md, décisions 26 et 27) : une option
+# globale peut renforcer une garantie, jamais l'affaiblir. Transmis à tout consommateur (une
+# même valeur partout ; un mélange devient une erreur d'édition de liens, <wsl/modes>).
+option(WSL_PORTABLE "Calculs portables par défaut (mêmes bits sur toute configuration)" OFF)
+option(WSL_EXACT "Algorithmes exacts par défaut" OFF)
+if(WSL_PORTABLE)
+    target_compile_definitions(wsl_modes INTERFACE WSL_PORTABLE=1)
+endif()
+if(WSL_EXACT)
+    target_compile_definitions(wsl_modes INTERFACE WSL_EXACT=1)
 endif()
 
 # Bibliothèques dont on construit les tests et exemples (toutes, sauf en CI).

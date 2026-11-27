@@ -1,10 +1,10 @@
 // Étiquettes : modes
-// wsl::mdarray, mode reproductible par défaut (WSL_MDARRAY_REPRODUCIBLE, I9) : sans
-// marque, les instructions sont reproductibles, même empreinte que wsl::reproducible ;
-// wsl::fast(…) reste possible. (Un exécutable à part : le mode par défaut doit être le
+// wsl::mdarray, mode reproductible par défaut (WSL_PORTABLE, I9) : sans
+// marque, les instructions sont reproductibles, même empreinte que wsl::portable ;
+// wsl::deterministic(…) reste possible. (Un exécutable à part : le mode par défaut doit être le
 // même dans tout un programme.)
 
-#define WSL_MDARRAY_REPRODUCIBLE 1
+#define WSL_PORTABLE 1
 #include "modes_common.hpp"
 
 #include <cinttypes>

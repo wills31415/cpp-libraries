@@ -179,9 +179,10 @@ confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ;
 - ~~Paquet `find_package(wsl)`, options `WSL_*`, cibles, tests rangés (permutation, mdarray),
   étiquettes, contrôle des inclusions~~ : fait (étape 2) ; `WSL_PORTABLE` et `WSL_EXACT` viennent
   avec l'étape 3. cpp-init garde `wsl_libraries` tant que le dernier tag est `v0.1.0`.
-- Modes (24 à 27) : `wsl::fast` et `wsl::random::fast` disparaissent, `wsl::reproducible`
-  devient `wsl::portable`, `approximate` par défaut, `wsl::provides`, `wsl::assume_portable`,
-  espace de noms en ligne du défaut.
+- ~~Modes (24 à 27) : `<wsl/modes>`, mdarray adapté~~ : fait (étape 3). Restent avec leur
+  découpage : `wsl::random::fast` et `sampling` (étape 5, `approximate` par défaut) ; special
+  et random entreront dans l'espace de noms en ligne du défaut (`namespace
+  wsl::inline WSL_DEFAULTS…`, générateurs de tables compris) aux étapes 4 et 5.
 - Découpage de special et random selon les domaines (`floating_point_arithmetic`,
   `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`) ; carte : décision 37 ;
   audit de chaque `fmul` en `fpa::mul` (selon le mode) ou `fpa::unfused_mul` (justesse) : décision 38.

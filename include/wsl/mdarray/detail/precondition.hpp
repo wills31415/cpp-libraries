@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Préconditions de wsl::mdarray (design/mdarray.md, P3) : aucune vérification en
 // Release, arrêt avec message quand NDEBUG n'est pas défini, choix forcé par
 // WSL_ASSERTIONS (0 ou 1) ; toujours vérifiées en évaluation constante, où une
@@ -19,7 +21,7 @@
 #    endif
 #endif
 
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     // Non constexpr exprès : l'appeler pendant une évaluation constante la rend
     // invalide, d'où l'erreur de compilation.

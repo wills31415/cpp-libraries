@@ -1,12 +1,14 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Marqueur commun des expressions paresseuses (design/mdarray.md, V8, L2).
 
 #include <concepts>
 #include <cstddef>
 #include <type_traits>
 
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     struct expression_tag
     {

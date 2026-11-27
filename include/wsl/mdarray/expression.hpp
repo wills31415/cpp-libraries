@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Monde des tableaux entiers (design/mdarray.md, V8, I6, I11, I13) : opérations terme
 // à terme, paresseuses, sur des opérandes de même forme ; un scalaire se diffuse.
 //
@@ -31,7 +33,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {

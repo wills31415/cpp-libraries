@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Parcours interne de toutes les positions d'un ensemble d'indices, en ordre
 // lexicographique (ligne majeure), dernier indice dans la boucle intérieure.
 
@@ -8,7 +10,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     // f(i₀, i₁, …) pour chaque position de e ; s'arrête et rend faux dès que f
     // rend faux (f peut aussi rendre void).

@@ -72,7 +72,7 @@ namespace modes
         return f.h;
     }
 
-    inline auto reproducible = [](auto&& e) { return wsl::reproducible(std::move(e)); };
-    inline auto fast = [](auto&& e) { return wsl::fast(std::move(e)); };
+    inline auto reproducible = [](auto&& e) { return wsl::portable(std::move(e)); };
+    inline auto fast = [](auto&& e) { return wsl::deterministic(std::move(e)); };
     inline auto unmarked = [](auto&& e) { return std::move(e); };
 }

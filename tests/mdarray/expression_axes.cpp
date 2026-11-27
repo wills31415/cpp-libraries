@@ -286,35 +286,35 @@ namespace
             x[q] = 1 / (3.0 + q);
 
         // Produit matrice × vecteur, produit matriciel.
-        y1[i] = wsl::reproducible(A[i, j] * x[j]);
-        y2[i] = wsl::reproducible((A * 1.0)[i, j] * x[j]);
+        y1[i] = wsl::portable(A[i, j] * x[j]);
+        y2[i] = wsl::portable((A * 1.0)[i, j] * x[j]);
         assert(same_bits(y1, y2));
         M C1(n, 5), C2(n, 5);
-        C1[i, k] = wsl::reproducible(A[i, j] * B[j, k]);
-        C2[i, k] = wsl::reproducible(A[i, j] * (B * 1.0)[j, k]);
+        C1[i, k] = wsl::portable(A[i, j] * B[j, k]);
+        C2[i, k] = wsl::portable(A[i, j] * (B * 1.0)[j, k]);
         assert(same_bits(C1, C2));
 
         // Voies sans somme, pour un produit reproductible : y[i] = a x[i] + y[i].
         V z1(n), z2(n);
         for (std::size_t q = 0; q < n; ++q)
             z1[q] = z2[q] = 0.25 * q;
-        z1[i] = wsl::reproducible(2.5 * x[i] + z1[i] * x[i]);
-        z2[i] = wsl::reproducible(2.5 * (x * 1.0)[i] + z2[i] * x[i]);
+        z1[i] = wsl::portable(2.5 * x[i] + z1[i] * x[i]);
+        z2[i] = wsl::portable(2.5 * (x * 1.0)[i] + z2[i] * x[i]);
         assert(same_bits(z1, z2));
 
         // Voies : 21 colonnes (deux paquets de 8 et un reste), valeurs d'axes, position fixe,
         // scalaire, cible relue.
         M B21(n, 21), E1(n, 21), E2(n, 21);
         fill2(B21, [](double r, double c) { return 1 / (2 + r + 0.5 * c); });
-        E1[i, k] = wsl::reproducible((A[i, j] + k) * B21[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
-        E2[i, k] = wsl::reproducible((A[i, j] + k) * (B21 * 1.0)[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
+        E1[i, k] = wsl::portable((A[i, j] + k) * B21[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
+        E2[i, k] = wsl::portable((A[i, j] + k) * (B21 * 1.0)[j, k] * 2.5 + i + A[3, j] * B21[j, k]);
         assert(same_bits(E1, E2));
-        E1[i, k] = wsl::reproducible(A[i, j] * B21[j, k] + E1[i, k]);
-        E2[i, k] = wsl::reproducible(A[i, j] * (B21 * 1.0)[j, k] + E2[i, k]);
+        E1[i, k] = wsl::portable(A[i, j] * B21[j, k] + E1[i, k]);
+        E2[i, k] = wsl::portable(A[i, j] * (B21 * 1.0)[j, k] + E2[i, k]);
         assert(same_bits(E1, E2));
         M Q1(n, 21), Q2(n, 21);
-        Q1[i, k] = wsl::reproducible(wsl::kronecker(i, k) * B21[j, k] * x[j]);
-        Q2[i, k] = wsl::reproducible(wsl::kronecker(i, k) * (B21 * 1.0)[j, k] * x[j]);
+        Q1[i, k] = wsl::portable(wsl::kronecker(i, k) * B21[j, k] * x[j]);
+        Q2[i, k] = wsl::portable(wsl::kronecker(i, k) * (B21 * 1.0)[j, k] * x[j]);
         assert(same_bits(Q1, Q2));
 
         // Découpage du cache le long de l'axe sommé (plus de 128 termes : tranches de la
@@ -322,22 +322,22 @@ namespace
         M A300(37, 300), B300(300, 21), G1(37, 21), G2(37, 21);
         fill2(A300, [](double r, double c) { return 1 / (1 + r + 0.25 * c); });
         fill2(B300, [](double r, double c) { return std::sqrt(2 + r + c); });
-        G1[i, k] = wsl::reproducible(A300[i, j] * B300[j, k]);
-        G2[i, k] = wsl::reproducible(A300[i, j] * (B300 * 1.0)[j, k]);
+        G1[i, k] = wsl::portable(A300[i, j] * B300[j, k]);
+        G2[i, k] = wsl::portable(A300[i, j] * (B300 * 1.0)[j, k]);
         assert(same_bits(G1, G2));
         V w300(300);
         for (std::size_t q = 0; q < 300; ++q)
             w300[q] = 1 / (7.0 + q);
-        G1[i, k] = wsl::reproducible(A300[i, j] * w300[j] * B300[j, k]); // w[j] recopié aussi
-        G2[i, k] = wsl::reproducible(A300[i, j] * w300[j] * (B300 * 1.0)[j, k]);
+        G1[i, k] = wsl::portable(A300[i, j] * w300[j] * B300[j, k]); // w[j] recopié aussi
+        G2[i, k] = wsl::portable(A300[i, j] * w300[j] * (B300 * 1.0)[j, k]);
         assert(same_bits(G1, G2));
         T3 X(3, 5, 300), H1(3, 5, 21), H2(3, 5, 21);
         for (std::size_t a = 0; a < 3; ++a)
             for (std::size_t b = 0; b < 5; ++b)
                 for (std::size_t c = 0; c < 300; ++c)
                     X[a, b, c] = 1 / (1.0 + a + 2 * b + 0.5 * c);
-        H1[p, i, k] = wsl::reproducible(X[p, i, j] * B300[j, k]);
-        H2[p, i, k] = wsl::reproducible(X[p, i, j] * (B300 * 1.0)[j, k]);
+        H1[p, i, k] = wsl::portable(X[p, i, j] * B300[j, k]);
+        H2[p, i, k] = wsl::portable(X[p, i, j] * (B300 * 1.0)[j, k]);
         assert(same_bits(H1, H2));
 
         // Somme le long de deux axes (indice aplati, 12 × 25 = 300 termes) : pas cohérents,
@@ -355,15 +355,15 @@ namespace
                 for (std::size_t c = 0; c < 21; ++c)
                     t[a, b, c] = std::sqrt(1.0 + a + 2 * b + 3 * c);
             }
-        c1[p, l] = wsl::reproducible(gij[p, i, j] * t[i, j, l]);
-        c2[p, l] = wsl::reproducible(gij[p, i, j] * (t * 1.0)[i, j, l]);
+        c1[p, l] = wsl::portable(gij[p, i, j] * t[i, j, l]);
+        c2[p, l] = wsl::portable(gij[p, i, j] * (t * 1.0)[i, j, l]);
         assert(same_bits(c1, c2));
-        c1[p, l] = wsl::reproducible(gij[p, i, j] * uj[j, i] * t[i, j, l]);
-        c2[p, l] = wsl::reproducible(gij[p, i, j] * uj[j, i] * (t * 1.0)[i, j, l]);
+        c1[p, l] = wsl::portable(gij[p, i, j] * uj[j, i] * t[i, j, l]);
+        c2[p, l] = wsl::portable(gij[p, i, j] * uj[j, i] * (t * 1.0)[i, j, l]);
         assert(same_bits(c1, c2));
         // Valeur d'axe dans le corps : somme non aplatie.
-        c1[p, l] = wsl::reproducible(gij[p, i, j] * t[i, j, l] * (j + 1));
-        c2[p, l] = wsl::reproducible(gij[p, i, j] * (t * 1.0)[i, j, l] * (j + 1));
+        c1[p, l] = wsl::portable(gij[p, i, j] * t[i, j, l] * (j + 1));
+        c2[p, l] = wsl::portable(gij[p, i, j] * (t * 1.0)[i, j, l] * (j + 1));
         assert(same_bits(c1, c2));
 
         // Dispositions layout_left et layout_stride (une colonne sur deux).
@@ -373,8 +373,8 @@ namespace
         wsl::mdspan<double, D2, wsl::layout_left> L(buffer.data(), n, 5);
         wsl::mdspan<double, D2, wsl::layout_stride> S(buffer.data(), wsl::layout_stride::mapping<D2>(D2(n, 5), std::array{2, 2 * int(n)}));
         V u(5), v1(5), v2(5);
-        u[i] = wsl::reproducible(L[j, i] * x[j]);
-        v1[i] = wsl::reproducible(S[j, i] * x[j]);
+        u[i] = wsl::portable(L[j, i] * x[j]);
+        v1[i] = wsl::portable(S[j, i] * x[j]);
         for (std::size_t c = 0; c < 5; ++c)
         {
             double sl = 0, ss = 0;
@@ -385,17 +385,17 @@ namespace
             }
             assert((close(u[c], sl) && close(v1[c], ss)));
         }
-        v2[i] = wsl::reproducible((S * 1.0)[j, i] * x[j]);
+        v2[i] = wsl::portable((S * 1.0)[j, i] * x[j]);
         assert(same_bits(v1, v2));
 
         // Position fixe, diagonale, deux axes sommés, valeurs d'axes, δ.
-        double const row = wsl::reproducible(A[2, j] * x[j]);
-        assert(row == wsl::reproducible((A * 1.0)[2, j] * x[j]));
+        double const row = wsl::portable(A[2, j] * x[j]);
+        assert(row == wsl::portable((A * 1.0)[2, j] * x[j]));
         V d(n);
         d[i] = A[i, i];
         assert((d[7] == A[7, 7]));
-        double const frobenius = wsl::reproducible(C1[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
-        double const reference = wsl::reproducible((C1 * 1.0)[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
+        double const frobenius = wsl::portable(C1[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
+        double const reference = wsl::portable((C1 * 1.0)[i, k] * B[i, k] + 0 * B[i, k] * B[i, k]);
         assert(frobenius == reference);
         double const moment = x[i] * i;
         double hand = 0;
@@ -419,17 +419,17 @@ namespace
                     g[q, r, t] = gd[q, r, t] = r == t ? 1 + 0.1 * q : 0.1 * (r + t);
             }
         V n1(P), n2(P), n3(P);
-        n1[p] = wsl::reproducible(g[p, i, j] * w[p, i] * w[p, j]);
-        n2[p] = wsl::reproducible(gd[p, i, j] * wd[p, i] * wd[p, j]);
-        n3[p] = wsl::reproducible((gd * 1.0)[p, i, j] * wd[p, i] * wd[p, j]);
+        n1[p] = wsl::portable(g[p, i, j] * w[p, i] * w[p, j]);
+        n2[p] = wsl::portable(gd[p, i, j] * wd[p, i] * wd[p, j]);
+        n3[p] = wsl::portable((gd * 1.0)[p, i, j] * wd[p, i] * wd[p, j]);
         assert((same_bits(n1, n2) && same_bits(n2, n3)));
 
         // Réductions explicites, cible relue, longueur nulle.
         V m1(n), s1(n), s2(n);
         m1[i] = wsl::max(j)(A[i, j]);
         assert((m1[4] == A[4, 0]));
-        s1[i] = wsl::reproducible(wsl::sum(j)(A[i, j] * x[j]));
-        s2[i] = wsl::reproducible(A[i, j] * x[j]);
+        s1[i] = wsl::portable(wsl::sum(j)(A[i, j] * x[j]));
+        s2[i] = wsl::portable(A[i, j] * x[j]);
         assert(same_bits(s1, s2));
         y1[i] = 2 * x[i] + y1[i];
         assert((y1[5] == 3 * x[5]));

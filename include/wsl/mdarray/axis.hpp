@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Axes (design/mdarray.md, L1) : un nom pour toutes les positions d'une dimension.
 //
 //   auto i = wsl::axis();                       // un axe
@@ -23,7 +25,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     namespace detail::mdarray
     {

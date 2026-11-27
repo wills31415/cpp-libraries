@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Positions et déplacements dans un tableau multidimensionnel (design/mdarray.md, §4).
 //
 //   wsl::mdposition p{2, 1};                     // mdposition<2> en std::size_t
@@ -31,7 +33,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     template <std::size_t N, class IndexType = std::size_t>
     class mdposition;
@@ -730,7 +732,7 @@ struct std::hash<wsl::mddisplacement<N, D>>
 };
 
 // Formatage (D27) : « (2, 1) », les options s'appliquent à chaque composante.
-namespace wsl::detail::mdarray
+namespace wsl::inline WSL_DEFAULTS::detail::mdarray
 {
     template <class Tuple, class T>
     struct tuple_formatter

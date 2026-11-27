@@ -9,7 +9,7 @@
 // monde des tableaux entiers (opérations terme à terme, fonctions, vectorize,
 // masques, where, réductions sum, prod, min, max, argmin, argmax, all, any, count) ;
 // monde des axes (m[i, j], convention « le membre de gauche décide », réducteurs sum(j)(…)) ;
-// modes rapide et reproductible (wsl::fast, wsl::reproducible).
+// modes déterministe et portable (wsl::deterministic, wsl::portable).
 
 #include <wsl/mdarray/axis.hpp>
 #include <wsl/mdarray/container.hpp>

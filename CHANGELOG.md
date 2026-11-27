@@ -7,6 +7,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Nouvel en-tête de vocabulaire `<wsl/modes>` (cible `wsl::modes`, design/interfaces.md,
+  décisions 24 à 27) : étiquettes `wsl::deterministic`, `wsl::portable`, `wsl::approximate`,
+  `wsl::exact`, en argument ou en enveloppe ; concepts `reproducibility_mode`,
+  `algorithm_mode`, `mode` ; défauts `wsl::default_reproducibility` et
+  `wsl::default_algorithm` (options CMake `WSL_PORTABLE`, `WSL_EXACT`), placés dans un espace
+  de noms en ligne qui en porte le nom ; trait `wsl::provides<F, M>` ; signature
+  `wsl::assume_portable(f)`.
 - Rupture : le paquet s'appelle `wsl` (`find_package(wsl)`, `FetchContent_Declare(wsl …)`),
   la cible de tout le dépôt `wsl::wsl` (au lieu de `wsl_libraries` et `wsl::libraries`), et
   les options CMake perdent leur préfixe `LIBRARIES_` : `WSL_BUILD_TESTS`,
@@ -39,6 +46,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   la revue des interfaces (design/interfaces.md).
 
 ### mdarray
+
+- Rupture : modes renommés (design/interfaces.md, décision 24) : `wsl::reproducible(…)` devient
+  `wsl::portable(…)`, `wsl::fast(…)` devient `wsl::deterministic(…)`, le mode par défaut se
+  règle par `WSL_PORTABLE` (au lieu de `WSL_MDARRAY_REPRODUCIBLE`). Une fonction de
+  l'utilisateur dans une expression portable doit être signée `wsl::assume_portable(f)`,
+  sinon refusée à la compilation (décision 25). Le code de mdarray vit dans l'espace de noms
+  en ligne du défaut (`wsl::deterministic_approximate`…, décision 26), invisible à l'usage.
 
 - Nouvelle bibliothèque (conception : design/mdarray.md), lot 1 en cours. Positions
   `mdposition<N, IndexType = std::size_t>` et déplacements `mddisplacement<N, DiffType =

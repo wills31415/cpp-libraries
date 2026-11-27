@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Vue multidimensionnelle (design/mdarray.md, A5) : noms et sémantique de
 // std::mdspan (C++23), ajouts seulement :
 //   m[p] avec p un wsl::mdposition (L4) ; m.at(…) toujours vérifié,
@@ -24,7 +26,7 @@
 #    include <mdspan>
 #endif
 
-namespace wsl
+namespace wsl::inline WSL_DEFAULTS
 {
     template <class ElementType>
     struct default_accessor
