@@ -165,6 +165,11 @@ mathématiques d'ici (docs/algebra.md). Aucun projet ne combine aujourd'hui les 
 
 ## Refonte à faire (décidée, pas encore exécutée)
 
+Ordre (validé le 2026-11-28, exécuté en autonomie) : 0 prototype (relais sans extension,
+cibles ; arrêt s'il échoue) ; 1 rangement (`legacy/`, `dlist`, `docs/` → `design/`, cpp-init :
+confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ; 3 modes ;
+4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md.
+
 - Organisation (décision 32) : `include/wsl/`, `docs/` (guides, `README.md` par dossier),
   `examples/<domaine>/`, `tests/` (sans préfixe, nom dérivé du chemin, dossier dès deux
   batteries, étiquettes de nature et `long`), `tools/`, `design/` (conception et charte).
