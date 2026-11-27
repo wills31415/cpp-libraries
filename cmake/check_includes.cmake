@@ -8,14 +8,21 @@
 # DATA, écrit par wsl_finalize_libraries() : une ligne par bibliothèque,
 #     nom|chemin|dépendances séparées par des virgules|en-têtes (wsl/…) séparés par des virgules
 
+# En mode script, sans version minimale, CMake 3.28 garde l'ancien sens de IN_LIST.
+cmake_minimum_required(VERSION 3.28)
+
 file(STRINGS ${DATA} lines)
 set(names "")
 foreach(line IN LISTS lines)
-    string(REPLACE "|" ";" fields "${line}")
-    list(GET fields 0 name)
-    list(GET fields 1 path)
-    list(GET fields 2 dependencies)
-    list(GET fields 3 headers)
+    # Une expression régulière plutôt que list(GET) : un champ vide (aucune dépendance)
+    # disparaîtrait d'une liste sous CMake 3.28.
+    if(NOT line MATCHES "^([^|]*)\\|([^|]*)\\|([^|]*)\\|(.*)$")
+        message(FATAL_ERROR "${DATA} : ligne illisible « ${line} »")
+    endif()
+    set(name "${CMAKE_MATCH_1}")
+    set(path "${CMAKE_MATCH_2}")
+    set(dependencies "${CMAKE_MATCH_3}")
+    set(headers "${CMAKE_MATCH_4}")
     string(REPLACE "::" "__" id "${name}")
     string(REPLACE "," ";" dependencies "${dependencies}")
     string(REPLACE "," ";" headers "${headers}")
