@@ -9,9 +9,10 @@
 # toutes celles qui en dépendent (DEPENDS de wsl_add_library). Les exemples modifiés
 # sont rendus dans <variable>_EXAMPLES.
 #
-# Correspondance : include/wsl/<nom>.hpp et include/wsl/<nom>/ -> <nom> ;
-# tools/<nom>/ -> <nom> ; tests/test_<nom>[_…].cpp ou .hpp -> la plus longue bibliothèque
-# préfixe ; tests/compile_fail/<nom>/ -> <nom> ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
+# Correspondance : include/wsl/<chemin> et tests/<chemin> -> la bibliothèque la plus
+# profonde dont le chemin relève (wsl_owner, décision 32) ; tools/<nom>/ -> <nom> ;
+# tests/test_<nom>[_…].cpp ou .hpp (special et random, jusqu'à leur découpage) -> la plus
+# longue bibliothèque préfixe ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
 # -> random ; tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
 # exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
 # (CMakeLists.txt, cmake/, presets, .github/…) -> ALL.
@@ -41,8 +42,8 @@ function(wsl_affected_libraries file variable)
             continue()
         endif()
         set(library "")
-        if(path MATCHES "^include/wsl/([a-z0-9_]+)(\\.hpp|/)")
-            set(library ${CMAKE_MATCH_1})
+        if(path MATCHES "^include/wsl/(.+)$")
+            wsl_owner(${CMAKE_MATCH_1} library)
         elseif(path MATCHES "^tools/([a-z0-9_]+)/")
             set(library ${CMAKE_MATCH_1})
         elseif(path MATCHES "^tests/test_([a-z0-9_]+)\\.(cpp|hpp)$")
@@ -56,9 +57,13 @@ function(wsl_affected_libraries file variable)
                     set(length ${candidate_length})
                 endif()
             endforeach()
-        elseif(path MATCHES "^tests/compile_fail/([a-z0-9_]+)/")
-            set(library ${CMAKE_MATCH_1})
-        elseif(path MATCHES "^tests/special_contraction/")
+        elseif(path MATCHES "^tests/(special_contraction/|random_engine_vectors)")
+            # voir plus bas
+        elseif(path MATCHES "^tests/(.+)\\.(cpp|hpp)$")
+            # Tests rangés comme les espaces de noms (décision 32).
+            wsl_owner(${CMAKE_MATCH_1} library)
+        endif()
+        if(library STREQUAL "" AND path MATCHES "^tests/special_contraction/")
             set(library special)
         elseif(path STREQUAL "tests/random_engine_vectors.hpp")
             set(library random)
@@ -83,7 +88,8 @@ function(wsl_affected_libraries file variable)
             if(library IN_LIST affected)
                 continue()
             endif()
-            get_property(dependencies GLOBAL PROPERTY WSL_DEPENDS_${library})
+            wsl_library_id(${library} id)
+            get_property(dependencies GLOBAL PROPERTY WSL_DEPENDS_${id})
             foreach(dependency IN LISTS dependencies)
                 if(dependency IN_LIST affected)
                     list(APPEND affected ${library})

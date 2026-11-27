@@ -142,5 +142,5 @@ namespace
 int main()
 {
     runtime();
-    std::puts("test_mdarray_container : OK");
+    std::puts("mdarray.container : OK");
 }

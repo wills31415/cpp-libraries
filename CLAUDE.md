@@ -3,7 +3,7 @@
 Grande bibliothèque scientifique C++23 en en-têtes seuls (mathématiques, physique, calcul
 scientifique, et leurs fondations : mdarray, hasard, fonctions spéciales…), espace de noms
 `wsl` (**nom provisoire**, à remplacer avant la première version stable), paquet CMake
-`wsl_libraries` (cibles `wsl::<nom>`) jusqu'à la refonte. Identité : design/interfaces.md,
+`wsl` (cibles `wsl::<espace de noms>`, `wsl::wsl` pour tout ; `v0.1.0` : `wsl_libraries`). Identité : design/interfaces.md,
 décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 
 ## Règles
@@ -44,7 +44,7 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Publication : `tools/release.sh X.Y.Z` (voir README). Ne publier, pousser ou
   taguer qu'à la demande de l'utilisateur.
 - CI (`.github/workflows/ci.yml`) : GCC 14 et Clang 18 (Ubuntu 24.04) et Apple Clang
-  (macOS), Debug (-O1, ASan + UBSan) + Release, configurations FMA en Release seulement, `-DWSL_LIBRARIES_WERROR=ON`, plus `tests/package/`.
+  (macOS), Debug (-O1, ASan + UBSan) + Release, configurations FMA en Release seulement, `-DWSL_WERROR=ON`, plus `tests/package/`.
   Reproduire la partie Linux en local : conteneur `ubuntu:24.04` avec
   `cmake make g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
   Y compiler les tests **optimisés** (`-O2`, comme les jobs release) : certains
@@ -52,7 +52,7 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   `-fsyntax-only` ne suffit pas.
 - La CI ne compile et ne teste que ce qu'un push peut avoir changé : chemins modifiés
   depuis le dernier passage réussi (`tools/ci/changed_files.sh`), bibliothèques touchées
-  et celles qui en dépendent (`cmake/affected.cmake`, option `WSL_LIBRARIES_AFFECTED_BY`) ;
+  et celles qui en dépendent (`cmake/affected.cmake`, option `WSL_AFFECTED_BY`) ;
   documentation seule (`cmake/ci_ignored_paths.txt`) : rien ; infrastructure, tag,
   lancement manuel, passage hebdomadaire : tout. Une nouvelle bibliothèque est reconnue
   par ses chemins (`include/wsl/<nom>…`, `tools/<nom>/`, `tests/test_<nom>…`).
@@ -62,9 +62,10 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 ## Commandes
 
 - Compiler : `cmake --preset debug && cmake --build --preset debug -j`
-- Tests : `ctest --preset debug` (ASan + UBSan) ; `ctest --preset release` (8 tests en
-  parallèle ; la suite complète en séquentiel : près de 3 min en release, bien plus en
-  debug, où les tests de `wsl::random` prennent 30 à 90 s chacun)
+- Tests : `ctest --preset debug` (ASan + UBSan, sans les tests étiquetés `long`) ;
+  `ctest --preset release` (8 tests en parallèle, tous) ; `ctest -L precision`, `-R mdarray`…
+  Noms et étiquettes : tests rangés comme les espaces de noms (`tests/mdarray/axis.cpp` →
+  `mdarray.axis`), étiquettes en tête du fichier (`// Étiquettes : precision long`).
 - Vérification rapide : `tools/check.sh [release|fma|debug]…` (par défaut release et fma)
   ne compile et ne teste que les bibliothèques touchées depuis le dernier push (même règle
   que la CI, `cmake/affected.cmake`), dans `build/check-<configuration>` ; `--all` pour
@@ -144,7 +145,7 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   `DEPENDS`, p. ex. `graded_io` → `graded`).
 - `tests/test_<nom>.cpp` : `test_<nom>`, en C++23 (une variante `_cxx20` par standard
   inférieur supporté, aucune aujourd'hui).
-- `examples/*.cpp` : un exécutable chacun, lié à `wsl::libraries`.
+- `examples/*.cpp` : un exécutable chacun, lié à `wsl::wsl`.
 - Compilateur imposé : `/usr/bin/clang++` (miniconda est en tête du PATH).
 
 ## Provenance
@@ -175,8 +176,9 @@ confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ;
 - Chemins d'après les espaces de noms (29) ; relais sans extension engendrés par CMake, après
   un prototype qui étend `tests/package/` (30) ; cibles nommées par l'espace de noms,
   `wsl::wsl` pour tout, contrôle des inclusions en CI (31).
-- Paquet `find_package(wsl)`, options et macros `WSL_*` (`WSL_PORTABLE`, `WSL_EXACT`,
-  `WSL_WERROR`, `WSL_AFFECTED_BY`) (33).
+- ~~Paquet `find_package(wsl)`, options `WSL_*`, cibles, tests rangés (permutation, mdarray),
+  étiquettes, contrôle des inclusions~~ : fait (étape 2) ; `WSL_PORTABLE` et `WSL_EXACT` viennent
+  avec l'étape 3. cpp-init garde `wsl_libraries` tant que le dernier tag est `v0.1.0`.
 - Modes (24 à 27) : `wsl::fast` et `wsl::random::fast` disparaissent, `wsl::reproducible`
   devient `wsl::portable`, `approximate` par défaut, `wsl::provides`, `wsl::assume_portable`,
   espace de noms en ligne du défaut.

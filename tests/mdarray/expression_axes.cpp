@@ -1,6 +1,6 @@
 // wsl::mdarray, monde des axes (design/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10 à I12) :
 // les exemples du document, chacun comparé à une boucle écrite à la main. Les refus
-// sont dans tests/compile_fail/mdarray/axes.cpp.
+// sont dans tests/mdarray/compile_fail/axes.cpp.
 
 #include <wsl/mdarray.hpp>
 
@@ -469,5 +469,5 @@ int main()
     fields_and_mechanics();
     strided_access();
     aliasing();
-    std::puts("test_mdarray_expression_axes : OK");
+    std::puts("mdarray.expression_axes : OK");
 }

@@ -103,10 +103,10 @@ jobs:
       - name: Configuration
         run: >
           cmake --preset ${{ matrix.preset }}
-          "-DWSL_LIBRARIES_AFFECTED_BY=${{ runner.temp }}/changed.txt"
+          "-DWSL_AFFECTED_BY=${{ runner.temp }}/changed.txt"
           -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
           "-DCMAKE_CXX_FLAGS=${{ matrix.compiler.flags }}"
-          -DWSL_LIBRARIES_WERROR=ON
+          -DWSL_WERROR=ON
           "-DCMAKE_CXX_FLAGS_DEBUG=-g -O1"
 
       - name: Compilation
@@ -126,7 +126,7 @@ jobs:
       - name: Installation
         run: |
           cmake -S . -B build/install -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release \
-                -DWSL_LIBRARIES_BUILD_TESTS=OFF -DWSL_LIBRARIES_BUILD_EXAMPLES=OFF
+                -DWSL_BUILD_TESTS=OFF -DWSL_BUILD_EXAMPLES=OFF
           cmake --install build/install --prefix "$RUNNER_TEMP/prefix"
 
       - name: find_package

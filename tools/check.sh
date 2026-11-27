@@ -43,10 +43,10 @@ status=0
 for config in "${configs[@]}"; do
     dir=build/check-$config
     case "$config" in
-        release) cmake --preset release -B "$dir" -DWSL_LIBRARIES_AFFECTED_BY="$PWD/$changed" -DCMAKE_CXX_FLAGS="" ;;
-        fma) cmake --preset release -B "$dir" -DWSL_LIBRARIES_AFFECTED_BY="$PWD/$changed" \
+        release) cmake --preset release -B "$dir" -DWSL_AFFECTED_BY="$PWD/$changed" -DCMAKE_CXX_FLAGS="" ;;
+        fma) cmake --preset release -B "$dir" -DWSL_AFFECTED_BY="$PWD/$changed" \
                  -DCMAKE_CXX_FLAGS="-march=native -ffp-contract=fast" ;;
-        debug) cmake --preset debug -B "$dir" -DWSL_LIBRARIES_AFFECTED_BY="$PWD/$changed" -DCMAKE_CXX_FLAGS="" ;;
+        debug) cmake --preset debug -B "$dir" -DWSL_AFFECTED_BY="$PWD/$changed" -DCMAKE_CXX_FLAGS="" ;;
     esac > "$dir.configure.log" 2>&1 || { echo "$config : configuration échouée (voir $dir.configure.log)"; status=1; continue; }
     grep -m1 "Bibliothèques testées" "$dir.configure.log" | sed "s/^-- /$config : /" || true
     if ! cmake --build "$dir" -j "$jobs" > "$dir.build.log" 2>&1; then

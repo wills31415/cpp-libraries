@@ -22,7 +22,7 @@
             "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "WSL_LIBRARIES_SANITIZERS": "ON"
+                "WSL_SANITIZERS": "ON"
             }
         },
         {
@@ -44,6 +44,7 @@
             "displayName": "Debug",
             "configurePreset": "debug",
             "output": { "outputOnFailure": true },
+            "filter": { "exclude": { "label": "long" } },
             "execution": { "jobs": 8 }
         },
         {

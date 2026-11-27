@@ -7,6 +7,18 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Rupture : le paquet s'appelle `wsl` (`find_package(wsl)`, `FetchContent_Declare(wsl …)`),
+  la cible de tout le dépôt `wsl::wsl` (au lieu de `wsl_libraries` et `wsl::libraries`), et
+  les options CMake perdent leur préfixe `LIBRARIES_` : `WSL_BUILD_TESTS`,
+  `WSL_BUILD_EXAMPLES`, `WSL_SANITIZERS`, `WSL_WERROR`, `WSL_AFFECTED_BY`,
+  `WSL_MDARRAY_REPRODUCIBLE` (design/interfaces.md, décision 33). Les cibles peuvent porter
+  des « :: » (`wsl::random::engines`, décision 31) ; une cible parent inclut ses enfants.
+- Tests rangés comme les espaces de noms et nommés d'après leur chemin
+  (`tests/mdarray/axis.cpp` → `mdarray.axis`, décision 32), avec des étiquettes CTest de
+  nature (`properties`, `precision`, `fingerprints`, `modes`, `compile_fail`) et de coût
+  (`long`, exclu du préréglage debug) ; special et random suivront avec leur découpage.
+- Contrôle des inclusions (`infrastructure.includes`) : chaque `#include <wsl/…>` d'un
+  en-tête relève de sa bibliothèque, d'un de ses enfants ou de ses dépendances.
 - Rupture : `array2d`, `graded`, `graded_io`, `elo` et `progress` quittent le catalogue pour
   `legacy/`, figées (ni construites, ni testées, ni installées) en attendant leur refonte
   (design/interfaces.md, décision 36 ; destinations dans `legacy/README.md`) ; `dlist`

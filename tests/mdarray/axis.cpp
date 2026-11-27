@@ -1,6 +1,6 @@
 // wsl::mdarray, axes (design/mdarray.md, L1) : identité par le type, étiquettes,
 // groupes, axes prédéfinis, absence de copie. Les refus qui sont des erreurs de
-// compilation sont dans tests/compile_fail/mdarray/axis.cpp.
+// compilation sont dans tests/mdarray/compile_fail/axis.cpp.
 
 #include <wsl/mdarray.hpp>
 
@@ -54,6 +54,6 @@ namespace
 int main()
 {
     auto [r1, r2] = wsl::axis<"r1", "r2">();
-    std::printf("test_mdarray_axis : OK (%.*s, %.*s)\n", int(r1.name().size()), r1.name().data(), int(r2.name().size()),
+    std::printf("mdarray.axis : OK (%.*s, %.*s)\n", int(r1.name().size()), r1.name().data(), int(r2.name().size()),
                 r2.name().data());
 }

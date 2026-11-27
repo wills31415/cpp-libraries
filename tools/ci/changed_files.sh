@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Chemins modifiés que la CI doit tester, dans le fichier $1 (un par ligne ; « ALL »
-# pour tout). Lu par CMake (WSL_LIBRARIES_AFFECTED_BY, cmake/affected.cmake).
+# pour tout). Lu par CMake (WSL_AFFECTED_BY, cmake/affected.cmake).
 #
 # - push sur une branche : depuis le dernier passage réussi de la CI sur cette branche
 #   (un push annulé ou en échec est ainsi couvert par le suivant) ; sinon, tout ;

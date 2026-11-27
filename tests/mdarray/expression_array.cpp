@@ -25,7 +25,7 @@ namespace
     concept addable = requires(A a, B b) { a + b; };
 
     // Refus (P2) : rangs ou étendues fixes différents (erreurs de compilation, avec
-    // message : tests/compile_fail/mdarray/expression_array.cpp).
+    // message : tests/mdarray/compile_fail/expression_array.cpp).
     static_assert(addable<M23, M> && addable<M, double> && addable<double, M>);
     static_assert(!addable<wsl::mdposition<2>, M>, "une position n'est pas un scalaire");
     static_assert(!std::is_convertible_v<decltype(std::declval<M>() < std::declval<M>()), bool>, "un masque n'est pas un bool");
@@ -132,5 +132,5 @@ namespace
 int main()
 {
     runtime();
-    std::puts("test_mdarray_expression_array : OK");
+    std::puts("mdarray.expression_array : OK");
 }

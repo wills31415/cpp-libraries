@@ -217,5 +217,5 @@ namespace
 int main()
 {
     runtime();
-    std::puts("test_mdarray_position : OK");
+    std::puts("mdarray.position : OK");
 }

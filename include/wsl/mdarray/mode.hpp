@@ -10,7 +10,7 @@
 // fusionne (barrière de wsl::special), fonctions de wsl::special (bit-exactes,
 // constexpr) ; une fonction que wsl::special ne couvre pas est une erreur de
 // compilation. L'ordre des sommes est fixé dans les deux modes. Mode des instructions
-// non marquées : WSL_MDARRAY_REPRODUCIBLE (option CMake WSL_LIBRARIES_MDARRAY_REPRODUCIBLE
+// non marquées : WSL_MDARRAY_REPRODUCIBLE (option CMake WSL_MDARRAY_REPRODUCIBLE
 // de la cible, la même dans tout le projet ; rapide par défaut).
 
 #include <wsl/mdarray/expression.hpp>

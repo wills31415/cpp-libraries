@@ -1,4 +1,4 @@
-// Calculs communs aux tests des modes (test_mdarray_modes*.cpp) : leur empreinte en
+// Calculs communs aux tests des modes (tests/mdarray/modes*.cpp) : leur empreinte en
 // mode reproductible doit être la même sur toute plateforme, fma comprise (I9).
 #pragma once
 

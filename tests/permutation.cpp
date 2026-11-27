@@ -65,5 +65,5 @@ int main()
     assert(throws([] { wsl::permutation x{0, 0, 1}; }) && throws([] { wsl::permutation x{0, 3}; }));
     assert(throws([] { (void)(wsl::permutation(3) * wsl::permutation(4)); }) && throws([] { (void)wsl::permutation::from_cycles(3, {{0, 1}, {1, 2}}); }));
     assert(throws([] { (void)wsl::permutation(21).lexicographic_rank(); }) && throws([] { (void)wsl::permutation(3).at(3); }));
-    std::printf("test_permutation : ok\n");
+    std::printf("permutation : ok\n");
 }

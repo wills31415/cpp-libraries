@@ -1,8 +1,9 @@
+// Étiquettes : modes
 // wsl::mdarray, modes de calcul (design/mdarray.md, I9) : empreinte du mode
 // reproductible, identique sur toute plateforme et avec toutes les options (fma
 // comprise) ; calcul constexpr avec des fonctions ; mode rapide proche.
 
-#include "test_mdarray_modes_common.hpp"
+#include "modes_common.hpp"
 
 #include <bit>
 #include <cassert>
@@ -58,7 +59,7 @@ int main()
 {
     lanes_match_scalar();
     std::uint64_t const r = modes::compute(modes::reproducible);
-    std::printf("test_mdarray_modes : empreinte reproductible 0x%016" PRIx64 "\n", r);
+    std::printf("mdarray.modes : empreinte reproductible 0x%016" PRIx64 "\n", r);
     // Sans marque : mode rapide par défaut ; résultats proches du mode reproductible.
     (void)modes::compute(modes::unmarked);
     (void)modes::compute(modes::fast);
@@ -67,5 +68,5 @@ int main()
         std::printf("empreinte attendue 0x%016" PRIx64 "\n", expected);
         return 1;
     }
-    std::puts("test_mdarray_modes : OK");
+    std::puts("mdarray.modes : OK");
 }

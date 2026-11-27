@@ -351,8 +351,8 @@ int main()
     runtime();
 #if defined(__cpp_lib_mdspan)
     compare_with_std();
-    std::puts("test_mdarray_mdspan : OK (comparé à std::mdspan)");
+    std::puts("mdarray.mdspan : OK (comparé à std::mdspan)");
 #else
-    std::puts("test_mdarray_mdspan : OK (std::mdspan absent : pas de comparaison)");
+    std::puts("mdarray.mdspan : OK (std::mdspan absent : pas de comparaison)");
 #endif
 }
