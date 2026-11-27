@@ -7,6 +7,19 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Rupture : `wsl::special` est découpée en trois bibliothèques (design/interfaces.md, décision
+  37) : `wsl::floating_point_arithmetic` (primitives flottantes, encore internes),
+  `wsl::elementary_functions` (`sqrt`, `cbrt`, `hypot`, `exp`, `exp2`, `expm1`, `log`, `log2`,
+  `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`) et `wsl::special_functions`
+  (`lgamma`, `tgamma`, `digamma`, `beta`, `lbeta`, `erf`, `erfc`, `erf_inv`, `erfc_inv`,
+  `gamma_p`, `gamma_q` et leurs inverses, `ibeta`, `ibetac` et leurs inverses,
+  `cyl_bessel_i`), une notion par chapitre du DLMF (`<wsl/special_functions/gamma>`…). Leur
+  code vit dans l'espace de noms en ligne du défaut. `<wsl/special>` et la cible
+  `wsl::special` réexportent ces noms sous `wsl::special`, le temps de la refonte de random et
+  de mdarray. Comportement et empreintes inchangés ; tables régénérées (`tools/
+  elementary_functions/generate.py`, identiques hors de leur en-tête). Tests :
+  `special_functions.precision`, `special_functions.fingerprints`,
+  `special_functions.no_contraction`.
 - Nouvel en-tête de vocabulaire `<wsl/modes>` (cible `wsl::modes`, design/interfaces.md,
   décisions 24 à 27) : étiquettes `wsl::deterministic`, `wsl::portable`, `wsl::approximate`,
   `wsl::exact`, en argument ou en enveloppe ; concepts `reproducibility_mode`,

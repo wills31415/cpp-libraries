@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Engendre les tables de wsl::special et les valeurs de référence de ses tests.
 
-    uv run --no-project --with mpmath python tools/special/generate.py --tables
-    uv run --no-project --with mpmath python tools/special/generate.py --references FICHIER
+    uv run --no-project --with mpmath python tools/elementary_functions/generate.py --tables
+    uv run --no-project --with mpmath python tools/elementary_functions/generate.py --references FICHIER
 
 --tables réécrit les tables des en-têtes (versionnées : la bibliothèque en a
 besoin). --references écrit les valeurs de référence des tests dans FICHIER ;
@@ -18,12 +18,12 @@ mesurer l'erreur de nos fonctions au millième d'ulp près.
 Le script est déterministe (graine fixe) : le relancer redonne les mêmes fichiers.
 
 Fichiers engendrés (à ne pas modifier à la main) :
-    include/wsl/special/detail/tables.hpp
-    include/wsl/special/detail/trig_tables.hpp
-    include/wsl/special/detail/erf_tables.hpp
-    include/wsl/special/detail/gamma_tables.hpp
-    include/wsl/special/detail/digamma_tables.hpp
-    include/wsl/special/detail/incomplete_gamma_tables.hpp
+    include/wsl/elementary_functions/detail/exponential_tables.hpp
+    include/wsl/elementary_functions/detail/trigonometric_tables.hpp
+    include/wsl/special_functions/detail/erf_tables.hpp
+    include/wsl/special_functions/detail/gamma_tables.hpp
+    include/wsl/special_functions/detail/digamma_tables.hpp
+    include/wsl/special_functions/detail/incomplete_gamma_tables.hpp
 """
 
 import math
@@ -38,7 +38,7 @@ from mpmath import mp, mpf
 
 mp.prec = 256
 ROOT = Path(__file__).resolve().parents[2]
-HEADER = "// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.\n"
+HEADER = "// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.\n"
 
 
 # ---------------------------------------------------------------------------
@@ -160,11 +160,11 @@ LOG_QUANTUM = 42                  # log(c)_hi multiple de 2^-42, comme e·ln2_hi
 
 def tables():
     ln2 = mp.log(2)
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Constantes et tables de exp et log (voir elementary.hpp pour leur usage).\n",
            "// Chaque valeur est l'arrondi correct de la valeur exacte ; les paires\n",
            "// (hi, lo) sont des double-double : hi + lo vaut la valeur à 2^-106 près.\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail\n{\n"]
 
     # exp : x = k ln2/N + r. k ln2/N doit être exact pour |k| < 2^18 : hi sur 35 bits.
     ln2_n_hi = truncated(ln2 / EXP_N, 35)
@@ -216,9 +216,9 @@ TWO_OVER_PI_WORDS = 21            # bits de 2/π nécessaires jusqu'aux plus gra
 
 
 def trig_tables():
-    out = [HEADER, "#pragma once\n\n#include <cstdint>\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n#include <cstdint>\n\n",
            "// Constantes et tables de sin, cos, tan, atan, atan2 (voir trigonometric.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail\n{\n"]
     half_pi = mp.pi / 2
     # π/2 en cinq morceaux de 33 bits : k · morceau est exact pour |k| < 2^20.
     parts, rest = [], half_pi
@@ -305,9 +305,9 @@ def erfc_factor_taylor(c, degree):
 
 
 def erf_tables():
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Constantes et tables de erf et erfc (voir error_function.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::special_functions::detail\n{\n"]
     hi, lo = double_double(2 / mp.sqrt(mp.pi))
     out.append(f"    inline constexpr double two_over_sqrt_pi_hi = {hexd(hi)};\n")
     out.append(f"    inline constexpr double two_over_sqrt_pi_lo = {hexd(lo)};\n\n")
@@ -405,9 +405,9 @@ STIRLING_TERMS = 10
 
 
 def gamma_tables():
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Constantes et tables de lgamma et tgamma (voir gamma.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::special_functions::detail\n{\n"]
     for name, v in (("log_pi", mp.log(mp.pi)), ("half_log_two_pi", mp.log(2 * mp.pi) / 2)):
         hi, lo = double_double(v)
         out.append(f"    inline constexpr double {name}_hi = {hexd(hi)};\n    inline constexpr double {name}_lo = {hexd(lo)};\n")
@@ -452,9 +452,9 @@ DIGAMMA_ASYMPTOTIC_TERMS = 14
 
 
 def digamma_tables():
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Constantes et tables de digamma (voir gamma.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::special_functions::detail\n{\n"]
     root = mp.findroot(mp.digamma, mpf("1.4616321449683623"))
     r1 = round_double(root)
     r2 = round_double(root - mpf(r1))
@@ -570,9 +570,9 @@ def temme_coefficients():
 
 
 def incomplete_gamma_tables():
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Tables de la gamma incomplète (voir incomplete_gamma.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n"]
+           "namespace wsl::inline WSL_DEFAULTS::special_functions::detail\n{\n"]
     # lgamma(1 + a) = −γ a + Σ_{k>=2} (−1)^k ζ(k) a^k / k
     coefficients = [-mp.euler] + [(-1) ** k * mp.zeta(k) / k for k in range(2, LGAMMA1P_TERMS + 1)]
     for a in (mpf(1) / 4, mpf(1) / 1000, mpf(10) ** -30):
@@ -666,9 +666,9 @@ def bessel_tables():
                 for t in [i / mpf(400) for i in range(401)])
     rest = worst / mpf(BESSEL_DEBYE_FROM) ** BESSEL_DEBYE_TERMS
     assert rest < mpf(2) ** -112, rest
-    out = [HEADER, "#pragma once\n\n",
+    out = [HEADER, "#pragma once\n\n#include <wsl/modes.hpp>\n\n",
            "// Tables de la fonction de Bessel modifiée I_ν (voir bessel.hpp).\n\n",
-           "namespace wsl::special::detail\n{\n",
+           "namespace wsl::inline WSL_DEFAULTS::special_functions::detail\n{\n",
            f"    inline constexpr double bessel_debye_from = {BESSEL_DEBYE_FROM};\n",
            f"    inline constexpr int bessel_debye_terms = {BESSEL_DEBYE_TERMS};\n",
            f"    inline constexpr double bessel_hankel_from = {BESSEL_HANKEL_FROM};\n\n",
@@ -1613,13 +1613,13 @@ def main():
     if not arguments.tables and not arguments.references:
         parser.error("préciser --tables et/ou --references FICHIER")
     if arguments.tables:
-        (ROOT / "include/wsl/special/detail/tables.hpp").write_text(tables())
-        (ROOT / "include/wsl/special/detail/trig_tables.hpp").write_text(trig_tables())
-        (ROOT / "include/wsl/special/detail/erf_tables.hpp").write_text(erf_tables())
-        (ROOT / "include/wsl/special/detail/gamma_tables.hpp").write_text(gamma_tables())
-        (ROOT / "include/wsl/special/detail/digamma_tables.hpp").write_text(digamma_tables())
-        (ROOT / "include/wsl/special/detail/incomplete_gamma_tables.hpp").write_text(incomplete_gamma_tables())
-        (ROOT / "include/wsl/special/detail/bessel_tables.hpp").write_text(bessel_tables())
+        (ROOT / "include/wsl/elementary_functions/detail/exponential_tables.hpp").write_text(tables())
+        (ROOT / "include/wsl/elementary_functions/detail/trigonometric_tables.hpp").write_text(trig_tables())
+        (ROOT / "include/wsl/special_functions/detail/erf_tables.hpp").write_text(erf_tables())
+        (ROOT / "include/wsl/special_functions/detail/gamma_tables.hpp").write_text(gamma_tables())
+        (ROOT / "include/wsl/special_functions/detail/digamma_tables.hpp").write_text(digamma_tables())
+        (ROOT / "include/wsl/special_functions/detail/incomplete_gamma_tables.hpp").write_text(incomplete_gamma_tables())
+        (ROOT / "include/wsl/special_functions/detail/bessel_tables.hpp").write_text(bessel_tables())
     if arguments.references:
         text, counts = reference_file()
         output = Path(arguments.references)

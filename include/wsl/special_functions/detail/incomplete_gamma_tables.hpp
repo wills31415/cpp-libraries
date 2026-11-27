@@ -1,9 +1,11 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 // Tables de la gamma incomplète (voir incomplete_gamma.hpp).
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
     // lgamma(1 + a) = Σ_{k>=1} l_k a^k pour 0 < a <= 1/4 (reste < 2^-70 relativement),
     // l_1 = −γ, l_k = (−1)^k ζ(k)/k ; en double-double (hi, lo).

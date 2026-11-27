@@ -1,11 +1,13 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 #include <cstdint>
 
 // Constantes et tables de sin, cos, tan, atan, atan2 (voir trigonometric.hpp).
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail
 {
     // π/2 = pio2_1 + … + pio2_5 à 2^-165 près, chaque morceau sur 33 bits.
     inline constexpr double pio2_1 = 0x1.921fb54400000p+0;

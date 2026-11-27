@@ -1,17 +1,25 @@
 #pragma once
 
-// wsl::special — fonctions mathématiques bit-exactes (voir design/special.md).
-//
-// Même résultat au bit près sur toute plateforme, en float et en double, et
-// évaluables à la compilation. Namespace wsl::special : employer des noms
-// qualifiés ou un alias (namespace sp = wsl::special;) plutôt qu'un
-// using namespace, qui rendrait exp(2.0) ambigu avec le ::exp de <math.h>.
+// Transition (refonte, étape 4) : wsl::special est découpée en
+// wsl::floating_point_arithmetic, wsl::elementary_functions et wsl::special_functions
+// (design/interfaces.md, décision 37). Cet en-tête réexporte leurs noms sous wsl::special
+// pour random et mdarray, jusqu'à leur propre refonte (étapes 5 et 6) ; il disparaîtra
+// ensuite. Tout nouveau code emploie les nouveaux domaines.
 
-#include <wsl/special/algebraic.hpp>
-#include <wsl/special/bessel.hpp>
-#include <wsl/special/elementary.hpp>
-#include <wsl/special/error_function.hpp>
-#include <wsl/special/gamma.hpp>
-#include <wsl/special/incomplete_beta.hpp>
-#include <wsl/special/incomplete_gamma.hpp>
-#include <wsl/special/trigonometric.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/floating_point_arithmetic.hpp>
+#include <wsl/modes.hpp>
+#include <wsl/special_functions.hpp>
+
+namespace wsl::inline WSL_DEFAULTS::special
+{
+    using namespace elementary_functions;
+    using namespace special_functions;
+
+    namespace detail
+    {
+        using namespace floating_point_arithmetic::detail;
+        using namespace elementary_functions::detail;
+        using namespace special_functions::detail;
+    }
+}

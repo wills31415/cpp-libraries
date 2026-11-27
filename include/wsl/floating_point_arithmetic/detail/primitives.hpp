@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Socle de wsl::special : conditions de la garantie bit-exacte, et opérations
 // flottantes élémentaires dont le résultat est imposé par IEEE 754.
 //
@@ -37,7 +39,7 @@
 static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<float>::is_iec559,
               "wsl::special : float et double doivent être les formats binary32 et binary64 d'IEEE 754");
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::floating_point_arithmetic::detail
 {
     // Rend la valeur opaque pour l'optimiseur : rien ne peut être fusionné à
     // travers. Sans effet en évaluation constante, qui ne fusionne jamais.

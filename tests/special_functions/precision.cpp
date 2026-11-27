@@ -1,7 +1,8 @@
+// Étiquettes : precision long
 // Précision et cas limites des fonctions élémentaires de wsl::special.
 //
 // Précision : erreur en ulp contre les valeurs de référence de mpmath
-// (tests/data, engendrées par tools/special/generate.py), avec la position exacte
+// (tests/data, engendrées par tools/elementary_functions/generate.py), avec la position exacte
 // de la valeur vraie entre deux flottants : l'erreur est mesurée, pas seulement
 // « arrondi correct ou non ».
 

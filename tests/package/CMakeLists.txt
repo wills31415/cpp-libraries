@@ -20,7 +20,7 @@ else()
 endif()
 
 add_executable(consumer main.cpp)
-target_link_libraries(consumer PRIVATE wsl::mdarray wsl::permutation wsl::random wsl::special)
+target_link_libraries(consumer PRIVATE wsl::mdarray wsl::permutation wsl::random wsl::special_functions)
 # La cible de tout le dépôt.
 add_executable(consumer_all main.cpp)
 target_link_libraries(consumer_all PRIVATE wsl::wsl)

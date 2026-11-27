@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Fonction bêta et bêta incomplète régularisée, bit-exactes (voir detail/fp.hpp
 // pour les conditions), constexpr :
 //
@@ -20,12 +22,42 @@
 // dépasse 1/2 avec un paramètre petit, l'autre côté lui est proportionnel (1 − v
 // perdrait ses chiffres) : formule propre, comme pour la gamma incomplète.
 
-#include <wsl/special/detail/extended.hpp>
-#include <wsl/special/detail/fp.hpp>
-#include <wsl/special/detail/loader.hpp>
-#include <wsl/special/incomplete_gamma.hpp>
+#include <wsl/special_functions/detail/extended.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
+#include <wsl/special_functions/detail/loader.hpp>
+#include <wsl/special_functions/incomplete_gamma.hpp>
 
-namespace wsl::special
+#include <wsl/elementary_functions.hpp>
+
+// Couches du dessous : primitives flottantes et fonctions élémentaires.
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
+{
+    using namespace floating_point_arithmetic::detail;
+    using namespace elementary_functions::detail;
+}
+// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
+// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
+namespace wsl::inline WSL_DEFAULTS::special_functions
+{
+    using elementary_functions::sqrt;
+    using elementary_functions::cbrt;
+    using elementary_functions::hypot;
+    using elementary_functions::exp;
+    using elementary_functions::exp2;
+    using elementary_functions::expm1;
+    using elementary_functions::log;
+    using elementary_functions::log2;
+    using elementary_functions::log10;
+    using elementary_functions::log1p;
+    using elementary_functions::pow;
+    using elementary_functions::sin;
+    using elementary_functions::cos;
+    using elementary_functions::tan;
+    using elementary_functions::atan;
+    using elementary_functions::atan2;
+}
+
+namespace wsl::inline WSL_DEFAULTS::special_functions
 {
     namespace detail
     {

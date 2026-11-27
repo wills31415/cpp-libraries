@@ -6,7 +6,7 @@
 FAMILLE : un module de tools/random/references/ (base, derived, rice…) ; CMake engendre
 chaque famille dans le dossier de build et ne recalcule que celles dont le module change.
 Non versionnées. La famille base vérifie aussi les constantes en double-double de
-include/wsl/special/detail/extended.hpp.
+include/wsl/special_functions/detail/extended.hpp.
 """
 
 import importlib

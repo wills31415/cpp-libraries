@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "tools/special"))
+sys.path.insert(0, str(ROOT / "tools/elementary_functions"))
 import generate as g                                         # noqa: E402  (arrondis, inverse d'erfc)
 from mpmath import mp, mpf                                   # noqa: E402
 
@@ -24,7 +24,7 @@ HEADER = "// ENGENDRÉ par tools/random/references/{}.py — ne pas modifier à 
 
 
 def check_constants():
-    text = (ROOT / "include/wsl/special/detail/extended.hpp").read_text()
+    text = (ROOT / "include/wsl/special_functions/detail/extended.hpp").read_text()
     exact = {
         "inv_sqrt2": 1 / mp.sqrt(2), "sqrt2": mp.sqrt(2), "inv_sqrt_2pi": 1 / mp.sqrt(2 * mp.pi),
         "half_log_2pi": mp.log(2 * mp.pi) / 2, "normal_entropy": (1 + mp.log(2 * mp.pi)) / 2,

@@ -1,3 +1,4 @@
+// Étiquettes : fingerprints
 // Preuve de la garantie bit-exacte de wsl::special.
 //
 // Pour chaque fonction, empreinte (FNV-1a 64 bits) des résultats sur 2^20 entrées

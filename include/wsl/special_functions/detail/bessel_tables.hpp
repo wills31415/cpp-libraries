@@ -1,9 +1,11 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 // Tables de la fonction de Bessel modifiée I_ν (voir bessel.hpp).
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
     inline constexpr double bessel_debye_from = 50;
     inline constexpr int bessel_debye_terms = 28;

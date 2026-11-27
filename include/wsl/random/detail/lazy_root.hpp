@@ -7,6 +7,7 @@
 // l'encadrent soient de part et d'autre de la valeur : c'est l'arrondi au plus proche
 // (jamais d'égalité : la valeur est irrationnelle, ou vaut μ si t = 0).
 
+#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/detail/lazy.hpp>

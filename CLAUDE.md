@@ -85,16 +85,17 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   une soustraction passe par `detail::fmul`** (barrière contre la contraction en fma,
   qui changerait les résultats selon la plateforme et les options du consommateur).
 - Tables engendrées et versionnées : `uv run --no-project --with mpmath python
-  tools/special/generate.py --tables` (ne jamais modifier `detail/*tables.hpp` à la
+  tools/elementary_functions/generate.py --tables` (ne jamais modifier `elementary_functions/detail/*tables.hpp` ni
+  `special_functions/detail/*tables.hpp` à la
   main). Valeurs de référence des tests : **non versionnées**, engendrées par CMake
   dans `build/<preset>/generated/` (uv, ou python3 + mpmath ; sinon le test de
   précision est sauté), et seulement quand `generate.py` change.
-- `tests/test_special_bitexact.cpp` contient les empreintes attendues : un changement
+- `tests/special_functions/fingerprints.cpp` contient les empreintes attendues : un changement
   voulu d'algorithme les change partout (rupture, à noter au CHANGELOG) ; un
   changement sur une seule plateforme est un bug.
 - Les entrées des tests doivent elles aussi être protégées de la contraction
   (`detail::fmul`), sinon ce sont les entrées qui changent sous `-ffp-contract=fast`.
-- Le test `special_no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
+- Le test `special_functions.no_contraction` (cmake/check_no_contraction.cmake) refuse toute fma
   dans le code engendré ; il ne voit pas un produit non protégé à usages multiples.
   Il essaie aussi `1 + f(x)` pour chaque fonction : GCC fusionne, après intégration, un
   produit **rendu** (`return y * 2^e`) ou un `x + x` (chemins NaN) avec l'addition de
@@ -111,7 +112,7 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Générateur : toute constante qui demande plus de 256 bits (2/π de Payne–Hanek…)
   doit être calculée sous `mp.workprec(...)` ; les racines complexes de mpmath
   (`mp.cbrt` d'un négatif) ne sont pas les racines réelles.
-- Mesurer les performances : `tools/special/benchmark.sh` (un programme par fonction ;
+- Mesurer les performances : `tools/elementary_functions/benchmark.sh` (un programme par fonction ;
   ne pas mesurer plusieurs fonctions dans un même programme, les chiffres s'y faussent).
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
   `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
@@ -128,7 +129,7 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Empreintes des suites tirées : `tests/test_random_uniform.cpp`, `tests/test_random_laws.cpp`.
 - Précision des lois : références mpmath non versionnées, engendrées par CMake, **une
   famille par module** de `tools/random/references/` (`common.py` : outils et écriture ;
-  la famille `base` vérifie aussi les constantes de `wsl/special/detail/extended.hpp`).
+  la famille `base` vérifie aussi les constantes de `wsl/special_functions/detail/extended.hpp`).
   Seules les familles modifiées sont recalculées : une nouvelle loi a son propre module
   (déclaré dans `law_families` du CMakeLists). Mesurer le temps d'un module seul
   (`law_references.py FAMILLE FICHIER`) avant la génération complète ; éviter les
@@ -168,7 +169,11 @@ mathématiques d'ici (design/algebra.md). Aucun projet ne combine aujourd'hui le
 Ordre (validé le 2026-11-28, exécuté en autonomie) : 0 prototype (relais sans extension,
 cibles ; arrêt s'il échoue) ; 1 rangement (`legacy/`, `dlist`, `docs/` → `design/`, cpp-init :
 confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ; 3 modes ;
-4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md.
+4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md. Exécution des étapes
+4 à 6 en deux passes (2026-11-28) : d'abord le mécanique, sans changer un bit (4a special
+découpée, 5a random découpée, 6a mdarray sur fpa/ef/sf, puis retrait de `<wsl/special>`, la
+transition) ; ensuite le délicat (4b audit des `fmul` et modes de ef et sf, 5b modes de random
+et `approximate` par défaut), fonction par fonction, bornes vérifiées dans les deux modes.
 
 - Organisation (décision 32) : `include/wsl/`, `docs/` (guides, `README.md` par dossier),
   `examples/<domaine>/`, `tests/` (sans préfixe, nom dérivé du chemin, dossier dès deux

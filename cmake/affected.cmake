@@ -12,7 +12,7 @@
 # Correspondance : include/wsl/<chemin> et tests/<chemin> -> la bibliothèque la plus
 # profonde dont le chemin relève (wsl_owner, décision 32) ; tools/<nom>/ -> <nom> ;
 # tests/test_<nom>[_…].cpp ou .hpp (special et random, jusqu'à leur découpage) -> la plus
-# longue bibliothèque préfixe ; tests/special_contraction/ -> special ; tests/random_engine_vectors.hpp
+# longue bibliothèque préfixe ; tests/special_functions/no_contraction/ -> special_functions (rangé avec l'arbre) ; tests/random_engine_vectors.hpp
 # -> random ; tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
 # exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
 # (CMakeLists.txt, cmake/, presets, .github/…) -> ALL.
@@ -57,15 +57,13 @@ function(wsl_affected_libraries file variable)
                     set(length ${candidate_length})
                 endif()
             endforeach()
-        elseif(path MATCHES "^tests/(special_contraction/|random_engine_vectors)")
+        elseif(path MATCHES "^tests/random_engine_vectors")
             # voir plus bas
         elseif(path MATCHES "^tests/(.+)\\.(cpp|hpp)$")
             # Tests rangés comme les espaces de noms (décision 32).
             wsl_owner(${CMAKE_MATCH_1} library)
         endif()
-        if(library STREQUAL "" AND path MATCHES "^tests/special_contraction/")
-            set(library special)
-        elseif(path STREQUAL "tests/random_engine_vectors.hpp")
+        if(path STREQUAL "tests/random_engine_vectors.hpp")
             set(library random)
         elseif(path MATCHES "^examples/([a-z0-9_]+)\\.cpp$")
             list(APPEND examples ${CMAKE_MATCH_1})

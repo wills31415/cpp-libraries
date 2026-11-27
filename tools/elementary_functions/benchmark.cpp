@@ -1,4 +1,4 @@
-// Mesure d'une seule fonction, compilée par tools/special/benchmark.sh avec
+// Mesure d'une seule fonction, compilée par tools/elementary_functions/benchmark.sh avec
 // FUNCTION, TYPE, LOW et HIGH définis. Un programme par fonction : dans un même
 // programme, les boucles de mesure de plusieurs fonctions se sont montrées
 // capables de fausser les chiffres d'un facteur 3 ou plus (constaté sur Intel).

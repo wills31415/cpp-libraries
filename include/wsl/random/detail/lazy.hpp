@@ -25,9 +25,10 @@
 // exactement selon la loi. Une voie rapide en double-double décide presque
 // toujours ; la voie exacte, en grands entiers, tranche les cas serrés.
 
+#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special/detail/fp.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
 
 #include <bit>
 #include <cstdint>

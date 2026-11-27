@@ -3,7 +3,8 @@
 // Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp), et ses
 // compléments communs (opposé, somme, différence et complément à l'échelle, e^l arrondi…).
 
-#include <wsl/special/detail/extended.hpp>
+#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
+#include <wsl/special_functions/detail/extended.hpp>
 
 #include <cstdint>
 #include <limits>

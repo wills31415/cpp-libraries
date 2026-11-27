@@ -147,8 +147,12 @@ define_property(TARGET PROPERTY WSL_STANDARD
 # Anciennes bibliothèques (array2d, graded, graded_io, elo, progress) : dans legacy/,
 # figées, ni construites ni installées, en attendant leur refonte (design/interfaces.md,
 # décision 36).
-wsl_add_library(modes        STANDARD 23)
-wsl_add_library(special      STANDARD 23)
+wsl_add_library(modes                     STANDARD 23)
+wsl_add_library(floating_point_arithmetic STANDARD 23 DEPENDS modes)
+wsl_add_library(elementary_functions      STANDARD 23 DEPENDS modes floating_point_arithmetic)
+wsl_add_library(special_functions         STANDARD 23 DEPENDS modes floating_point_arithmetic elementary_functions)
+# Transition : wsl::special réexporte les trois précédentes jusqu'aux étapes 5 et 6.
+wsl_add_library(special                   STANDARD 23 DEPENDS modes elementary_functions special_functions)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
 wsl_add_library(mdarray      STANDARD 23 DEPENDS modes special)
@@ -254,6 +258,22 @@ if(WSL_BUILD_TESTS)
         endforeach()
     endfunction()
 
+    # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
+    # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
+    # le test de précision est sauté.
+    find_program(WSL_UV uv HINTS $ENV{HOME}/.local/bin)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    set(reference_generator "")
+    if(WSL_UV)
+        set(reference_generator ${WSL_UV} run --no-project --quiet --with mpmath python)
+    elseif(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import mpmath"
+                        RESULT_VARIABLE no_mpmath OUTPUT_QUIET ERROR_QUIET)
+        if(no_mpmath EQUAL 0)
+            set(reference_generator ${Python3_EXECUTABLE})
+        endif()
+    endif()
+
     # Tests rangés comme les espaces de noms (design/interfaces.md, décision 32) :
     # tests/<chemin>.cpp, nommé d'après son chemin (tests/mdarray/axis.cpp →
     # « mdarray.axis »), lié à la bibliothèque la plus profonde dont il relève. Un dossier
@@ -266,7 +286,7 @@ if(WSL_BUILD_TESTS)
     file(GLOB_RECURSE tree_tests CONFIGURE_DEPENDS RELATIVE ${PROJECT_SOURCE_DIR}/tests
          ${PROJECT_SOURCE_DIR}/tests/*.cpp)
     foreach(relative IN LISTS tree_tests)
-        if(relative MATCHES "^(test_|package/|special_contraction/)")
+        if(relative MATCHES "^(test_|package/)|(^|/)no_contraction/")
             continue()
         endif()
         string(REGEX REPLACE "\\.cpp$" "" stem ${relative})
@@ -278,6 +298,9 @@ if(WSL_BUILD_TESTS)
         wsl_is_tested(${library} tested)
         if(NOT tested)
             continue()
+        endif()
+        if(stem STREQUAL "special_functions/precision" AND NOT reference_generator)
+            continue()   # valeurs de référence (mpmath) indisponibles
         endif()
         set(source ${PROJECT_SOURCE_DIR}/tests/${relative})
         file(STRINGS ${source} declared LIMIT_COUNT 1 ENCODING UTF-8 REGEX "^// Étiquettes : ")
@@ -312,40 +335,19 @@ if(WSL_BUILD_TESTS)
                      -DINCLUDE=${PROJECT_SOURCE_DIR}/include -P ${PROJECT_SOURCE_DIR}/cmake/check_includes.cmake)
     set_tests_properties(infrastructure.includes PROPERTIES LABELS properties)
 
-    # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
-    # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
-    # le test de précision est sauté.
-    find_program(WSL_UV uv HINTS $ENV{HOME}/.local/bin)
-    find_package(Python3 COMPONENTS Interpreter QUIET)
-    set(reference_generator "")
-    if(WSL_UV)
-        set(reference_generator ${WSL_UV} run --no-project --quiet --with mpmath python)
-    elseif(Python3_Interpreter_FOUND)
-        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import mpmath"
-                        RESULT_VARIABLE no_mpmath OUTPUT_QUIET ERROR_QUIET)
-        if(no_mpmath EQUAL 0)
-            set(reference_generator ${Python3_EXECUTABLE})
-        endif()
-    endif()
-
-    wsl_is_tested(special special_tested)
+    wsl_is_tested(special_functions special_tested)
     wsl_is_tested(random random_tested)
     if(reference_generator AND special_tested)
         set(references ${PROJECT_BINARY_DIR}/generated/data/special_elementary_reference.hpp)
         add_custom_command(
             OUTPUT ${references}
-            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/special/generate.py --references ${references}
-            DEPENDS ${PROJECT_SOURCE_DIR}/tools/special/generate.py
+            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py --references ${references}
+            DEPENDS ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py
             COMMENT "Valeurs de référence de wsl::special (mpmath)")
         add_custom_target(special_references DEPENDS ${references})
-        wsl_add_test(special_elementary LIBRARY special LABELS precision long)
-        foreach(test test_special_elementary test_special_elementary_cxx20)
-            if(NOT TARGET ${test})
-                continue()
-            endif()
-            add_dependencies(${test} special_references)
-            target_include_directories(${test} PRIVATE ${PROJECT_BINARY_DIR}/generated)
-        endforeach()
+        # tests/special_functions/precision.cpp (enregistré avec l'arbre des tests).
+        add_dependencies(special_functions.precision special_references)
+        target_include_directories(special_functions.precision PRIVATE ${PROJECT_BINARY_DIR}/generated)
     endif()
     if(reference_generator AND random_tested)
         # Lois de wsl::random : même principe, une famille par module de tools/random/references/
@@ -358,7 +360,7 @@ if(WSL_BUILD_TESTS)
             set(output ${PROJECT_BINARY_DIR}/generated/data/random_law_reference/${family}.hpp)
             set(extra "")
             if(family STREQUAL "base")
-                set(extra ${PROJECT_SOURCE_DIR}/include/wsl/special/detail/extended.hpp)
+                set(extra ${PROJECT_SOURCE_DIR}/include/wsl/special_functions/detail/extended.hpp)
             elseif(family STREQUAL "derived")
                 set(extra ${law_sources}/base.py)
             endif()
@@ -366,7 +368,7 @@ if(WSL_BUILD_TESTS)
                 OUTPUT ${output}
                 COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${family} ${output}
                 DEPENDS ${PROJECT_SOURCE_DIR}/tools/random/law_references.py ${law_sources}/${family}.py ${law_sources}/common.py
-                        ${PROJECT_SOURCE_DIR}/tools/special/generate.py ${extra}
+                        ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py ${extra}
                 COMMENT "Valeurs de référence des lois de wsl::random : ${family} (mpmath)")
             list(APPEND law_outputs ${output})
             string(APPEND law_includes "#include \"data/random_law_reference/${family}.hpp\"\n")
@@ -414,7 +416,6 @@ namespace law_reference_data
     if(NOT reference_generator)
         message(WARNING "Ni uv ni python3 avec mpmath : tests de précision de wsl::special et wsl::random sautés")
     endif()
-    wsl_add_test(special_bitexact LIBRARY special LABELS fingerprints)
     wsl_add_test(random_engines LIBRARY random)
     wsl_add_test(random_uniform LIBRARY random)
     wsl_add_test(random_laws LIBRARY random)
@@ -426,9 +427,9 @@ namespace law_reference_data
     wsl_add_test(random_variables LIBRARY random)
     # Aucun produit de wsl::special ne doit pouvoir être fusionné en fma.
     if(special_tested)
-        add_test(NAME special_no_contraction
+        add_test(NAME special_functions.no_contraction
                  COMMAND ${CMAKE_COMMAND} -DCXX=${CMAKE_CXX_COMPILER} -DINCLUDE=${PROJECT_SOURCE_DIR}/include
-                         -DSOURCES=${PROJECT_SOURCE_DIR}/tests/special_contraction
+                         -DSOURCES=${PROJECT_SOURCE_DIR}/tests/special_functions/no_contraction
                          -DPROCESSOR=${CMAKE_SYSTEM_PROCESSOR}
                          -P ${PROJECT_SOURCE_DIR}/cmake/check_no_contraction.cmake)
     endif()

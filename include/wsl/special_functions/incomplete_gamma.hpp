@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Fonctions gamma incomplètes régularisées, bit-exactes (voir detail/fp.hpp pour
 // les conditions), constexpr :
 //
@@ -20,15 +22,45 @@
 //   lgamma(1 + a) en série (Q tend vers 0 avec a : 1 − P ne suffirait pas) ;
 // - sinon : fraction continue de Legendre pour Q (Lentz).
 
-#include <wsl/special/detail/extended.hpp>
-#include <wsl/special/detail/fp.hpp>
-#include <wsl/special/detail/incomplete_gamma_tables.hpp>
-#include <wsl/special/detail/loader.hpp>
-#include <wsl/special/elementary.hpp>
-#include <wsl/special/error_function.hpp>
+#include <wsl/special_functions/detail/extended.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
+#include <wsl/special_functions/detail/incomplete_gamma_tables.hpp>
+#include <wsl/special_functions/detail/loader.hpp>
+#include <wsl/elementary_functions/exponential.hpp>
+#include <wsl/special_functions/error_functions.hpp>
+
+#include <wsl/elementary_functions.hpp>
+
+// Couches du dessous : primitives flottantes et fonctions élémentaires.
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
+{
+    using namespace floating_point_arithmetic::detail;
+    using namespace elementary_functions::detail;
+}
+// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
+// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
+namespace wsl::inline WSL_DEFAULTS::special_functions
+{
+    using elementary_functions::sqrt;
+    using elementary_functions::cbrt;
+    using elementary_functions::hypot;
+    using elementary_functions::exp;
+    using elementary_functions::exp2;
+    using elementary_functions::expm1;
+    using elementary_functions::log;
+    using elementary_functions::log2;
+    using elementary_functions::log10;
+    using elementary_functions::log1p;
+    using elementary_functions::pow;
+    using elementary_functions::sin;
+    using elementary_functions::cos;
+    using elementary_functions::tan;
+    using elementary_functions::atan;
+    using elementary_functions::atan2;
+}
 
 
-namespace wsl::special
+namespace wsl::inline WSL_DEFAULTS::special_functions
 {
     namespace detail
     {

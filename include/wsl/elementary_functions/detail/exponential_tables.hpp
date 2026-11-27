@@ -1,11 +1,13 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 // Constantes et tables de exp et log (voir elementary.hpp pour leur usage).
 // Chaque valeur est l'arrondi correct de la valeur exacte ; les paires
 // (hi, lo) sont des double-double : hi + lo vaut la valeur à 2^-106 près.
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail
 {
     inline constexpr int exp_table_bits = 7;
     inline constexpr double exp_inv_ln2_n = 0x1.71547652b82fep+7;   // N / ln 2

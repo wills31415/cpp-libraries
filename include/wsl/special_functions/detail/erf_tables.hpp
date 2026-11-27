@@ -1,9 +1,11 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 // Constantes et tables de erf et erfc (voir error_function.hpp).
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
     inline constexpr double two_over_sqrt_pi_hi = 0x1.20dd750429b6dp+0;
     inline constexpr double two_over_sqrt_pi_lo = 0x1.1ae3a914fed80p-56;

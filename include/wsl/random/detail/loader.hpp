@@ -2,8 +2,9 @@
 
 // Décomposition de Loader : celle de wsl::special (detail/loader.hpp).
 
+#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
 #include <wsl/random/detail/arithmetic.hpp>
-#include <wsl/special/detail/loader.hpp>
+#include <wsl/special_functions/detail/loader.hpp>
 
 namespace wsl::random::detail
 {

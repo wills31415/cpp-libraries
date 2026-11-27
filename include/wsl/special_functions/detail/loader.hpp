@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Décomposition de Loader (2000), « Fast and accurate computation of binomial
 // probabilities » : les masses de Poisson et binomiales (et les densités gamma
 // et bêta) s'écrivent avec deux termes petits et bien conditionnés,
@@ -13,9 +15,39 @@
 // résultat est l'erreur absolue de l'exposant. Ici, δ et bd0 sont calculés en
 // double-double à 2^-60 près relativement (ou mieux).
 
-#include <wsl/special/detail/extended.hpp>
+#include <wsl/special_functions/detail/extended.hpp>
 
-namespace wsl::special::detail::extended
+#include <wsl/elementary_functions.hpp>
+
+// Couches du dessous : primitives flottantes et fonctions élémentaires.
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
+{
+    using namespace floating_point_arithmetic::detail;
+    using namespace elementary_functions::detail;
+}
+// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
+// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
+namespace wsl::inline WSL_DEFAULTS::special_functions
+{
+    using elementary_functions::sqrt;
+    using elementary_functions::cbrt;
+    using elementary_functions::hypot;
+    using elementary_functions::exp;
+    using elementary_functions::exp2;
+    using elementary_functions::expm1;
+    using elementary_functions::log;
+    using elementary_functions::log2;
+    using elementary_functions::log10;
+    using elementary_functions::log1p;
+    using elementary_functions::pow;
+    using elementary_functions::sin;
+    using elementary_functions::cos;
+    using elementary_functions::tan;
+    using elementary_functions::atan;
+    using elementary_functions::atan2;
+}
+
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
 {
     // δ(y) = lgamma(y) − [(y − 1/2) log y − y + log(2π)/2], y > 0 (la même
     // quantité que ci-dessus, écrite avec lgamma(y) = lgamma(y + 1) − log y).
@@ -204,7 +236,7 @@ namespace wsl::special::detail::extended
             s += 1;
         }
         double const z = 1 / sd::fmul(s, s);
-        return shift + ((wsl::special::log(s) - 0.5 / s)
+        return shift + ((wsl::elementary_functions::log(s) - 0.5 / s)
                         - sd::fmul(z, 1.0 / 12 - sd::fmul(z, 1.0 / 120 - sd::fmul(z, 1.0 / 252))));
     }
 

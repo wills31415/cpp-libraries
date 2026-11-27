@@ -1,25 +1,57 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Arithmétique étendue (double-double à exposant séparé, exp, expm1, log, log1p à
 // argument double-double…), commune aux fonctions incomplètes et aux lois de
 // wsl::random. Arithmétique soignée : calculs en double-double arrondis une
 // seule fois, mis à l'échelle pour rester dans le domaine où les produits exacts
 // le sont (facteurs sous 2^995, produits loin des sous-normaux : voir
-// wsl/special/detail/fp.hpp). Bit-exact comme le reste.
+// wsl/floating_point_arithmetic/detail/primitives.hpp). Bit-exact comme le reste.
 
-#include <wsl/special/algebraic.hpp>
-#include <wsl/special/detail/fp.hpp>
-#include <wsl/special/elementary.hpp>
-#include <wsl/special/error_function.hpp>
-#include <wsl/special/gamma.hpp>
+#include <wsl/elementary_functions/algebraic.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
+#include <wsl/elementary_functions/exponential.hpp>
+#include <wsl/special_functions/error_functions.hpp>
+#include <wsl/special_functions/gamma.hpp>
 
 #include <bit>
 #include <cstdint>
 #include <limits>
 
-namespace wsl::special::detail::extended
+#include <wsl/elementary_functions.hpp>
+
+// Couches du dessous : primitives flottantes et fonctions élémentaires.
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
-    namespace sd = wsl::special::detail;
+    using namespace floating_point_arithmetic::detail;
+    using namespace elementary_functions::detail;
+}
+// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
+// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
+namespace wsl::inline WSL_DEFAULTS::special_functions
+{
+    using elementary_functions::sqrt;
+    using elementary_functions::cbrt;
+    using elementary_functions::hypot;
+    using elementary_functions::exp;
+    using elementary_functions::exp2;
+    using elementary_functions::expm1;
+    using elementary_functions::log;
+    using elementary_functions::log2;
+    using elementary_functions::log10;
+    using elementary_functions::log1p;
+    using elementary_functions::pow;
+    using elementary_functions::sin;
+    using elementary_functions::cos;
+    using elementary_functions::tan;
+    using elementary_functions::atan;
+    using elementary_functions::atan2;
+}
+
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
+{
+    namespace sd = wsl::special_functions::detail;
 
     inline constexpr double max_double = std::numeric_limits<double>::max();
 
@@ -108,7 +140,7 @@ namespace wsl::special::detail::extended
     // log(hi + lo), hi > 0 : log(hi) + lo/hi, à moins d'un ulp.
     constexpr double log_dd(double hi, double lo) noexcept
     {
-        return wsl::special::log(hi) + lo / hi;
+        return wsl::elementary_functions::log(hi) + lo / hi;
     }
 
     // ---------------------------------------------------------------------
@@ -277,7 +309,7 @@ namespace wsl::special::detail::extended
             a.lo = sd::fmul(a.lo, 2.0);
             --a.e;
         }
-        double const s = wsl::special::sqrt(a.hi);
+        double const s = wsl::elementary_functions::sqrt(a.hi);
         auto const [p, p_error] = sd::two_product(s, s);
         auto const [hi, lo] = sd::fast_two_sum(s, (((a.hi - p) - p_error) + a.lo) / (s + s));
         return normalized(hi, lo, a.e / 2);

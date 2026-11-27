@@ -2,7 +2,7 @@
 #
 #     cmake -DCXX=<compilateur> -DINCLUDE=<include/> -DSOURCES=<dossier> -DPROCESSOR=<arch> -P check_no_contraction.cmake
 #
-# Compile tests/special_contraction/functions.cpp en assembleur, fma disponible et
+# Compile tests/special_functions/no_contraction/functions.cpp en assembleur, fma disponible et
 # contraction permise partout, et y cherche une instruction fma. Contre-épreuve :
 # control.cpp, compilé pareil, doit en contenir une. Les fma explicites des
 # produits exacts (two_product, quand la cible en a) sont écartées par

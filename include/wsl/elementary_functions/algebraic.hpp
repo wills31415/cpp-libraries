@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Fonctions algébriques bit-exactes : même résultat au bit près sur toute
 // plateforme (voir detail/fp.hpp pour les conditions), constexpr.
 //
@@ -11,13 +13,19 @@
 // sqrt(+∞) = +∞ ; cbrt(±0) = ±0, cbrt(±∞) = ±∞ ; hypot(±∞, y) = +∞ même si y est
 // NaN, hypot(x, ±0) = |x| ; NaN donne NaN.
 
-#include <wsl/special/detail/fp.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
 
 #include <concepts>
 #include <cstdint>
 #include <type_traits>
 
-namespace wsl::special
+// Couche du dessous : les primitives flottantes.
+namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail
+{
+    using namespace floating_point_arithmetic::detail;
+}
+
+namespace wsl::inline WSL_DEFAULTS::elementary_functions
 {
     namespace detail
     {

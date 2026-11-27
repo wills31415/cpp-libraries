@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # benchmark.sh — coût de wsl::special contre <cmath>, en nanosecondes par appel.
 #
-# Usage : tools/special/benchmark.sh        (compilateur : $CXX, sinon /usr/bin/clang++ ;
+# Usage : tools/elementary_functions/benchmark.sh        (compilateur : $CXX, sinon /usr/bin/clang++ ;
 #                                            options en plus : $CXXFLAGS, p. ex. -march=native
 #                                            pour mesurer les produits exacts par fma)
 #
@@ -17,7 +17,7 @@ trap 'rm -rf "$work"' EXIT
 measure() {   # fonction type bas haut
     # shellcheck disable=SC2086
     "$CXX" -std=c++23 -O3 -DNDEBUG ${CXXFLAGS:-} -Iinclude "-DFUNCTION=$1" "-DTYPE=$2" "-DLOW=$3" "-DHIGH=$4" \
-        tools/special/benchmark.cpp -o "$work/b"
+        tools/elementary_functions/benchmark.cpp -o "$work/b"
     "$work/b" | cut -d' ' -f1
 }
 

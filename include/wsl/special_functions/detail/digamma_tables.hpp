@@ -1,9 +1,11 @@
-// ENGENDRÉ par tools/special/generate.py — ne pas modifier à la main.
+// ENGENDRÉ par tools/elementary_functions/generate.py — ne pas modifier à la main.
 #pragma once
+
+#include <wsl/modes.hpp>
 
 // Constantes et tables de digamma (voir gamma.hpp).
 
-namespace wsl::special::detail
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
     // x₀, zéro positif de ψ, en trois parties.
     inline constexpr double digamma_root_hi = 0x1.762d86356be3fp+0;

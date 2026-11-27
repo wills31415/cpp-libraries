@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wsl/modes.hpp>
+
 // Fonctions élémentaires bit-exactes : même résultat au bit près sur toute
 // plateforme (voir detail/fp.hpp pour les conditions), constexpr.
 //
@@ -15,14 +17,20 @@
 // Règle d'écriture : tout produit dont le résultat entre dans une addition ou une
 // soustraction passe par fmul (voir detail/fp.hpp).
 
-#include <wsl/special/detail/fp.hpp>
-#include <wsl/special/detail/tables.hpp>
+#include <wsl/floating_point_arithmetic/detail/primitives.hpp>
+#include <wsl/elementary_functions/detail/exponential_tables.hpp>
 
 #include <concepts>
 #include <cstdint>
 #include <type_traits>
 
-namespace wsl::special
+// Couche du dessous : les primitives flottantes.
+namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail
+{
+    using namespace floating_point_arithmetic::detail;
+}
+
+namespace wsl::inline WSL_DEFAULTS::elementary_functions
 {
     namespace detail
     {
