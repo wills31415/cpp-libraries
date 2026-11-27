@@ -7,6 +7,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- `wsl::special_functions` : chaque fonction prend ses étiquettes de mode, comme
+  `elementary_functions` (déterministe par défaut, `wsl::portable` sur demande,
+  `wsl::exact` refusé : aucune n'est correctement arrondie) ; tout appel interne porte son
+  mode, un appel qui l'oublie ne compile pas. Bornes inchangées dans les deux modes, vérifiées
+  sous `-ffp-contract=fast` (`special_functions.precision`). Mesuré, déterministe contre
+  portable : `erf` ×1,31, `erfc` ×1,45, `tgamma` ×1,29, `lgamma` ×0,90 (plus lente : le
+  compilateur y ordonne moins bien les fma). Le socle double-double (`detail/extended.hpp`,
+  `detail/loader.hpp`) reste toujours portable, en attendant sa conversion avec random.
 - `wsl::elementary_functions` : chaque fonction prend ses étiquettes de mode
   (design/interfaces.md, décisions 24 à 27, 38) : `ef::exp(x)` est déterministe (le défaut :
   le compilateur peut fusionner des produits), `ef::exp(x, wsl::portable)` donne les mêmes

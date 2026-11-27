@@ -81,9 +81,14 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 
 - Conception et mesures : `design/special.md` ; lois de probabilité à venir : `design/random.md`.
 - **Règle d'écriture** : uniquement `+ − × ÷` (et `sqrt`, `fma` explicites), jamais de
-  fonction transcendante de `<cmath>`. **Tout produit qui entre dans une addition ou
-  une soustraction passe par `detail::fmul`** (barrière contre la contraction en fma,
-  qui changerait les résultats selon la plateforme et les options du consommateur).
+  fonction transcendante de `<cmath>`. **Tout produit qui entre dans une addition ou une
+  soustraction passe par `fpa::mul<R>`** (barrière en mode portable, fusion permise en mode
+  déterministe) **ou, si l'algorithme s'appuie sur sa valeur arrondie** (argument direct d'une
+  somme exacte, d'un découpage de Veltkamp, d'une astuce d'arrondi), **par
+  `fpa::unfused_mul`** (décision 38). Chaque fonction s'écrit une fois, le mode `R` en
+  paramètre ; tout appel interne porte son `<R>` (un appel qui l'oublie ne compile pas,
+  plutôt que de basculer sans bruit en déterministe). `fmul` reste l'ancien nom de
+  `unfused_mul`, dans le socle double-double et random, pas encore convertis.
 - Tables engendrées et versionnées : `uv run --no-project --with mpmath python
   tools/elementary_functions/generate.py --tables` (ne jamais modifier `elementary_functions/detail/*tables.hpp` ni
   `special_functions/detail/*tables.hpp` à la

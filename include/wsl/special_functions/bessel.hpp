@@ -1,6 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
+#include <wsl/special_functions/detail/moded.hpp>
 
 // Fonction de Bessel modifiée de première espèce I_ν(x), bit-exacte (voir
 // detail/fp.hpp pour les conditions), constexpr, nommée comme std::cyl_bessel_i :
@@ -32,34 +33,12 @@
 #include <limits>
 
 #include <wsl/elementary_functions.hpp>
-#include <wsl/elementary_functions/detail/pinned_portable.hpp>
 
 // Couches du dessous : primitives flottantes et fonctions élémentaires.
 namespace wsl::inline WSL_DEFAULTS::special_functions::detail
 {
     using namespace floating_point_arithmetic::detail;
     using namespace elementary_functions::detail;
-}
-// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
-// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
-namespace wsl::inline WSL_DEFAULTS::special_functions
-{
-    using elementary_functions::detail::pinned_portable::sqrt;
-    using elementary_functions::detail::pinned_portable::cbrt;
-    using elementary_functions::detail::pinned_portable::hypot;
-    using elementary_functions::detail::pinned_portable::exp;
-    using elementary_functions::detail::pinned_portable::exp2;
-    using elementary_functions::detail::pinned_portable::expm1;
-    using elementary_functions::detail::pinned_portable::log;
-    using elementary_functions::detail::pinned_portable::log2;
-    using elementary_functions::detail::pinned_portable::log10;
-    using elementary_functions::detail::pinned_portable::log1p;
-    using elementary_functions::detail::pinned_portable::pow;
-    using elementary_functions::detail::pinned_portable::sin;
-    using elementary_functions::detail::pinned_portable::cos;
-    using elementary_functions::detail::pinned_portable::tan;
-    using elementary_functions::detail::pinned_portable::atan;
-    using elementary_functions::detail::pinned_portable::atan2;
 }
 
 namespace wsl::inline WSL_DEFAULTS::special_functions
@@ -76,34 +55,36 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         };
 
         // log Γ(1 + ν), ν >= 0, en double-double.
+        template <reproducibility_mode R = portable_t>
         constexpr double_double lgamma_one_plus(double nu) noexcept
         {
             if (nu == 0)
                 return {0.0, 0.0};
             if (nu <= 0.25)
-                return lgamma1p_small(nu);
+                return lgamma1p_small<R>(nu);
             auto const [s_hi, s_lo] = two_sum(1.0, nu);
             return xd::log_gamma(s_hi, s_lo);
         }
 
         // Série : (x/2)^ν/Γ(ν + 1) · Σ_k (x²/4)^k / (k! (ν + 1)_k).
+        template <reproducibility_mode R = portable_t>
         constexpr bessel_parts bessel_series(double nu, double x) noexcept
         {
             auto const lx = xd::sum(xd::log_precise(x), {-ln2_hi, -ln2_lo});
             double_double pref = nu == 0 ? double_double{0.0, 0.0} : xd::mul({nu, 0.0}, lx);
-            auto const lg = lgamma_one_plus(nu);
+            auto const lg = lgamma_one_plus<R>(nu);
             pref = xd::sum(pref, {-lg.hi, -lg.lo});
             if (x < 0x1p-400)                                               // x²/4 (ν + 1) < 2^-800 : un terme
                 return {pref, xd::normalized(1.0, 0.0)};
             auto const [p, p_error] = two_product(x, x);
-            double_double const q{fmul(p, 0.25), fmul(p_error, 0.25)};      // x²/4, exact
+            double_double const q{mul<R>(p, 0.25), mul<R>(p_error, 0.25)};      // x²/4, exact
             double_double s{1.0, 0.0}, t{1.0, 0.0};
             int e = 0;                                                      // s, t à l'échelle 2^e
             for (int k = 1;; ++k)
             {
                 auto const [a, a_error] = two_sum(nu, double(k));           // k (k + ν)
                 double_double const d = xd::mul({a, a_error}, {double(k), 0.0});
-                t = quotient_dd(xd::mul(t, q), d);
+                t = quotient_dd<R>(xd::mul(t, q), d);
                 s = xd::sum(s, t);
                 if (s.hi > 0x1p600)
                 {
@@ -111,7 +92,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
                     t = {scale_by_power_of_two(t.hi, -600), scale_by_power_of_two(t.lo, -600)};
                     e += 600;
                 }
-                if (t.hi <= fmul(s.hi, 0x1p-112) && double(k) * double(k) >= q.hi)
+                if (t.hi <= mul<R>(s.hi, 0x1p-112) && double(k) * double(k) >= q.hi)
                     break;
             }
             xd::scaled sum = xd::normalized(s.hi, s.lo);
@@ -120,20 +101,21 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         }
 
         // Hankel : e^x/√(2πx) Σ_k (−1)^k a_k(ν)/x^k, a_k = a_{k−1} (4ν² − (2k − 1)²)/(8k).
+        template <reproducibility_mode R = portable_t>
         constexpr bessel_parts bessel_hankel(double nu, double x) noexcept
         {
             auto const lx = xd::log_precise(x);
             double_double pref = xd::sum({x, 0.0}, {-xd::half_log_2pi_hi, -xd::half_log_2pi_lo});
-            pref = xd::sum(pref, {fmul(lx.hi, -0.5), fmul(lx.lo, -0.5)});
+            pref = xd::sum(pref, {mul<R>(lx.hi, -0.5), mul<R>(lx.lo, -0.5)});
             auto const [m, m_error] = two_product(nu, nu);
-            double_double const mu4{fmul(m, 4.0), fmul(m_error, 4.0)};
+            double_double const mu4{mul<R>(m, 4.0), mul<R>(m_error, 4.0)};
             double_double s{1.0, 0.0}, t{1.0, 0.0};
             for (int k = 1; k < 200; ++k)
             {
                 double const odd = double(2 * k - 1);
-                auto const f = xd::sum(mu4, {-fmul(odd, odd), 0.0});
+                auto const f = xd::sum(mu4, {-mul<R>(odd, odd), 0.0});
                 auto const [d, d_error] = two_product(double(8 * k), x);
-                t = quotient_dd(xd::mul(t, f), {d, d_error});
+                t = quotient_dd<R>(xd::mul(t, f), {d, d_error});
                 t = {-t.hi, -t.lo};
                 s = xd::sum(s, t);
                 if (xd::magnitude(t.hi) <= 0x1p-112)
@@ -143,23 +125,24 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         }
 
         // Debye : I_ν(νz) = e^{νη} √t / √(2πν) · Σ_k u_k(t) ν^{−k}.
+        template <reproducibility_mode R = portable_t>
         constexpr bessel_parts bessel_uniform(double nu, double x) noexcept
         {
-            double_double const z = quotient_dd({x, 0.0}, {nu, 0.0});
+            double_double const z = quotient_dd<R>({x, 0.0}, {nu, 0.0});
             double_double const w = xd::sum({1.0, 0.0}, xd::mul(z, z));     // 1 + z²
             xd::scaled const ws = xd::normalized(w.hi, w.lo);
             double_double const sw = xd::unscaled(xd::sqrt(ws));            // √(1 + z²)
-            double_double const r = quotient_dd(z, xd::sum({1.0, 0.0}, sw));
+            double_double const r = quotient_dd<R>(z, xd::sum({1.0, 0.0}, sw));
             double_double const eta = xd::sum(sw, xd::log(xd::normalized(r.hi, r.lo)));
             double_double pref = xd::mul({nu, 0.0}, eta);
             pref = xd::sum(pref, {-xd::half_log_2pi_hi, -xd::half_log_2pi_lo});
             auto const ln = xd::log_precise(nu);
-            pref = xd::sum(pref, {fmul(ln.hi, -0.5), fmul(ln.lo, -0.5)});
+            pref = xd::sum(pref, {mul<R>(ln.hi, -0.5), mul<R>(ln.lo, -0.5)});
             auto const lw = xd::log(ws);                                    // ½ log t = −¼ log(1 + z²)
-            pref = xd::sum(pref, {fmul(lw.hi, -0.25), fmul(lw.lo, -0.25)});
-            double_double const t = quotient_dd({1.0, 0.0}, sw);
-            double_double const tau = quotient_dd({1.0, 0.0}, w);           // t²
-            double_double const step = quotient_dd(t, {nu, 0.0});           // t/ν
+            pref = xd::sum(pref, {mul<R>(lw.hi, -0.25), mul<R>(lw.lo, -0.25)});
+            double_double const t = quotient_dd<R>({1.0, 0.0}, sw);
+            double_double const tau = quotient_dd<R>({1.0, 0.0}, w);           // t²
+            double_double const step = quotient_dd<R>(t, {nu, 0.0});           // t/ν
             // Σ_k (t/ν)^k P_k(t²), P_k(τ) = Σ_j c_kj τ^j ; Horner en k, puis en τ.
             double_double s{0.0, 0.0};
             for (int k = bessel_debye_terms - 1; k >= 0; --k)
@@ -174,22 +157,24 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         }
 
         // ν >= 0, x > 0 finis.
+        template <reproducibility_mode R = portable_t>
         constexpr bessel_parts bessel_parts_of(double nu, double x) noexcept
         {
             if (nu >= bessel_debye_from)
-                return bessel_uniform(nu, x);
-            double const half_square = fmul(fmul(nu, nu), 0.5);
+                return bessel_uniform<R>(nu, x);
+            double const half_square = mul<R>(mul<R>(nu, nu), 0.5);
             if (x >= bessel_hankel_from && x >= half_square)
-                return bessel_hankel(nu, x);
-            return bessel_series(nu, x);
+                return bessel_hankel<R>(nu, x);
+            return bessel_series<R>(nu, x);
         }
 
         // I_ν(x), ν >= 0, x > 0 finis, arrondi une fois.
+        template <reproducibility_mode R = portable_t>
         constexpr double bessel_positive(double nu, double x) noexcept
         {
             if (nu >= bessel_debye_from && x < 0x1p-900)                    // (x/2)^ν/Γ(ν + 1) < 2^-45000
                 return 0;
-            auto const [pref, sum] = bessel_parts_of(nu, x);
+            auto const [pref, sum] = bessel_parts_of<R>(nu, x);
             if (pref.hi > 1400)
                 return std::numeric_limits<double>::infinity();
             if (pref.hi < -1500 && sum.e < 600)
@@ -198,30 +183,35 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         }
 
         // log I_ν(x), ν >= 0, x > 0 finis, en double-double.
+        template <reproducibility_mode R = portable_t>
         constexpr double_double log_cyl_bessel_i(double nu, double x) noexcept
         {
-            auto const [pref, sum] = bessel_parts_of(nu, x);
+            auto const [pref, sum] = bessel_parts_of<R>(nu, x);
             return xd::sum(pref, xd::log(sum));
         }
 
         // ν entier impair ? (pair au-delà de 2^53.)
+        template <reproducibility_mode R = portable_t>
         constexpr bool is_odd_integer(double v) noexcept
         {
             double const a = xd::magnitude(v);
             if (a >= 0x1p53)
                 return false;
-            double const h = fmul(a, 0.5);
+            double const h = mul<R>(a, 0.5);
             return xd::floor_nonnegative(h) != h;
         }
     }
 
+    namespace detail
+    {
+    template <reproducibility_mode R>
     constexpr double cyl_bessel_i(double nu, double x) noexcept
     {
         if (!(x == x))
             return detail::opaque(x + x);
         if (!(nu == nu))
             return detail::opaque(nu + nu);
-        bool const integer = detail::is_integer(nu);
+        bool const integer = detail::is_integer<R>(nu);
         if (nu < 0)
         {
             if (!integer)
@@ -233,7 +223,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         {
             if (!integer)
                 return std::numeric_limits<double>::quiet_NaN();
-            negative = detail::is_odd_integer(nu);
+            negative = detail::is_odd_integer<R>(nu);
             x = -x;
         }
         double r = 0;
@@ -244,18 +234,16 @@ namespace wsl::inline WSL_DEFAULTS::special_functions
         else if (x == std::numeric_limits<double>::infinity())
             r = std::numeric_limits<double>::infinity();
         else
-            r = detail::bessel_positive(nu, x);
+            r = detail::bessel_positive<R>(nu, x);
         return negative ? -r : r;
     }
-
-    constexpr float cyl_bessel_i(float nu, float x) noexcept
-    {
-        return detail::to_float(cyl_bessel_i(static_cast<double>(nu), static_cast<double>(x)));
     }
 
+
     // Arguments mêlés (entiers, float, double), en double, comme <cmath>.
-    template <class A, class B> requires detail::mixed_arithmetic<A, B>
-    constexpr double cyl_bessel_i(A nu, B x) noexcept { return cyl_bessel_i(static_cast<double>(nu), static_cast<double>(x)); }
+
+    // float : calcul en double, puis un seul arrondi vers float ; arguments mêlés en double.
+    WSL_SF_FUNCTION_2(cyl_bessel_i, detail::to_float)
 
     long double cyl_bessel_i(long double, long double) = delete;
 }

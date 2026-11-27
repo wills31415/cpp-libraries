@@ -19,7 +19,7 @@
 #include <wsl/mdarray/expression.hpp>
 #include <wsl/mdarray/indexed.hpp>
 #include <wsl/elementary_functions.hpp>
-#include <wsl/elementary_functions/detail/pinned_portable.hpp>
+#include <wsl/special_functions/detail/pinned_portable.hpp>
 #include <wsl/floating_point_arithmetic.hpp>
 #include <wsl/special_functions.hpp>
 
@@ -34,8 +34,7 @@ namespace wsl::inline WSL_DEFAULTS
         // Fonctions portables (au bit près partout, constexpr) : élémentaires et spéciales.
         namespace portable_functions
         {
-            using namespace elementary_functions::detail::pinned_portable;
-            using namespace special_functions;
+            using namespace special_functions::detail::pinned_portable;
         }
 
         using fast_mode = deterministic_t;

@@ -7,6 +7,7 @@
 // « arrondi correct ou non ».
 
 #include <wsl/special.hpp>
+#include <wsl/special_functions.hpp>
 
 #include "data/special_elementary_reference.hpp"
 
@@ -148,62 +149,54 @@ static_assert(sp::tgamma(5.0) == 24.0 && sp::lgamma(1.0) == 0.0 && sp::erf_inv(0
 constexpr double compile_time[] = {sp::exp(-3.7), sp::exp(123.456), sp::exp(-720.5), sp::log(0x1p-1070),
                                    sp::log(3.0), sp::log(0.999999), sp::log(1e300)};
 
+namespace sf = wsl::special_functions;
+
+// Fonctions spéciales dans les deux modes (design/interfaces.md, décisions 24 à 27, 38) :
+// déterministe (défaut ; fusion permise) et portable. Les fonctions élémentaires sont
+// vérifiées par elementary_functions.precision.
+template <class Mode>
+void check_special_mode(char const* mode)
+{
+    std::printf("--- mode %s\n", mode);
+        check2<double>("cyl_bessel_i dbl", reference_data::cyl_bessel_i_double, [](double nu, double x) { return sf::cyl_bessel_i(nu, x, Mode{}); }, 0.51);
+        check2<float>("cyl_bessel_i flt", reference_data::cyl_bessel_i_float, [](float nu, float x) { return sf::cyl_bessel_i(nu, x, Mode{}); }, 0.5 + 0x1p-28);
+        check2<double>("gamma_p dbl", reference_data::gamma_p_double, [](double a, double x) { return sf::gamma_p(a, x, Mode{}); }, 0.51);
+        check2<double>("gamma_q dbl", reference_data::gamma_q_double, [](double a, double x) { return sf::gamma_q(a, x, Mode{}); }, 0.51);
+        check2<float>("gamma_p float", reference_data::gamma_p_float, [](float a, float x) { return sf::gamma_p(a, x, Mode{}); }, 0.5 + 0x1p-28);
+        check2<float>("gamma_q float", reference_data::gamma_q_float, [](float a, float x) { return sf::gamma_q(a, x, Mode{}); }, 0.5 + 0x1p-28);
+        check2<double>("gamma_p_inv dbl", reference_data::gamma_p_inv_double, [](double a, double p) { return sf::gamma_p_inv(a, p, Mode{}); }, 0.51);
+        check2<double>("gamma_q_inv dbl", reference_data::gamma_q_inv_double, [](double a, double q) { return sf::gamma_q_inv(a, q, Mode{}); }, 0.51);
+        check2<float>("gamma_p_inv flt", reference_data::gamma_p_inv_float, [](float a, float p) { return sf::gamma_p_inv(a, p, Mode{}); }, 0.5 + 0x1p-28);
+        check2<double>("lbeta dbl", reference_data::lbeta_double, [](double a, double b) { return sf::lbeta(a, b, Mode{}); }, 0.51);
+        check2<double>("beta dbl", reference_data::beta_double, [](double a, double b) { return sf::beta(a, b, Mode{}); }, 0.51);
+        check3<double>("ibeta dbl", reference_data::ibeta_double, [](double a, double b, double x) { return sf::ibeta(a, b, x, Mode{}); }, 0.51);
+        check3<double>("ibetac dbl", reference_data::ibetac_double, [](double a, double b, double x) { return sf::ibetac(a, b, x, Mode{}); }, 0.51);
+        check3<float>("ibeta float", reference_data::ibeta_float, [](float a, float b, float x) { return sf::ibeta(a, b, x, Mode{}); }, 0.5 + 0x1p-28);
+        check3<float>("ibetac float", reference_data::ibetac_float, [](float a, float b, float x) { return sf::ibetac(a, b, x, Mode{}); }, 0.5 + 0x1p-28);
+        check3<double>("ibeta_inv dbl", reference_data::ibeta_inv_double, [](double a, double b, double p) { return sf::ibeta_inv(a, b, p, Mode{}); }, 0.51);
+        check3<double>("ibetac_inv dbl", reference_data::ibetac_inv_double, [](double a, double b, double q) { return sf::ibetac_inv(a, b, q, Mode{}); }, 0.51);
+        check3<float>("ibeta_inv flt", reference_data::ibeta_inv_float, [](float a, float b, float p) { return sf::ibeta_inv(a, b, p, Mode{}); }, 0.5 + 0x1p-28);
+        check<double>("erf double", reference_data::erf_double, [](double x) { return sf::erf(x, Mode{}); }, 0.51);
+        check<double>("erfc double", reference_data::erfc_double, [](double x) { return sf::erfc(x, Mode{}); }, 0.51);
+        check<float>("erf float", reference_data::erf_float, [](float x) { return sf::erf(x, Mode{}); }, 0.5 + 0x1p-28);
+        check<float>("erfc float", reference_data::erfc_float, [](float x) { return sf::erfc(x, Mode{}); }, 0.5 + 0x1p-28);
+        check<double>("lgamma x>0", reference_data::lgamma_positive_double, [](double x) { return sf::lgamma(x, Mode{}); }, 0.51);
+        check<double>("tgamma double", reference_data::tgamma_double, [](double x) { return sf::tgamma(x, Mode{}); }, 0.51);
+        check<double>("digamma x>0", reference_data::digamma_double, [](double x) { return sf::digamma(x, Mode{}); }, 0.51);
+        check<float>("digamma float", reference_data::digamma_float, [](float x) { return sf::digamma(x, Mode{}); }, 0.5 + 0x1p-28);
+        check<float>("lgamma float", reference_data::lgamma_float, [](float x) { return sf::lgamma(x, Mode{}); }, 0.5 + 0x1p-28);
+        check<float>("tgamma float", reference_data::tgamma_float, [](float x) { return sf::tgamma(x, Mode{}); }, 0.5 + 0x1p-28);
+        check<double>("erf_inv dbl", reference_data::erf_inv_double, [](double y) { return sf::erf_inv(y, Mode{}); }, 0.51);
+        check<double>("erfc_inv dbl", reference_data::erfc_inv_double, [](double z) { return sf::erfc_inv(z, Mode{}); }, 0.51);
+        check<float>("erf_inv float", reference_data::erf_inv_float, [](float y) { return sf::erf_inv(y, Mode{}); }, 0.5 + 0x1p-28);
+        check<float>("erfc_inv flt", reference_data::erfc_inv_float, [](float z) { return sf::erfc_inv(z, Mode{}); }, 0.5 + 0x1p-28);
+}
+
 int main()
 {
+    check_special_mode<wsl::deterministic_t>("déterministe");
+    check_special_mode<wsl::portable_t>("portable");
     // Précision. Bornes : celles annoncées dans elementary.hpp.
-    check<double>("exp double", reference_data::exp_double, [](double x) { return sp::exp(x); }, 0.51);
-    check<double>("log double", reference_data::log_double, [](double x) { return sp::log(x); }, 0.51);
-    check<float>("exp float", reference_data::exp_float, [](float x) { return sp::exp(x); }, 0.5 + 0x1p-28);
-    check<float>("log float", reference_data::log_float, [](float x) { return sp::log(x); }, 0.5 + 0x1p-28);
-    check<double>("exp2 double", reference_data::exp2_double, [](double x) { return sp::exp2(x); }, 0.51);
-    check<double>("expm1 double", reference_data::expm1_double, [](double x) { return sp::expm1(x); }, 0.51);
-    check<double>("log2 double", reference_data::log2_double, [](double x) { return sp::log2(x); }, 0.51);
-    check<double>("log10 double", reference_data::log10_double, [](double x) { return sp::log10(x); }, 0.51);
-    check<double>("log1p double", reference_data::log1p_double, [](double x) { return sp::log1p(x); }, 0.51);
-    check<float>("exp2 float", reference_data::exp2_float, [](float x) { return sp::exp2(x); }, 0.5 + 0x1p-28);
-    check<float>("expm1 float", reference_data::expm1_float, [](float x) { return sp::expm1(x); }, 0.5 + 0x1p-28);
-    check<float>("log2 float", reference_data::log2_float, [](float x) { return sp::log2(x); }, 0.5 + 0x1p-28);
-    check<float>("log10 float", reference_data::log10_float, [](float x) { return sp::log10(x); }, 0.5 + 0x1p-28);
-    check<float>("log1p float", reference_data::log1p_float, [](float x) { return sp::log1p(x); }, 0.5 + 0x1p-28);
-    check2<double>("pow double", reference_data::pow_double, [](double x, double y) { return sp::pow(x, y); }, 0.51);
-    check2<double>("cyl_bessel_i dbl", reference_data::cyl_bessel_i_double, [](double nu, double x) { return sp::cyl_bessel_i(nu, x); }, 0.51);
-    check2<float>("cyl_bessel_i flt", reference_data::cyl_bessel_i_float, [](float nu, float x) { return sp::cyl_bessel_i(nu, x); }, 0.5 + 0x1p-28);
-    check2<double>("gamma_p dbl", reference_data::gamma_p_double, [](double a, double x) { return sp::gamma_p(a, x); }, 0.51);
-    check2<double>("gamma_q dbl", reference_data::gamma_q_double, [](double a, double x) { return sp::gamma_q(a, x); }, 0.51);
-    check2<float>("gamma_p float", reference_data::gamma_p_float, [](float a, float x) { return sp::gamma_p(a, x); }, 0.5 + 0x1p-28);
-    check2<float>("gamma_q float", reference_data::gamma_q_float, [](float a, float x) { return sp::gamma_q(a, x); }, 0.5 + 0x1p-28);
-    check2<double>("gamma_p_inv dbl", reference_data::gamma_p_inv_double, [](double a, double p) { return sp::gamma_p_inv(a, p); }, 0.51);
-    check2<double>("gamma_q_inv dbl", reference_data::gamma_q_inv_double, [](double a, double q) { return sp::gamma_q_inv(a, q); }, 0.51);
-    check2<float>("gamma_p_inv flt", reference_data::gamma_p_inv_float, [](float a, float p) { return sp::gamma_p_inv(a, p); }, 0.5 + 0x1p-28);
-    check2<double>("lbeta dbl", reference_data::lbeta_double, [](double a, double b) { return sp::lbeta(a, b); }, 0.51);
-    check2<double>("beta dbl", reference_data::beta_double, [](double a, double b) { return sp::beta(a, b); }, 0.51);
-    check3<double>("ibeta dbl", reference_data::ibeta_double, [](double a, double b, double x) { return sp::ibeta(a, b, x); }, 0.51);
-    check3<double>("ibetac dbl", reference_data::ibetac_double, [](double a, double b, double x) { return sp::ibetac(a, b, x); }, 0.51);
-    check3<float>("ibeta float", reference_data::ibeta_float, [](float a, float b, float x) { return sp::ibeta(a, b, x); }, 0.5 + 0x1p-28);
-    check3<float>("ibetac float", reference_data::ibetac_float, [](float a, float b, float x) { return sp::ibetac(a, b, x); }, 0.5 + 0x1p-28);
-    check3<double>("ibeta_inv dbl", reference_data::ibeta_inv_double, [](double a, double b, double p) { return sp::ibeta_inv(a, b, p); }, 0.51);
-    check3<double>("ibetac_inv dbl", reference_data::ibetac_inv_double, [](double a, double b, double q) { return sp::ibetac_inv(a, b, q); }, 0.51);
-    check3<float>("ibeta_inv flt", reference_data::ibeta_inv_float, [](float a, float b, float p) { return sp::ibeta_inv(a, b, p); }, 0.5 + 0x1p-28);
-    check2<float>("pow float", reference_data::pow_float, [](float x, float y) { return sp::pow(x, y); }, 0.5 + 0x1p-28);
-    check<double>("sin double", reference_data::sin_double, [](double x) { return sp::sin(x); }, 0.51);
-    check<double>("cos double", reference_data::cos_double, [](double x) { return sp::cos(x); }, 0.51);
-    check<double>("tan double", reference_data::tan_double, [](double x) { return sp::tan(x); }, 0.51);
-    check<double>("atan double", reference_data::atan_double, [](double x) { return sp::atan(x); }, 0.51);
-    check2<double>("atan2 double", reference_data::atan2_double, [](double y, double x) { return sp::atan2(y, x); }, 0.51);
-    check<float>("sin float", reference_data::sin_float, [](float x) { return sp::sin(x); }, 0.5 + 0x1p-28);
-    check<float>("cos float", reference_data::cos_float, [](float x) { return sp::cos(x); }, 0.5 + 0x1p-28);
-    check<float>("tan float", reference_data::tan_float, [](float x) { return sp::tan(x); }, 0.5 + 0x1p-28);
-    check<float>("atan float", reference_data::atan_float, [](float x) { return sp::atan(x); }, 0.5 + 0x1p-28);
-    check2<float>("atan2 float", reference_data::atan2_float, [](float y, float x) { return sp::atan2(y, x); }, 0.5 + 0x1p-28);
-    check<double>("cbrt double", reference_data::cbrt_double, [](double x) { return sp::cbrt(x); }, 0.51);
-    check<float>("cbrt float", reference_data::cbrt_float, [](float x) { return sp::cbrt(x); }, 0.5 + 0x1p-28);
-    check2<double>("hypot double", reference_data::hypot_double, [](double x, double y) { return sp::hypot(x, y); }, 0.51);
-    check2<float>("hypot float", reference_data::hypot_float, [](float x, float y) { return sp::hypot(x, y); }, 0.5 + 0x1p-28);
-    check<double>("erf double", reference_data::erf_double, [](double x) { return sp::erf(x); }, 0.51);
-    check<double>("erfc double", reference_data::erfc_double, [](double x) { return sp::erfc(x); }, 0.51);
-    check<float>("erf float", reference_data::erf_float, [](float x) { return sp::erf(x); }, 0.5 + 0x1p-28);
-    check<float>("erfc float", reference_data::erfc_float, [](float x) { return sp::erfc(x); }, 0.5 + 0x1p-28);
-    check<double>("lgamma x>0", reference_data::lgamma_positive_double, [](double x) { return sp::lgamma(x); }, 0.51);
     // lgamma, x < 0 : la réflexion retranche deux termes presque égaux près des
     // zéros de lgamma. Garantie : chaque résultat est à moins de 0,51 ulp, ou, à
     // défaut (près d'un zéro), à moins de 2^-58 en valeur absolue.
@@ -226,9 +219,6 @@ int main()
                     std::size(reference_data::lgamma_negative_double), beyond, absolute);
         assert(absolute < 0x1p-58);
     }
-    check<double>("tgamma double", reference_data::tgamma_double, [](double x) { return sp::tgamma(x); }, 0.51);
-    check<double>("digamma x>0", reference_data::digamma_double, [](double x) { return sp::digamma(x); }, 0.51);
-    check<float>("digamma float", reference_data::digamma_float, [](float x) { return sp::digamma(x); }, 0.5 + 0x1p-28);
     // digamma, x < 0 : même garantie que lgamma (0,51 ulp, ou 2^-58 en absolu près des zéros).
     {
         double absolute = 0;
@@ -247,12 +237,6 @@ int main()
                     std::size(reference_data::digamma_negative_double), beyond, absolute);
         assert(absolute < 0x1p-58);
     }
-    check<float>("lgamma float", reference_data::lgamma_float, [](float x) { return sp::lgamma(x); }, 0.5 + 0x1p-28);
-    check<float>("tgamma float", reference_data::tgamma_float, [](float x) { return sp::tgamma(x); }, 0.5 + 0x1p-28);
-    check<double>("erf_inv dbl", reference_data::erf_inv_double, [](double y) { return sp::erf_inv(y); }, 0.51);
-    check<double>("erfc_inv dbl", reference_data::erfc_inv_double, [](double z) { return sp::erfc_inv(z); }, 0.51);
-    check<float>("erf_inv float", reference_data::erf_inv_float, [](float y) { return sp::erf_inv(y); }, 0.5 + 0x1p-28);
-    check<float>("erfc_inv flt", reference_data::erfc_inv_float, [](float z) { return sp::erfc_inv(z); }, 0.5 + 0x1p-28);
 
     // L'évaluation à la compilation donne les mêmes bits qu'à l'exécution.
     volatile double inputs[] = {-3.7, 123.456, -720.5, 0x1p-1070, 3.0, 0.999999, 1e300};
