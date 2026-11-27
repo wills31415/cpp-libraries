@@ -1,7 +1,7 @@
 #pragma once
 
 // Algèbre des lois : convolution P ∗ Q, loi de X + Y pour X ~ P et Y ~ Q indépendantes
-// (voir docs/random.md §4.6).
+// (voir design/random.md §4.6).
 //
 //   auto S = wsl::random::convolution(wsl::random::normal({.mean = 1, .stddev = 3}), wsl::random::normal({.mean = 2, .stddev = 4}));   // normal : N(3, 5)
 //   auto P = wsl::random::convolution(wsl::random::poisson({.mean = 2.0}), wsl::random::binomial({.trials = 10, .p = 0.3}));  // convolution_law

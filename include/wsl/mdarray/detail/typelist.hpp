@@ -1,6 +1,6 @@
 #pragma once
 
-// Listes de types, pour l'algèbre des axes à la compilation (docs/mdarray.md, I5).
+// Listes de types, pour l'algèbre des axes à la compilation (design/mdarray.md, I5).
 
 #include <cstddef>
 #include <type_traits>

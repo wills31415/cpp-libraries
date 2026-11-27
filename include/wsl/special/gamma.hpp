@@ -11,7 +11,7 @@
 // digamma(+0) = −∞, digamma(−0) = +∞, digamma(entier négatif) = NaN (pôles),
 // digamma(+∞) = +∞, digamma(−∞) = NaN.
 //
-// Précision : voir docs/special.md. Pour x < 0, près des zéros de lgamma
+// Précision : voir design/special.md. Pour x < 0, près des zéros de lgamma
 // (x ≈ −2,457, −2,748, …), la formule de réflexion retranche deux termes presque
 // égaux : l'erreur y est petite en valeur absolue, pas en ulp.
 //

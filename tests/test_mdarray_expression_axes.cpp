@@ -1,4 +1,4 @@
-// wsl::mdarray, monde des axes (docs/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10 à I12) :
+// wsl::mdarray, monde des axes (design/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10 à I12) :
 // les exemples du document, chacun comparé à une boucle écrite à la main. Les refus
 // sont dans tests/compile_fail/mdarray/axes.cpp.
 

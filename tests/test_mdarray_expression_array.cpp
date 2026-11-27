@@ -1,4 +1,4 @@
-// wsl::mdarray, monde des tableaux entiers (docs/mdarray.md, V8, I6, I11, I12, I13) :
+// wsl::mdarray, monde des tableaux entiers (design/mdarray.md, V8, I6, I11, I12, I13) :
 // opérations terme à terme, diffusion des scalaires, fonctions, vectorize, masques,
 // where, réductions, affectation et construction, aliasing, expressions temporaires.
 

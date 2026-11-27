@@ -1,7 +1,7 @@
 #pragma once
 
 // Étendues d'un tableau multidimensionnel : l'ensemble d'indices
-// E = [0, n₁) × ⋯ × [0, n_N) (docs/mdarray.md, A5, I2).
+// E = [0, n₁) × ⋯ × [0, n_N) (design/mdarray.md, A5, I2).
 //
 //   wsl::extents<std::size_t, 3, std::dynamic_extent> e(4);   // 3 × 4, la seconde dynamique
 //   wsl::dims<2> f(3, 4);                                     // toutes dynamiques (C++26)

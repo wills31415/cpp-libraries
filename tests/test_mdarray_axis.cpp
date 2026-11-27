@@ -1,4 +1,4 @@
-// wsl::mdarray, axes (docs/mdarray.md, L1) : identité par le type, étiquettes,
+// wsl::mdarray, axes (design/mdarray.md, L1) : identité par le type, étiquettes,
 // groupes, axes prédéfinis, absence de copie. Les refus qui sont des erreurs de
 // compilation sont dans tests/compile_fail/mdarray/axis.cpp.
 

@@ -1,6 +1,6 @@
 #pragma once
 
-// Ordre fixé des sommes et produits flottants (docs/mdarray.md, I9) : par paires,
+// Ordre fixé des sommes et produits flottants (design/mdarray.md, I9) : par paires,
 // comme NumPy (pairwise_sum) — en dessous de 8 termes, dans l'ordre ; jusqu'à 128,
 // 8 accumulateurs entrelacés combinés ((r₀ + r₁) + (r₂ + r₃)) + ((r₄ + r₅) + (r₆ + r₇)),
 // puis le reste dans l'ordre ; au-delà, deux moitiés (la première d'une longueur

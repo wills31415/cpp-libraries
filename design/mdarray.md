@@ -1,6 +1,6 @@
 # wsl::mdarray : tableaux multidimensionnels
 
-Chantier ouvert le 2026-11-24, préalable aux objets mathématiques (docs/algebra.md), qui
+Chantier ouvert le 2026-11-24, préalable aux objets mathématiques (design/algebra.md), qui
 s'en serviront pour stocker des composantes. La bibliothèque est une infrastructure
 générale, indépendante de ces objets : elle sert aussi bien des images, des grilles ou des
 plateaux de jeu. `array2d` en deviendra un alias de rang 2.
@@ -31,8 +31,8 @@ Hors du périmètre :
 
 - **multi-indices de l'analyse** (∂^α, x^α, Taylor, |α|, α!, binomiaux) : objet différent,
   le monoïde (ℕᴺ, +), dans une bibliothèque à part, `wsl::mdindex` (pan 3 de
-  docs/algebra.md), avec le devenir de `graded` ;
-- **structures algébriques** (`wsl::algebraic`, docs/algebra.md) : voir V6 ;
+  design/algebra.md), avec le devenir de `graded` ;
+- **structures algébriques** (`wsl::algebraic`, design/algebra.md) : voir V6 ;
 - **variance** des emplacements d'un tenseur (bibliothèque des tenseurs : un tenseur de
   type (1, 1) est un élément de V ⊗ V* ; les axes restent neutres).
 
@@ -56,8 +56,8 @@ Hors du périmètre :
 |---|---|---|
 | P1 | Des opérateurs seulement pour les opérations du modèle (V1) : `p − q`, `p ± d` ; sur les déplacements `d ± e`, `−d`, et `*`, `/`, `%` par un entier, avec la sémantique des entiers de C++ (troncature vers zéro, comme `chrono::duration`) ; `==` et `<=>`. Le reste prend une fonction nommée | ✅ |
 | P2 | Ce qui est absurde est refusé à la compilation (rangs différents, déplacement pris pour une position, garde-fous de V4, étendues fixes incompatibles). Le rang est toujours connu à la compilation, comme dans `std::mdspan`. Un refus est l'absence de l'opération, avec un `static_assert` explicite là où le message du compilateur serait obscur | ✅ |
-| P3 | Ce qui est valide sous condition est une précondition : aucune vérification en Release, une assertion (arrêt avec message) quand `NDEBUG` n'est pas défini, forçable par `WSL_ASSERTIONS` (`0` ou `1`) ; toujours vérifiée en évaluation constante (erreur de compilation). Seuls `at()` (`std::out_of_range`, décision 3c de docs/interfaces.md) et `contains()` vérifient toujours. Complète 3c : celle-ci couvre les erreurs toujours détectées (construction, `at()`), P3 les conditions des opérations rapides | ✅ |
-| P4 | Dans mdarray, la norme d'abord : ses noms, ses ordres, ses types, ses conventions (indices à partir de 0, intervalles [a, b), `rank()` comme `mdspan`, `layout_right` par défaut) ; puis C++26 et les propositions autour de `mdspan` (`submdspan`, P1673, P1684) ; puis une pratique établie, citée dans la décision qui l'emprunte. Les conventions mathématiques appartiennent aux bibliothèques mathématiques (docs/algebra.md, A1) | ✅ |
+| P3 | Ce qui est valide sous condition est une précondition : aucune vérification en Release, une assertion (arrêt avec message) quand `NDEBUG` n'est pas défini, forçable par `WSL_ASSERTIONS` (`0` ou `1`) ; toujours vérifiée en évaluation constante (erreur de compilation). Seuls `at()` (`std::out_of_range`, décision 3c de design/interfaces.md) et `contains()` vérifient toujours. Complète 3c : celle-ci couvre les erreurs toujours détectées (construction, `at()`), P3 les conditions des opérations rapides | ✅ |
+| P4 | Dans mdarray, la norme d'abord : ses noms, ses ordres, ses types, ses conventions (indices à partir de 0, intervalles [a, b), `rank()` comme `mdspan`, `layout_right` par défaut) ; puis C++26 et les propositions autour de `mdspan` (`submdspan`, P1673, P1684) ; puis une pratique établie, citée dans la décision qui l'emprunte. Les conventions mathématiques appartiennent aux bibliothèques mathématiques (design/algebra.md, A1) | ✅ |
 | P5 | Un axe n'a pas de valeur, seulement une identité (son type) : le compilateur connaît toute la structure d'une expression | ✅ (V2) |
 | P6 | Le domaine d'un calcul est l'axe entier ; pour une partie, on découpe les tableaux | ✅ (V2) |
 

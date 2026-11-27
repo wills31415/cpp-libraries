@@ -1,4 +1,4 @@
-// wsl::mdarray, étendues, dispositions et vue (docs/mdarray.md, A5, I2, D19 à D23) :
+// wsl::mdarray, étendues, dispositions et vue (design/mdarray.md, A5, I2, D19 à D23) :
 // sémantique de <mdspan>, comparée à std::mdspan là où la bibliothèque standard
 // l'offre (libc++) ; ajouts : contains, wrap, clamp, m[p], at.
 

@@ -23,7 +23,7 @@ include(GNUInstallDirs)
 
 # Standards sur lesquels les tests sont compilés. Une bibliothèque est testée
 # sur chacun de ceux qu'elle prétend supporter (de son minimum à C++23). Le dépôt est
-# en C++23 partout (docs/interfaces.md, décision 7) ; ajouter 20 ici si une
+# en C++23 partout (design/interfaces.md, décision 7) ; ajouter 20 ici si une
 # bibliothèque redescend un jour à C++20, sur décision explicite.
 set(WSL_LIBRARIES_STANDARDS 23)
 
@@ -79,17 +79,14 @@ endfunction()
 define_property(TARGET PROPERTY WSL_STANDARD
     BRIEF_DOCS "Standard C++ minimal d'une bibliothèque wsl")
 
-wsl_add_library(array2d      STANDARD 23)
-wsl_add_library(dlist        STANDARD 23)
-wsl_add_library(graded       STANDARD 23)
-wsl_add_library(graded_io    STANDARD 23 DEPENDS graded)
-wsl_add_library(elo          STANDARD 23)
-wsl_add_library(progress     STANDARD 23)
+# Anciennes bibliothèques (array2d, graded, graded_io, elo, progress) : dans legacy/,
+# figées, ni construites ni installées, en attendant leur refonte (design/interfaces.md,
+# décision 36).
 wsl_add_library(special      STANDARD 23)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(random       STANDARD 23 DEPENDS special permutation)
 wsl_add_library(mdarray      STANDARD 23 DEPENDS special)
-# Mode de calcul flottant des instructions non marquées de wsl::mdarray (docs/mdarray.md,
+# Mode de calcul flottant des instructions non marquées de wsl::mdarray (design/mdarray.md,
 # I9) : rapide par défaut ; reproductible au bit près partout si ON. Transmis à tout le
 # projet consommateur (une même valeur partout : règle de définition unique).
 option(WSL_LIBRARIES_MDARRAY_REPRODUCIBLE "wsl::mdarray : mode reproductible par défaut" OFF)
@@ -182,25 +179,6 @@ if(WSL_LIBRARIES_BUILD_TESTS)
         endforeach()
     endfunction()
 
-    wsl_add_test(array2d)
-    wsl_add_test(dlist)
-    wsl_add_test(graded)
-    # Le test compare exprès jet<int> et jet<unsigned>, pour vérifier que le
-    # piège signé/non signé des scalaires est reproduit tel quel : l'avertissement
-    # qu'en reçoit un utilisateur est voulu, mais n'a pas sa place ici.
-    # (Par une cible liée après wsl_libraries_options : une option propre à la
-    # cible passerait avant -Wextra, qui la réactiverait.)
-    add_library(wsl_libraries_no_sign_compare INTERFACE)
-    target_compile_options(wsl_libraries_no_sign_compare INTERFACE -Wno-sign-compare)
-    foreach(test test_graded test_graded_cxx20)
-        if(NOT TARGET ${test})
-            continue()
-        endif()
-        target_link_libraries(${test} PRIVATE wsl_libraries_no_sign_compare)
-    endforeach()
-    wsl_add_test(graded_io)
-    wsl_add_test(elo)
-    wsl_add_test(progress)
     wsl_add_test(permutation)
     # wsl::mdarray : un test par fichier tests/test_mdarray_*.cpp (en ajouter un ne
     # touche pas à ce fichier, donc ne relance pas toute la CI).

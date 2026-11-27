@@ -4,7 +4,7 @@
 # d'autre à retrouver chez celui qui nous importe.
 #
 #     find_package(wsl_libraries 0.1 REQUIRED)
-#     target_link_libraries(mon_programme PRIVATE wsl::array2d wsl::graded)
+#     target_link_libraries(mon_programme PRIVATE wsl::mdarray wsl::random)
 #
 # wsl::libraries les réunit toutes.
 

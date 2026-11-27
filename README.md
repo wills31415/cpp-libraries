@@ -14,24 +14,22 @@ avertissements traités comme des erreurs.
 
 | Cible CMake | En-tête | Standard | Contenu |
 |---|---|---|---|
-| `wsl::array2d` | `<wsl/array2d.hpp>` | C++23 | Tableau 2D de taille fixe (agrégat), dispositions ligne/colonne majeure, vues de lignes et colonnes (`std::span` ou `strided_view`), `mdspan` |
-| `wsl::dlist` | `<wsl/dlist.hpp>` | C++23 | Liste à distances : valeurs placées à des positions entières, stockées par écarts relatifs (insertion et extraction de fragments) |
-| `wsl::graded` | `<wsl/graded.hpp>` | C++23 | N-uplets ordonnés lexicographiquement (jets) : `jet` (arité exacte), `series` (arité bornée), arithmétique, concaténation, hachage |
-| `wsl::graded_io` | `<wsl/graded_io.hpp>` | C++23 | `std::formatter`, `operator<<` et `to_string` pour `graded` |
-| `wsl::elo` | `<wsl/elo.hpp>` | C++23 | Classements Elo : estimation avec intervalle de confiance, Bradley–Terry (MM de Hunter), rééchantillonnage |
 | `wsl::permutation` | `<wsl/permutation.hpp>` | C++23 | Permutations de {0, …, n − 1} : composition, inverse, puissances, cycles, signature, inversions (O(n log n)), rang lexicographique, `constexpr` |
-| `wsl::progress` | `<wsl/progress.hpp>` | C++23 | Suivi d'une tâche longue sur stderr : avancement, vitesse récente, temps restant |
-| `wsl::special` | `<wsl/special.hpp>` | C++23 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv`, `cyl_bessel_i` ([conception](docs/special.md)) |
-| `wsl::random` | `<wsl/random.hpp>` | C++23 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (opérations en membres, `X.cdf(x)`, tirage `X(g)` ; paramètres nommés et exacts ; `uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy`, `fisher_f`, `weibull`, `laplace`, `logistic`, `pareto`, `gumbel`, `frechet`, `rayleigh`, `triangular`, `arcsine`, `erlang`, `inverse_gaussian`, `negative_binomial`, `hypergeometric`, `beta_binomial`, `logarithmic`, `discrete_gaussian`, `skellam`, `zipf`, `rice`, `skew_normal`, `stable` : moments, densité ou masse, répartition, quantile et quantile de survie sous 0,51 ulp ; tirage exact pour les cinq premières, `laplace` et `erlang`) ; algèbre des lois aux noms de la théorie de la mesure : `affine`, `convolution` (identités de familles), `truncate`, `mixture`, `product_measure`, `pushforward` ; lois multivariées (`dirichlet`, `multinomial`, `multivariate_normal`, `multivariate_student_t`, `wishart`, `inverse_wishart`, `uniform_sphere`, `uniform_ball`, `von_mises`, `von_mises_fisher`, dimension fixe ou `wsl::random::dynamic`) ; objets combinatoires à tirage exact (`uniform_permutation`, `ewens`, `mallows`, `uniform_subset`, `bernoulli_subset`, `uniform_combination`, `uniform_word`, `uniform_integer_partition`, `uniform_set_partition`, `uniform_composition`, `erdos_renyi`, `uniform_graph`, `barabasi_albert`, `random_regular_graph`, `uniform_tree`, `uniform_binary_tree`) ; processus à trajectoires paresseuses et exactes (`markov_chain`, `random_walk`, `polya_urn`, `chinese_restaurant`, `brownian_motion`, `brownian_bridge`, `ornstein_uhlenbeck`, `poisson_process`, `compound_poisson`, `continuous_markov_chain`…) et `categorical` exacte ; matrices aléatoires (`haar_orthogonal`, `haar_unitary`, `goe`, `gue`) ([conception](docs/random.md)) |
-| `wsl::mdarray` | `<wsl/mdarray.hpp>` | C++23 | Tableaux multidimensionnels (lot 1) : modes de calcul rapide et reproductible (`wsl::reproducible(…)` : mêmes bits sur toute plateforme, fma comprise, fonctions de `wsl::special`) ; calcul par les axes, le membre de gauche décide (`c[i, k] = a[i, j] * b[j, k]`, `y[i] = tanh(W[i, j] * x[j] + b[i])`, `double n = sqrt(x[i] * x[i])`, `A[i, i] = 1`, `r[i] = sum(j)(a[i, j])`, `h[i, j] = 1.0 / (i + j + 1)`, garde-fous à la compilation) ; calcul sur tableaux entiers (`y = x * x`, `r = hypot(x, y)`, `mdarray c = a * b + 1`, fonctions de `<cmath>`, `vectorize`, masques et `where`, réductions `sum`, `prod`, `min`, `max`, `argmin`, `argmax`, `all`, `any`, `count`) ; axes (`wsl::axis()`, `wsl::axis<"mu", "nu">()`, `wsl::axes::i`…) ; conteneur `mdarray` (P1684 : sémantique de valeur, `std::array` sans allocation pour des étendues fixes, littéral `{{1, 2}, {3, 4}}`, `equal`) ; `extents`, `dextents`, `dims`, `layout_right`, `layout_left`, `layout_stride`, `mdspan` (noms et sémantique de `<mdspan>`, sans GCC 16 ni libc++, conversions avec `std::mdspan` là où il existe ; ajouts : `m[p]`, `at`, `contains`, `wrap`, `clamp`) ; positions `mdposition` et déplacements `mddisplacement` (modèle affine, ordre lexicographique et composante par composante, normes, hachage, formatage) ; division euclidienne `div_euclid`, `rem_euclid` ([conception](docs/mdarray.md)) |
+| `wsl::special` | `<wsl/special.hpp>` | C++23 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv`, `cyl_bessel_i` ([conception](design/special.md)) |
+| `wsl::random` | `<wsl/random.hpp>` | C++23 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (opérations en membres, `X.cdf(x)`, tirage `X(g)` ; paramètres nommés et exacts ; `uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy`, `fisher_f`, `weibull`, `laplace`, `logistic`, `pareto`, `gumbel`, `frechet`, `rayleigh`, `triangular`, `arcsine`, `erlang`, `inverse_gaussian`, `negative_binomial`, `hypergeometric`, `beta_binomial`, `logarithmic`, `discrete_gaussian`, `skellam`, `zipf`, `rice`, `skew_normal`, `stable` : moments, densité ou masse, répartition, quantile et quantile de survie sous 0,51 ulp ; tirage exact pour les cinq premières, `laplace` et `erlang`) ; algèbre des lois aux noms de la théorie de la mesure : `affine`, `convolution` (identités de familles), `truncate`, `mixture`, `product_measure`, `pushforward` ; lois multivariées (`dirichlet`, `multinomial`, `multivariate_normal`, `multivariate_student_t`, `wishart`, `inverse_wishart`, `uniform_sphere`, `uniform_ball`, `von_mises`, `von_mises_fisher`, dimension fixe ou `wsl::random::dynamic`) ; objets combinatoires à tirage exact (`uniform_permutation`, `ewens`, `mallows`, `uniform_subset`, `bernoulli_subset`, `uniform_combination`, `uniform_word`, `uniform_integer_partition`, `uniform_set_partition`, `uniform_composition`, `erdos_renyi`, `uniform_graph`, `barabasi_albert`, `random_regular_graph`, `uniform_tree`, `uniform_binary_tree`) ; processus à trajectoires paresseuses et exactes (`markov_chain`, `random_walk`, `polya_urn`, `chinese_restaurant`, `brownian_motion`, `brownian_bridge`, `ornstein_uhlenbeck`, `poisson_process`, `compound_poisson`, `continuous_markov_chain`…) et `categorical` exacte ; matrices aléatoires (`haar_orthogonal`, `haar_unitary`, `goe`, `gue`) ([conception](design/random.md)) |
+| `wsl::mdarray` | `<wsl/mdarray.hpp>` | C++23 | Tableaux multidimensionnels (lot 1) : modes de calcul rapide et reproductible (`wsl::reproducible(…)` : mêmes bits sur toute plateforme, fma comprise, fonctions de `wsl::special`) ; calcul par les axes, le membre de gauche décide (`c[i, k] = a[i, j] * b[j, k]`, `y[i] = tanh(W[i, j] * x[j] + b[i])`, `double n = sqrt(x[i] * x[i])`, `A[i, i] = 1`, `r[i] = sum(j)(a[i, j])`, `h[i, j] = 1.0 / (i + j + 1)`, garde-fous à la compilation) ; calcul sur tableaux entiers (`y = x * x`, `r = hypot(x, y)`, `mdarray c = a * b + 1`, fonctions de `<cmath>`, `vectorize`, masques et `where`, réductions `sum`, `prod`, `min`, `max`, `argmin`, `argmax`, `all`, `any`, `count`) ; axes (`wsl::axis()`, `wsl::axis<"mu", "nu">()`, `wsl::axes::i`…) ; conteneur `mdarray` (P1684 : sémantique de valeur, `std::array` sans allocation pour des étendues fixes, littéral `{{1, 2}, {3, 4}}`, `equal`) ; `extents`, `dextents`, `dims`, `layout_right`, `layout_left`, `layout_stride`, `mdspan` (noms et sémantique de `<mdspan>`, sans GCC 16 ni libc++, conversions avec `std::mdspan` là où il existe ; ajouts : `m[p]`, `at`, `contains`, `wrap`, `clamp`) ; positions `mdposition` et déplacements `mddisplacement` (modèle affine, ordre lexicographique et composante par composante, normes, hachage, formatage) ; division euclidienne `div_euclid`, `rem_euclid` ([conception](design/mdarray.md)) |
 | `wsl::libraries` | — | C++23 | Toutes les bibliothèques ci-dessus |
+
+Les anciennes bibliothèques (`array2d`, `graded`, `graded_io`, `elo`, `progress`) attendent
+leur refonte dans `legacy/`, figées ; `dlist` a quitté le dépôt. Refonte en cours :
+voir design/interfaces.md (décisions 10 à 40).
 
 Toutes les bibliothèques exigent C++23, transmis au projet consommateur : lier une
 cible `wsl::…` à un projet en C++20 le fait passer en C++23. L'historique des
 changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
 
 En préparation dans `wsl::random` : d'autres lois (Rice, zêta…)
-([conception](docs/random.md)).
+([conception](design/random.md)).
 
 ## Utiliser les bibliothèques dans un projet
 
@@ -46,14 +44,13 @@ FetchContent_Declare(wsl_libraries
     EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(wsl_libraries)
 
-target_link_libraries(mon_programme PRIVATE wsl::array2d wsl::graded)
+target_link_libraries(mon_programme PRIVATE wsl::mdarray wsl::random)
 ```
 
 Chaque projet garde la version qu'il a choisie : une nouvelle version de
 cpp-libraries ne change rien tant que `GIT_TAG` n'est pas modifié. Les tests et
 exemples de ce dépôt ne sont pas construits chez le consommateur.
 
-`cpp-init` (voir plus bas) écrit ce bloc tout seul, sur la dernière version publiée.
 
 ### Modifier une bibliothèque en même temps qu'un projet
 
@@ -83,7 +80,7 @@ cmake --install build/release --prefix ~/.local
 
 ```cmake
 find_package(wsl_libraries 0.1 REQUIRED)
-target_link_libraries(mon_programme PRIVATE wsl::array2d)
+target_link_libraries(mon_programme PRIVATE wsl::mdarray)
 ```
 
 Pratique pour un essai rapide, mais une seule version existe alors pour toute la
@@ -124,10 +121,6 @@ mineure peut casser l'interface, un correctif jamais.
 
 ## Outils
 
-- **`tools/cpp-init`** : crée un projet C++23 (CMake, presets, clangd, lldb, ctest,
-  ASan/UBSan) qui utilise ces bibliothèques, figées sur la dernière version
-  publiée (`--no-wsl` pour s'en passer). `cpp-init --help` pour le détail.
-  Installation : `ln -s "$PWD/tools/cpp-init" ~/.local/bin/cpp-init`.
 - **`tools/release.sh`** : publication d'une version (voir plus haut).
 
 ## Licence

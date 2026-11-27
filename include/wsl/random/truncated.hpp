@@ -1,6 +1,6 @@
 #pragma once
 
-// Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir docs/random.md §4.6).
+// Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir design/random.md §4.6).
 //
 //   wsl::random::normal N({.mean = 0, .stddev = 1});
 //   auto T = wsl::random::truncate(N, {.lower = 10});   // N | N >= 10, masse ~ 7,6·10⁻²⁴
@@ -11,7 +11,7 @@
 // que les deux termes soient <= ½ quand c'est possible (pas de compensation : la
 // troncature loin dans une queue garde sa précision). Quantiles : F(x) = F(a) + p m ou
 // S(x) = S(b) + (1 − p) m, sommes de positifs, par quantile ou cquantile de X selon que
-// la cible est sous ½ ou non. Composition, bit-exacte, erreur documentée (docs/random.md) :
+// la cible est sous ½ ou non. Composition, bit-exacte, erreur documentée (design/random.md) :
 // elle croît près des bornes (conditionnement |x|/(x − a)) et quand une valeur de F ou de
 // S passe sous les sous-normaux. Pas de moments (pas de forme générale).
 //

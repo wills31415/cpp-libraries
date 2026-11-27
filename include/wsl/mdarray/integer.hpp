@@ -1,6 +1,6 @@
 #pragma once
 
-// Arithmétique entière générale (docs/mdarray.md, D15) : division euclidienne,
+// Arithmétique entière générale (design/mdarray.md, D15) : division euclidienne,
 // reste dans {0, …, k − 1} (noms de Rust). `/` et `%` de C++ tronquent vers zéro :
 // (−1) / 4 == 0 et (−1) % 4 == −1, alors que div_euclid(−1, 4) == −1 et
 // rem_euclid(−1, 4) == 3 (bord périodique, tore).

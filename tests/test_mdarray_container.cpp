@@ -1,4 +1,4 @@
-// wsl::mdarray, conteneur (docs/mdarray.md, I13) : conteneur par défaut,
+// wsl::mdarray, conteneur (design/mdarray.md, I13) : conteneur par défaut,
 // construction (étendues, valeur, conteneur, littéral, vue, autre tableau),
 // sémantique de valeur, accès, vue, parcours à plat, equal.
 

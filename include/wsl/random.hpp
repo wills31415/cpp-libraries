@@ -1,7 +1,7 @@
 #pragma once
 
 // wsl::random — les lois de probabilité, du point de vue mathématique (voir
-// docs/random.md).
+// design/random.md).
 //
 //   moteurs      splitmix64, xoshiro256pp, pcg64, philox4x64
 //   uniformes    random_bits, uniform_below, uniform_int, uniform_real(_fast),

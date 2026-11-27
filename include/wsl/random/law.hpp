@@ -1,6 +1,6 @@
 #pragma once
 
-// Le concept de loi de probabilité (voir docs/random.md §4.3 et docs/interfaces.md, décisions 8).
+// Le concept de loi de probabilité (voir design/random.md §4.3 et design/interfaces.md, décisions 8).
 //
 // Une loi est un type qui déclare :
 //   - value_type : le type des valeurs tirées ;

@@ -1000,7 +1000,7 @@ def lgamma_negative_points_double():
             xs.append(x)
     xs += [-(2.0 ** rng.uniform(-60, 50)) for _ in range(300)]
     # Au plus près des zéros de lgamma sur les négatifs : la réflexion y retranche
-    # deux termes presque égaux (zone mesurée exprès, voir docs/special.md).
+    # deux termes presque égaux (zone mesurée exprès, voir design/special.md).
     for start in (-2.457, -2.747, -3.143, -3.955, -4.039, -4.999, -5.0001, -6.0001, -9.0001):
         zero = mp.findroot(lambda t: mp.re(mp.loggamma(t)), mpf(start))
         base = round_double(zero)

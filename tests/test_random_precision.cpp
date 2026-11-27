@@ -322,7 +322,7 @@ int main()
         check<double>("vmf entropy", d::von_mises_fisher_entropy_double, [&](double a, double b, double) { return F(a, b).entropy(); }, 1.0);
     }
     {
-        // Lois construites : erreur de composition (docs/random.md), bornes mesurées.
+        // Lois construites : erreur de composition (design/random.md), bornes mesurées.
         auto const Z = [](double nu) { return wsl::random::affine(wsl::random::student_t({.degrees_of_freedom = nu}), {.scale = -2, .shift = 5}); };
         auto const N = [](double a, double b) { return wsl::random::truncate(wsl::random::normal({.mean = 0.0, .stddev = 1.0}), {.lower = a, .upper = b}); };
         wsl::random::mixture const M(wsl::random::weighted(0.3, wsl::random::normal({.mean = -2.0, .stddev = 1.0})), wsl::random::weighted(0.7, wsl::random::gamma({.rate = 1.0, .shape = 3.0})));

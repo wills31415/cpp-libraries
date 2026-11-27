@@ -1,6 +1,6 @@
 #pragma once
 
-// Préconditions de wsl::mdarray (docs/mdarray.md, P3) : aucune vérification en
+// Préconditions de wsl::mdarray (design/mdarray.md, P3) : aucune vérification en
 // Release, arrêt avec message quand NDEBUG n'est pas défini, choix forcé par
 // WSL_ASSERTIONS (0 ou 1) ; toujours vérifiées en évaluation constante, où une
 // violation est une erreur de compilation.

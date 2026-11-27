@@ -1,6 +1,6 @@
 #pragma once
 
-// wsl::special — fonctions mathématiques bit-exactes (voir docs/special.md).
+// wsl::special — fonctions mathématiques bit-exactes (voir design/special.md).
 //
 // Même résultat au bit près sur toute plateforme, en float et en double, et
 // évaluables à la compilation. Namespace wsl::special : employer des noms

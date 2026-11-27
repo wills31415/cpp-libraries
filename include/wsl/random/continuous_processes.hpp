@@ -1,6 +1,6 @@
 #pragma once
 
-// Processus en temps continu (docs/random.md §14), exacts point par point (option B) :
+// Processus en temps continu (design/random.md §14), exacts point par point (option B) :
 // chaque valeur rendue est l'arrondi correct d'une trajectoire tirée exactement selon la
 // loi dont les paramètres irrationnels (√Δt, e^{−θt}…) sont arrondis une fois.
 //

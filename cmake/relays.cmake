@@ -1,4 +1,4 @@
-# En-têtes sans extension (docs/interfaces.md, décision 30).
+# En-têtes sans extension (design/interfaces.md, décision 30).
 #
 # Le dépôt ne contient que des .hpp. Pour chaque en-tête public include/wsl/…/X.hpp, on
 # engendre un relais sans extension wsl/…/X qui ne fait que l'inclure :

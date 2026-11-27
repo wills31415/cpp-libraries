@@ -1,4 +1,4 @@
-// Monde des tableaux entiers : refus à la compilation (docs/mdarray.md, V8, L2, I13).
+// Monde des tableaux entiers : refus à la compilation (design/mdarray.md, V8, L2, I13).
 #include <wsl/mdarray.hpp>
 
 // ERREUR 1 : rangs différents

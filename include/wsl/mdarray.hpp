@@ -1,6 +1,6 @@
 #pragma once
 
-// wsl::mdarray : tableaux multidimensionnels (conception : docs/mdarray.md).
+// wsl::mdarray : tableaux multidimensionnels (conception : design/mdarray.md).
 //
 // Lot 1, en cours : positions et déplacements (mdposition, mddisplacement),
 // arithmétique entière (div_euclid, rem_euclid), étendues (extents, dextents, dims),

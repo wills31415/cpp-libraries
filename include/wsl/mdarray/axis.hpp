@@ -1,6 +1,6 @@
 #pragma once
 
-// Axes (docs/mdarray.md, L1) : un nom pour toutes les positions d'une dimension.
+// Axes (design/mdarray.md, L1) : un nom pour toutes les positions d'une dimension.
 //
 //   auto i = wsl::axis();                       // un axe
 //   auto mu = wsl::axis<"mu">();                // étiqueté (messages, affichage)

@@ -1,6 +1,6 @@
 #pragma once
 
-// Fonctions de <cmath> élément par élément (docs/mdarray.md, I11), une seule liste
+// Fonctions de <cmath> élément par élément (design/mdarray.md, I11), une seule liste
 // pour les deux mondes (tableaux entiers, axes) : X(nom).
 
 #define WSL_MDARRAY_UNARY_FUNCTIONS(X)                                                                                 \

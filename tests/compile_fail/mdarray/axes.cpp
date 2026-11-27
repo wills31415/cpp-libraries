@@ -1,4 +1,4 @@
-// Monde des axes : refus à la compilation (docs/mdarray.md, V2, V4, V9, L2, L5, L12, I6, I10).
+// Monde des axes : refus à la compilation (design/mdarray.md, V2, V4, V9, L2, L5, L12, I6, I10).
 #include <wsl/mdarray.hpp>
 
 // ERREUR 1 : n'apparaît qu'une fois

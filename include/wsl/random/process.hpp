@@ -1,6 +1,6 @@
 #pragma once
 
-// Processus aléatoires : trajectoires paresseuses (voir docs/random.md §14).
+// Processus aléatoires : trajectoires paresseuses (voir design/random.md §14).
 //
 //   for (auto x : wsl::random::trajectory(P, g) | std::views::take(100)) …
 //

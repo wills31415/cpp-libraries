@@ -1,6 +1,6 @@
 #pragma once
 
-// Socle des lois multivariées (voir docs/random.md §12) : dimension fixe ou dynamique,
+// Socle des lois multivariées (voir design/random.md §12) : dimension fixe ou dynamique,
 // sur le modèle de std::span, vecteurs et matrices carrées.
 //
 //   wsl::random::dirichlet<double, 3>                // valeurs std::array<double, 3>

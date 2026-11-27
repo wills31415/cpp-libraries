@@ -1,7 +1,7 @@
 #pragma once
 
 // Sommes exactes de réels paresseux, arrondies correctement (processus en temps
-// continu, marches à pas réels ; docs/random.md §14, option B).
+// continu, marches à pas réels ; design/random.md §14, option B).
 //
 // Une somme paresseuse tient des termes c_j V_j / q_j : c_j dyadique exact (grand entier
 // fois puissance de 2), V_j >= 0 réel paresseux (k + u, u aux bits tirés à la demande),

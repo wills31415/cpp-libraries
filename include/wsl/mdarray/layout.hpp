@@ -1,7 +1,7 @@
 #pragma once
 
 // Dispositions : correspondance entre une position et une place en mémoire
-// (docs/mdarray.md, A5). Noms et sémantique de <mdspan> (C++23) : layout_right
+// (design/mdarray.md, A5). Noms et sémantique de <mdspan> (C++23) : layout_right
 // (ligne majeure, le dernier indice varie le plus vite), layout_left (colonne
 // majeure), layout_stride (pas quelconques).
 

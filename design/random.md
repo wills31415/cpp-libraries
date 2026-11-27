@@ -688,7 +688,7 @@ déterminant ±1 équiprobable.
 
 ### von Mises et von Mises–Fisher
 
-Avec `wsl::special::cyl_bessel_i` (docs/special.md §8) :
+Avec `wsl::special::cyl_bessel_i` (design/special.md §8) :
 
 | Loi | Paramètres | Fonctions | Tirage (approché, bit-exact) |
 |---|---|---|---|

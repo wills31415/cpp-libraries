@@ -1,6 +1,6 @@
 #pragma once
 
-// Tableau multidimensionnel possédant ses éléments (docs/mdarray.md, I13) : la
+// Tableau multidimensionnel possédant ses éléments (design/mdarray.md, I13) : la
 // sémantique de std::mdarray proposée (P1684), valeur (copie profonde).
 //
 //   wsl::mdarray<double, wsl::dims<2>> a(3, 4);                       // 3 × 4, zéros

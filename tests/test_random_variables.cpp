@@ -1,4 +1,4 @@
-// Variables aléatoires (docs/variables.md) : identité, évaluation couplée, constantes.
+// Variables aléatoires (design/variables.md) : identité, évaluation couplée, constantes.
 
 #include <wsl/random.hpp>
 

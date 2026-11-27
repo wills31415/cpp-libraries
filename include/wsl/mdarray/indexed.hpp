@@ -1,6 +1,6 @@
 #pragma once
 
-// Monde des axes (docs/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10, I12) :
+// Monde des axes (design/mdarray.md, V2 à V4, V9, L1 à L14, I6, I10, I12) :
 //
 //   c[i, k] = a[i, j] * b[j, k];          // j absent à gauche : sommé (V3)
 //   y[i] = tanh(W[i, j] * x[j] + b[i]);   double n = sqrt(x[i] * x[i]);

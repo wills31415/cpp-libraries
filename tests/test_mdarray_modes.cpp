@@ -1,4 +1,4 @@
-// wsl::mdarray, modes de calcul (docs/mdarray.md, I9) : empreinte du mode
+// wsl::mdarray, modes de calcul (design/mdarray.md, I9) : empreinte du mode
 // reproductible, identique sur toute plateforme et avec toutes les options (fma
 // comprise) ; calcul constexpr avec des fonctions ; mode rapide proche.
 

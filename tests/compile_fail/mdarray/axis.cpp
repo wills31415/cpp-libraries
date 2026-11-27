@@ -1,4 +1,4 @@
-// Axes : refus à la compilation (docs/mdarray.md, L1), avec leur message.
+// Axes : refus à la compilation (design/mdarray.md, L1), avec leur message.
 #include <wsl/mdarray.hpp>
 
 // ERREUR 1 : étiquettes en double

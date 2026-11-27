@@ -1,6 +1,6 @@
 #pragma once
 
-// Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir docs/random.md §4.6).
+// Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir design/random.md §4.6).
 //
 //   wsl::random::normal N({.mean = 1, .stddev = 2});
 //   auto Y = wsl::random::affine(N, {.scale = 3, .shift = -1});   // wsl::random::normal<> : N(2, 6), paramètres calculés
@@ -22,7 +22,7 @@
 // arrondi une fois ; cdf et ccdf échangées si a < 0 ; quantile a·Q_X(p) + b (ou a·cQ_X(p)
 // + b), un arrondi ; moments transformés (a·m + b, a²v, ±asymétrie…). Bit-exact ;
 // l'erreur ajoutée est celle de l'arrondi de z, amplifiée par le conditionnement
-// |z f(z)/F(z)| de la répartition (mesurée : docs/random.md).
+// |z f(z)/F(z)| de la répartition (mesurée : design/random.md).
 //
 // Tirage : a·x + b, x tiré selon X, arrondi une fois (approché).
 

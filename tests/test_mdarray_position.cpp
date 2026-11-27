@@ -1,4 +1,4 @@
-// wsl::mdarray, positions et déplacements (docs/mdarray.md, §4) : construction,
+// wsl::mdarray, positions et déplacements (design/mdarray.md, §4) : construction,
 // modèle affine, refus à la compilation (P1, P2), préconditions en évaluation
 // constante (P3), ordres, assemblage, normes, division euclidienne, hachage,
 // formatage.

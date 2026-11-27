@@ -1,6 +1,6 @@
 #pragma once
 
-// Intensités rationnelles exactes (docs/interfaces.md, décision 5) : λ = P/Q · 2^e, P et Q
+// Intensités rationnelles exactes (design/interfaces.md, décision 5) : λ = P/Q · 2^e, P et Q
 // entiers impairs premiers entre eux (< 2^53, exacts en double). Une intensité r et une
 // échelle s données en double, ou un rapport wr::ratio(a, b), s'y écrivent exactement :
 // r = P·2^k, 1/s = 1/(Q·2^k). La forme réduite est unique : deux lois de même λ ont la

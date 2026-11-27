@@ -1,6 +1,6 @@
 #pragma once
 
-// Modes de calcul flottant (docs/mdarray.md, I9) :
+// Modes de calcul flottant (design/mdarray.md, I9) :
 //
 //   y[i] = wsl::reproducible(A[i, j] * x[j] + b[i]);   // mêmes bits partout
 //   y = wsl::fast(exp(x) * 2);                          // fusion en fma permise, <cmath>

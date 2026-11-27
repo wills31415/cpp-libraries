@@ -1,6 +1,6 @@
 #pragma once
 
-// Monde des tableaux entiers (docs/mdarray.md, V8, I6, I11, I13) : opérations terme
+// Monde des tableaux entiers (design/mdarray.md, V8, I6, I11, I13) : opérations terme
 // à terme, paresseuses, sur des opérandes de même forme ; un scalaire se diffuse.
 //
 //   y = x * x;   r = hypot(x, y);   mask = a < b;   z = where(a > 0, a, 0);

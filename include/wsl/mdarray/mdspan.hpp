@@ -1,6 +1,6 @@
 #pragma once
 
-// Vue multidimensionnelle (docs/mdarray.md, A5) : noms et sémantique de
+// Vue multidimensionnelle (design/mdarray.md, A5) : noms et sémantique de
 // std::mdspan (C++23), ajouts seulement :
 //   m[p] avec p un wsl::mdposition (L4) ; m.at(…) toujours vérifié,
 //   std::out_of_range (D20, comme std::mdspan::at de C++26) ; m.contains(…) (D19) ;

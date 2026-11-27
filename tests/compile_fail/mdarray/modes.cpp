@@ -1,4 +1,4 @@
-// Modes de calcul : refus à la compilation (docs/mdarray.md, I9, L2).
+// Modes de calcul : refus à la compilation (design/mdarray.md, I9, L2).
 #include <wsl/mdarray.hpp>
 
 // ERREUR 1 : n'est pas couverte par wsl::special

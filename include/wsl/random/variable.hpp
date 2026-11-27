@@ -1,6 +1,6 @@
 #pragma once
 
-// Variables aléatoires (voir docs/variables.md) : applications mesurables X : Ω → E sur un
+// Variables aléatoires (voir design/variables.md) : applications mesurables X : Ω → E sur un
 // espace probabilisé commun. wsl::random::variable(P) ajoute à Ω un facteur indépendant de
 // loi P ; les expressions (X + Y, 2 * X, …) sont des fonctions des variables de base,
 // évaluées paresseusement.

@@ -7,7 +7,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
-- En-têtes sans extension, la forme documentée désormais (docs/interfaces.md, décision 30) :
+- Rupture : `array2d`, `graded`, `graded_io`, `elo` et `progress` quittent le catalogue pour
+  `legacy/`, figées (ni construites, ni testées, ni installées) en attendant leur refonte
+  (design/interfaces.md, décision 36 ; destinations dans `legacy/README.md`) ; `dlist`
+  quitte le dépôt. Les projets figés sur `v0.1.0` ne sont pas touchés.
+- `tools/cpp-init` quitte le dépôt pour un dépôt à lui (outil personnel, décision 35).
+- Les documents de conception passent de `docs/` à `design/` (`docs/` accueillera la
+  documentation pour l'utilisateur, décision 32).
+- En-têtes sans extension, la forme documentée désormais (design/interfaces.md, décision 30) :
   `#include <wsl/random>`, `#include <wsl/random/engines>`, `#include <wsl/special/gamma>`…
   La forme `.hpp` reste valable. Le dépôt ne contient que des `.hpp` ; CMake engendre à la
   configuration un relais sans extension par en-tête public (`cmake/relays.cmake`), les
@@ -17,11 +24,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   (`tests/package/`).
 - Rupture : C++23 exigé partout (dlist, graded, graded_io, elo, special, permutation et
   random descendaient jusqu'à C++20) ; tests compilés une seule fois, en C++23. Décision de
-  la revue des interfaces (docs/interfaces.md).
+  la revue des interfaces (design/interfaces.md).
 
 ### mdarray
 
-- Nouvelle bibliothèque (conception : docs/mdarray.md), lot 1 en cours. Positions
+- Nouvelle bibliothèque (conception : design/mdarray.md), lot 1 en cours. Positions
   `mdposition<N, IndexType = std::size_t>` et déplacements `mddisplacement<N, DiffType =
   std::ptrdiff_t>` : modèle affine (position − position = déplacement, position ±
   déplacement = position ; `*`, `/`, `%` par un entier sur les déplacements seulement,
@@ -196,7 +203,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   `truncate(P, {.lower, .upper})`, bornes nommées et facultatives, remplace
   `truncate(X, a, b)`. En-têtes `convolution.hpp` et `product_measure.hpp` (ex-`sum.hpp`,
   `independent.hpp`). Mêmes résultats.
-- Rupture : vocabulaire des paramètres (docs/interfaces.md, décision 2b). Renommés :
+- Rupture : vocabulaire des paramètres (design/interfaces.md, décision 2b). Renommés :
   normale `.sd` → `.stddev` ; log-normale `.mu`, `.sigma` → `.log_mean`, `.log_stddev` ;
   gaussienne discrète `.mu`, `.sigma` → `.location`, `.scale` ; von Mises `.mu`, `.kappa` →
   `.location`, `.concentration` (von Mises–Fisher : `.concentration`) ; uniformes, arc
@@ -236,7 +243,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   (au lieu de `m(i, j)`), dimensions `extent(i)` et `rank()` ; `size()`, qui rendait la
   dimension n et non le nombre d'éléments, est retiré (plutôt que de changer de sens).
   Dans `assert`, `m[i, j]` demande des parenthèses doubles (virgule de macro).
-- Variables aléatoires, lot 1a (docs/variables.md, décisions V1 à V6) : `wr::variable X{P}`
+- Variables aléatoires, lot 1a (design/variables.md, décisions V1 à V6) : `wr::variable X{P}`
   (identité unique, copies partagées, `independent_copy()`), expressions `+ − × ÷` avec
   variables et scalaires, évaluation couplée (`(X − X)(g) == 0` ; chaque variable de base
   tirée une fois par ω, par identifiant croissant), `wr::evaluate(g, X, Y, …)` sur un même
@@ -287,7 +294,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   covariance, famille gaussienne (normales et composantes de vecteurs gaussiens) ;
   `multivariate_normal` et la grille de `brownian_motion` se déclarent gaussiennes, la grille
   gagne `mean()` et `covariance()`.
-- Documentation (docs/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
+- Documentation (design/random.md) réalignée sur l'interface : §1 à §7 décrivent l'interface
   actuelle (concept de loi, uniformes, exactitude, paramètres exacts), exemples et noms de
   paramètres des tableaux à jour, §14 sur l'interface réelle des processus (exemples
   compilés), état des points du §15 ; README à jour.
@@ -350,7 +357,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   familles fermées gardant leur type (normale, Cauchy, Laplace, logistique, uniforme) ou
   leurs fonctions (exponentielle, gamma, Weibull, Pareto, log-normale) ;
   `wsl::truncate(X, a, b)` ; `wsl::mixture(wsl::weighted(w, X)…)`, tirage exact si les
-  composantes le sont. Erreurs de composition mesurées (docs/random.md §10).
+  composantes le sont. Erreurs de composition mesurées (design/random.md §10).
 - Algèbre des lois, lot 2 : sommes indépendantes `X + Y`, `X - Y` (identités normale,
   Cauchy, Poisson, χ² ; gamma de même intensité, exponentielles, binomiales de même p ;
   cumulants ; convolution exacte des lois discrètes), loi jointe `wsl::independent`,
@@ -462,7 +469,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
   maximale mesurée 0,500 ulp (`erf`), 0,503 ulp (`erfc`).
 - `lgamma`, `tgamma` (float, double), mêmes garanties ; erreur maximale mesurée
   0,500 ulp (`lgamma`, x > 0) et 0,507 ulp (`tgamma`). Pour x < 0 près des zéros de
-  lgamma, erreur bornée à 2⁻⁵⁸ en valeur absolue seulement (voir docs/special.md).
+  lgamma, erreur bornée à 2⁻⁵⁸ en valeur absolue seulement (voir design/special.md).
 - `erf_inv`, `erfc_inv` (float, double), mêmes garanties, `erfc_inv` jusqu'à 2⁻¹⁰⁷⁴ ;
   erreur maximale mesurée 0,502 et 0,506 ulp. `erf` et `erfc` affinées pour leur servir
   de résidu (mêmes précisions mesurées, bits changés pour quelques arguments).

@@ -1,6 +1,6 @@
 #pragma once
 
-// Positions et déplacements dans un tableau multidimensionnel (docs/mdarray.md, §4).
+// Positions et déplacements dans un tableau multidimensionnel (design/mdarray.md, §4).
 //
 //   wsl::mdposition p{2, 1};                     // mdposition<2> en std::size_t
 //   wsl::mddisplacement d{0, -1};                // mddisplacement<2> en std::ptrdiff_t

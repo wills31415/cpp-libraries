@@ -1,6 +1,6 @@
 #pragma once
 
-// Processus en temps discret (voir docs/random.md §14) : marches aléatoires à pas
+// Processus en temps discret (voir design/random.md §14) : marches aléatoires à pas
 // entiers, chaînes de Markov, urnes de Pólya, restaurant chinois (Pitman–Yor).
 //
 //   wsl::random::random_walk W(wsl::random::rademacher({.p = 0.5}));                       // marche simple

@@ -260,7 +260,7 @@ def algebra_laws(kind):
     S = lambda x: mpf(0) if x > 60 else mpf(1) if x < -60 else mp.erfc(mpf(x) / mp.sqrt(2)) / 2   # S(60) < 2^-2600
     for a, b in TRUNCATED:
         # Mesure hors des bornes (conditionnement |x|/(x − a)) et là où la survie de X reste
-        # normale (|x| < 37) : ailleurs la composition perd ses bits (docs/random.md).
+        # normale (|x| < 37) : ailleurs la composition perd ses bits (design/random.md).
         lo_, hi_ = max(a, -37.0), min(b, 37.0)
         w = (hi_ - lo_) / 8
         xs = [float(rng.uniform(lo_ + w, hi_ - w)) for _ in range(count)]
