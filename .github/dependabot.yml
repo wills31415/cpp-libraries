@@ -1,0 +1,14 @@
+# Actions de la CI : tags majeurs (@vN) ; Dependabot ne propose une PR qu'à la sortie d'une
+# nouvelle version majeure, une fois par mois au plus, toutes les actions dans une seule PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [interne, ci]
+    commit-message:
+      prefix: "ci :"

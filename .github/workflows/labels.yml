@@ -1,0 +1,19 @@
+# Étiquettes de domaine d'une PR, d'après ses chemins (.github/labeler.yml). Les étiquettes
+# de nature (rupture, nouveauté, correction, interne) sont posées à la création de la PR.
+name: Étiquettes
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  labels:
+    name: Étiquettes de domaine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          sync-labels: true

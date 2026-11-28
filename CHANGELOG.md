@@ -7,6 +7,14 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- CI restructurée : blocs Release, Sanitizers, FMA (GCC 14, Clang 18, Apple Clang sur macOS 26
+  Intel) et Paquet CMake, puis Synthèse, seul contrôle exigé par la protection de main ; PR :
+  bibliothèques touchées par la PR, run annulé au push suivant ; fusion dans main : run léger
+  (cache des références, Synthèse) ; tag : Publication seulement (`tools/ci/release_notes.sh`).
+  Cache des références et de ccache (binaire officiel 4.14.3, empreinte figée), résumés et
+  annotations (`tools/ci/summary.py`), journaux joints en cas d'échec. Étiquettes de domaine
+  automatiques, notes de version groupées par nature, Dependabot mensuel, caches d'une PR
+  effacés à sa fermeture, modèle de PR.
 - Compilation des tests plus rapide : valeurs de référence (mpmath) dans un **magasin
   adressé par contenu** (`cmake/reference_store.cmake` ; clé : générateurs, modules et version
   de mpmath, désormais figée à 1.4.1 ; magasin `~/.cache/wsl/references`, ou
