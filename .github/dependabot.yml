@@ -1,0 +1,18 @@
+# Actions de la CI : tags majeurs (@vN), ou exacts quand l'action n'en publie pas ; Dependabot ne propose une PR qu'à la sortie d'une
+# nouvelle version majeure, une fois par mois au plus, toutes les actions dans une seule PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    # setup-uv ne publie que des tags exacts : on n'en suit que les versions majeures.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+    labels: [interne, ci]
+    commit-message:
+      prefix: "ci :"

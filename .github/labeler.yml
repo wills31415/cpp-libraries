@@ -1,0 +1,121 @@
+# Étiquettes de domaine posées d'après les chemins modifiés (workflow labels.yml).
+
+"modes":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/modes.hpp'
+          - 'include/wsl/modes/**'
+          - 'tests/modes.cpp'
+          - 'tests/modes/**'
+          - 'docs/modes/**'
+          - 'examples/modes/**'
+          - 'tools/modes/**'
+"floating_point_arithmetic":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/floating_point_arithmetic.hpp'
+          - 'include/wsl/floating_point_arithmetic/**'
+          - 'tests/floating_point_arithmetic.cpp'
+          - 'tests/floating_point_arithmetic/**'
+          - 'docs/floating_point_arithmetic/**'
+          - 'examples/floating_point_arithmetic/**'
+          - 'tools/floating_point_arithmetic/**'
+"elementary_functions":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/elementary_functions.hpp'
+          - 'include/wsl/elementary_functions/**'
+          - 'tests/elementary_functions.cpp'
+          - 'tests/elementary_functions/**'
+          - 'docs/elementary_functions/**'
+          - 'examples/elementary_functions/**'
+          - 'tools/elementary_functions/**'
+"special_functions":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/special_functions.hpp'
+          - 'include/wsl/special_functions/**'
+          - 'tests/special_functions.cpp'
+          - 'tests/special_functions/**'
+          - 'docs/special_functions/**'
+          - 'examples/special_functions/**'
+          - 'tools/special_functions/**'
+"random":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/random.hpp'
+          - 'include/wsl/random/**'
+          - 'tests/random.cpp'
+          - 'tests/random/**'
+          - 'docs/random/**'
+          - 'examples/random/**'
+          - 'tools/random/**'
+"probability":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/probability.hpp'
+          - 'include/wsl/probability/**'
+          - 'tests/probability/**'
+          - 'docs/probability/**'
+          - 'examples/probability/**'
+          - 'tools/probability/**'
+"measure_theory":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/measure_theory.hpp'
+          - 'include/wsl/measure_theory/**'
+          - 'tests/measure_theory.cpp'
+          - 'tests/measure_theory/**'
+          - 'docs/measure_theory/**'
+          - 'examples/measure_theory/**'
+          - 'tools/measure_theory/**'
+"mdarray":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/mdarray.hpp'
+          - 'include/wsl/mdarray/**'
+          - 'tests/mdarray.cpp'
+          - 'tests/mdarray/**'
+          - 'docs/mdarray/**'
+          - 'examples/mdarray/**'
+          - 'tools/mdarray/**'
+"permutation":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/permutation.hpp'
+          - 'include/wsl/permutation/**'
+          - 'tests/permutation.cpp'
+          - 'tests/permutation/**'
+          - 'docs/permutation/**'
+          - 'examples/permutation/**'
+          - 'tools/permutation/**'
+"probability::stochastic_processes":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'include/wsl/probability/stochastic_processes.hpp'
+          - 'include/wsl/probability/stochastic_processes/**'
+          - 'tests/probability/stochastic_processes/**'
+          - 'docs/probability/stochastic_processes/**'
+          - 'examples/probability/stochastic_processes/**'
+"ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'tools/ci/**'
+"cmake":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'CMakeLists.txt'
+          - 'CMakePresets.json'
+          - 'cmake/**'
+"docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - 'design/**'
+          - 'README.md'
+          - 'CLAUDE.md'
+"tools":
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tools/**'

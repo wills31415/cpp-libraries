@@ -1,0 +1,15 @@
+# Notes de version engendrées par GitHub : PR incluses, groupées par nature (étiquettes).
+changelog:
+  exclude:
+    labels: [ignorer]
+  categories:
+    - title: Ruptures
+      labels: [rupture]
+    - title: Nouveautés
+      labels: [nouveauté]
+    - title: Corrections
+      labels: [correction]
+    - title: Interne
+      labels: [interne]
+    - title: Autres
+      labels: ["*"]

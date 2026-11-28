@@ -1,0 +1,23 @@
+# Les caches d'une PR ne servent qu'à elle : effacés à sa fermeture, pour garder la place des
+# caches de main (10 Go par dépôt).
+name: Nettoyage des caches
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    name: Caches de la PR
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Effacement
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: refs/pull/${{ github.event.number }}/merge
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$REF" --limit 500 --json id --jq '.[].id' |
+            while read -r id; do gh cache delete "$id" --repo "$GITHUB_REPOSITORY"; done

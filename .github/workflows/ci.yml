@@ -1,22 +1,23 @@
-# Chaque bibliothèque est compilée et testée sur trois compilateurs et deux
-# bibliothèques standard, en Debug (ASan + UBSan) et en Release, avertissements
-# traités comme des erreurs. Chaque test tourne en C++23 (voir wsl_add_test dans
-# CMakeLists.txt).
+# Intégration continue (design/interfaces.md, décisions du circuit de déploiement).
 #
-# Les configurations « FMA » sont hostiles exprès : fma matérielle disponible et
-# contraction de a*b + c permise partout (-ffp-contract=fast). Les empreintes de
-# tests/test_special_bitexact.cpp doivent y être les mêmes qu'ailleurs : c'est la
-# preuve que la garantie bit-exacte de wsl::special résiste aux options du
-# projet consommateur. Elles ne tournent qu'en Release : la garantie bit-exacte
-# s'y vérifie, et les sanitizers sont couverts par les jobs Debug sans FMA.
+# Blocs, un par nature de vérification, trois compilateurs chacun (GCC 14 et Clang 18 sur
+# Ubuntu 24.04, Apple Clang sur macOS 26 Intel) :
+#   Release     justesse ;
+#   Sanitizers  erreurs mémoire et comportement indéfini (Debug -O1, ASan + UBSan) ;
+#   FMA         reproductibilité sous fusion (-march=x86-64-v3 -ffp-contract=fast) : les
+#               empreintes doivent y être les mêmes qu'ailleurs ;
+#   Paquet      installation et FetchContent du point de vue d'un consommateur ;
+#   Synthèse    toujours lancée : verte si tout ce qui devait tourner a réussi. C'est le seul
+#               contrôle qu'exige la protection de main.
 #
-# Debug en -O1 : ASan et UBSan restent efficaces, tests 2 à 3 fois plus rapides.
-#
-# Seul ce qu'un push peut avoir changé est compilé et testé : le job « changes »
-# liste les chemins modifiés depuis le dernier passage réussi (tools/ci/changed_files.sh),
-# et CMake n'en garde que les bibliothèques touchées et celles qui en dépendent
-# (cmake/affected.cmake). Documentation seule : rien. Infrastructure, tag, lancement
-# manuel ou passage hebdomadaire : tout.
+# Quand :
+#   PR vers main         les blocs, sur les bibliothèques touchées par la PR (diff avec main,
+#                        tools/ci/changed_files.sh, cmake/affected.cmake) ; un nouveau push
+#                        annule le run en cours ;
+#   fusion dans main     run léger : la PR a testé exactement ce contenu (branche à jour
+#                        exigée) ; seuls le cache des références et la Synthèse ;
+#   tag v*               Publication seulement (la PR de version a passé la CI complète) ;
+#   hebdomadaire, manuel tout.
 name: CI
 
 on:
@@ -33,67 +34,111 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CCACHE_VERSION: 4.14.3
+  # Magasin des valeurs de référence (cmake/reference_store.cmake), partagé entre systèmes.
+  WSL_REFERENCE_STORE: ${{ github.workspace }}/.references
 
 jobs:
   changes:
     name: Chemins modifiés
     runs-on: ubuntu-24.04
     outputs:
+      mode: ${{ steps.list.outputs.mode }}
       files: ${{ steps.list.outputs.files }}
       tests: ${{ steps.list.outputs.tests }}
       package: ${{ steps.list.outputs.package }}
+      reference_key: ${{ steps.key.outputs.key }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - id: list
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tools/ci/changed_files.sh changed.txt
-          relevant=$(grep -v -E -f cmake/ci_ignored_paths.txt changed.txt || true)
-          tests=false; package=false
-          if [ -n "$relevant" ]; then package=true; fi
-          if [ -n "$(printf '%s\n' "$relevant" | grep -v '^tests/package/' | grep -v '^$' || true)" ]; then tests=true; fi
-          { echo "files<<FIN"; cat changed.txt; echo "FIN"; } >> "$GITHUB_OUTPUT"
-          echo "tests=$tests" >> "$GITHUB_OUTPUT"
-          echo "package=$package" >> "$GITHUB_OUTPUT"
-          echo "Tests : $tests ; paquet : $package"
+      # Clé du cache des références : les générateurs, leurs modules et la version de mpmath.
+      - id: key
+        run: echo "key=references-${{ hashFiles('tools/elementary_functions/generate.py', 'tools/probability/**', 'include/wsl/special_functions/detail/extended.hpp', 'cmake/reference_store.cmake', 'cmake/mpmath_version.txt') }}" >> "$GITHUB_OUTPUT"
 
-  test:
-    name: ${{ matrix.compiler.name }} · ${{ matrix.preset }}
+      - id: list
+        run: |
+          # mode : tests (PR, hebdomadaire, manuel), light (fusion dans main), publish (tag).
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/tags/* ]]; then mode=publish
+          elif [[ "$GITHUB_EVENT_NAME" == push ]]; then mode=light
+          else mode=tests; fi
+          tests=false; package=false
+          if [[ $mode == tests ]]; then
+            tools/ci/changed_files.sh changed.txt
+            relevant=$(grep -v -E -f cmake/ci_ignored_paths.txt changed.txt || true)
+            if [ -n "$relevant" ]; then package=true; fi
+            if [ -n "$(printf '%s\n' "$relevant" | grep -v '^tests/package/' | grep -v '^$' || true)" ]; then tests=true; fi
+          else
+            : > changed.txt
+          fi
+          { echo "files<<FIN"; cat changed.txt; echo "FIN"; } >> "$GITHUB_OUTPUT"
+          { echo "mode=$mode"; echo "tests=$tests"; echo "package=$package"; } >> "$GITHUB_OUTPUT"
+          echo "Mode : $mode ; tests : $tests ; paquet : $package"
+
+  release:
+    name: Release · ${{ matrix.compiler.name }}
     needs: changes
     if: needs.changes.outputs.tests == 'true'
     runs-on: ${{ matrix.compiler.os }}
     strategy:
       fail-fast: false
       matrix:
+        preset: [release]
+        block: [Release]
         compiler:
           - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14, flags: "" }
           - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18, flags: "" }
-          - { name: "Apple Clang", os: macos-latest, cxx: /usr/bin/clang++, flags: "" }
-          - { name: "GCC 14 FMA", os: ubuntu-24.04, cxx: g++-14, flags: "-march=x86-64-v3 -ffp-contract=fast" }
-          - { name: "Clang 18 FMA", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }
-          - { name: "Apple Clang FMA", os: macos-latest, cxx: /usr/bin/clang++, flags: "-ffp-contract=fast" }
-        preset: [debug, release]
-        exclude:
-          - { compiler: { name: "GCC 14 FMA", os: ubuntu-24.04, cxx: g++-14, flags: "-march=x86-64-v3 -ffp-contract=fast" }, preset: debug }
-          - { compiler: { name: "Clang 18 FMA", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }, preset: debug }
-          - { compiler: { name: "Apple Clang FMA", os: macos-latest, cxx: /usr/bin/clang++, flags: "-ffp-contract=fast" }, preset: debug }
-    steps:
+          - { name: "Apple Clang", os: macos-26-intel, cxx: /usr/bin/clang++, flags: "" }
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 300M
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps: &build-steps
       - uses: actions/checkout@v4
 
-      # uv engendre les valeurs de référence de wsl::special (mpmath), non versionnées.
+      # uv engendre les valeurs de référence (mpmath) qui manquent au magasin.
       - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: ccache
+        run: |
+          case "$RUNNER_OS" in
+            Linux) archive=ccache-$CCACHE_VERSION-linux-x86_64-glibc.tar.xz
+                   sum=c94a5688546883eee4c87764b34fa2eb18a4879421a51589c37538aed6312dfc ;;
+            macOS) archive=ccache-$CCACHE_VERSION-darwin.tar.gz
+                   sum=764dd2a8100ff83e6bbd7b9a1e2016cc401be34bee8a70ea99698186622c34d5 ;;
+          esac
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+               "https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/$archive"
+          echo "$sum  $RUNNER_TEMP/$archive" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/ccache" && tar -xf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/ccache" --strip-components 1
+          echo "$RUNNER_TEMP/ccache" >> "$GITHUB_PATH"
 
       - name: Compilateur
         run: |
           ${{ matrix.compiler.cxx }} --version
           cmake --version
           uname -m
+
+      - name: Références (cache)
+        id: references
+        uses: actions/cache/restore@v4
+        with:
+          path: .references
+          key: ${{ needs.changes.outputs.reference_key }}
+          restore-keys: references-
+          enableCrossOsArchive: true
+
+      - name: ccache (cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.block }}-${{ matrix.compiler.name }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.block }}-${{ matrix.compiler.name }}-
 
       - name: Chemins modifiés
         env:
@@ -110,13 +155,104 @@ jobs:
           "-DCMAKE_CXX_FLAGS_DEBUG=-g -O1"
 
       - name: Compilation
-        run: cmake --build --preset ${{ matrix.preset }} -j 4
+        run: |
+          set -o pipefail
+          ccache -z > /dev/null
+          cmake --build --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: Tests
-        run: ctest --preset ${{ matrix.preset }} -j 4 --no-tests=ignore
+        run: >
+          ctest --preset ${{ matrix.preset }} -j 4 --no-tests=ignore
+          --output-junit "$RUNNER_TEMP/junit.xml"
+
+      - name: Résumé
+        if: always()
+        env:
+          JOB_NAME: ${{ matrix.block }} · ${{ matrix.compiler.name }}
+        run: >
+          python3 tools/ci/summary.py job --name "$JOB_NAME"
+          --build-log "$RUNNER_TEMP/build.log" --junit "$RUNNER_TEMP/junit.xml"
+          --build-dir build/${{ matrix.preset }} --json "$RUNNER_TEMP/summary.json" --allow-empty
+
+      - name: Résumé (pour la Synthèse)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: summary-${{ matrix.block }}-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/summary.json
+          retention-days: 1
+          if-no-files-found: ignore
+
+      - name: Journaux (échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.block }}-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/build.log
+            build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Références (enregistrement)
+        if: always() && steps.references.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: .references
+          key: ${{ needs.changes.outputs.reference_key }}
+          enableCrossOsArchive: true
+
+      - name: ccache (enregistrement)
+        if: always()
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.block }}-${{ matrix.compiler.name }}-${{ github.run_id }}
+
+  sanitizers:
+    name: Sanitizers · ${{ matrix.compiler.name }}
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
+    runs-on: ${{ matrix.compiler.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [debug]
+        block: [Sanitizers]
+        compiler:
+          - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14, flags: "" }
+          - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18, flags: "" }
+          - { name: "Apple Clang", os: macos-26-intel, cxx: /usr/bin/clang++, flags: "" }
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 300M
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps: *build-steps
+
+  fma:
+    name: FMA · ${{ matrix.compiler.name }}
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
+    runs-on: ${{ matrix.compiler.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [release]
+        block: [FMA]
+        compiler:
+          - { name: "GCC 14", os: ubuntu-24.04, cxx: g++-14, flags: "-march=x86-64-v3 -ffp-contract=fast" }
+          - { name: "Clang 18", os: ubuntu-24.04, cxx: clang++-18, flags: "-march=x86-64-v3 -ffp-contract=fast" }
+          - { name: "Apple Clang", os: macos-26-intel, cxx: /usr/bin/clang++, flags: "-march=x86-64-v3 -ffp-contract=fast" }
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 300M
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps: *build-steps
 
   package:
-    name: Paquet CMake (installation, FetchContent)
+    name: Paquet CMake
     needs: changes
     if: needs.changes.outputs.package == 'true'
     runs-on: ubuntu-24.04
@@ -125,20 +261,98 @@ jobs:
 
       - name: Installation
         run: |
-          cmake -S . -B build/install -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B build/install -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release \
                 -DWSL_BUILD_TESTS=OFF -DWSL_BUILD_EXAMPLES=OFF
           cmake --install build/install --prefix "$RUNNER_TEMP/prefix"
 
       - name: find_package
         run: |
-          cmake -S tests/package -B build/consumer-package -DCMAKE_CXX_COMPILER=g++-14 \
+          cmake -S tests/package -B build/consumer-package -G Ninja -DCMAKE_CXX_COMPILER=g++-14 \
                 -DMODE=package -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/prefix"
           cmake --build build/consumer-package
           ctest --test-dir build/consumer-package --output-on-failure
 
       - name: FetchContent
         run: |
-          cmake -S tests/package -B build/consumer-subdirectory -DCMAKE_CXX_COMPILER=g++-14 \
+          cmake -S tests/package -B build/consumer-subdirectory -G Ninja -DCMAKE_CXX_COMPILER=g++-14 \
                 -DMODE=subdirectory
           cmake --build build/consumer-subdirectory
           ctest --test-dir build/consumer-subdirectory --output-on-failure
+
+  # Après une fusion dans main : les caches d'une PR ne sont visibles que d'elle ; si la PR a
+  # changé un générateur, main calcule ici les familles qui manquent et les enregistre.
+  references:
+    name: Références
+    needs: changes
+    if: needs.changes.outputs.mode == 'light'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache
+        id: references
+        uses: actions/cache/restore@v4
+        with:
+          path: .references
+          key: ${{ needs.changes.outputs.reference_key }}
+          restore-keys: references-
+          enableCrossOsArchive: true
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        if: steps.references.outputs.cache-hit != 'true'
+
+      - name: Calcul des familles manquantes
+        if: steps.references.outputs.cache-hit != 'true'
+        run: |
+          cmake --preset release -DCMAKE_CXX_COMPILER=g++-14
+          cmake --build --preset release --target special_references random_law_references
+
+      - name: Enregistrement
+        if: steps.references.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .references
+          key: ${{ needs.changes.outputs.reference_key }}
+          enableCrossOsArchive: true
+
+  synthesis:
+    name: Synthèse
+    needs: [changes, release, sanitizers, fma, package, references]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: summary-*
+          path: summaries
+        continue-on-error: true
+
+      - name: Synthèse
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 tools/ci/summary.py synthesis --summaries summaries
+
+  publication:
+    name: Publication
+    needs: [changes]
+    if: needs.changes.outputs.mode == 'publish'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Vérifications et notes
+        run: tools/ci/release_notes.sh "${GITHUB_REF_NAME}" > "$RUNNER_TEMP/notes.md"
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME"
+          --notes-file "$RUNNER_TEMP/notes.md" --generate-notes

@@ -197,6 +197,8 @@ if(WSL_AFFECTED_BY)
     wsl_affected_libraries(${WSL_AFFECTED_BY} WSL_TESTED)
     message(STATUS "Bibliothèques testées : ${WSL_TESTED}")
 endif()
+# Pour les résumés (tools/ci/summary.py).
+file(WRITE ${PROJECT_BINARY_DIR}/tested_libraries.txt "${WSL_TESTED}\n")
 
 # Vrai si les tests de <bibliothèque> sont à construire.
 function(wsl_is_tested library variable)
@@ -240,8 +242,9 @@ if(WSL_BUILD_TESTS)
     # Valeurs de référence des fonctions et des lois (mpmath) : engendrées dans le dossier
     # de build par le magasin (cmake/reference_store.cmake), pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.
-    # mpmath est figé : sa version entre dans la clé du magasin, et en changer est un commit.
-    set(WSL_MPMATH_VERSION 1.4.1)
+    # mpmath est figé (cmake/mpmath_version.txt) : sa version entre dans la clé du magasin, et
+    # en changer est un commit ; la CI en tient compte dans la clé de son cache.
+    file(STRINGS ${PROJECT_SOURCE_DIR}/cmake/mpmath_version.txt WSL_MPMATH_VERSION LIMIT_COUNT 1)
     find_program(WSL_UV uv HINTS $ENV{HOME}/.local/bin)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     set(reference_generator "")
