@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-# Refuse un push dont le code n'est pas l'état vérifié vert par tools/check.sh
-# (build/check-passed) ; un push qui ne diffère de cet état que par de la documentation
-# (cmake/ci_ignored_paths.txt) passe. Les tags et les suppressions passent.
+# Refuse un push dont le code n'est pas un état vérifié vert par tools/check.sh
+# (build/check-passed : les derniers états vérifiés) ; un push qui ne diffère d'un tel état
+# que par de la documentation (cmake/ci_ignored_paths.txt) passe, comme un push qui ne change
+# pas le contenu de la branche distante (une branche recalée par rebase). Les tags et les
+# suppressions passent.
 # Activation, une fois par clone : git config core.hooksPath tools/git-hooks
 # Contourner exceptionnellement : git push --no-verify
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
-passed=$(cat "$root/build/check-passed" 2>/dev/null || true)
+passed=$(tail -1 "$root/build/check-passed" 2>/dev/null || true)
 zero=0000000000000000000000000000000000000000
 while read -r local_ref local_sha remote_ref remote_sha; do
     [[ "$local_sha" == "$zero" || "$local_ref" == refs/tags/* ]] && continue
     tree=$(git rev-parse "$local_sha^{tree}")
-    [[ "$tree" == "$passed" ]] && continue
+    grep -qx "$tree" "$root/build/check-passed" 2>/dev/null && continue
+    if [[ "$remote_sha" != "$zero" ]] && git cat-file -e "$remote_sha" 2>/dev/null &&
+       [[ "$(git rev-parse "$remote_sha^{tree}")" == "$tree" ]]; then
+        continue   # même contenu que la branche distante : recalage par rebase
+    fi
     if [[ -n "$passed" ]] && git cat-file -e "$passed" 2>/dev/null; then
         code=$(git diff --name-only "$passed" "$tree" | grep -v -E -f "$root/cmake/ci_ignored_paths.txt" || true)
     else

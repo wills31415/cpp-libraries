@@ -100,7 +100,8 @@ for config in "${configs[@]}"; do
     fi
 done
 if ((status == 0)) && [[ " ${configs[*]} " == *" release "* ]]; then
-    echo "$tree" > build/check-passed
+    { tail -19 build/check-passed 2>/dev/null || true; echo "$tree"; } > build/check-passed.new
+    mv build/check-passed.new build/check-passed
     echo "État vérifié : $tree"
 fi
 exit $status
