@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi catégorielle : P(X = i) = pᵢ / Σ p, i dans {0, …, K − 1} (poids pᵢ >= 0 finis,
 // normalisés exactement par leur somme ; des probabilités dont la somme flottante n'est
 // pas exactement 1 conviennent donc).
 //
-//   wsl::probability::categorical C({.p = {0.2, 0.5, 0.3}});
+//   wsl::probability::laws::categorical C({.p = {0.2, 0.5, 0.3}});
 //   C(g); C.pmf(1); C.cdf(1); C.quantile(0.9); C.mean(); C.entropy();
 //
 // Tirage exact en O(1) : les poids sont des entiers Nᵢ à une même puissance de 2 près ;
@@ -23,7 +23,7 @@
 #include <wsl/random/detail/choice.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -54,14 +54,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             std::size_t const k = w_.size();
             if (k < 1)
-                throw std::domain_error("wsl::probability::categorical : il faut au moins une issue");
+                throw std::domain_error("wsl::probability::laws::categorical : il faut au moins une issue");
             for (double const v : w_)
                 if (!(v >= 0) || !detail::is_finite(v))
-                    throw std::domain_error("wsl::probability::categorical : il faut des poids >= 0, finis");
+                    throw std::domain_error("wsl::probability::laws::categorical : il faut des poids >= 0, finis");
             for (double const v : w_)
                 total_ = detail::sum(total_, {v, 0.0});
             if (!(total_.hi > 0))
-                throw std::domain_error("wsl::probability::categorical : poids tous nuls");
+                throw std::domain_error("wsl::probability::laws::categorical : poids tous nuls");
             integer_weights();
         }
 
@@ -171,8 +171,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 0;
             if (!C.prob_.empty())                                           // alias, 64 bits
             {
-                auto const c = static_cast<std::size_t>(uniform_below(k, g));
-                std::uint64_t const u = uniform_below(C.capacity_, g);
+                auto const c = static_cast<std::size_t>(random::uniform_below(k, g));
+                std::uint64_t const u = random::uniform_below(C.capacity_, g);
                 return static_cast<I>(u < C.prob_[c] ? c : C.alias_[c]);
             }
             detail::big const z = detail::uniform_below_big(g, C.cumulative_.back());

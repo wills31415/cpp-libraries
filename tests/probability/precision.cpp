@@ -328,7 +328,7 @@ int main()
             return wr::von_mises_fisher<double>({.mean_direction = mu, .concentration = k});
         };
         auto const point = [](double p, double t) {
-            std::vector<double> x{wsl::special::sqrt(wsl::special::detail::fmul(1 - t, 1 + t))};
+            std::vector<double> x{wsl::special_functions::detail::pinned_portable::sqrt(wsl::floating_point_arithmetic::detail::fmul(1 - t, 1 + t))};
             x.resize(static_cast<std::size_t>(p) - 1, 0.0);
             x.push_back(t);
             return x;

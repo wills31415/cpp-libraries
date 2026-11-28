@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Moments des lois de Weibull et de Fréchet : lgamma(1 + ε) et c² [Γ(1 + 2ε) − Γ(1 + ε)²]
 // (ε = 1/k, ou −1/α), la différence sans compensation : D = lgamma(1 + 2ε) − 2 lgamma(1 + ε)
@@ -9,7 +9,7 @@
 
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/detail/loader.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 

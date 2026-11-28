@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Rayleigh de paramètre σ > 0 : densité (x/σ²) e^{−x²/(2σ²)}, x >= 0.
 //
-//   wsl::probability::rayleigh R({.scale = 2});   R.cdf(1.0); R.quantile(0.5); R.mean(); R(g);
+//   wsl::probability::laws::rayleigh R({.scale = 2});   R.cdf(1.0); R.quantile(0.5); R.mean(); R(g);
 //
 // h = z²/2, z = x/σ en double-double ; répartition −expm1(−h), survie e^{−h}, densité
 // (z/σ) e^{−h} ; quantile σ √(−2 log1p(−p)) (cquantile : σ √(−2 log q)) ; un arrondi.
@@ -18,7 +18,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/laws/exponential.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -45,7 +45,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr rayleigh(parameters p) : sigma_(p.scale)
         {
             if (!(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::probability::rayleigh : il faut scale > 0, fini");
+                throw std::domain_error("wsl::probability::laws::rayleigh : il faut scale > 0, fini");
         }
 
         constexpr T scale() const noexcept { return sigma_; }
@@ -110,7 +110,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& R = *this;
             double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
-            return static_cast<T>(detail::sd::fmul(double(R.sigma_), wsl::special::sqrt(detail::sd::fmul(2.0, e))));
+            return static_cast<T>(detail::sd::fmul(double(R.sigma_), wsl::random::detail::pm::sqrt(detail::sd::fmul(2.0, e))));
         }
 
         friend constexpr bool operator==(rayleigh const&, rayleigh const&) = default;

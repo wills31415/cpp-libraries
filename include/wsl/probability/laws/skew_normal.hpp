@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi normale asymétrique (Azzalini) : densité (2/ω) φ(z) Φ(αz), z = (x − ξ)/ω.
 //
-//   wsl::probability::skew_normal X({.location = 0, .scale = 1, .shape = 4});
+//   wsl::probability::laws::skew_normal X({.location = 0, .scale = 1, .shape = 4});
 //   X.pdf(0.5); X.cdf(-1); X.quantile(0.99); X.mean(); X(g);
 //
 // Densité : φ(z) et Φ(αz) à l'échelle (z en double-double, Φ par erfc de wsl::special), un
@@ -31,7 +31,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -73,8 +73,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                 r = -u - 1 / u;
             else
             {
-                double const big_phi = 0.5 * wsl::special::erfc(-sd::fmul(u, inv_sqrt2_hi));
-                r = big_phi > 0 ? sd::fmul(inv_sqrt_2pi_hi, wsl::special::exp(sd::fmul(-0.5, sd::fmul(u, u)))) / big_phi : -u;
+                double const big_phi = 0.5 * wsl::random::detail::pm::erfc(-sd::fmul(u, inv_sqrt2_hi));
+                r = big_phi > 0 ? sd::fmul(inv_sqrt_2pi_hi, wsl::random::detail::pm::exp(sd::fmul(-0.5, sd::fmul(u, u)))) / big_phi : -u;
             }
             double const first = sd::fmul(alpha, r) - t;
             double const second = -1 - sd::fmul(sd::fmul(alpha, alpha), sd::fmul(r, u + r));
@@ -92,7 +92,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                 if (fp::fmul(magnitude(first), w) > 4.0)
                     w = 4.0 / magnitude(first);
                 if (fp::fmul(magnitude(second), fp::fmul(w, w)) > 1.0)
-                    w = 1.0 / wsl::special::sqrt(magnitude(second));
+                    w = 1.0 / wsl::random::detail::pm::sqrt(magnitude(second));
                 if (alpha != 0)                                             // Φ(αt) bascule sur 1/|α| autour de 0
                 {
                     double const near = 1.0 / magnitude(alpha), half_distance = fp::fmul(magnitude(t0.hi), 0.5);
@@ -140,7 +140,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr skew_normal(parameters p) : xi_(p.location), omega_(p.scale), alpha_(p.shape)
         {
             if (!detail::is_finite(xi_) || !(omega_ > 0) || !detail::is_finite(omega_) || !detail::is_finite(alpha_))
-                throw std::domain_error("wsl::probability::skew_normal : il faut location et shape finis, scale > 0 fini");
+                throw std::domain_error("wsl::probability::laws::skew_normal : il faut location et shape finis, scale > 0 fini");
             // δ = α/√(1 + α²) et δ√(2/π), en double-double
             namespace sd = detail::sd;
             double const a = alpha_;
@@ -294,7 +294,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                     r.slope = detail::skew_normal_density(a, z);
                 return r;
             };
-            double const sigma = wsl::special::sqrt(variance_z_.hi);
+            double const sigma = wsl::random::detail::pm::sqrt(variance_z_.hi);
             double const q = detail::standard_quantile(t).hi;
             double const start = mu_z_.hi + sd::fmul(sigma, upper ? -q : q);
             return detail::solve_part(evaluate, !upper, t, {.start = start, .max_step = 8},

@@ -1,20 +1,20 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Graphes et arbres aléatoires, sur les sommets {0, …, n − 1}.
 //
-//   wsl::probability::erdos_renyi G({.vertices = 100, .p = 0.05});           // G(n, p)
-//   wsl::probability::uniform_graph H({.vertices = 100, .edges = 250});       // G(n, m)
-//   wsl::probability::barabasi_albert B({.vertices = 1000, .edges = 3});      // attachement préférentiel
-//   wsl::probability::random_regular_graph R({.vertices = 20, .degree = 3});  // uniforme parmi les d-réguliers
-//   wsl::probability::uniform_tree T({.vertices = 50});                       // arbres de Cayley : n^{n−2}
-//   wsl::probability::uniform_binary_tree A({.vertices = 30});                   // arbres binaires : Catalan
+//   wsl::probability::laws::erdos_renyi G({.vertices = 100, .p = 0.05});           // G(n, p)
+//   wsl::probability::laws::uniform_graph H({.vertices = 100, .edges = 250});       // G(n, m)
+//   wsl::probability::laws::barabasi_albert B({.vertices = 1000, .edges = 3});      // attachement préférentiel
+//   wsl::probability::laws::random_regular_graph R({.vertices = 20, .degree = 3});  // uniforme parmi les d-réguliers
+//   wsl::probability::laws::uniform_tree T({.vertices = 50});                       // arbres de Cayley : n^{n−2}
+//   wsl::probability::laws::uniform_binary_tree A({.vertices = 30});                   // arbres binaires : Catalan
 //
 // Valeurs : liste d'arêtes (u, v), u < v, triée (wsl::probability::edge_list) ; arbre binaire : enfants
-// {gauche, droit} de chaque nœud, numérotés en préordre (racine 0), wsl::probability::binary_tree::none
-// pour l'absence d'enfant (wsl::probability::binary_tree).
+// {gauche, droit} de chaque nœud, numérotés en préordre (racine 0), wsl::probability::laws::binary_tree::none
+// pour l'absence d'enfant (wsl::probability::laws::binary_tree).
 //
 // Tirages exacts :
 // - G(n, p) : une épreuve de Bernoulli exacte par paire, dans l'ordre lexicographique
@@ -35,7 +35,7 @@
 #include <wsl/probability/laws/permutations.hpp>
 #include <wsl/probability/laws/subsets.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <array>
@@ -143,7 +143,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit erdos_renyi(parameters q) : n_(q.vertices), p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::erdos_renyi : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::probability::laws::erdos_renyi : il faut p dans [0, 1]");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -165,7 +165,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             edge_list e;
             for (std::size_t u = 0; u < R.n_; ++u)
                 for (std::size_t v = u + 1; v < R.n_; ++v)
-                    if (bernoulli_trial(R.p_, g))
+                    if (random::bernoulli_trial(R.p_, g))
                         e.emplace_back(u, v);
             return e;
         }
@@ -215,7 +215,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit uniform_graph(parameters q) : n_(q.vertices), m_(q.edges)
         {
             if (m_ > detail::pair_count(n_))
-                throw std::domain_error("wsl::probability::uniform_graph : plus d'arêtes que de paires");
+                throw std::domain_error("wsl::probability::laws::uniform_graph : plus d'arêtes que de paires");
             log_count_ = detail::log_binomial(detail::pair_count(n_), m_);
         }
 
@@ -244,7 +244,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             chosen.reserve(R.m_);
             for (std::uint64_t j = total - R.m_; j < total; ++j)
             {
-                std::uint64_t const t = uniform_below(j + 1, g);
+                std::uint64_t const t = random::uniform_below(j + 1, g);
                 auto const at = std::ranges::lower_bound(chosen, t);
                 if (at != chosen.end() && *at == t)
                     chosen.insert(std::ranges::lower_bound(chosen, j), j);
@@ -281,7 +281,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit barabasi_albert(parameters q) : n_(q.vertices), m_(q.edges)
         {
             if (m_ < 1 || n_ < m_ + 1)
-                throw std::domain_error("wsl::probability::barabasi_albert : il faut edges >= 1 et vertices >= edges + 1");
+                throw std::domain_error("wsl::probability::laws::barabasi_albert : il faut edges >= 1 et vertices >= edges + 1");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -308,7 +308,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 std::size_t const available = ends.size();                 // degrés avant l'arrivée de v
                 while (targets.size() < B.m_)
                 {
-                    std::size_t const t = ends[static_cast<std::size_t>(uniform_below(available, g))];
+                    std::size_t const t = ends[static_cast<std::size_t>(random::uniform_below(available, g))];
                     if (std::ranges::find(targets, t) == targets.end())
                         targets.push_back(t);
                 }
@@ -345,7 +345,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit random_regular_graph(parameters q) : n_(q.vertices), d_(q.degree)
         {
             if (d_ >= n_ || (n_ * d_) % 2 != 0)
-                throw std::domain_error("wsl::probability::random_regular_graph : il faut degree < vertices et vertices · degree pair");
+                throw std::domain_error("wsl::probability::laws::random_regular_graph : il faut degree < vertices et vertices · degree pair");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -361,7 +361,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             {
                 for (std::size_t i = 0; i < points; ++i)
                     owner[i] = i / R.d_;
-                shuffle(owner, g);                                          // couplage uniforme : paires consécutives
+                random::shuffle(owner, g);                                          // couplage uniforme : paires consécutives
                 edge_list e;
                 e.reserve(points / 2);
                 bool simple = true;
@@ -402,7 +402,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit uniform_tree(parameters q) : n_(q.vertices)
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::probability::uniform_tree : il faut au moins un sommet");
+                throw std::domain_error("wsl::probability::laws::uniform_tree : il faut au moins un sommet");
         }
 
         constexpr std::size_t vertices() const noexcept { return n_; }
@@ -438,7 +438,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             std::vector<std::size_t> code(n - 2), degree(n, 1);
             for (auto& c : code)
             {
-                c = static_cast<std::size_t>(uniform_below(n, g));
+                c = static_cast<std::size_t>(random::uniform_below(n, g));
                 ++degree[c];
             }
             std::size_t pointer = 0;
@@ -512,8 +512,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             std::size_t root = 0, count = 1;                                // le nœud 0 : une feuille
             for (std::size_t i = 1; i <= n; ++i)
             {
-                std::size_t const x = static_cast<std::size_t>(uniform_below(count, g));
-                std::size_t const side = static_cast<std::size_t>(uniform_below(2, g));
+                std::size_t const x = static_cast<std::size_t>(random::uniform_below(count, g));
+                std::size_t const side = static_cast<std::size_t>(random::uniform_below(2, g));
                 std::size_t const y = count, z = count + 1;                 // y interne, z feuille
                 count += 2;
                 std::size_t const p = parent[x];

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi normale multivariée N(μ, Σ), Σ symétrique définie positive.
 //
-//   wsl::probability::multivariate_normal<double, 2> X({.mean = {1, 2}, .covariance = {{1, 0.5}, {0.5, 2}}});
+//   wsl::probability::laws::multivariate_normal<double, 2> X({.mean = {1, 2}, .covariance = {{1, 0.5}, {0.5, 2}}});
 //   X.pdf({1.5, 1.0}); X.entropy(); X.marginal(1); X(g);
 //
 // Σ = L Lᵀ (Cholesky, à la construction ; std::domain_error si Σ n'est pas symétrique
@@ -21,7 +21,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -49,12 +49,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr multivariate_normal(parameters p) : mu_(p.mean), sigma_(p.covariance), l_(make_matrix(p.mean.size()))
         {
             if (mu_.size() < 1 || sigma_.extent(0) != mu_.size())
-                throw std::domain_error("wsl::probability::multivariate_normal : moyenne et covariance de dimensions différentes");
+                throw std::domain_error("wsl::probability::laws::multivariate_normal : moyenne et covariance de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
-                    throw std::domain_error("wsl::probability::multivariate_normal : moyenne non finie");
+                    throw std::domain_error("wsl::probability::laws::multivariate_normal : moyenne non finie");
             if (!detail::cholesky(sigma_, l_))
-                throw std::domain_error("wsl::probability::multivariate_normal : covariance non symétrique définie positive");
+                throw std::domain_error("wsl::probability::laws::multivariate_normal : covariance non symétrique définie positive");
             detail::sd::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < dimension(); ++i)
                 s = detail::sum(s, detail::log_precise(l_[i, i]));
@@ -84,7 +84,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         }
         constexpr normal<T> marginal(std::size_t i) const
         {
-            return normal<T>({.mean = mu_[i], .stddev = static_cast<T>(wsl::special::sqrt(double(sigma_[i, i])))});
+            return normal<T>({.mean = mu_[i], .stddev = static_cast<T>(wsl::random::detail::pm::sqrt(double(sigma_[i, i])))});
         }
         // (x − μ)ᵀ Σ⁻¹ (x − μ)
         constexpr double mahalanobis_squared(value_type const& x) const noexcept

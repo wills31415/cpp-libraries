@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi normale (gaussienne) de moyenne μ et d'écart type σ > 0 :
 // densité e^{−z²/2} / (σ √(2π)), z = (x − μ)/σ.
 //
-//   wsl::probability::normal X({.mean = 0, .stddev = 1});
+//   wsl::probability::laws::normal X({.mean = 0, .stddev = 1});
 //   X.variance(); X.pdf(1.0); X.cdf(-3.0); X.quantile(0.975); X(g);
 //
 // Tirage exact : |Z| tirée exactement (rejet exponentiel décidé en arithmétique
@@ -26,7 +26,7 @@
 #include <wsl/random/detail/ziggurat_tables.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -52,7 +52,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         {
             for (;;)
             {
-                std::uint64_t const b = random_bits(g);
+                std::uint64_t const b = random::random_bits(g);
                 auto const i = static_cast<std::size_t>(b & 0xff);
                 bool const negative = ((b >> 8) & 1) != 0;
                 double const x = sd::fmul(static_cast<double>(b >> 11) * 0x1p-53, ziggurat_x[i]);
@@ -63,14 +63,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                     double a = 0, t = 0;
                     do
                     {
-                        a = sd::fmul(-wsl::special::log(uniform_positive(g)), ziggurat_inv_r);
-                        t = -wsl::special::log(uniform_positive(g));
+                        a = sd::fmul(-wsl::random::detail::pm::log(uniform_positive(g)), ziggurat_inv_r);
+                        t = -wsl::random::detail::pm::log(uniform_positive(g));
                     } while (t + t < sd::fmul(a, a));
                     double const y = ziggurat_r + a;
                     return negative ? -y : y;
                 }
-                double const y = ziggurat_f[i] + sd::fmul(uniform_real<double>(g, wsl::exact), ziggurat_f[i + 1] - ziggurat_f[i]);
-                if (y < wsl::special::exp(sd::fmul(sd::fmul(x, x), -0.5)))  // dans le coin, sous la courbe
+                double const y = ziggurat_f[i] + sd::fmul(random::uniform_real<double>(g, wsl::exact), ziggurat_f[i + 1] - ziggurat_f[i]);
+                if (y < wsl::random::detail::pm::exp(sd::fmul(sd::fmul(x, x), -0.5)))  // dans le coin, sous la courbe
                     return negative ? -x : x;
             }
         }
@@ -106,18 +106,18 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr normal(parameters p) : mean_(p.mean)
         {
             if ((p.stddev && p.variance) || !detail::is_finite(mean_))
-                throw std::domain_error("wsl::probability::normal : il faut mean fini, et .stddev ou .variance (pas les deux), > 0 et finis");
+                throw std::domain_error("wsl::probability::laws::normal : il faut mean fini, et .stddev ou .variance (pas les deux), > 0 et finis");
             if (p.variance)
             {
                 double const v = *p.variance;
                 if (!(v > 0) || !detail::is_finite(v))
-                    throw std::domain_error("wsl::probability::normal : il faut variance > 0, finie");
+                    throw std::domain_error("wsl::probability::laws::normal : il faut variance > 0, finie");
                 set_variance(detail::normalized(v, 0.0));
                 return;
             }
             T const sigma = p.stddev ? *p.stddev : T(1);
             if (!(sigma > 0) || !detail::is_finite(sigma))
-                throw std::domain_error("wsl::probability::normal : il faut stddev > 0, fini");
+                throw std::domain_error("wsl::probability::laws::normal : il faut stddev > 0, fini");
             sd_ = sigma;
             var_ = detail::normalized(double(sigma), 0.0) * detail::normalized(double(sigma), 0.0);   // exact
         }
@@ -126,7 +126,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr normal(T mean, detail::scaled const& variance) : mean_(mean)
         {
             if (!detail::is_finite(mean_) || !(variance.hi > 0) || variance.e > 2047)
-                throw std::domain_error("wsl::probability::normal : il faut mean fini et variance > 0, finie");
+                throw std::domain_error("wsl::probability::laws::normal : il faut mean fini et variance > 0, finie");
             set_variance(variance);
         }
 
@@ -246,7 +246,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             detail::lazy_real v = detail::exact_half_normal(g);
-            bool const negative = (random_bits(g) >> 63) != 0;
+            bool const negative = (random::random_bits(g) >> 63) != 0;
             if (X.sd_ != 0)
                 return detail::round_lazy<T>(X.mean_, X.sd_, 1.0, negative, v, g);
             return detail::round_lazy_root<T>(X.mean_, X.var_, double(X.stddev()), negative, v, g);   // √v exact

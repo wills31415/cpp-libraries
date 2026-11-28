@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Quantiles des lois discrètes : plus petit k tel que F(k) >= p, F connue par sa
 // plus petite part (F ou 1 − F, en double-double à exposant séparé, à 2^-64 près),
@@ -9,7 +9,7 @@
 // tombe à 2^-60 près (relativement) de p.
 
 #include <wsl/random/detail/arithmetic.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 
@@ -113,6 +113,6 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
     // Φ⁻¹(p), p dans (0, 1), approché (point de départ des recherches).
     constexpr double normal_quantile_guess(double p) noexcept
     {
-        return -sd::fmul(sqrt2_hi, wsl::special::erfc_inv(2.0 * p));
+        return -sd::fmul(sqrt2_hi, wsl::random::detail::pm::erfc_inv(2.0 * p));
     }
 }

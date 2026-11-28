@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi bêta de paramètres α > 0 et β > 0 : densité x^{α−1} (1 − x)^{β−1} / B(α, β)
 // sur [0, 1].
 //
-//   wsl::probability::beta X({.alpha = 2, .beta = 5});
+//   wsl::probability::laws::beta X({.alpha = 2, .beta = 5});
 //   X.mean(); X.a(); X.b(); X.pdf(0.3); X.log_pdf(0.3); X(g);
 //
 // (Une fonction membre ne peut pas s'appeler comme sa classe : les paramètres se
@@ -32,7 +32,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/laws/gamma.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -102,12 +102,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             if (!(a_ > 0) || !detail::is_finite(a_) || !(b_ > 0) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::probability::beta : il faut alpha > 0 et beta > 0, finis");
+                throw std::domain_error("wsl::probability::laws::beta : il faut alpha > 0 et beta > 0, finis");
             double const a = a_ >= 1 ? double(a_) : double(a_) + 1, b = b_ >= 1 ? double(b_) : double(b_) + 1;
             d_a_ = a - 1.0 / 3;
-            c_a_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_a_));
+            c_a_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_a_));
             d_b_ = b - 1.0 / 3;
-            c_b_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_b_));
+            c_b_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_b_));
         }
 
         constexpr T a() const noexcept { return a_; }
@@ -144,7 +144,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T skewness() const noexcept
         {
             double const a = a_, b = b_, s = a + b;
-            return static_cast<T>(2 * (b - a) * wsl::special::sqrt(s + 1) / ((s + 2) * wsl::special::sqrt(a * b)));
+            return static_cast<T>(2 * (b - a) * wsl::random::detail::pm::sqrt(s + 1) / ((s + 2) * wsl::random::detail::pm::sqrt(a * b)));
         }
         constexpr T excess_kurtosis() const noexcept
         {
@@ -166,21 +166,21 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             if (!(x == x))
                 return x;
-            return static_cast<T>(x <= 0 ? 0.0 : x >= 1 ? 1.0 : wsl::special::ibeta(double(X.a_), double(X.b_), double(x)));
+            return static_cast<T>(x <= 0 ? 0.0 : x >= 1 ? 1.0 : wsl::random::detail::pm::ibeta(double(X.a_), double(X.b_), double(x)));
         }
         constexpr T ccdf(T x) const noexcept
         {
             auto const& X = *this;
             if (!(x == x))
                 return x;
-            return static_cast<T>(x <= 0 ? 1.0 : x >= 1 ? 0.0 : wsl::special::ibetac(double(X.a_), double(X.b_), double(x)));
+            return static_cast<T>(x <= 0 ? 1.0 : x >= 1 ? 0.0 : wsl::random::detail::pm::ibetac(double(X.a_), double(X.b_), double(x)));
         }
         constexpr T quantile(double p) const
         {
             auto const& X = *this;
             if (!(p >= 0 && p <= 1))
                 throw std::domain_error("wsl::probability::quantile : p doit être dans [0, 1]");
-            return static_cast<T>(wsl::special::ibeta_inv(double(X.a_), double(X.b_), p));
+            return static_cast<T>(wsl::random::detail::pm::ibeta_inv(double(X.a_), double(X.b_), p));
         }
 
         // Quantile de survie : x tel que P(X > x) = q (q exact, sans passer par 1 − q).
@@ -191,7 +191,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 throw std::domain_error("wsl::probability::cquantile : q doit être dans [0, 1]");
             if (q >= 0.5)
                 return wsl::probability::quantile(X, 1.0 - q);                                // 1 − q exact
-            return static_cast<T>(wsl::special::ibetac_inv(double(X.a_), double(X.b_), q));
+            return static_cast<T>(wsl::random::detail::pm::ibetac_inv(double(X.a_), double(X.b_), q));
         }
 
         constexpr T pdf(T x) const noexcept
@@ -233,12 +233,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (a >= 1 && b >= 1)
                 return static_cast<T>(ga / (ga + gb));
             // log G = log G(s + 1) + log(U)/s pour s < 1, puis 1/(1 + e^{log G₂ − log G₁}).
-            double la = wsl::special::log(ga), lb = wsl::special::log(gb);
+            double la = wsl::random::detail::pm::log(ga), lb = wsl::random::detail::pm::log(gb);
             if (a < 1)
-                la = la + wsl::special::log(detail::uniform_positive(g)) / a;
+                la = la + wsl::random::detail::pm::log(detail::uniform_positive(g)) / a;
             if (b < 1)
-                lb = lb + wsl::special::log(detail::uniform_positive(g)) / b;
-            return static_cast<T>(1 / (1 + wsl::special::exp(lb - la)));
+                lb = lb + wsl::random::detail::pm::log(detail::uniform_positive(g)) / b;
+            return static_cast<T>(1 / (1 + wsl::random::detail::pm::exp(lb - la)));
         }
 
         friend constexpr bool operator==(beta const& p, beta const& q) noexcept { return p.a_ == q.a_ && p.b_ == q.b_; }

@@ -1,15 +1,15 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi du χ² à k > 0 degrés de liberté : la loi gamma de forme k/2 et d'échelle 2
 // (somme des carrés de k normales centrées réduites, pour k entier).
 //
-//   wsl::probability::chi_squared X({.degrees_of_freedom = 3});
+//   wsl::probability::laws::chi_squared X({.degrees_of_freedom = 3});
 //   X.mean(); X.cdf(7.81); X.quantile(0.95); X(g);
 //
-// Tout est délégué à wsl::probability::gamma (k/2 et l'échelle 2 sont exacts) : mêmes méthodes,
+// Tout est délégué à wsl::probability::laws::gamma (k/2 et l'échelle 2 sont exacts) : mêmes méthodes,
 // même précision.
 
 #include <wsl/probability/laws/gamma.hpp>
@@ -65,7 +65,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr gamma<T> make(T k)
         {
             if (!(k > 0) || !detail::is_finite(k))
-                throw std::domain_error("wsl::probability::chi_squared : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::probability::laws::chi_squared : il faut degrees_of_freedom > 0, fini");
             return gamma<T>({.scale = T(2), .shape = static_cast<T>(double(k) / 2)});
         }
 

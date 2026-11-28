@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Student multivariée t_ν(μ, Σ) : μ + L z √(ν/V), Σ = L Lᵀ, z normale centrée
 // réduite de dimension n, V de loi χ²(ν) indépendante.
 //
-//   wsl::probability::multivariate_student_t<double, 2> X({.location = {0, 1}, .scale = {{1, 0.3}, {0.3, 2}},
+//   wsl::probability::laws::multivariate_student_t<double, 2> X({.location = {0, 1}, .scale = {{1, 0.3}, {0.3, 2}},
 //                                                     .degrees_of_freedom = 4});
 //   X.pdf({0.5, 0.5}); X.covariance(); X.marginal(0); X(g);
 //
@@ -26,7 +26,7 @@
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/probability/laws/student_t.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -56,14 +56,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
               chi_(typename gamma<double>::parameters{.scale = 2.0, .shape = detail::sd::fmul(double(p.degrees_of_freedom), 0.5)})
         {
             if (!(nu_ > 0) || !detail::is_finite(nu_))
-                throw std::domain_error("wsl::probability::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::probability::laws::multivariate_student_t : il faut degrees_of_freedom > 0, fini");
             if (mu_.size() < 1 || sigma_.extent(0) != mu_.size())
-                throw std::domain_error("wsl::probability::multivariate_student_t : position et échelle de dimensions différentes");
+                throw std::domain_error("wsl::probability::laws::multivariate_student_t : position et échelle de dimensions différentes");
             for (T const m : mu_)
                 if (!detail::is_finite(m))
-                    throw std::domain_error("wsl::probability::multivariate_student_t : position non finie");
+                    throw std::domain_error("wsl::probability::laws::multivariate_student_t : position non finie");
             if (!detail::cholesky(sigma_, l_))
-                throw std::domain_error("wsl::probability::multivariate_student_t : échelle non symétrique définie positive");
+                throw std::domain_error("wsl::probability::laws::multivariate_student_t : échelle non symétrique définie positive");
             namespace fp = detail::sd;
             double const n = double(dimension()), nu = nu_;
             double const h = fp::fmul(nu, 0.5);
@@ -115,13 +115,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             namespace fp = detail::sd;
             double const nu = nu_;
             // −constante + ((ν + n)/2)(ψ((ν + n)/2) − ψ(ν/2)) (ψ par wsl::special)
-            double const d = wsl::special::digamma(half_sum_.hi + half_sum_.lo) - wsl::special::digamma(fp::fmul(nu, 0.5));
+            double const d = wsl::random::detail::pm::digamma(half_sum_.hi + half_sum_.lo) - wsl::random::detail::pm::digamma(fp::fmul(nu, 0.5));
             auto h = detail::sum({-constant_.hi, -constant_.lo}, detail::mul(half_sum_, {d, 0.0}));
             return static_cast<T>(h.hi + h.lo);
         }
         constexpr affine_image<student_t<T>> marginal(std::size_t i) const
         {
-            return affine_image<student_t<T>>(student_t<T>({.degrees_of_freedom = nu_}), {.scale = wsl::special::sqrt(double(sigma_[i, i])), .shift = double(mu_[i])});
+            return affine_image<student_t<T>>(student_t<T>({.degrees_of_freedom = nu_}), {.scale = wsl::random::detail::pm::sqrt(double(sigma_[i, i])), .shift = double(mu_[i])});
         }
 
         constexpr double log_pdf(value_type const& x) const noexcept
@@ -150,7 +150,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (auto& v : z)
                 v = detail::native_sample(standard, g);
             double const w = detail::native_sample(X.chi_, g);
-            double const f = wsl::special::sqrt(double(X.nu_) / w);         // √(ν/V)
+            double const f = wsl::random::detail::pm::sqrt(double(X.nu_) / w);         // √(ν/V)
             value_type x = detail::make_vector<T, N>(X.dimension());
             for (std::size_t i = 0; i < X.dimension(); ++i)
             {

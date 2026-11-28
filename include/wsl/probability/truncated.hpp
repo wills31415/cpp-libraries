@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : loi réelle tronquée (conditionnée) à [a, b] (voir design/random.md §4.6).
 //
-//   wsl::probability::normal N({.mean = 0, .stddev = 1});
+//   wsl::probability::laws::normal N({.mean = 0, .stddev = 1});
 //   auto T = wsl::probability::truncate(N, {.lower = 10});   // N | N >= 10, masse ~ 7,6·10⁻²⁴
 //   T.cdf(10.5); T.quantile(0.5); T(g);
 //
@@ -25,7 +25,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -141,7 +141,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
             auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
-                    return Y.solve(uniform_real<double>(g, wsl::exact), false);
+                    return Y.solve(random::uniform_real<double>(g, wsl::exact), false);
             for (;;)
             {
                 value_type const x = detail::native_sample(Y.law_, g);
@@ -156,7 +156,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
             auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
-                    return Y.solve(uniform_real<double>(g, wsl::exact), false);
+                    return Y.solve(random::uniform_real<double>(g, wsl::exact), false);
             for (;;)
             {
                 value_type const x = wsl::probability::sample(Y.law_, g, wsl::approximate);

@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Rice : module R = |(ν + σ Z₁, σ Z₂)| d'une gaussienne bidimensionnelle décentrée,
 // ν >= 0, σ > 0 (ν = 0 : Rayleigh). En unités réduites y = x/σ, c = ν/σ :
 // densité g(y) = y e^{−(y² + c²)/2} I₀(c y) ; répartition 1 − Q₁(c, y) (Marcum).
 //
-//   wsl::probability::rice R({.scale = 1.5, .noncentrality = 2.0});
+//   wsl::probability::laws::rice R({.scale = 1.5, .noncentrality = 2.0});
 //   R.pdf(2.0); R.cdf(1.0); R.quantile(0.9); R.mean(); R(g);
 //
 // Densité en logarithme double-double (log I₀ de wsl::special, corrigé au premier ordre de
@@ -25,7 +25,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/probability/laws/rayleigh.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -51,7 +51,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr rice(parameters p) : sigma_(p.scale), nu_(p.noncentrality)
         {
             if (!(sigma_ > 0) || !detail::is_finite(sigma_) || !(nu_ >= 0) || !detail::is_finite(nu_))
-                throw std::domain_error("wsl::probability::rice : il faut scale > 0 et noncentrality >= 0, finis");
+                throw std::domain_error("wsl::probability::laws::rice : il faut scale > 0 et noncentrality >= 0, finis");
             c_ = nu_ == 0 ? sd_t{0.0, 0.0} : detail::unscaled(detail::normalized(double(nu_), 0.0) / double(sigma_));
             log_sigma_ = detail::log_precise(double(sigma_));
             if (nu_ == 0)
@@ -113,7 +113,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             double const a = detail::native_sample(normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)}), g);
             double const b = detail::native_sample(normal<double>({.mean = 0.0, .stddev = double(X.sigma_)}), g);
-            return static_cast<T>(wsl::special::hypot(a, b));
+            return static_cast<T>(wsl::random::detail::pm::hypot(a, b));
         }
         template <std::uniform_random_bit_generator G>
         constexpr T sample(G& g, approximate_t) const
@@ -121,7 +121,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             double const a = normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)})(g, wsl::approximate);
             double const b = normal<double>({.mean = 0.0, .stddev = double(X.sigma_)})(g, wsl::approximate);
-            return static_cast<T>(wsl::special::hypot(a, b));
+            return static_cast<T>(wsl::random::detail::pm::hypot(a, b));
         }
 
         friend constexpr bool operator==(rice const& a, rice const& b) noexcept { return a.sigma_ == b.sigma_ && a.nu_ == b.nu_; }
@@ -145,7 +145,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (int i = 0; i < 3; ++i)
                 if (c.n[i] == n)
                     return c.v[i];
-            auto const v = wsl::special::detail::log_cyl_bessel_i(n, z);
+            auto const v = wsl::random::detail::sd::log_cyl_bessel_i(n, z);
             c.n[c.next] = n;
             c.v[c.next] = v;
             c.next = (c.next + 1) % 3;
@@ -158,7 +158,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (z.lo == 0)
                 return l;
             auto const up = log_bessel_hi(n + 1, z.hi, c);
-            double const ratio = wsl::special::exp((up.hi - l.hi) + (up.lo - l.lo));   // I_{n+1}/I_n
+            double const ratio = wsl::random::detail::pm::exp((up.hi - l.hi) + (up.lo - l.lo));   // I_{n+1}/I_n
             return detail::sum(l, {sd::fmul(z.lo, ratio + n / z.hi), 0.0});
         }
 
@@ -193,7 +193,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace sd = detail::sd;
             auto const e0 = minus_half_square(y);
-            double const median_guess = wsl::special::sqrt(sd::fmul(c_.hi, c_.hi) + 1.3862943611198906);
+            double const median_guess = wsl::random::detail::pm::sqrt(sd::fmul(c_.hi, c_.hi) + 1.3862943611198906);
             bool const lower = y.hi < median_guess;
             auto const z = detail::mul(c_, y);
             // log r : r = c/y (S) ou y/c (F)
@@ -266,12 +266,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             };
             // départ : la médiane approchée ; petite probabilité de répartition : F ≈ e^{−c²/2} y²/2
             // (c y petit), y₀ = √(2t) e^{c²/4}, calculé en logarithme (t peut être sous-normal)
-            double start = wsl::special::sqrt(sd::fmul(c_.hi, c_.hi) + 1.3862943611198906);
+            double start = wsl::random::detail::pm::sqrt(sd::fmul(c_.hi, c_.hi) + 1.3862943611198906);
             if (!upper)
             {
-                double const log_y0 = sd::fmul(0.5, wsl::special::log(t) + 0.6931471805599453) + sd::fmul(sd::fmul(c_.hi, c_.hi), 0.25);
-                if (log_y0 < wsl::special::log(start))
-                    start = wsl::special::exp(log_y0);
+                double const log_y0 = sd::fmul(0.5, wsl::random::detail::pm::log(t) + 0.6931471805599453) + sd::fmul(sd::fmul(c_.hi, c_.hi), 0.25);
+                if (log_y0 < wsl::random::detail::pm::log(start))
+                    start = wsl::random::detail::pm::exp(log_y0);
             }
             return detail::solve_part(evaluate, !upper, t, {.start = start, .lo = 0.0, .max_step = 4},
                                       [](double y, int side) { return side > 0 ? y * 0.5 : detail::sd::fmul(y, 2.0) + 1; }, detail::arithmetic_midpoint, 400);

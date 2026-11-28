@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de l'arcsinus sur [a, b] : densité 1/(π √((x − a)(b − x))).
 //
-//   wsl::probability::arcsine A({.lower = 0, .upper = 1});   A.cdf(0.1); A.quantile(0.9); A(g);
+//   wsl::probability::laws::arcsine A({.lower = 0, .upper = 1});   A.cdf(0.1); A.quantile(0.9); A(g);
 //
 // u = (x − a)/(b − a) et 1 − u = (b − x)/(b − a) en double-double ; répartition
 // (2/π) atan √(u/(1 − u)) (u <= ½), 1 − (2/π) atan √((1 − u)/u) sinon, noyau atan à argument
@@ -21,7 +21,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -48,7 +48,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr arcsine(parameters p) : a_(p.lower), b_(p.upper)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_))
-                throw std::domain_error("wsl::probability::arcsine : il faut lower < upper, finis");
+                throw std::domain_error("wsl::probability::laws::arcsine : il faut lower < upper, finis");
         }
 
         constexpr T lower() const noexcept { return a_; }
@@ -117,7 +117,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& A = *this;
-            return A.inverse(uniform_real<double>(g, wsl::exact), false);
+            return A.inverse(random::uniform_real<double>(g, wsl::exact), false);
         }
 
         friend constexpr bool operator==(arcsine const&, arcsine const&) = default;

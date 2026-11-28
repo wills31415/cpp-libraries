@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Laplace (double exponentielle) de position μ et d'échelle b > 0 :
 // densité e^{−|x − μ|/b}/(2b).
 //
-//   wsl::probability::laplace L({.location = 0, .scale = 1});
+//   wsl::probability::laws::laplace L({.location = 0, .scale = 1});
 //   L.cdf(1.5); L.quantile(0.9); L(g);
 //
 // z = (x − μ)/b en double-double ; répartition e^{z}/2 (z < 0), 1 − e^{−z}/2 sinon ;
@@ -20,7 +20,7 @@
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -47,7 +47,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr laplace(parameters p) : mu_(p.location), b_(p.scale)
         {
             if (!detail::is_finite(mu_) || !(b_ > 0) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::probability::laplace : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::probability::laws::laplace : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return mu_; }
@@ -140,7 +140,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             detail::lazy_real v = detail::exact_exponential(g);
-            bool const negative = (random_bits(g) >> 63) != 0;
+            bool const negative = (random::random_bits(g) >> 63) != 0;
             return detail::round_lazy<T>(X.mu_, X.b_, 1.0, negative, v, g);
         }
 

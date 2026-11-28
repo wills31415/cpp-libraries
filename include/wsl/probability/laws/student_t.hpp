@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Student à ν > 0 degrés de liberté : densité
 //   Γ((ν + 1)/2) / (√(νπ) Γ(ν/2)) · (1 + t²/ν)^{−(ν+1)/2}.
 //
-//   wsl::probability::student_t T({.degrees_of_freedom = 5});
+//   wsl::probability::laws::student_t T({.degrees_of_freedom = 5});
 //   T.cdf(2.0); T.quantile(0.975); T(g);
 //
 // Répartition : P(T > |t|) = I_x(ν/2, 1/2)/2, x = ν/(ν + t²) et 1 − x = t²/(ν + t²)
@@ -26,7 +26,7 @@
 #include <wsl/probability/laws/gamma.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -52,11 +52,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             if (!(nu_ > 0) || !detail::is_finite(nu_))
-                throw std::domain_error("wsl::probability::student_t : il faut degrees_of_freedom > 0, fini");
+                throw std::domain_error("wsl::probability::laws::student_t : il faut degrees_of_freedom > 0, fini");
             double const h = detail::sd::fmul(double(nu_), 0.5);
             double const a = h >= 1 ? h : h + 1;                            // Marsaglia–Tsang pour V/2 ~ Γ(ν/2)
             d_ = a - 1.0 / 3;
-            c_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_));
+            c_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_));
         }
 
         constexpr T degrees_of_freedom() const noexcept { return nu_; }
@@ -190,8 +190,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const h = double(X.nu_) / 2;
             double w = detail::marsaglia_tsang(X.d_, X.c_, g);              // Γ(h) (ou Γ(h + 1))
             if (h < 1)
-                w = fp::fmul(w, wsl::special::exp(wsl::special::log(detail::uniform_positive(g)) / h));
-            return static_cast<T>(z / wsl::special::sqrt(w / h));           // V/ν = 2W/(2h) = W/h
+                w = fp::fmul(w, wsl::random::detail::pm::exp(wsl::random::detail::pm::log(detail::uniform_positive(g)) / h));
+            return static_cast<T>(z / wsl::random::detail::pm::sqrt(w / h));           // V/ν = 2W/(2h) = W/h
         }
 
         friend constexpr bool operator==(student_t const& a, student_t const& b) noexcept { return a.nu_ == b.nu_; }

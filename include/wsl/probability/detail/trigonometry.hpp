@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Trigonométrie en double-double des lois : π, π/2, sin u (u dans [0, π]), atan v.
 
 #include <wsl/random/detail/arithmetic.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 namespace wsl::inline WSL_DEFAULTS::probability::detail
 {

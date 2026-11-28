@@ -197,8 +197,8 @@ et `approximate` par défaut), fonction par fonction, bornes vérifiées dans le
   (moteurs `random::engines`, primitives, tirages exacts), `wsl::probability` (lois
   `probability::laws`, variables, algèbre des lois provisoirement), `wsl::probability::
   stochastic_processes` (`processes`, `trajectory`), `wsl::measure_theory` (mesures de
-  référence) ; transitions `<wsl/special>` et `probability/detail/transition.hpp` (noms non
-  qualifiés), à retirer en 6a et 5b.
+  référence) ; transitions `<wsl/special>` et `probability/detail/transition.hpp` : retirées
+  (les lois appellent `random::detail::pm`, fonctions figées en mode portable, décision 42).
 - Découpage de special et random selon les domaines (`floating_point_arithmetic`,
   `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`) ; carte : décision 37 ;
   audit de chaque `fmul` en `fpa::mul` (selon le mode) ou `fpa::unfused_mul` (justesse) : décision 38.

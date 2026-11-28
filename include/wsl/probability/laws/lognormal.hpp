@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi log-normale : X = e^Y, Y normale de moyenne μ et d'écart type σ > 0 (paramètres
 // de log X) ; densité φ((log x − μ)/σ)/(σx) sur (0, +∞).
 //
-//   wsl::probability::lognormal X({.log_mean = 0, .log_stddev = 0.5});
+//   wsl::probability::laws::lognormal X({.log_mean = 0, .log_stddev = 0.5});
 //   X.median(); X.cdf(2.0); X.quantile(0.9); X(g);
 //
 // Les fonctions de la loi passent par celles de la normale : z = (log x − μ)/σ avec
@@ -14,14 +14,14 @@
 // quantile exp(μ + σΦ⁻¹(p)), l'exposant en double-double, un seul arrondi. Moments
 // e^{μ + σ²/2}, (e^{σ²} − 1) e^{2μ + σ²}… de même.
 //
-// Tirage (approché, bit-exact) : e^Y, Y tirée exactement (wsl::probability::normal) ; wsl::approximate :
+// Tirage (approché, bit-exact) : e^Y, Y tirée exactement (wsl::probability::laws::normal) ; wsl::approximate :
 // Y par la ziggourat.
 
 #include <wsl/probability/laws/basic.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -46,7 +46,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr lognormal(parameters p) : mu_(p.log_mean), sigma_(p.log_stddev)
         {
             if (!detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::probability::lognormal : il faut log_mean fini et log_stddev > 0, fini");
+                throw std::domain_error("wsl::probability::laws::lognormal : il faut log_mean fini et log_stddev > 0, fini");
         }
 
         constexpr T log_mean() const noexcept { return mu_; }
@@ -76,13 +76,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         }
         constexpr T skewness() const noexcept
         {
-            double const e = wsl::special::exp(detail::sd::fmul(double(sigma_), double(sigma_)));
-            return static_cast<T>(detail::sd::fmul(e + 2, wsl::special::sqrt(e - 1)));
+            double const e = wsl::random::detail::pm::exp(detail::sd::fmul(double(sigma_), double(sigma_)));
+            return static_cast<T>(detail::sd::fmul(e + 2, wsl::random::detail::pm::sqrt(e - 1)));
         }
         constexpr T excess_kurtosis() const noexcept
         {
             namespace fp = detail::sd;
-            double const e = wsl::special::exp(fp::fmul(double(sigma_), double(sigma_)));
+            double const e = wsl::random::detail::pm::exp(fp::fmul(double(sigma_), double(sigma_)));
             double const e2 = fp::fmul(e, e);
             return static_cast<T>(((fp::fmul(e2, e2) + fp::fmul(2.0, fp::fmul(e2, e))) + fp::fmul(3.0, e2)) - 6.0);
         }
@@ -183,13 +183,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return static_cast<T>(wsl::special::exp(double(detail::native_sample(normal<double>({.mean = X.mu_, .stddev = X.sigma_}), g))));
+            return static_cast<T>(wsl::random::detail::pm::exp(double(detail::native_sample(normal<double>({.mean = X.mu_, .stddev = X.sigma_}), g))));
         }
         template <std::uniform_random_bit_generator G>
         constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
-            return static_cast<T>(wsl::special::exp(double(X.mu_) + detail::sd::fmul(double(X.sigma_), detail::ziggurat_normal(g))));
+            return static_cast<T>(wsl::random::detail::pm::exp(double(X.mu_) + detail::sd::fmul(double(X.sigma_), detail::ziggurat_normal(g))));
         }
 
         friend constexpr bool operator==(lognormal const&, lognormal const&) = default;

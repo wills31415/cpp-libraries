@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Processus aléatoires : trajectoires paresseuses (voir design/random.md §14).
 //

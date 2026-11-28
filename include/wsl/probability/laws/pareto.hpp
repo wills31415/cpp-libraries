@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Pareto (type I) d'échelle x_m > 0 et de forme α > 0 : P(X > x) = (x_m/x)^α,
 // x >= x_m.
 //
-//   wsl::probability::pareto P({.scale = 1, .shape = 2.5});
+//   wsl::probability::laws::pareto P({.scale = 1, .shape = 2.5});
 //   P.mean(); P.cdf(3.0); P.quantile(0.99); P(g);
 //
 // L = α log(x/x_m) en double-double (log du rapport, par log1p près de 1) ; survie
@@ -19,7 +19,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/laws/exponential.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -44,7 +44,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr pareto(parameters p) : xm_(p.scale), alpha_(p.shape)
         {
             if (!(xm_ > 0) || !detail::is_finite(xm_) || !(alpha_ > 0) || !detail::is_finite(alpha_))
-                throw std::domain_error("wsl::probability::pareto : il faut scale > 0 et shape > 0, finis");
+                throw std::domain_error("wsl::probability::laws::pareto : il faut scale > 0 et shape > 0, finis");
         }
 
         constexpr T scale() const noexcept { return xm_; }
@@ -87,7 +87,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return std::numeric_limits<T>::quiet_NaN();
             if (a <= 3)                                                     // variance finie, moment d'ordre 3 infini
                 return std::numeric_limits<T>::infinity();
-            return static_cast<T>(detail::sd::fmul(2 * (1 + a) / (a - 3), wsl::special::sqrt((a - 2) / a)));
+            return static_cast<T>(detail::sd::fmul(2 * (1 + a) / (a - 3), wsl::random::detail::pm::sqrt((a - 2) / a)));
         }
         constexpr T excess_kurtosis() const noexcept
         {
@@ -176,7 +176,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
-            return static_cast<T>(detail::sd::fmul(double(X.xm_), wsl::special::exp(e / double(X.alpha_))));
+            return static_cast<T>(detail::sd::fmul(double(X.xm_), wsl::random::detail::pm::exp(e / double(X.alpha_))));
         }
 
         friend constexpr bool operator==(pareto const&, pareto const&) = default;

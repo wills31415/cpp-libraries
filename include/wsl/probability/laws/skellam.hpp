@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Skellam : K = N₁ − N₂, N₁ ~ Poisson(μ₁) et N₂ ~ Poisson(μ₂) indépendantes, sur ℤ.
 // P(K = k) = e^{−(μ₁ + μ₂)} (μ₁/μ₂)^{k/2} I_|k|(2√(μ₁μ₂)).
 //
-//   wsl::probability::skellam K({.mean1 = 3.0, .mean2 = 1.5});
+//   wsl::probability::laws::skellam K({.mean1 = 3.0, .mean2 = 1.5});
 //   K.pmf(1); K.cdf(-2); K.quantile(0.9); K.mean(); K(g);
 //
 // Masse en logarithme double-double : −(μ₁ + μ₂) + (k/2) log(μ₁/μ₂) + log I_|k|(z) (detail de
@@ -20,7 +20,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/poisson.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -47,7 +47,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace sd = detail::sd;
             if (!(mu1_ > 0) || !detail::is_finite(mu1_) || !(mu2_ > 0) || !detail::is_finite(mu2_))
-                throw std::domain_error("wsl::probability::skellam : il faut mean1 > 0 et mean2 > 0, finis");
+                throw std::domain_error("wsl::probability::laws::skellam : il faut mean1 > 0 et mean2 > 0, finis");
             auto const [s, s_error] = sd::two_sum(mu1_, mu2_);
             minus_s_ = {-s, -s_error};
             // r = ½ log(μ₁/μ₂), z = 2√(μ₁μ₂) en double-double
@@ -115,7 +115,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return low;
             if (u == 1)
                 return high;
-            double const sigma = wsl::special::sqrt(-X.minus_s_.hi);
+            double const sigma = wsl::random::detail::pm::sqrt(-X.minus_s_.hi);
             double const guess = (X.mu1_ - X.mu2_) + detail::sd::fmul(detail::normal_quantile_guess(u), sigma);
             I const span = static_cast<I>(detail::sd::fmul(60.0, sigma)) + 60;   // queues : décroissance au moins géométrique
             I const lo = X.center_ - span * 40, hi = X.center_ + span * 40;
@@ -164,7 +164,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (int i = 0; i < 3; ++i)
                 if (c.n[i] == n)
                     return c.v[i];
-            auto const v = wsl::special::detail::log_cyl_bessel_i(n, z_hi_);
+            auto const v = wsl::random::detail::sd::log_cyl_bessel_i(n, z_hi_);
             c.n[c.next] = n;
             c.v[c.next] = v;
             c.next = (c.next + 1) % 3;
@@ -178,7 +178,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (z_lo_ == 0)
                 return l;
             auto const up = log_bessel_at_hi(n + 1, c);
-            double const ratio = wsl::special::exp((up.hi - l.hi) + (up.lo - l.lo));   // I_{n+1}/I_n
+            double const ratio = wsl::random::detail::pm::exp((up.hi - l.hi) + (up.lo - l.lo));   // I_{n+1}/I_n
             double const derivative = ratio + n / z_hi_;
             return detail::sum(l, {sd::fmul(z_lo_, derivative), 0.0});
         }

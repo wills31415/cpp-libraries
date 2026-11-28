@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : image d'une loi par une fonction, Y = f(X) (voir design/random.md §4.6).
 //
-//   namespace sp = wsl::special;
-//   auto Q = wsl::probability::pushforward(wsl::probability::normal({.mean = 0, .stddev = 1}), [](double x) { return x * x; });   // tirage seul
-//   auto L = wsl::probability::pushforward(wsl::probability::normal({.mean = 0, .stddev = 1}),
+//   namespace sp = wsl::random::detail::pm;
+//   auto Q = wsl::probability::pushforward(wsl::probability::laws::normal({.mean = 0, .stddev = 1}), [](double x) { return x * x; });   // tirage seul
+//   auto L = wsl::probability::pushforward(wsl::probability::laws::normal({.mean = 0, .stddev = 1}),
 //                             wsl::probability::increasing([](double x) { return sp::exp(x); },          // f
 //                                             [](double y) { return sp::log(y); },          // f⁻¹
 //                                             [](double y) { return 1 / y; }));             // (f⁻¹)'
@@ -23,7 +23,7 @@
 
 #include <wsl/probability/affine.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <concepts>
 #include <functional>
@@ -177,7 +177,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
             if (!(y >= lo && y <= up))
                 return y == y ? -std::numeric_limits<value_type>::infinity() : y;
             double const d = std::invoke(Y.m_.inverse_derivative, y);
-            return static_cast<value_type>(double(wsl::probability::log_pdf(Y.law_, Y.inverse(y))) + wsl::special::log(d < 0 ? -d : d));
+            return static_cast<value_type>(double(wsl::probability::log_pdf(Y.law_, Y.inverse(y))) + wsl::random::detail::pm::log(d < 0 ? -d : d));
         }
 
         template <std::uniform_random_bit_generator G>

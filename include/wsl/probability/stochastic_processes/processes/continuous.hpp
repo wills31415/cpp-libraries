@@ -1,24 +1,24 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Processus en temps continu (design/random.md §14), exacts point par point (option B) :
 // chaque valeur rendue est l'arrondi correct d'une trajectoire tirée exactement selon la
 // loi dont les paramètres irrationnels (√Δt, e^{−θt}…) sont arrondis une fois.
 //
-//   wsl::probability::brownian_motion B({.drift = 0, .volatility = 1});
+//   wsl::probability::stochastic_processes::processes::brownian_motion B({.drift = 0, .volatility = 1});
 //   B.at(2.0);                                             // normal(0, √2)
 //   auto x = wsl::probability::sample(B.on_grid({0.5, 1.0, 2.0}), g);        // B aux instants donnés
 //   for (auto [t, v] : wsl::probability::trajectory(B, g, {.step = 0.01}) | std::views::take(100)) …
-//   wsl::probability::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  wsl::probability::sample(D.on_grid(ts), g);
-//   wsl::probability::ornstein_uhlenbeck O({.theta = 1, .mean = 0, .volatility = 1, .start = 2});
-//   wsl::probability::geometric_brownian_motion S({.drift = 0.05, .volatility = 0.2, .start = 100});
-//   wsl::probability::poisson_process N({.rate = 2});    N.at(3.0);   wsl::probability::sample(N.on(10.0), g);
+//   wsl::probability::stochastic_processes::processes::brownian_bridge D({.from = {0, 0}, .to = {1, 0}});  wsl::probability::sample(D.on_grid(ts), g);
+//   wsl::probability::stochastic_processes::processes::ornstein_uhlenbeck O({.theta = 1, .mean = 0, .volatility = 1, .start = 2});
+//   wsl::probability::stochastic_processes::processes::geometric_brownian_motion S({.drift = 0.05, .volatility = 0.2, .start = 100});
+//   wsl::probability::stochastic_processes::processes::poisson_process N({.rate = 2});    N.at(3.0);   wsl::probability::sample(N.on(10.0), g);
 //   for (double t : wsl::probability::trajectory(N, g) | std::views::take(10)) …   // instants des sauts
-//   wsl::probability::inhomogeneous_poisson_process M(f, /* borne */ 5.0);
-//   wsl::probability::compound_poisson C(2.0, wsl::probability::exponential({.rate = 1.0}));     // (instant, valeur)
-//   wsl::probability::continuous_markov_chain Q({.generator = {{-1, 1}, {2, -2}}, .start = 0});
+//   wsl::probability::stochastic_processes::processes::inhomogeneous_poisson_process M(f, /* borne */ 5.0);
+//   wsl::probability::stochastic_processes::processes::compound_poisson C(2.0, wsl::probability::laws::exponential({.rate = 1.0}));     // (instant, valeur)
+//   wsl::probability::stochastic_processes::processes::continuous_markov_chain Q({.generator = {{-1, 1}, {2, -2}}, .start = 0});
 //
 // Construction (detail/lazy_sum.hpp) :
 // - brownien : X(t) = x₀ + μ t + σ Σ √Δt_j Z_j, Z_j normales exactes ; μ t exact
@@ -49,7 +49,7 @@
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/probability/laws/poisson.hpp>
 #include <wsl/probability/stochastic_processes/trajectory.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -81,7 +81,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         template <class G>
         constexpr lazy_draw standard_normal(G& g)
         {
-            return lazy_sample(normal<double>({.mean = 0.0, .stddev = 1.0}), g);
+            return lazy_sample(laws::normal<double>({.mean = 0.0, .stddev = 1.0}), g);
         }
 
         // Brownien standard W aux instants croissants donnés (W(0) = 0) : accroissements
@@ -135,19 +135,19 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit brownian_motion(parameters p) : mu_(p.drift), sigma_(p.volatility), x0_(p.start)
         {
             if (!detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_) || !detail::is_finite(x0_))
-                throw std::domain_error("wsl::probability::brownian_motion : dérive et départ finis, volatilité > 0 finie");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_motion : dérive et départ finis, volatilité > 0 finie");
         }
 
         constexpr double drift() const noexcept { return mu_; }
         constexpr double volatility() const noexcept { return sigma_; }
         constexpr double start() const noexcept { return x0_; }
         // X(t) ~ N(x₀ + μ t, σ √t)
-        constexpr normal<> at(double t) const
+        constexpr laws::normal<> at(double t) const
         {
             if (!(t > 0))
-                throw std::domain_error("wsl::probability::brownian_motion::at : il faut t > 0");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_motion::at : il faut t > 0");
             double const m = detail::linear(mu_, t, x0_);
-            return normal<>({.mean = m, .stddev = detail::sd::fmul(sigma_, wsl::special::sqrt(t))});
+            return laws::normal<>({.mean = m, .stddev = detail::sd::fmul(sigma_, wsl::random::detail::pm::sqrt(t))});
         }
 
         // Valeurs aux instants donnés (>= 0, croissants).
@@ -222,7 +222,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr walker_type walker(grid_step s) const
         {
             if (!(s.step > 0) || !detail::is_finite(s.step))
-                throw std::domain_error("wsl::probability::brownian_motion : pas > 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_motion : pas > 0 fini");
             return {parameters{mu_, sigma_, x0_}, detail::to_dyadic(s.step), s.step};
         }
 
@@ -245,7 +245,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         };
         constexpr fast_walker_type fast_walker(grid_step s) const
         {
-            return {mu_, sigma_, s.step, detail::sd::fmul(sigma_, wsl::special::sqrt(s.step)), {x0_, 0.0}};
+            return {mu_, sigma_, s.step, detail::sd::fmul(sigma_, wsl::random::detail::pm::sqrt(s.step)), {x0_, 0.0}};
         }
 
         // x₀ + μ t + σ W(t), arrondi une fois.
@@ -292,17 +292,17 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         {
             if (!(to_.time > from_.time) || !detail::is_finite(from_.time) || !detail::is_finite(to_.time) || !detail::is_finite(from_.value)
                 || !detail::is_finite(to_.value) || !(sigma_ > 0) || !detail::is_finite(sigma_))
-                throw std::domain_error("wsl::probability::brownian_bridge : il faut t₀ < T, valeurs finies, volatilité > 0");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_bridge : il faut t₀ < T, valeurs finies, volatilité > 0");
         }
 
         // X(t) ~ N(a + r (b − a), σ √((t − t₀)(T − t)/(T − t₀)))
-        constexpr normal<> at(double t) const
+        constexpr laws::normal<> at(double t) const
         {
             if (!(t > from_.time && t < to_.time))
-                throw std::domain_error("wsl::probability::brownian_bridge::at : il faut t₀ < t < T");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_bridge::at : il faut t₀ < t < T");
             double const r = (t - from_.time) / (to_.time - from_.time);
             double const v = detail::sd::fmul(detail::sd::fmul(t - from_.time, to_.time - t) / (to_.time - from_.time), detail::sd::fmul(sigma_, sigma_));
-            return normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .stddev = wsl::special::sqrt(v)});
+            return laws::normal<>({.mean = detail::linear(r, to_.value - from_.value, from_.value), .stddev = wsl::random::detail::pm::sqrt(v)});
         }
 
         class grid_law : public law_interface
@@ -315,7 +315,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             {
                 for (std::size_t i = 0; i < times_.size(); ++i)
                     if (!(times_[i] >= b_.from.time && times_[i] <= b_.to.time) || (i > 0 && times_[i] < times_[i - 1]))
-                        throw std::domain_error("wsl::probability::brownian_bridge : instants croissants dans [t₀, T]");
+                        throw std::domain_error("wsl::probability::stochastic_processes::processes::brownian_bridge : instants croissants dans [t₀, T]");
             }
 
             // W(tᵢ − t₀) pour tous les instants, puis W(T − t₀) ; X(tᵢ) = a + rᵢ (b − a) + σ (Wᵢ − rᵢ W_T).
@@ -371,20 +371,20 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit ornstein_uhlenbeck(parameters p) : theta_(p.theta), mu_(p.mean), sigma_(p.volatility), x0_(p.start)
         {
             if (!(theta_ > 0) || !detail::is_finite(theta_) || !detail::is_finite(mu_) || !(sigma_ > 0) || !detail::is_finite(sigma_) || !detail::is_finite(x0_))
-                throw std::domain_error("wsl::probability::ornstein_uhlenbeck : θ > 0, σ > 0, moyenne et départ finis");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::ornstein_uhlenbeck : θ > 0, σ > 0, moyenne et départ finis");
         }
 
         // X(t) ~ N(μ + e^{−θt}(x₀ − μ), σ √(−expm1(−2θt)/(2θ)))
-        constexpr normal<> at(double t) const
+        constexpr laws::normal<> at(double t) const
         {
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             if (!(t > 0))
-                throw std::domain_error("wsl::probability::ornstein_uhlenbeck::at : il faut t > 0");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::ornstein_uhlenbeck::at : il faut t > 0");
             double const a = sp::exp(-detail::sd::fmul(theta_, t));
             double const v = -sp::expm1(-detail::sd::fmul(detail::sd::fmul(2.0, theta_), t)) / detail::sd::fmul(2.0, theta_);
-            return normal<>({.mean = detail::linear(a, x0_ - mu_, mu_), .stddev = detail::sd::fmul(sigma_, sp::sqrt(v))});
+            return laws::normal<>({.mean = detail::linear(a, x0_ - mu_, mu_), .stddev = detail::sd::fmul(sigma_, sp::sqrt(v))});
         }
-        constexpr normal<> stationary() const { return normal<>({.mean = mu_, .stddev = sigma_ / wsl::special::sqrt(detail::sd::fmul(2.0, theta_))}); }
+        constexpr laws::normal<> stationary() const { return laws::normal<>({.mean = mu_, .stddev = sigma_ / wsl::random::detail::pm::sqrt(detail::sd::fmul(2.0, theta_))}); }
 
         class grid_law : public law_interface
         {
@@ -435,7 +435,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr walker_type walker(grid_step s) const
         {
             if (!(s.step > 0) || !detail::is_finite(s.step))
-                throw std::domain_error("wsl::probability::ornstein_uhlenbeck : pas > 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::ornstein_uhlenbeck : pas > 0 fini");
             return {parameters{theta_, mu_, sigma_, x0_}, s.step};
         }
 
@@ -444,11 +444,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         static constexpr double value_at(parameters const& o, detail::brownian_sum& w, double t, G& g)
         {
             double const theta_ = o.theta, mu_ = o.mean, sigma_ = o.volatility, x0_ = o.start;
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             namespace d = detail;
             double const theta_t = d::sd::fmul(theta_, t);
             if (!(theta_t <= 350))
-                throw std::domain_error("wsl::probability::ornstein_uhlenbeck : θ t > 350 (changement de temps hors des doubles)");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::ornstein_uhlenbeck : θ t > 350 (changement de temps hors des doubles)");
             if (t == 0)
                 return x0_;
             double const u = sp::expm1(d::sd::fmul(2.0, theta_t)), a = sp::exp(-theta_t);
@@ -485,15 +485,15 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             : log_(brownian_motion::parameters{.drift = p.drift - detail::sd::fmul(0.5, detail::sd::fmul(p.volatility, p.volatility)), .volatility = p.volatility, .start = 0}), s0_(p.start)
         {
             if (!(s0_ > 0) || !detail::is_finite(s0_))
-                throw std::domain_error("wsl::probability::geometric_brownian_motion : départ > 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::geometric_brownian_motion : départ > 0 fini");
         }
 
         constexpr brownian_motion const& logarithm() const noexcept { return log_; }   // log(S/s₀), exact
         // S(t) ~ lognormale(log s₀ + (μ − σ²/2) t, σ √t)
-        constexpr lognormal<> at(double t) const
+        constexpr laws::lognormal<> at(double t) const
         {
             auto const n = log_.at(t);
-            return lognormal<>({.log_mean = wsl::special::log(s0_) + n.mean(), .log_stddev = n.stddev()});
+            return laws::lognormal<>({.log_mean = wsl::random::detail::pm::log(s0_) + n.mean(), .log_stddev = n.stddev()});
         }
 
         class grid_law : public law_interface
@@ -510,7 +510,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                 auto const& L = *this;
                 auto x = detail::native_sample(L.log_.on_grid(L.times_), g);
                 for (auto& v : x)
-                    v = detail::sd::fmul(L.s0_, wsl::special::exp(v));
+                    v = detail::sd::fmul(L.s0_, wsl::random::detail::pm::exp(v));
                 return x;
             }
 
@@ -542,11 +542,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit poisson_process(parameters p) : lambda_(p.rate)
         {
             if (!(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::probability::poisson_process : taux > 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::poisson_process : taux > 0 fini");
         }
 
         constexpr double rate() const noexcept { return lambda_; }
-        constexpr poisson<> at(double t) const { return poisson<>({.mean = detail::sd::fmul(lambda_, t)}); }   // N(t)
+        constexpr laws::poisson<> at(double t) const { return laws::poisson<>({.mean = detail::sd::fmul(lambda_, t)}); }   // N(t)
 
         struct walker_type
         {
@@ -557,7 +557,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             template <class G>
             constexpr double next(G& g)
             {
-                times.add(detail::lazy_sample(exponential<double>({.rate = lambda}), g), g);
+                times.add(detail::lazy_sample(laws::exponential<double>({.rate = lambda}), g), g);
                 return times.rounded(g);
             }
             // T_last <= t exactement ?
@@ -575,7 +575,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             template <class G>
             constexpr double next(G& g)
             {
-                t = detail::sum(t, {wsl::probability::sample(exponential<double>({.rate = lambda}), g, wsl::approximate), 0.0});
+                t = detail::sum(t, {wsl::probability::sample(laws::exponential<double>({.rate = lambda}), g, wsl::approximate), 0.0});
                 return t.hi + t.lo;
             }
         };
@@ -590,7 +590,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             constexpr window_law(double rate, double horizon) : lambda_(rate), horizon_(horizon)
             {
                 if (!(horizon_ >= 0) || !detail::is_finite(horizon_))
-                    throw std::domain_error("wsl::probability::poisson_process::on : horizon >= 0 fini");
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::poisson_process::on : horizon >= 0 fini");
             }
 
             template <std::uniform_random_bit_generator G>
@@ -636,7 +636,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr inhomogeneous_poisson_process(F intensity, double bound) : f_(std::move(intensity)), bound_(bound)
         {
             if (!(bound_ > 0) || !detail::is_finite(bound_))
-                throw std::domain_error("wsl::probability::inhomogeneous_poisson_process : borne > 0 finie");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::inhomogeneous_poisson_process : borne > 0 finie");
         }
 
         struct walker_type
@@ -653,7 +653,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                     double const t = candidates.next(g);
                     double const f = p->f_(t);
                     if (!(f >= 0 && f <= p->bound_))
-                        throw std::domain_error("wsl::probability::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
+                        throw std::domain_error("wsl::probability::stochastic_processes::processes::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
                     if (detail::fraction(g, f, p->bound_))
                         return t;
                 }
@@ -682,7 +682,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                         return times;
                     double const f = W.p_.f_(t);
                     if (!(f >= 0 && f <= W.p_.bound_))
-                        throw std::domain_error("wsl::probability::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
+                        throw std::domain_error("wsl::probability::stochastic_processes::processes::inhomogeneous_poisson_process : il faut 0 <= f(t) <= borne");
                     if (detail::fraction(g, f, W.p_.bound_))
                         times.push_back(t);
                 }
@@ -713,7 +713,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr compound_poisson(double rate, L jump) : lambda_(rate), jump_(std::move(jump))
         {
             if (!(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::probability::compound_poisson : taux > 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::compound_poisson : taux > 0 fini");
         }
 
         constexpr double rate() const noexcept { return lambda_; }
@@ -769,7 +769,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         {
             std::size_t const k = q_.extent(0);
             if (k < 1 || start_ >= k)
-                throw std::domain_error("wsl::probability::continuous_markov_chain : au moins un état, départ valide");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::continuous_markov_chain : au moins un état, départ valide");
             for (std::size_t i = 0; i < k; ++i)
             {
                 std::vector<double> row(k, 0.0);
@@ -779,18 +779,18 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                     if (j == i)
                         continue;
                     if (!(q_[i, j] >= 0) || !detail::is_finite(q_[i, j]))
-                        throw std::domain_error("wsl::probability::continuous_markov_chain : taux hors diagonale >= 0, finis");
+                        throw std::domain_error("wsl::probability::stochastic_processes::processes::continuous_markov_chain : taux hors diagonale >= 0, finis");
                     row[j] = q_[i, j];
                     out = detail::sum(out, {q_[i, j], 0.0});
                 }
                 auto const d = detail::sum(out, {q_[i, i], 0.0});
                 if (!(detail::magnitude(d.hi) <= detail::sd::fmul(out.hi + 0x1p-1000, 0x1p-40)))
-                    throw std::domain_error("wsl::probability::continuous_markov_chain : chaque ligne du générateur doit sommer à 0");
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::continuous_markov_chain : chaque ligne du générateur doit sommer à 0");
                 rates_.push_back(-q_[i, i]);
                 if (out.hi > 0)
-                    jumps_.push_back(categorical<>({.p = row}));
+                    jumps_.push_back(laws::categorical<>({.p = row}));
                 else
-                    jumps_.push_back(categorical<>({.p = std::vector<double>(k, 1.0)}));   // absorbant : jamais tiré
+                    jumps_.push_back(laws::categorical<>({.p = std::vector<double>(k, 1.0)}));   // absorbant : jamais tiré
             }
         }
 
@@ -798,7 +798,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr square_matrix<double> const& generator() const noexcept { return q_; }
 
         // Loi de X(t) : π₀ e^{Qt}, par mise à l'échelle et carrés (Taylor de degré 24).
-        constexpr categorical<> at(double t) const
+        constexpr laws::categorical<> at(double t) const
         {
             std::size_t const k = size();
             double norm = 0;
@@ -833,7 +833,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             std::vector<double> pi(k);
             for (std::size_t j = 0; j < k; ++j)
                 pi[j] = e[start_, j] < 0 ? 0.0 : e[start_, j];
-            return categorical<>({.p = pi});
+            return laws::categorical<>({.p = pi});
         }
 
         struct walker_type
@@ -853,7 +853,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                     absorbed = true;
                     return {std::numeric_limits<double>::infinity(), x};
                 }
-                times.add(detail::lazy_sample(exponential<double>({.rate = q}), g), g);
+                times.add(detail::lazy_sample(laws::exponential<double>({.rate = q}), g), g);
                 x = static_cast<std::size_t>(detail::native_sample(c->jumps_[x], g));
                 return {times.rounded(g), x};
             }
@@ -864,6 +864,6 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         square_matrix<double> q_;
         std::size_t start_;
         std::vector<double> rates_;
-        std::vector<categorical<>> jumps_;
+        std::vector<laws::categorical<>> jumps_;
     };
 }

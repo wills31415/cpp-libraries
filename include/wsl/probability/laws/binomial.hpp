@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi binomiale : nombre de succès en n épreuves de Bernoulli indépendantes de
 // paramètre p, P(X = k) = C(n, k) p^k (1 − p)^(n−k), 0 <= k <= n.
 //
-//   wsl::probability::binomial X({.trials = 20, .p = 0.3});
+//   wsl::probability::laws::binomial X({.trials = 20, .p = 0.3});
 //   X.mean(); X.pmf(6); X.log_pmf(6); X(g);
 //
 // Masse : décomposition de Loader (voir detail/loader.hpp),
@@ -24,7 +24,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -53,7 +53,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace sd = detail::sd;
             if (!(n_ >= 0) || !(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::binomial : il faut trials >= 0 et 0 <= p <= 1");
+                throw std::domain_error("wsl::probability::laws::binomial : il faut trials >= 0 et 0 <= p <= 1");
             // Tirage : p' = min(p, 1 − p).
             mirrored_ = p_ > 0.5;
             double const pp = mirrored_ ? 1 - p_ : p_, qq = 1 - pp, n = static_cast<double>(n_);
@@ -62,19 +62,19 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return;
             if (sd::fmul(n, pp) < 10)
             {
-                start_ = wsl::special::exp(sd::fmul(n, wsl::special::log1p(-pp)));
+                start_ = wsl::random::detail::pm::exp(sd::fmul(n, wsl::random::detail::pm::log1p(-pp)));
                 ratio_ = pp / qq;
                 return;
             }
-            double const spq = wsl::special::sqrt(sd::fmul(sd::fmul(n, pp), qq));
+            double const spq = wsl::random::detail::pm::sqrt(sd::fmul(sd::fmul(n, pp), qq));
             b_ = 1.15 + sd::fmul(2.53, spq);
             a_ = (-0.0873 + sd::fmul(0.0248, b_)) + sd::fmul(0.01, pp);
             c_ = sd::fmul(n, pp) + 0.5;
             vr_ = 0.92 - 4.2 / b_;
             alpha_ = sd::fmul(2.83 + 5.1 / b_, spq);
-            lpq_ = wsl::special::log(pp / qq);
+            lpq_ = wsl::random::detail::pm::log(pp / qq);
             m_ = detail::floor_nonnegative(sd::fmul(n + 1, pp));
-            h_ = wsl::special::lgamma(m_ + 1) + wsl::special::lgamma((n - m_) + 1);
+            h_ = wsl::random::detail::pm::lgamma(m_ + 1) + wsl::random::detail::pm::lgamma((n - m_) + 1);
         }
 
         constexpr I trials() const noexcept { return n_; }
@@ -100,7 +100,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (n_ == 0 || p_ == 0 || p_ == 1)                              // loi dégénérée : 0/0
                 return std::numeric_limits<double>::quiet_NaN();
             double const q = 1 - p_;
-            return (q - p_) / wsl::special::sqrt(detail::sd::fmul(detail::sd::fmul(static_cast<double>(n_), p_), q));
+            return (q - p_) / wsl::random::detail::pm::sqrt(detail::sd::fmul(detail::sd::fmul(static_cast<double>(n_), p_), q));
         }
         constexpr double excess_kurtosis() const noexcept
         {
@@ -149,7 +149,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 1;
             if (X.p_ == 1)
                 return 0;
-            return wsl::special::ibetac(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
+            return wsl::random::detail::pm::ibetac(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
         }
 
         // P(X > k) = I_p(k + 1, n − k).
@@ -162,7 +162,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 0;
             if (X.p_ == 1)
                 return 1;
-            return wsl::special::ibeta(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
+            return wsl::random::detail::pm::ibeta(static_cast<double>(k) + 1, static_cast<double>(X.n_ - k), X.p_);
         }
 
         // Plus petit k tel que P(X <= k) >= u.
@@ -179,7 +179,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const n = static_cast<double>(X.n_), q = 1 - X.p_;
             double const z = detail::normal_quantile_guess(u);
             double const mean = sd::fmul(n, X.p_);
-            double guess = (mean + sd::fmul(z, wsl::special::sqrt(sd::fmul(mean, q))))
+            double guess = (mean + sd::fmul(z, wsl::random::detail::pm::sqrt(sd::fmul(mean, q))))
                          + sd::fmul(sd::fmul(z, z) - 1.0, q - X.p_) / 6;     // Cornish–Fisher
             guess = guess < 0 ? 0 : guess > n ? n : guess;
             auto const ge = [&](I k) {                                      // P(X <= k) >= u
@@ -202,7 +202,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             I k = 0;
             if (X.b_ == 0)                                                  // inversion : P(X <= k) >= U
             {
-                double const u = uniform_real<double>(g, wsl::exact);
+                double const u = random::uniform_real<double>(g, wsl::exact);
                 double probability = X.start_, sum = probability;
                 while (u > sum && k < X.n_ && probability > 0)
                 {
@@ -215,8 +215,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             {
                 for (;;)
                 {
-                    double const u = uniform_real<double>(g, wsl::exact) - 0.5;
-                    double v = uniform_real<double>(g, wsl::exact);
+                    double const u = random::uniform_real<double>(g, wsl::exact) - 0.5;
+                    double v = random::uniform_real<double>(g, wsl::exact);
                     double const us = 0.5 - (u < 0 ? -u : u);
                     if (us == 0)
                         continue;
@@ -229,8 +229,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                         k = static_cast<I>(kf);
                         break;
                     }
-                    v = wsl::special::log(sd::fmul(v, X.alpha_) / (X.a_ / sd::fmul(us, us) + X.b_));
-                    double const bound = (X.h_ - wsl::special::lgamma(kf + 1)) - wsl::special::lgamma((n - kf) + 1)
+                    v = wsl::random::detail::pm::log(sd::fmul(v, X.alpha_) / (X.a_ / sd::fmul(us, us) + X.b_));
+                    double const bound = (X.h_ - wsl::random::detail::pm::lgamma(kf + 1)) - wsl::random::detail::pm::lgamma((n - kf) + 1)
                                        + sd::fmul(kf - X.m_, X.lpq_);
                     if (v <= bound)
                     {

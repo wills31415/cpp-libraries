@@ -3,7 +3,9 @@
 // programme, les boucles de mesure de plusieurs fonctions se sont montrées
 // capables de fausser les chiffres d'un facteur 3 ou plus (constaté sur Intel).
 
-#include <wsl/special.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/special_functions.hpp>
+#include <wsl/special_functions/detail/pinned_portable.hpp>
 
 #include <chrono>
 #include <cmath>

@@ -454,7 +454,7 @@ int main()
             h.add(bits(wr::log_pdf(W, w)) ^ (bits(wr::log_pdf(T2, {w[0, 0], w[1, 2]})) << 1) ^ (bits(wr::log_pdf(GO, wr::native(GO, x))) << 2));
         }, 1 << 8), 0xcebc860185777128);
         ok &= check("functions", fingerprint([&](fnv1a& h) {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), v = fp::fmul(0.5, u);
             h.add(bits(wr::pdf(D, {v, 0.25, 0.75 - v})) ^ (bits(wr::log_pdf(X, {u, v, -u})) << 1) ^ (bits(wr::pmf(M, {5, 10, 15, 20})) << 2));
         }, 1 << 9), 0x5e2d79ac0279d5e6);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Solveur commun des quantiles sans forme close : u tel que V(u) = t, V la plus petite part
 // d'une loi (répartition ou survie, t <= ½ en pratique), monotone en u.

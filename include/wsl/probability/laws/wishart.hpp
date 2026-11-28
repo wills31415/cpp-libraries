@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois de Wishart W_p(V, n) et inverse-Wishart W⁻¹_p(Ψ, ν) sur les matrices p × p
 // symétriques définies positives (n, ν > p − 1).
 //
-//   wsl::probability::wishart<double, 2> W({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 5});
-//   wsl::probability::inverse_wishart<double, 2> I({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 6});
+//   wsl::probability::laws::wishart<double, 2> W({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 5});
+//   wsl::probability::laws::inverse_wishart<double, 2> I({.scale = {{1, 0.2}, {0.2, 2}}, .degrees_of_freedom = 6});
 //   W.mean(); W.log_pdf(X); W.entropy(); W(g);
 //
 // Wishart : log-densité ((n − p − 1)/2) log det X − ½ tr(V⁻¹X) − (np/2) log 2
@@ -30,7 +30,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -47,14 +47,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
 {
         // Bartlett : A triangulaire inférieure, Aᵢᵢ² ~ χ²(n − i), Aᵢⱼ ~ N(0, 1).
         template <std::size_t N, class G>
-        constexpr square_matrix<double, N> bartlett(std::vector<gamma<double>> const& chi, G& g)
+        constexpr square_matrix<double, N> bartlett(std::vector<laws::gamma<double>> const& chi, G& g)
         {
             std::size_t const p = chi.size();
             auto a = make_matrix<double, N>(p);
-            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
+            laws::normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (std::size_t i = 0; i < p; ++i)
             {
-                a[i, i] = wsl::special::sqrt(detail::native_sample(chi[i], g));
+                a[i, i] = wsl::random::detail::pm::sqrt(detail::native_sample(chi[i], g));
                 for (std::size_t j = 0; j < i; ++j)
                     a[i, j] = detail::native_sample(standard, g);
             }
@@ -68,7 +68,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
             T n;
             square_matrix<T, N> v;
             square_matrix<double, N> l;
-            std::vector<gamma<double>> chi;
+            std::vector<laws::gamma<double>> chi;
             sd::double_double log_det_half{}, log_gamma_p{};
 
             constexpr wishart_base(T degrees, square_matrix<T, N> const& scale, char const* name)
@@ -78,11 +78,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                 if (p < 1)
                     throw std::domain_error(name);
                 if (!(double(n) > double(p) - 1) || !is_finite(n))
-                    throw std::domain_error("wsl::probability::wishart : il faut degrees_of_freedom > dimension − 1, fini");
+                    throw std::domain_error("wsl::probability::laws::wishart : il faut degrees_of_freedom > dimension − 1, fini");
                 if (!cholesky(v, l))
-                    throw std::domain_error("wsl::probability::wishart : échelle non symétrique définie positive");
+                    throw std::domain_error("wsl::probability::laws::wishart : échelle non symétrique définie positive");
                 for (std::size_t i = 0; i < p; ++i)
-                    chi.push_back(gamma<double>(typename gamma<double>::parameters{.scale = 2.0, .shape = sd::fmul(double(n) - double(i), 0.5)}));
+                    chi.push_back(gamma<double>(typename laws::gamma<double>::parameters{.scale = 2.0, .shape = sd::fmul(double(n) - double(i), 0.5)}));
                 log_det_half = half_log_determinant(l);
                 log_gamma_p = log_multivariate_gamma(p, sd::fmul(double(n), 0.5));
             }
@@ -142,7 +142,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         using param_type = parameters;
         constexpr param_type param() const { return {.scale = scale(), .degrees_of_freedom = degrees_of_freedom()}; }
 
-        constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::probability::wishart : dimension nulle") {}
+        constexpr wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::probability::laws::wishart : dimension nulle") {}
 
         constexpr std::size_t dimension() const noexcept { return b_.dimension(); }
         constexpr T degrees_of_freedom() const noexcept { return b_.n; }
@@ -246,7 +246,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         using param_type = parameters;
         constexpr param_type param() const { return {.scale = scale(), .degrees_of_freedom = degrees_of_freedom()}; }
 
-        constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::probability::inverse_wishart : dimension nulle") {}
+        constexpr inverse_wishart(parameters p) : b_(p.degrees_of_freedom, p.scale, "wsl::probability::laws::inverse_wishart : dimension nulle") {}
 
         constexpr std::size_t dimension() const noexcept { return b_.dimension(); }
         constexpr T degrees_of_freedom() const noexcept { return b_.n; }

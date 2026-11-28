@@ -1,19 +1,19 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois sur les sous-ensembles, combinaisons, mots et partitions d'entiers. Valeurs :
 // std::vector<std::size_t> (éléments croissants d'un sous-ensemble de {0, …, n − 1},
 // lettres d'un mot, parts décroissantes d'une partition).
 //
-//   wsl::probability::uniform_subset S({.size = 20});                    // chaque sous-ensemble : 2^-n
-//   wsl::probability::bernoulli_subset B({.size = 20, .p = 0.1});        // chaque élément avec probabilité p
-//   wsl::probability::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
-//   wsl::probability::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
-//   wsl::probability::uniform_integer_partition P({.total = 100});           // 1/p(n)
-//   wsl::probability::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
-//   wsl::probability::uniform_composition K({.total = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
+//   wsl::probability::laws::uniform_subset S({.size = 20});                    // chaque sous-ensemble : 2^-n
+//   wsl::probability::laws::bernoulli_subset B({.size = 20, .p = 0.1});        // chaque élément avec probabilité p
+//   wsl::probability::laws::uniform_combination C({.size = 50, .count = 6});   // k-sous-ensembles : 1/C(n, k)
+//   wsl::probability::laws::uniform_word W({.length = 8, .alphabet = 4});      // k^-ℓ
+//   wsl::probability::laws::uniform_integer_partition P({.total = 100});           // 1/p(n)
+//   wsl::probability::laws::uniform_set_partition Q({.size = 10});              // 1/B_n (Bell)
+//   wsl::probability::laws::uniform_composition K({.total = 10});                   // 2^{1−n} ; {.n, .parts = k} : 1/C(n − 1, k − 1)
 //
 // Tirages exacts : bits uniformes ; épreuves de Bernoulli exactes ; algorithme de Floyd
 // (k entiers uniformes) ; lettres uniformes ; partitions par l'algorithme de Nijenhuis et
@@ -34,7 +34,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/permutations.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -126,7 +126,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (std::size_t i = 0; i < S.n_; ++i)
             {
                 if (i % 64 == 0)
-                    word = random_bits(g);
+                    word = random::random_bits(g);
                 if ((word >> (i % 64)) & 1)
                     s.push_back(i);
             }
@@ -156,7 +156,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit bernoulli_subset(parameters q) : n_(q.size), p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::bernoulli_subset : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::probability::laws::bernoulli_subset : il faut p dans [0, 1]");
         }
 
         constexpr std::size_t size() const noexcept { return n_; }
@@ -178,7 +178,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& B = *this;
             value_type s;
             for (std::size_t i = 0; i < B.n_; ++i)
-                if (bernoulli_trial(B.p_, g))
+                if (random::bernoulli_trial(B.p_, g))
                     s.push_back(i);
             return s;
         }
@@ -228,7 +228,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit uniform_combination(parameters p) : n_(p.size), k_(p.count)
         {
             if (k_ > n_)
-                throw std::domain_error("wsl::probability::uniform_combination : il faut count <= size");
+                throw std::domain_error("wsl::probability::laws::uniform_combination : il faut count <= size");
             log_count_ = detail::log_binomial(n_, k_);
         }
 
@@ -256,7 +256,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             s.reserve(C.k_);
             for (std::size_t j = C.n_ - C.k_; j < C.n_; ++j)
             {
-                auto const t = static_cast<std::size_t>(uniform_below(std::uint64_t(j) + 1, g));
+                auto const t = static_cast<std::size_t>(random::uniform_below(std::uint64_t(j) + 1, g));
                 auto const at = std::ranges::lower_bound(s, t);
                 if (at != s.end() && *at == t)
                     s.insert(std::ranges::lower_bound(s, j), j);
@@ -289,7 +289,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit uniform_word(parameters p) : length_(p.length), k_(p.alphabet)
         {
             if (k_ < 1)
-                throw std::domain_error("wsl::probability::uniform_word : il faut alphabet >= 1");
+                throw std::domain_error("wsl::probability::laws::uniform_word : il faut alphabet >= 1");
         }
 
         constexpr std::size_t length() const noexcept { return length_; }
@@ -320,7 +320,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& W = *this;
             value_type w(W.length_);
             for (auto& c : w)
-                c = static_cast<std::size_t>(uniform_below(W.k_, g));
+                c = static_cast<std::size_t>(random::uniform_below(W.k_, g));
             return w;
         }
 
@@ -449,7 +449,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit uniform_composition(parameters q) : n_(q.total), k_(q.parts)
         {
             if (n_ < 1 || k_ > n_)
-                throw std::domain_error("wsl::probability::uniform_composition : il faut total >= 1 et parts <= total");
+                throw std::domain_error("wsl::probability::laws::uniform_composition : il faut total >= 1 et parts <= total");
             log_count_ = k_ == 0 ? detail::mul({double(n_ - 1), 0.0}, {detail::sd::ln2_hi, detail::sd::ln2_lo}) : detail::log_binomial(n_ - 1, k_ - 1);
         }
 

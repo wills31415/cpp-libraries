@@ -23,7 +23,7 @@ measure() {   # fonction type bas haut
 
 printf '%-12s %10s %10s %8s\n' "" "wsl" "<cmath>" "rapport"
 while read -r name fn type low high; do
-    ours="$(measure "wsl::special::$fn" "$type" "$low" "$high")"
+    ours="$(measure "wsl::special_functions::detail::pinned_portable::$fn" "$type" "$low" "$high")"
     theirs="$(measure "std::$fn" "$type" "$low" "$high")"
     printf '%-12s %7s ns %7s ns %7s\n' "$name" "$ours" "$theirs" "×$(echo "scale=2; $ours / $theirs" | bc)"
 done <<'TABLE'

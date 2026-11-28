@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois de Gumbel (valeurs extrêmes de type I, maximum) et de Fréchet (type II).
 //
-//   wsl::probability::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
-//   wsl::probability::frechet F({.location = 0, .scale = 2, .shape = 3});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
+//   wsl::probability::laws::gumbel G({.location = 0, .scale = 1});               // P(X <= x) = e^{−e^{−(x−μ)/β}}
+//   wsl::probability::laws::frechet F({.location = 0, .scale = 2, .shape = 3});   // P(X <= x) = e^{−((x−m)/s)^{−α}}, x > m
 //   G.cdf(1.0); F.quantile(0.99); G.mean(); F(g);
 //
 // Noyau commun : y = (x − μ)/β (Gumbel) ou α log((x − m)/s) (Fréchet, log du rapport par
@@ -25,7 +25,7 @@
 #include <wsl/probability/laws/exponential.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -99,7 +99,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr gumbel(parameters p) : mu_(p.location), beta_(p.scale)
         {
             if (!detail::is_finite(mu_) || !(beta_ > 0) || !detail::is_finite(beta_))
-                throw std::domain_error("wsl::probability::gumbel : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::probability::laws::gumbel : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return mu_; }
@@ -199,7 +199,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr frechet(parameters p) : alpha_(p.shape), s_(p.scale), m_(p.location)
         {
             if (!(alpha_ > 0) || !detail::is_finite(alpha_) || !(s_ > 0) || !detail::is_finite(s_) || !detail::is_finite(m_))
-                throw std::domain_error("wsl::probability::frechet : il faut shape > 0 et scale > 0, finis, location fini");
+                throw std::domain_error("wsl::probability::laws::frechet : il faut shape > 0 et scale > 0, finis, location fini");
         }
 
         constexpr T shape() const noexcept { return alpha_; }
@@ -287,7 +287,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& F = *this;
             double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
-            double const w = wsl::special::exp(-wsl::special::log(e) / double(F.alpha_));
+            double const w = wsl::random::detail::pm::exp(-wsl::random::detail::pm::log(e) / double(F.alpha_));
             return static_cast<T>(double(F.m_) + detail::sd::fmul(double(F.s_), w));
         }
 

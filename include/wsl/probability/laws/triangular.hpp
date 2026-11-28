@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi triangulaire sur [a, b] de mode c (a <= c <= b, a < b).
 //
-//   wsl::probability::triangular T({.lower = 0, .mode = 1, .upper = 3});
+//   wsl::probability::laws::triangular T({.lower = 0, .mode = 1, .upper = 3});
 //   T.cdf(2.0); T.quantile(0.9); T.variance(); T(g);
 //
 // Répartition (x − a)²/((b − a)(c − a)) sous c, 1 − (b − x)²/((b − a)(b − c)) au-dessus
@@ -20,7 +20,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -45,7 +45,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr triangular(parameters p) : a_(p.lower), c_(p.mode), b_(p.upper)
         {
             if (!detail::is_finite(a_) || !detail::is_finite(b_) || !(a_ < b_) || !(a_ <= c_ && c_ <= b_))
-                throw std::domain_error("wsl::probability::triangular : il faut lower <= mode <= upper, lower < upper, finis");
+                throw std::domain_error("wsl::probability::laws::triangular : il faut lower <= mode <= upper, lower < upper, finis");
         }
 
         constexpr T lower() const noexcept { return a_; }
@@ -94,7 +94,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const a = a_, b = b_, c = c_;
             double const q = fp::fmul((fp::fmul(a - b, a - b) + fp::fmul(a - c, a - c)) + fp::fmul(b - c, b - c), 0.5);
             double const n = fp::fmul(fp::fmul((a + b) - fp::fmul(2.0, c), (fp::fmul(2.0, a) - b) - c), (a - fp::fmul(2.0, b)) + c);
-            return static_cast<T>(fp::fmul(detail::sqrt2_hi, n) / fp::fmul(5.0, fp::fmul(q, wsl::special::sqrt(q))));
+            return static_cast<T>(fp::fmul(detail::sqrt2_hi, n) / fp::fmul(5.0, fp::fmul(q, wsl::random::detail::pm::sqrt(q))));
         }
         constexpr T excess_kurtosis() const noexcept { return static_cast<T>(-0.6); }
 
@@ -140,7 +140,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return X.inverse(uniform_real<double>(g, wsl::exact), false);
+            return X.inverse(random::uniform_real<double>(g, wsl::exact), false);
         }
 
         friend constexpr bool operator==(triangular const&, triangular const&) = default;

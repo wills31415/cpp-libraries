@@ -5,7 +5,9 @@
 
 #include <wsl/probability.hpp>
 #include <wsl/random.hpp>
-#include <wsl/special.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/special_functions.hpp>
+#include <wsl/special_functions/detail/pinned_portable.hpp>
 
 // Les noms de l'ancien wsl::random, réunis (refonte, étape 5a).
 namespace wr
@@ -20,48 +22,48 @@ namespace wr
 
 extern "C"
 {
-    double check_exp(double x) { return wsl::special::exp(x); }
-    double check_log(double x) { return wsl::special::log(x); }
-    float check_expf(float x) { return wsl::special::exp(x); }
-    float check_logf(float x) { return wsl::special::log(x); }
-    double check_exp2(double x) { return wsl::special::exp2(x); }
-    double check_expm1(double x) { return wsl::special::expm1(x); }
-    double check_log2(double x) { return wsl::special::log2(x); }
-    double check_log10(double x) { return wsl::special::log10(x); }
-    double check_log1p(double x) { return wsl::special::log1p(x); }
-    double check_pow(double x, double y) { return wsl::special::pow(x, y); }
-    double check_sin(double x) { return wsl::special::sin(x); }
-    double check_cos(double x) { return wsl::special::cos(x); }
-    double check_tan(double x) { return wsl::special::tan(x); }
-    double check_atan(double x) { return wsl::special::atan(x); }
-    double check_atan2(double y, double x) { return wsl::special::atan2(y, x); }
-    double check_cbrt(double x) { return wsl::special::cbrt(x); }
-    double check_hypot(double x, double y) { return wsl::special::hypot(x, y); }
-    double check_erf(double x) { return wsl::special::erf(x); }
-    double check_erfc(double x) { return wsl::special::erfc(x); }
-    double check_lgamma(double x) { return wsl::special::lgamma(x); }
-    double check_tgamma(double x) { return wsl::special::tgamma(x); }
-    double check_digamma(double x) { return wsl::special::digamma(x); }
-    double check_gamma_p(double a, double x) { return wsl::special::gamma_p(a, x); }
-    double check_gamma_q(double a, double x) { return wsl::special::gamma_q(a, x); }
-    double check_bessel_i(double nu, double x) { return wsl::special::cyl_bessel_i(nu, x); }
-    float check_bessel_if(float nu, float x) { return wsl::special::cyl_bessel_i(nu, x); }
-    double check_sum_bessel_i(double nu, double x) { return 1.0 + wsl::special::cyl_bessel_i(nu, x); }
-    double check_sum_gamma_p(double a, double x) { return 1.0 + wsl::special::gamma_p(a, x); }
-    double check_gamma_p_inv(double a, double p) { return wsl::special::gamma_p_inv(a, p); }
-    double check_ibeta(double a, double b, double x) { return wsl::special::ibeta(a, b, x); }
-    double check_ibetac(double a, double b, double x) { return wsl::special::ibetac(a, b, x); }
-    double check_sum_ibeta(double a, double b, double x) { return 1.0 + wsl::special::ibeta(a, b, x); }
-    double check_beta(double a, double b) { return wsl::special::beta(a, b); }
-    double check_ibeta_inv(double a, double b, double p) { return wsl::special::ibeta_inv(a, b, p); }
-    double check_ibetac_inv(double a, double b, double q) { return wsl::special::ibetac_inv(a, b, q); }
-    double check_sum_ibeta_inv(double a, double b, double p) { return 1.0 + wsl::special::ibeta_inv(a, b, p); }
-    double check_sum_lbeta(double a, double b) { return 1.0 + wsl::special::lbeta(a, b); }
-    double check_gamma_q_inv(double a, double q) { return wsl::special::gamma_q_inv(a, q); }
-    double check_sum_gamma_q_inv(double a, double q) { return 1.0 + wsl::special::gamma_q_inv(a, q); }
-    double check_sum_digamma(double x) { return 1.0 + wsl::special::digamma(x); }
-    double check_erf_inv(double y) { return wsl::special::erf_inv(y); }
-    double check_erfc_inv(double z) { return wsl::special::erfc_inv(z); }
+    double check_exp(double x) { return wsl::special_functions::detail::pinned_portable::exp(x); }
+    double check_log(double x) { return wsl::special_functions::detail::pinned_portable::log(x); }
+    float check_expf(float x) { return wsl::special_functions::detail::pinned_portable::exp(x); }
+    float check_logf(float x) { return wsl::special_functions::detail::pinned_portable::log(x); }
+    double check_exp2(double x) { return wsl::special_functions::detail::pinned_portable::exp2(x); }
+    double check_expm1(double x) { return wsl::special_functions::detail::pinned_portable::expm1(x); }
+    double check_log2(double x) { return wsl::special_functions::detail::pinned_portable::log2(x); }
+    double check_log10(double x) { return wsl::special_functions::detail::pinned_portable::log10(x); }
+    double check_log1p(double x) { return wsl::special_functions::detail::pinned_portable::log1p(x); }
+    double check_pow(double x, double y) { return wsl::special_functions::detail::pinned_portable::pow(x, y); }
+    double check_sin(double x) { return wsl::special_functions::detail::pinned_portable::sin(x); }
+    double check_cos(double x) { return wsl::special_functions::detail::pinned_portable::cos(x); }
+    double check_tan(double x) { return wsl::special_functions::detail::pinned_portable::tan(x); }
+    double check_atan(double x) { return wsl::special_functions::detail::pinned_portable::atan(x); }
+    double check_atan2(double y, double x) { return wsl::special_functions::detail::pinned_portable::atan2(y, x); }
+    double check_cbrt(double x) { return wsl::special_functions::detail::pinned_portable::cbrt(x); }
+    double check_hypot(double x, double y) { return wsl::special_functions::detail::pinned_portable::hypot(x, y); }
+    double check_erf(double x) { return wsl::special_functions::detail::pinned_portable::erf(x); }
+    double check_erfc(double x) { return wsl::special_functions::detail::pinned_portable::erfc(x); }
+    double check_lgamma(double x) { return wsl::special_functions::detail::pinned_portable::lgamma(x); }
+    double check_tgamma(double x) { return wsl::special_functions::detail::pinned_portable::tgamma(x); }
+    double check_digamma(double x) { return wsl::special_functions::detail::pinned_portable::digamma(x); }
+    double check_gamma_p(double a, double x) { return wsl::special_functions::detail::pinned_portable::gamma_p(a, x); }
+    double check_gamma_q(double a, double x) { return wsl::special_functions::detail::pinned_portable::gamma_q(a, x); }
+    double check_bessel_i(double nu, double x) { return wsl::special_functions::detail::pinned_portable::cyl_bessel_i(nu, x); }
+    float check_bessel_if(float nu, float x) { return wsl::special_functions::detail::pinned_portable::cyl_bessel_i(nu, x); }
+    double check_sum_bessel_i(double nu, double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::cyl_bessel_i(nu, x); }
+    double check_sum_gamma_p(double a, double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::gamma_p(a, x); }
+    double check_gamma_p_inv(double a, double p) { return wsl::special_functions::detail::pinned_portable::gamma_p_inv(a, p); }
+    double check_ibeta(double a, double b, double x) { return wsl::special_functions::detail::pinned_portable::ibeta(a, b, x); }
+    double check_ibetac(double a, double b, double x) { return wsl::special_functions::detail::pinned_portable::ibetac(a, b, x); }
+    double check_sum_ibeta(double a, double b, double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::ibeta(a, b, x); }
+    double check_beta(double a, double b) { return wsl::special_functions::detail::pinned_portable::beta(a, b); }
+    double check_ibeta_inv(double a, double b, double p) { return wsl::special_functions::detail::pinned_portable::ibeta_inv(a, b, p); }
+    double check_ibetac_inv(double a, double b, double q) { return wsl::special_functions::detail::pinned_portable::ibetac_inv(a, b, q); }
+    double check_sum_ibeta_inv(double a, double b, double p) { return 1.0 + wsl::special_functions::detail::pinned_portable::ibeta_inv(a, b, p); }
+    double check_sum_lbeta(double a, double b) { return 1.0 + wsl::special_functions::detail::pinned_portable::lbeta(a, b); }
+    double check_gamma_q_inv(double a, double q) { return wsl::special_functions::detail::pinned_portable::gamma_q_inv(a, q); }
+    double check_sum_gamma_q_inv(double a, double q) { return 1.0 + wsl::special_functions::detail::pinned_portable::gamma_q_inv(a, q); }
+    double check_sum_digamma(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::digamma(x); }
+    double check_erf_inv(double y) { return wsl::special_functions::detail::pinned_portable::erf_inv(y); }
+    double check_erfc_inv(double z) { return wsl::special_functions::detail::pinned_portable::erfc_inv(z); }
     double check_uniform_cdf(double a, double b, double x) { return wr::cdf(wr::uniform({.lower = a, .upper = b}), x); }
     double check_uniform_quantile(double a, double b, double p) { return wr::quantile(wr::uniform({.lower = a, .upper = b}), p); }
     double check_uniform_variance(double a, double b) { return wr::uniform({.lower = a, .upper = b}).variance(); }
@@ -132,7 +134,7 @@ extern "C"
     double check_sum_convolution(double a, double b, long long k) { auto const S = wr::convolution(wr::poisson({.mean = a}), wr::binomial({.trials = 20, .p = b})); return 1 + wr::pmf(S, k) + wr::cdf(S, k) + wr::ccdf(S, k) + double(wr::quantile(S, b)); }
     double check_sum_gamma_family(double a, double b, double x) { auto const S = wr::convolution(wr::gamma({.rate = b, .shape = a}), wr::exponential({.rate = b})); return 1 + wr::cdf(S, x) + S.mean(); }
     double check_independent(double a, double b) { wr::product_measure const J(wr::normal({.mean = a, .stddev = 1.0}), wr::gamma({.rate = 1.0, .shape = b})); return 1 + wr::pdf(J, {a, b}) + wr::log_pdf(J, {a, b}) + wr::cdf(J, {a, b}) + J.entropy(); }
-    double check_pushforward(double a, double y) { auto const L = wr::pushforward(wr::normal({.mean = a, .stddev = 1.0}), wr::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }, [](double t) { return 1 / t; }));
+    double check_pushforward(double a, double y) { auto const L = wr::pushforward(wr::normal({.mean = a, .stddev = 1.0}), wr::increasing([](double t) { return wsl::special_functions::detail::pinned_portable::exp(t); }, [](double t) { return wsl::special_functions::detail::pinned_portable::log(t); }, [](double t) { return 1 / t; }));
                                                    return 1 + wr::cdf(L, y) + wr::pdf(L, y) + wr::quantile(L, 0.3); }
     // Lois multivariées.
     double check_dirichlet(double a, double x) { wr::dirichlet<double, 3> const D({.alpha = {a, 2.0, 3.0}}); auto const m = D.mean(); auto const c = D.covariance();
@@ -230,23 +232,23 @@ extern "C"
              + wr::sample(wr::triangular({.lower = 0.0, .mode = a, .upper = 5.0}), g) + wr::sample(wr::arcsine({.lower = 0.0, .upper = a}), g) + wr::sample(wr::erlang({.rate = a, .shape = 3}), g);
     }
     // Produits rendus puis additionnés par l'appelant (GCC les fusionne après intégration).
-    double check_sum_exp(double x) { return 1.0 + wsl::special::exp(x); }
-    double check_sum_log(double x) { return 1.0 + wsl::special::log(x); }
-    double check_sum_exp2(double x) { return 1.0 + wsl::special::exp2(x); }
-    double check_sum_expm1(double x) { return 1.0 + wsl::special::expm1(x); }
-    double check_sum_log2(double x) { return 1.0 + wsl::special::log2(x); }
-    double check_sum_log10(double x) { return 1.0 + wsl::special::log10(x); }
-    double check_sum_log1p(double x) { return 1.0 + wsl::special::log1p(x); }
-    double check_sum_sin(double x) { return 1.0 + wsl::special::sin(x); }
-    double check_sum_cos(double x) { return 1.0 + wsl::special::cos(x); }
-    double check_sum_tan(double x) { return 1.0 + wsl::special::tan(x); }
-    double check_sum_atan(double x) { return 1.0 + wsl::special::atan(x); }
-    double check_sum_cbrt(double x) { return 1.0 + wsl::special::cbrt(x); }
-    double check_sum_erf(double x) { return 1.0 + wsl::special::erf(x); }
-    double check_sum_erfc(double x) { return 1.0 + wsl::special::erfc(x); }
-    double check_sum_lgamma(double x) { return 1.0 + wsl::special::lgamma(x); }
-    double check_sum_tgamma(double x) { return 1.0 + wsl::special::tgamma(x); }
-    double check_sum_pow(double x, double y) { return 1.0 + wsl::special::pow(x, y); }
-    double check_sum_atan2(double y, double x) { return 1.0 + wsl::special::atan2(y, x); }
-    double check_sum_hypot(double x, double y) { return 1.0 + wsl::special::hypot(x, y); }
+    double check_sum_exp(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::exp(x); }
+    double check_sum_log(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::log(x); }
+    double check_sum_exp2(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::exp2(x); }
+    double check_sum_expm1(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::expm1(x); }
+    double check_sum_log2(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::log2(x); }
+    double check_sum_log10(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::log10(x); }
+    double check_sum_log1p(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::log1p(x); }
+    double check_sum_sin(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::sin(x); }
+    double check_sum_cos(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::cos(x); }
+    double check_sum_tan(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::tan(x); }
+    double check_sum_atan(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::atan(x); }
+    double check_sum_cbrt(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::cbrt(x); }
+    double check_sum_erf(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::erf(x); }
+    double check_sum_erfc(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::erfc(x); }
+    double check_sum_lgamma(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::lgamma(x); }
+    double check_sum_tgamma(double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::tgamma(x); }
+    double check_sum_pow(double x, double y) { return 1.0 + wsl::special_functions::detail::pinned_portable::pow(x, y); }
+    double check_sum_atan2(double y, double x) { return 1.0 + wsl::special_functions::detail::pinned_portable::atan2(y, x); }
+    double check_sum_hypot(double x, double y) { return 1.0 + wsl::special_functions::detail::pinned_portable::hypot(x, y); }
 }

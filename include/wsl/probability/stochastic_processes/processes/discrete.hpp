@@ -1,15 +1,15 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Processus en temps discret (voir design/random.md §14) : marches aléatoires à pas
 // entiers, chaînes de Markov, urnes de Pólya, restaurant chinois (Pitman–Yor).
 //
-//   wsl::probability::random_walk W(wsl::probability::rademacher({.p = 0.5}));                       // marche simple
-//   wsl::probability::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .start = 0});
-//   wsl::probability::polya_urn U({.balls = {1, 2}, .added = 1});
-//   wsl::probability::chinese_restaurant R({.theta = 1.5});
+//   wsl::probability::stochastic_processes::processes::random_walk W(wsl::probability::stochastic_processes::processes::rademacher({.p = 0.5}));                       // marche simple
+//   wsl::probability::stochastic_processes::processes::markov_chain C({.transition = {{0.9, 0.1}, {0.5, 0.5}}, .start = 0});
+//   wsl::probability::stochastic_processes::processes::polya_urn U({.balls = {1, 2}, .added = 1});
+//   wsl::probability::stochastic_processes::processes::chinese_restaurant R({.theta = 1.5});
 //   for (auto x : wsl::probability::trajectory(C, g) | std::views::take(100)) …
 //   C.at(5); C.stationary(); wsl::probability::sample(C.steps(100), g); wsl::probability::pmf(C.steps(3), {0, 0, 1, 1});
 //   U.at(10);  R.at(100);                                                  // lois marginales
@@ -37,7 +37,7 @@
 #include <wsl/probability/stochastic_processes/trajectory.hpp>
 #include <wsl/probability/convolution.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -68,7 +68,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit rademacher(parameters q) : p_(q.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::rademacher : il faut p dans [0, 1]");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::rademacher : il faut p dans [0, 1]");
         }
 
         constexpr double p() const noexcept { return p_; }
@@ -84,7 +84,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr std::int64_t sample(G& g) const
         {
             auto const& X = *this;
-            return bernoulli_trial(X.p_, g) ? 1 : -1;
+            return random::bernoulli_trial(X.p_, g) ? 1 : -1;
         }
 
         friend constexpr bool operator==(rademacher const&, rademacher const&) = default;
@@ -245,13 +245,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit markov_chain(from_state p) : p_(std::move(p.transition)), initial_(point_mass(p.start, p_.extent(0)))
         {
             if (p.start >= p_.extent(0))
-                throw std::domain_error("wsl::probability::markov_chain : état initial hors de {0, …, K − 1}");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain : état initial hors de {0, …, K − 1}");
             build();
         }
         constexpr explicit markov_chain(from_law p) : p_(std::move(p.transition)), initial_(std::move(p.initial))
         {
             if (initial_.size() != p_.extent(0))
-                throw std::domain_error("wsl::probability::markov_chain : loi initiale de dimension différente");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain : loi initiale de dimension différente");
             build();
         }
 
@@ -261,7 +261,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr bool is_absorbing(std::size_t i) const noexcept { return probability(i, i) == 1; }
 
         // Loi de X_n : π₀ Pⁿ (carrés successifs de P, produits en double-double).
-        constexpr categorical<> at(std::size_t n) const
+        constexpr laws::categorical<> at(std::size_t n) const
         {
             std::vector<double> pi = normalized_initial();
             square_matrix<double> power = probabilities();
@@ -272,11 +272,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                 if (e > 1)
                     power = detail::multiply(power, power);
             }
-            return categorical<>({.p = pi});
+            return laws::categorical<>({.p = pi});
         }
         // Loi stationnaire π = π P (système (Pᵀ − I) π = 0, Σ π = 1, pivot partiel) ;
         // std::domain_error si elle n'est pas unique.
-        constexpr categorical<> stationary() const
+        constexpr laws::categorical<> stationary() const
         {
             std::size_t const k = size();
             auto const q = probabilities();
@@ -293,7 +293,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                     if (detail::magnitude(a[r][c]) > detail::magnitude(a[pivot][c]))
                         pivot = r;
                 if (!(detail::magnitude(a[pivot][c]) > 0x1p-40))
-                    throw std::domain_error("wsl::probability::markov_chain::stationary : loi stationnaire non unique");
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain::stationary : loi stationnaire non unique");
                 std::swap(a[c], a[pivot]);
                 for (std::size_t r = 0; r < k; ++r)
                     if (r != c && a[r][c] != 0)
@@ -309,7 +309,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                 double const v = a[i][k] / a[i][i];
                 pi[i] = v < 0 ? 0.0 : v;                                    // arrondis : −0 ou −ε
             }
-            return categorical<>({.p = pi});
+            return laws::categorical<>({.p = pi});
         }
 
         struct walker_type
@@ -359,7 +359,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         {
             std::size_t const k = p_.extent(0);
             if (k < 1)
-                throw std::domain_error("wsl::probability::markov_chain : au moins un état");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain : au moins un état");
             for (std::size_t i = 0; i < k; ++i)
             {
                 std::vector<double> row(k);
@@ -368,15 +368,15 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                 {
                     row[j] = p_[i, j];
                     if (!(row[j] >= 0) || !detail::is_finite(row[j]))
-                        throw std::domain_error("wsl::probability::markov_chain : probabilités de transition >= 0, finies");
+                        throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain : probabilités de transition >= 0, finies");
                     s = detail::sum(s, {row[j], 0.0});
                 }
                 auto const d = detail::sum(s, {-1.0, 0.0});
                 if (!(detail::magnitude(d.hi) <= 0x1p-40))
-                    throw std::domain_error("wsl::probability::markov_chain : chaque ligne de transition doit sommer à 1");
-                rows_.push_back(categorical<>({.p = row}));
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::markov_chain : chaque ligne de transition doit sommer à 1");
+                rows_.push_back(laws::categorical<>({.p = row}));
             }
-            initial_law_ = categorical<>({.p = initial_});
+            initial_law_ = laws::categorical<>({.p = initial_});
         }
 
         // P normalisée ligne par ligne (probabilités exactes arrondies).
@@ -408,8 +408,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
 
         square_matrix<double> p_;
         std::vector<double> initial_;
-        std::vector<categorical<>> rows_;
-        categorical<> initial_law_{{.p = {1.0}}};
+        std::vector<laws::categorical<>> rows_;
+        laws::categorical<> initial_law_{{.p = {1.0}}};
     };
 
     // -----------------------------------------------------------------------
@@ -433,11 +433,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit dirichlet_multinomial(parameters q) : n_(q.trials), alpha_(std::move(q.alpha))
         {
             if (n_ < 0 || alpha_.size() < 2)
-                throw std::domain_error("wsl::probability::dirichlet_multinomial : il faut trials >= 0 et au moins deux catégories");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::dirichlet_multinomial : il faut trials >= 0 et au moins deux catégories");
             for (double const a : alpha_)
             {
                 if (!(a > 0) || !detail::is_finite(a))
-                    throw std::domain_error("wsl::probability::dirichlet_multinomial : il faut alpha > 0, fini");
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::dirichlet_multinomial : il faut alpha > 0, fini");
                 total_ = detail::sum(total_, {a, 0.0});
             }
         }
@@ -563,16 +563,16 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit polya_urn(parameters q) : balls_(std::move(q.balls)), added_(q.added)
         {
             if (balls_.size() < 2 || !(added_ >= 0) || !detail::is_finite(added_))
-                throw std::domain_error("wsl::probability::polya_urn : au moins deux couleurs, added >= 0 fini");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::polya_urn : au moins deux couleurs, added >= 0 fini");
             double total = 0;
             for (double const b : balls_)
             {
                 if (!(b >= 0) || !detail::is_finite(b))
-                    throw std::domain_error("wsl::probability::polya_urn : nombres de boules >= 0, finis");
+                    throw std::domain_error("wsl::probability::stochastic_processes::processes::polya_urn : nombres de boules >= 0, finis");
                 total += b;
             }
             if (!(total > 0))
-                throw std::domain_error("wsl::probability::polya_urn : urne vide");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::polya_urn : urne vide");
             exponent_ = added_ > 0 ? detail::dyadic_of(added_).e : 0;
             for (double const b : balls_)
                 if (b > 0)
@@ -587,7 +587,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr dirichlet_multinomial at(std::size_t n) const
         {
             if (!(added_ > 0))
-                throw std::domain_error("wsl::probability::polya_urn::at : added = 0 (tirages indépendants : multinomiale)");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::polya_urn::at : added = 0 (tirages indépendants : multinomiale)");
             std::vector<double> alpha;
             for (double const b : balls_)
                 alpha.push_back(b / added_);
@@ -682,7 +682,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                 if (customers == 0)
                     table = 0;
                 else if (d == 0)                                            // nouvelle table : θ/(θ + n) ; sinon un client uniforme
-                    table = choose(g, theta, double(customers)) ? tables.size() : seats[static_cast<std::size_t>(uniform_below(customers, g))];
+                    table = choose(g, theta, double(customers)) ? tables.size() : seats[static_cast<std::size_t>(random::uniform_below(customers, g))];
                 else
                 {
                     std::size_t const c = w.pick(g);                        // dernier indice : nouvelle table
@@ -749,7 +749,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit ewens_partition(parameters q) : n_(q.size), theta_(q.theta), d_(q.discount)
         {
             if (!(d_ >= 0 && d_ < 1) || !(theta_ > -d_) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::probability::ewens_partition : il faut 0 <= discount < 1 et theta > −discount");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::ewens_partition : il faut 0 <= discount < 1 et theta > −discount");
         }
 
         constexpr std::size_t size() const noexcept { return n_; }
@@ -759,7 +759,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr double mean_blocks() const noexcept
         {
             if (d_ == 0)
-                return ewens({.size = n_, .theta = theta_}).mean_cycles();
+                return laws::ewens({.size = n_, .theta = theta_}).mean_cycles();
             // Σ_{i<n} P(le client i ouvre une table) par la récurrence E[K_{i+1}] = E[K_i] + (θ + d E[K_i])/(θ + i)
             double k = 0;
             for (std::size_t i = 0; i < n_; ++i)
@@ -847,7 +847,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         constexpr explicit chinese_restaurant(parameters q) : theta_(q.theta), d_(q.discount)
         {
             if (!(d_ >= 0 && d_ < 1) || !(theta_ > -d_) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::probability::chinese_restaurant : il faut 0 <= discount < 1 et theta > −discount");
+                throw std::domain_error("wsl::probability::stochastic_processes::processes::chinese_restaurant : il faut 0 <= discount < 1 et theta > −discount");
         }
 
         constexpr double theta() const noexcept { return theta_; }

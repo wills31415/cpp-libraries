@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois sur les permutations de {0, …, n − 1} (valeurs wsl::permutation).
 //
-//   wsl::probability::uniform_permutation U({.size = 10});
-//   wsl::probability::ewens E({.size = 10, .theta = 2.5});      // P(σ) = θ^{cycles(σ)} / θ(θ + 1)…(θ + n − 1)
-//   wsl::probability::mallows M({.size = 10, .q = 0.7});        // P(σ) = q^{inversions(σ)} / Π [i]_q
+//   wsl::probability::laws::uniform_permutation U({.size = 10});
+//   wsl::probability::laws::ewens E({.size = 10, .theta = 2.5});      // P(σ) = θ^{cycles(σ)} / θ(θ + 1)…(θ + n − 1)
+//   wsl::probability::laws::mallows M({.size = 10, .q = 0.7});        // P(σ) = q^{inversions(σ)} / Π [i]_q
 //   U(g); E.pmf(sigma); M.log_pmf(sigma); E.mean_cycles(); M.mean_inversions();
 //
 // Tirages exacts (la permutation tirée a exactement la probabilité annoncée) :
@@ -27,7 +27,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -129,7 +129,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             std::vector<std::size_t> images(U.n_);
             for (std::size_t i = 0; i < U.n_; ++i)
                 images[i] = i;
-            shuffle(images, g);
+            random::shuffle(images, g);
             return permutation(std::move(images));
         }
 
@@ -156,7 +156,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit ewens(parameters p) : n_(p.size), theta_(p.theta)
         {
             if (!(theta_ > 0) || !detail::is_finite(theta_))
-                throw std::domain_error("wsl::probability::ewens : il faut theta > 0, fini");
+                throw std::domain_error("wsl::probability::laws::ewens : il faut theta > 0, fini");
             // log θ(θ + 1)…(θ + n − 1) = log Γ(θ + n) − log Γ(θ)
             if (n_ > 0)
             {
@@ -201,7 +201,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                     images[i] = i;
                 else                                                        // après j : i → σ(j), j → i
                 {
-                    auto const j = static_cast<std::size_t>(uniform_below(i, g));
+                    auto const j = static_cast<std::size_t>(random::uniform_below(i, g));
                     images[i] = images[j];
                     images[j] = i;
                 }
@@ -242,7 +242,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr explicit mallows(parameters p) : n_(p.size), q_(p.q)
         {
             if (!(q_ > 0) || !detail::is_finite(q_))
-                throw std::domain_error("wsl::probability::mallows : il faut q > 0, fini");
+                throw std::domain_error("wsl::probability::laws::mallows : il faut q > 0, fini");
             log_q_ = detail::log_precise(q_);
             // log Z = Σ_{i=1}^{n} log [i]_q
             for (std::size_t i = 1; i <= n_; ++i)
@@ -293,9 +293,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (m == 1)
                 return 0;
             if (q_ == 1)
-                return static_cast<std::size_t>(uniform_below(m, g));
+                return static_cast<std::size_t>(random::uniform_below(m, g));
             bool const below = q_ < 1;                                      // rapport r = q, ou 1/q (V renversé)
-            auto const success = [&] { return below ? bernoulli_trial(q_, g) : detail::fraction(g, 1.0, q_); };
+            auto const success = [&] { return below ? random::bernoulli_trial(q_, g) : detail::fraction(g, 1.0, q_); };
             double const gap = below ? 1 - q_ : 1 - 1 / q_;                 // 1 − r (seulement pour choisir la méthode)
             std::size_t w = 0;
             if (double(m) * gap >= 1)                                       // géométrique tronquée
@@ -310,7 +310,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             else                                                            // uniforme acceptée avec probabilité r^w
                 for (;;)
                 {
-                    w = static_cast<std::size_t>(uniform_below(m, g));
+                    w = static_cast<std::size_t>(random::uniform_below(m, g));
                     std::size_t k = 0;
                     while (k < w && success())
                         ++k;
@@ -343,7 +343,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             // r/(1 − r) − i rⁱ/(1 − rⁱ), r = q < 1 ; q > 1 : (i − 1) − celle de r = 1/q (en double)
             bool const below = q_ < 1;
             double const r = below ? q_ : 1 / q_;
-            double const ri = wsl::special::exp(detail::sd::fmul(double(i), below ? log_q_.hi : -log_q_.hi));
+            double const ri = wsl::random::detail::pm::exp(detail::sd::fmul(double(i), below ? log_q_.hi : -log_q_.hi));
             double const v = r / (1 - r) - detail::sd::fmul(double(i), ri) / (1 - ri);
             return {below ? v : double(i - 1) - v, 0.0};
         }

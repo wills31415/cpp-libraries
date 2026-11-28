@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Dirichlet de paramètres α₁, …, α_K > 0 (K >= 2), sur le simplexe
 // {x : xᵢ > 0, Σ xᵢ = 1}.
 //
-//   wsl::probability::dirichlet<double, 3> D({.alpha = {1.0, 2.0, 3.0}});
-//   wsl::probability::dirichlet<double, wsl::probability::dynamic> E({.alpha = std::vector<double>(10, 0.5)});
+//   wsl::probability::laws::dirichlet<double, 3> D({.alpha = {1.0, 2.0, 3.0}});
+//   wsl::probability::laws::dirichlet<double, wsl::probability::dynamic> E({.alpha = std::vector<double>(10, 0.5)});
 //   D.mean(); D.covariance(); D.pdf({0.2, 0.3, 0.5}); D.marginal(0); D(g);
 //
 // Densité Γ(α₀)/Π Γ(αᵢ) Π xᵢ^{αᵢ − 1}, α₀ = Σ αᵢ, calculée en logarithme double-double
@@ -24,7 +24,7 @@
 #include <wsl/probability/laws/gamma.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/multivariate.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -51,10 +51,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr dirichlet(parameters p) : alpha_(p.alpha)
         {
             if (alpha_.size() < 2)
-                throw std::domain_error("wsl::probability::dirichlet : il faut au moins deux paramètres");
+                throw std::domain_error("wsl::probability::laws::dirichlet : il faut au moins deux paramètres");
             for (T const a : alpha_)
                 if (!(a > 0) || !detail::is_finite(a))
-                    throw std::domain_error("wsl::probability::dirichlet : il faut alpha > 0, fini");
+                    throw std::domain_error("wsl::probability::laws::dirichlet : il faut alpha > 0, fini");
             detail::sd::double_double s{0.0, 0.0}, lb{0.0, 0.0};
             for (T const a : alpha_)
             {
@@ -111,10 +111,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             double const k = double(dimension());
-            auto h = detail::sum(log_beta_, detail::product(total_ - k, wsl::special::digamma(total_)));
+            auto h = detail::sum(log_beta_, detail::product(total_ - k, wsl::random::detail::pm::digamma(total_)));
             for (T const a : alpha_)
             {
-                auto const t = detail::product(double(a) - 1, wsl::special::digamma(double(a)));
+                auto const t = detail::product(double(a) - 1, wsl::random::detail::pm::digamma(double(a)));
                 h = detail::sum(h, {-t.hi, -t.lo});
             }
             return static_cast<T>(h.hi + h.lo);

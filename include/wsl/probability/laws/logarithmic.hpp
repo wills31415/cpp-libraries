@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi logarithmique (série logarithmique) de paramètre p dans (0, 1) :
 // P(X = k) = −p^k/(k log(1 − p)), k >= 1.
 //
-//   wsl::probability::logarithmic X({.p = 0.9});   X.pmf(3); X.cdf(3); X.quantile(0.99); X(g);
+//   wsl::probability::laws::logarithmic X({.p = 0.9});   X.pmf(3); X.cdf(3); X.quantile(0.99); X(g);
 //
 // Masse : e^{k log p}/(k L), L = −log1p(−p), en double-double, un arrondi. Répartition :
 // F(k) = Σ_{j<=k} p^j/(j L) si elle est la plus petite part, sinon la survie
@@ -21,7 +21,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -47,7 +47,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr logarithmic(parameters q) : p_(q.p)
         {
             if (!(p_ > 0 && p_ < 1))
-                throw std::domain_error("wsl::probability::logarithmic : il faut p dans (0, 1)");
+                throw std::domain_error("wsl::probability::laws::logarithmic : il faut p dans (0, 1)");
             auto const l = detail::log1p_dd(-p_);
             L_ = {-l.hi, -l.lo};
             log_p_ = detail::log_precise(p_);
@@ -125,7 +125,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                     auto const [v, is_f] = X.distribution(k);
                     return detail::at_least(v, is_f, u);
                 };
-                double const guess = wsl::special::log1p(-u) / (X.log_p_.hi);    // p^k ≈ 1 − u
+                double const guess = wsl::random::detail::pm::log1p(-u) / (X.log_p_.hi);    // p^k ≈ 1 − u
                 return detail::smallest_true(static_cast<I>(guess > 1 ? (guess < 0x1p61 ? guess : 0x1p61) : 1.0), I(1), top, ge);
             }
             detail::sd::double_double const target = detail::mul({u, 0.0}, X.L_);
@@ -148,14 +148,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             namespace sd = detail::sd;
-            double const v = uniform_real<double>(g, wsl::exact);
+            double const v = random::uniform_real<double>(g, wsl::exact);
             if (v >= X.p_)
                 return 1;
-            double const u = uniform_real<double>(g, wsl::exact);
-            double const q = -wsl::special::expm1(sd::fmul(-(X.L_.hi), u));
+            double const u = random::uniform_real<double>(g, wsl::exact);
+            double const q = -wsl::random::detail::pm::expm1(sd::fmul(-(X.L_.hi), u));
             if (v <= sd::fmul(q, q))
             {
-                double const k = 1 + wsl::special::log(v) / wsl::special::log(q);
+                double const k = 1 + wsl::random::detail::pm::log(v) / wsl::random::detail::pm::log(q);
                 return k >= 0x1p62 ? (I(1) << 62) : static_cast<I>(k);
             }
             return v >= q ? I(1) : I(2);

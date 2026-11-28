@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi gaussienne discrète sur ℤ : P(X = k) = e^{−(k − μ)²/(2σ²)}/Z, Z = Σ_j e^{−(j − μ)²/(2σ²)},
 // μ réel, σ > 0.
 //
-//   wsl::probability::discrete_gaussian X({.location = 0.3, .scale = 2.5});
+//   wsl::probability::laws::discrete_gaussian X({.location = 0.3, .scale = 2.5});
 //   X.pmf(1); X.cdf(-2); X.quantile(0.9); X.mean(); X(g);
 //
 // Z : σ >= 1, sommation de Poisson, σ√(2π) (1 + 2 Σ_{m>=1} e^{−2π²σ²m²} cos 2πmμ) (deux
@@ -26,7 +26,7 @@
 #include <wsl/probability/laws/geometric.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -55,7 +55,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr discrete_gaussian(parameters q) : mu_(q.location), sigma_(q.scale)
         {
             if (!detail::is_finite(mu_) || !(detail::magnitude(mu_) < 0x1p52) || !(sigma_ > 0) || !(sigma_ < 0x1p40))
-                throw std::domain_error("wsl::probability::discrete_gaussian : il faut |location| < 2^52 et 0 < scale < 2^40");
+                throw std::domain_error("wsl::probability::laws::discrete_gaussian : il faut |location| < 2^52 et 0 < scale < 2^40");
             namespace sd = detail::sd;
             auto const [s2, s2_error] = sd::two_product(sigma_, sigma_);
             two_s2_ = {sd::fmul(s2, 2.0), sd::fmul(s2_error, 2.0)};
@@ -130,18 +130,18 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const t = detail::floor_small(X.sigma_) + 1;
             double const delta = X.mu_ - double(X.center_);                 // |δ| <= ½, exact
             double const shift = sd::fmul(X.sigma_, X.sigma_) / sd::fmul(2.0, sd::fmul(t, t)) + detail::magnitude(delta) / t;
-            geometric<I> const magnitude({.p = -wsl::special::expm1(-1.0 / t)});
+            geometric<I> const magnitude({.p = -wsl::random::detail::pm::expm1(-1.0 / t)});
             for (;;)
             {
-                bool const negative = bernoulli_trial(0.5, g);
+                bool const negative = random::bernoulli_trial(0.5, g);
                 I const d = detail::native_sample(magnitude, g);
                 if (negative && d == 0)
                     continue;
                 double const dd = negative ? -double(d) : double(d);
                 double const e = dd - delta;
                 double const exponent = (double(d) / t - shift) - sd::fmul(e, e) / sd::fmul(2.0, sd::fmul(X.sigma_, X.sigma_));
-                double const accept = wsl::special::exp(exponent);
-                if (bernoulli_trial(accept < 1 ? accept : 1.0, g))
+                double const accept = wsl::random::detail::pm::exp(exponent);
+                if (random::bernoulli_trial(accept < 1 ? accept : 1.0, g))
                     return X.center_ + (negative ? -d : d);
             }
         }
@@ -177,10 +177,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                     double const w = sd::fmul(sd::fmul(2.0, sd::fmul(pi, pi)), sd::fmul(sd::fmul(sigma_, sigma_), sd::fmul(md, md)));
                     if (w > 800)
                         break;
-                    double const e = wsl::special::exp(-w);
+                    double const e = wsl::random::detail::pm::exp(-w);
                     double const f = mu_ - detail::floor_small(mu_);       // exact
                     double const angle = sd::fmul(sd::fmul(2.0, pi), sd::fmul(md, f));
-                    double const cs = wsl::special::cos(angle), si = wsl::special::sin(angle);
+                    double const cs = wsl::random::detail::pm::cos(angle), si = wsl::random::detail::pm::sin(angle);
                     c += sd::fmul(2.0, sd::fmul(e, cs));
                     sn += sd::fmul(md, sd::fmul(e, si));
                     v += sd::fmul(2.0, sd::fmul(1.0 - sd::fmul(2.0, w), sd::fmul(e, cs)));

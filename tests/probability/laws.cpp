@@ -235,7 +235,7 @@ int main()
     {
         wr::uniform const X({.lower = 2, .upper = 6});
         assert(X.mean() == 4 && X.median() == 4 && X.variance() == 16.0 / 12 && X.skewness() == 0);
-        assert(X.entropy() == wsl::special::log(4.0));
+        assert(X.entropy() == wsl::special_functions::detail::pinned_portable::log(4.0));
         assert(wr::pdf(X, 3.0) == 0.25 && wr::pdf(X, 6.0) == 0 && wr::pdf(X, 1.0) == 0 && wr::log_pdf(X, 7.0) == -INFINITY);
         assert(wr::cdf(X, 3.0) == 0.25 && wr::cdf(X, 1.0) == 0 && wr::cdf(X, 9.0) == 1 && wr::ccdf(X, 3.0) == 0.75);
         assert(wr::quantile(X, 0.25) == 3 && wr::quantile(X, 0.0) == 2 && wr::quantile(X, 1.0) == 6);
@@ -409,7 +409,7 @@ int main()
     {
         wr::poisson const P({.mean = 3.5});
         assert(P.mean() == 3.5 && P.variance() == 3.5 && P.mode() == 3 && wr::pmf(P, -1) == 0 && wr::log_pmf(P, 0) == -3.5);
-        assert(wr::pmf(P, 0) == wsl::special::exp(-3.5));
+        assert(wr::pmf(P, 0) == wsl::special_functions::detail::pinned_portable::exp(-3.5));
         double total = 0;
         for (int k = 0; k < 60; ++k)
             total += wr::pmf(P, k);
@@ -428,7 +428,7 @@ int main()
     {
         wr::binomial const B({.trials = 20, .p = 0.3});
         assert(B.trials() == 20 && B.mean() == 6 && std::abs(B.variance() - 4.2) < 1e-15 && B.mode() == 6);
-        assert(wr::pmf(B, 21) == 0 && wr::pmf(B, -1) == 0 && wr::pmf(B, 20) == wsl::special::pow(0.3, 20.0));
+        assert(wr::pmf(B, 21) == 0 && wr::pmf(B, -1) == 0 && wr::pmf(B, 20) == wsl::special_functions::detail::pinned_portable::pow(0.3, 20.0));
         double total = 0;
         for (int k = 0; k <= 20; ++k)
             total += wr::pmf(B, k);
@@ -909,7 +909,7 @@ int main()
         ok &= check("lognormal", fingerprint([&] { return bits(wr::native(Ln, x)); }), 0xc6350ba1601077cb);
         ok &= check("cauchy", fingerprint([&] { return bits(wr::native(Cy, x)); }), 0xf82fd9546762bb11);
         ok &= check("derived functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;                            // entrées protégées de la contraction
+            namespace fp = wsl::random::detail::sd;                            // entrées protégées de la contraction
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(20.0, u) - 10;
             return bits(wr::cdf(St, t)) ^ (bits(wr::quantile(St, u)) << 1) ^ (bits(wr::pdf(Ln, fp::fmul(3.0, u))) << 2) ^ (bits(wr::quantile(Ln, u)) << 3)
                  ^ (bits(wr::cdf(Cy, t)) << 4) ^ (bits(wr::quantile(Cy, u)) << 5) ^ (bits(wr::cdf(Cq, fp::fmul(10.0, u))) << 6);
@@ -925,7 +925,7 @@ int main()
         ok &= check("logistic", fingerprint([&] { return bits(wr::native(Lo, x)); }), 0x0dc308ffc659ed1d);
         ok &= check("pareto", fingerprint([&] { return bits(wr::native(Pa, x)); }), 0x6a50d8d1248f5578);
         ok &= check("second functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(20.0, u) - 10, y = fp::fmul(8.0, u);
             return bits(wr::cdf(Ff, y)) ^ (bits(wr::quantile(Ff, u)) << 1) ^ (bits(wr::pdf(Wb, y)) << 2) ^ (bits(wr::quantile(Wb, u)) << 3)
                  ^ (bits(wr::cdf(Lp, t)) << 4) ^ (bits(wr::quantile(Lo, u)) << 5) ^ (bits(wr::ccdf(Pa, y + 2)) << 6);
@@ -940,20 +940,20 @@ int main()
             return bits(wr::native(Gu, x)) ^ (bits(wr::native(Fr, x)) << 1) ^ (bits(wr::native(Ra, x)) << 2) ^ (bits(wr::native(Tr, x)) << 3) ^ (bits(wr::native(Ar, x)) << 4) ^ (bits(wr::native(Er, x)) << 5);
         }, 1 << 12), 0x8048e3cc57673536);
         ok &= check("complement functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(8.0, u);
             return bits(wr::cdf(Gu, t)) ^ (bits(wr::quantile(Fr, u)) << 1) ^ (bits(wr::pdf(Ra, t)) << 2) ^ (bits(wr::cquantile(Tr, u)) << 3) ^ (bits(wr::cdf(Ar, u)) << 4) ^ (bits(wr::pdf(Fr, t + 0.1)) << 5);
         }, 1 << 10), 0x31ef6ddc23202445);
         wr::inverse_gaussian const Ig({.mean = 1.5, .shape = 0.8});
         ok &= check("inverse_gaussian", fingerprint([&] { return bits(wr::native(Ig, x)); }), 0xb65cd37eac96c4a3);
         ok &= check("inverse_gaussian functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(40.0, u);
             return bits(wr::cdf(Ig, t)) ^ (bits(wr::ccdf(Ig, t)) << 1) ^ (bits(wr::pdf(Ig, t)) << 2) ^ (bits(wr::quantile(Ig, u)) << 3) ^ (bits(wr::cquantile(Ig, u)) << 4);
         }, 1 << 8), 0x2c052dfac3fa0be4);
         wr::von_mises const Vm({.location = 0.25, .concentration = 7.5});
         ok &= check("von_mises functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(6.0, u) - 2.75;
             return bits(wr::cdf(Vm, t)) ^ (bits(wr::ccdf(Vm, t)) << 1) ^ (bits(wr::quantile(Vm, u)) << 2) ^ (bits(wr::cquantile(Vm, u)) << 3);
         }, 1 << 8), 0xedcd34abd3d9dd7f);
@@ -978,7 +978,7 @@ int main()
         wr::skew_normal const Sn({.location = -0.5, .scale = 1.5, .shape = 3.0});
         ok &= check("skew_normal", fingerprint([&] { return bits(wr::native(Sn, x)); }, 1 << 12), 0x646d26c92778b5d5);
         ok &= check("skew_normal functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(10.0, u) - 4;
             return bits(wr::pdf(Sn, t)) ^ (bits(wr::cdf(Sn, t)) << 1) ^ (bits(wr::ccdf(Sn, t)) << 2) ^ (bits(wr::quantile(Sn, u)) << 3);
         }, 1 << 7), 0x564a5825a3a680fd);
@@ -986,7 +986,7 @@ int main()
         wr::stable const S2({.scale = 3.0, .alpha = 1.0, .beta = 0.5});
         ok &= check("stable", fingerprint([&] { return bits(wr::native(S1, x)) ^ (bits(wr::native(S2, x)) << 1); }, 1 << 12), 0x3e15bab78fbb0172);
         ok &= check("stable functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(10.0, u) - 5;
             return bits(wr::pdf(S1, t)) ^ (bits(wr::cdf(S1, t)) << 1) ^ (bits(wr::ccdf(S2, t)) << 2);
         }, 1 << 5), 0xba852547a6b18b91);
@@ -994,7 +994,7 @@ int main()
         wr::normal<float> const NVF({.mean = -1.0f, .variance = 3.0f});
         ok &= check("normal variance", fingerprint([&] { return bits(wr::native(NV, x)) ^ (std::uint64_t{std::bit_cast<std::uint32_t>(wr::native(NVF, x))} << 1); }, 1 << 12), 0x2df7ca19b86ab85d);
         ok &= check("normal variance fns", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(12.0, u) - 6;
             return bits(NV.pdf(t)) ^ (bits(NV.cdf(t)) << 1) ^ (bits(NV.ccdf(t)) << 2) ^ (bits(NV.quantile(u)) << 3);
         }, 1 << 12), 0xe9abcd992c0dde7d);
@@ -1013,7 +1013,7 @@ int main()
         wr::rice const RC({.scale = 1.5, .noncentrality = 2.0});
         ok &= check("rice", fingerprint([&] { return bits(wr::native(RC, x)); }, 1 << 12), 0xba4941ebb4520dcc);
         ok &= check("rice functions", fingerprint([&] {
-            double const u = wr::uniform_real(x, wsl::exact), t = wsl::special::detail::fmul(8.0, u);   // entrées protégées de la contraction
+            double const u = wr::uniform_real(x, wsl::exact), t = wsl::floating_point_arithmetic::detail::fmul(8.0, u);   // entrées protégées de la contraction
             return bits(RC.pdf(t)) ^ (bits(RC.cdf(t)) << 1) ^ (bits(RC.ccdf(t)) << 2) ^ (bits(RC.quantile(u)) << 3);
         }, 1 << 8), 0x36a6e864e0bde893);
     }
@@ -1080,19 +1080,19 @@ int main()
 
     // ---- Normale par sa variance (décision 5, N4) -----------------------------------------
     {
-        namespace fp = wsl::special::detail;
+        namespace fp = wsl::random::detail::sd;
         auto const close = [](double a, double b, double tol) { return std::abs(a - b) <= tol * std::max(std::abs(a), std::abs(b)); };
         // forme canonique : la variance exacte
         assert(wr::normal({.mean = 1.0, .variance = 4.0}) == wr::normal({.mean = 1.0, .stddev = 2.0}) && wr::normal({.variance = 4.0}).param().stddev);
-        assert(!(wr::normal({.variance = 2.0}) == wr::normal({.stddev = wsl::special::sqrt(2.0)})));      // √2 arrondi : autre loi
+        assert(!(wr::normal({.variance = 2.0}) == wr::normal({.stddev = wsl::special_functions::detail::pinned_portable::sqrt(2.0)})));      // √2 arrondi : autre loi
         wr::normal const V({.mean = 0.5, .variance = 2.0});
-        assert(V.variance() == 2 && V.stddev() == wsl::special::sqrt(2.0) && !V.param().stddev && *V.param().variance == 2 && wr::normal(V.param()) == V);
+        assert(V.variance() == 2 && V.stddev() == wsl::special_functions::detail::pinned_portable::sqrt(2.0) && !V.param().stddev && *V.param().variance == 2 && wr::normal(V.param()) == V);
         assert(throws_domain_error([] { (void)wr::normal({.stddev = 1.0, .variance = 1.0}); }) && throws_domain_error([] { (void)wr::normal({.variance = -1.0}); }));
         // algèbre : les variances s'additionnent exactement
         assert(wr::convolution(wr::normal(), wr::normal()) == wr::normal({.variance = 2.0}));
         assert(wr::affine(wr::normal(), {.scale = 3}) == wr::normal({.stddev = 3.0}) && wr::affine(wr::normal({.variance = 2.0}), {.scale = 0.5}) == wr::normal({.variance = 0.5}));
         // fonctions : à 1 ulp de celles de σ = √2 arrondi (l'écart de σ est sous 2^-53)
-        wr::normal const R({.mean = 0.5, .stddev = wsl::special::sqrt(2.0)});
+        wr::normal const R({.mean = 0.5, .stddev = wsl::special_functions::detail::pinned_portable::sqrt(2.0)});
         for (double t = -8; t <= 8; t += 0.37)
         {
             assert(close(V.cdf(t), R.cdf(t), 4e-16 * (1 + std::abs(t))) && close(V.pdf(t), R.pdf(t), 4e-16 * (1 + t * t)));
@@ -1111,7 +1111,7 @@ int main()
             int const b = static_cast<int>(h() % 80);
             bool const negative = (h() & 1) != 0;
             double const mu = i % 3 == 0 ? 0.0 : fp::fmul(wr::uniform_real(h, wsl::exact) - 0.5, 1e3);
-            double const exact = wsl::probability::detail::round_root_affine<double>(mu, square, wsl::special::sqrt(2.0), negative, wsl::probability::detail::big(w), b);
+            double const exact = wsl::probability::detail::round_root_affine<double>(mu, square, wsl::special_functions::detail::pinned_portable::sqrt(2.0), negative, wsl::probability::detail::big(w), b);
             if (w == 0)
             {
                 assert(exact == mu);

@@ -174,7 +174,7 @@ int main()
 
     // ---- Lot 1d : fonctions de variables --------------------------------------------------------
     {
-        namespace sp = wsl::special;
+        namespace sp = wsl::special_functions::detail::pinned_portable;   // fonctions figées en mode portable
         wr::variable const X{wr::normal({.mean = 0.2, .stddev = 0.7})};
         wr::variable const U{wr::uniform()};
         for (int i = 0; i < 1000; ++i)

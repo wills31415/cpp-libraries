@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Cauchy de position x₀ et d'échelle γ > 0 : densité 1/(πγ (1 + z²)),
 // z = (x − x₀)/γ. Ni moyenne ni variance (elles n'existent pas : les membres
 // correspondants sont absents, has_mean<cauchy> est faux).
 //
-//   wsl::probability::cauchy C({.location = 0, .scale = 1});
+//   wsl::probability::laws::cauchy C({.location = 0, .scale = 1});
 //   C.cdf(3.0); C.quantile(0.99); C.entropy(); C(g);
 //
 // z en double-double (comme pour la normale). Répartition : P(X > x) = atan(1/z)/π
@@ -24,7 +24,7 @@
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -78,7 +78,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr cauchy(parameters p) : x0_(p.location), gamma_(p.scale)
         {
             if (!detail::is_finite(x0_) || !(gamma_ > 0) || !detail::is_finite(gamma_))
-                throw std::domain_error("wsl::probability::cauchy : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::probability::laws::cauchy : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return x0_; }
@@ -165,7 +165,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             double const w = detail::uniform_positive(g);                   // |Z| = cot(πW/2)
-            bool const negative = (random_bits(g) >> 63) != 0;
+            bool const negative = (random::random_bits(g) >> 63) != 0;
             detail::scaled const t = detail::cot_pi(detail::sd::fmul(w, 0.5)) * detail::normalized(double(X.gamma_), 0.0);
             return static_cast<T>(detail::affine_scaled(X.x0_, negative, t));
         }

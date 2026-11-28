@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : loi jointe de variables indépendantes (loi produit, voir
 // design/random.md §4.6).
 //
-//   wsl::probability::product_measure J(wsl::probability::normal({.mean = 0, .stddev = 1}), wsl::probability::exponential({.rate = 2}));
+//   wsl::probability::product_measure J(wsl::probability::laws::normal({.mean = 0, .stddev = 1}), wsl::probability::laws::exponential({.rate = 2}));
 //   auto [x, y] = J(g);                       // tirés dans cet ordre
 //   J.pdf({0.5, 1.0}); J.cdf({0.0, 1.0}); J.mean(); J.entropy();
 //

@@ -5,7 +5,7 @@
 // Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp), et ses
 // compléments communs (opposé, somme, différence et complément à l'échelle, e^l arrondi…).
 
-#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
+#include <wsl/random/detail/portable_math.hpp>
 #include <wsl/special_functions/detail/extended.hpp>
 
 #include <cstdint>
@@ -13,8 +13,6 @@
 
 namespace wsl::inline WSL_DEFAULTS::random::detail
 {
-    namespace sd = wsl::special::detail;
-    namespace xd = wsl::special::detail::extended;
 
     using xd::balanced_product;
     using xd::ceiling;

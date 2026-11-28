@@ -151,13 +151,12 @@ wsl_add_library(modes                     STANDARD 23)
 wsl_add_library(floating_point_arithmetic STANDARD 23 DEPENDS modes)
 wsl_add_library(elementary_functions      STANDARD 23 DEPENDS modes floating_point_arithmetic)
 wsl_add_library(special_functions         STANDARD 23 DEPENDS modes floating_point_arithmetic elementary_functions)
-# Transition : wsl::special réexporte les trois précédentes jusqu'aux étapes 5 et 6.
-wsl_add_library(special                   STANDARD 23 DEPENDS modes elementary_functions special_functions)
 wsl_add_library(permutation  STANDARD 23)
 wsl_add_library(measure_theory            STANDARD 23 DEPENDS modes)
-wsl_add_library(random                    STANDARD 23 DEPENDS modes special permutation)
+wsl_add_library(random                    STANDARD 23
+                DEPENDS modes floating_point_arithmetic elementary_functions special_functions permutation)
 wsl_add_library(probability               STANDARD 23
-                DEPENDS modes random measure_theory special permutation)
+                DEPENDS modes random measure_theory floating_point_arithmetic elementary_functions special_functions permutation)
 wsl_add_library(probability::stochastic_processes STANDARD 23 DEPENDS modes probability)
 wsl_add_library(mdarray                   STANDARD 23
                 DEPENDS modes floating_point_arithmetic elementary_functions special_functions)

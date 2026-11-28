@@ -6,7 +6,9 @@
 // de la valeur vraie entre deux flottants : l'erreur est mesurée, pas seulement
 // « arrondi correct ou non ».
 
-#include <wsl/special.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/special_functions.hpp>
+#include <wsl/special_functions/detail/pinned_portable.hpp>
 #include <wsl/special_functions.hpp>
 
 #include "data/special_elementary_reference.hpp"
@@ -21,7 +23,7 @@
 #include <span>
 #include <type_traits>
 
-namespace sp = wsl::special;
+namespace sp = wsl::special_functions::detail::pinned_portable;   // fonctions figées en mode portable
 using reference_data::reference;
 using reference_data::reference2;
 using reference_data::reference3;
@@ -519,7 +521,7 @@ int main()
 
     // Arguments entiers ou mêlés : en double, comme <cmath> ; même valeur que l'appel en double.
     {
-        namespace sp = wsl::special;
+        namespace sp = wsl::special_functions::detail::pinned_portable;   // fonctions figées en mode portable
         static_assert(std::is_same_v<decltype(sp::hypot(3, 4.0f)), double> && std::is_same_v<decltype(sp::hypot(3.0f, 4.0f)), float>);
         static_assert(std::is_same_v<decltype(sp::ibeta(2, 3, 0.5f)), double> && std::is_same_v<decltype(sp::gamma_p(2, 1.5)), double>);
         static_assert(sp::hypot(3, 4) == 5.0 && sp::erf_inv(0) == 0.0);

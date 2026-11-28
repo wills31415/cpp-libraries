@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi hypergéométrique : nombre de succès en n tirages sans remise dans une population de
 // N éléments dont K succès : P(X = k) = C(K, k) C(N − K, n − k)/C(N, n),
 // max(0, n − (N − K)) <= k <= min(n, K).
 //
-//   wsl::probability::hypergeometric X({.population = 50, .successes = 20, .draws = 10});
+//   wsl::probability::laws::hypergeometric X({.population = 50, .successes = 20, .draws = 10});
 //   X.pmf(4); X.cdf(4); X.quantile(0.5); X(g);
 //
 // Masse (Loader, comme dhyper de R) : avec π = n/N en double-double, le produit de deux
@@ -26,7 +26,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -53,7 +53,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr hypergeometric(parameters q) : N_(q.population), K_(q.successes), n_(q.draws)
         {
             if (N_ < 0 || K_ < 0 || n_ < 0 || K_ > N_ || n_ > N_ || static_cast<std::uint64_t>(N_) > (std::uint64_t{1} << 53))
-                throw std::domain_error("wsl::probability::hypergeometric : il faut 0 <= successes, draws <= population <= 2^53");
+                throw std::domain_error("wsl::probability::laws::hypergeometric : il faut 0 <= successes, draws <= population <= 2^53");
         }
 
         constexpr I population() const noexcept { return N_; }
@@ -166,7 +166,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             if (X.lower() == X.upper())
                 return X.lower();
-            double const u = uniform_real<double>(g, wsl::exact);
+            double const u = random::uniform_real<double>(g, wsl::exact);
             I const m = X.mode() < X.lower() ? X.lower() : X.mode() > X.upper() ? X.upper() : X.mode();
             // F(m − 1) et masses vers le bas, puis vers le haut
             auto const [v, is_f] = X.distribution(m > X.lower() ? m - 1 : m);

@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi exponentielle de paramètre λ > 0 (rate) : densité λ e^{−λx} sur [0, +∞).
 //
-//   wsl::probability::exponential X({.rate = 2});
+//   wsl::probability::laws::exponential X({.rate = 2});
 //   X.mean(); X.cdf(1.0); X.quantile(0.5); X(g); X(g, wsl::approximate);
 //
 // Tirage exact : E exponentielle de paramètre 1 tirée exactement (von Neumann,
@@ -23,7 +23,7 @@
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -42,7 +42,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
-            std::optional<ratio> rate = std::nullopt, scale = std::nullopt;
+            std::optional<random::ratio> rate = std::nullopt, scale = std::nullopt;
         };
         using param_type = parameters;
         constexpr param_type param() const
@@ -53,7 +53,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
 
         constexpr exponential() : exponential(parameters{}) {}
         constexpr exponential(parameters p)
-            : lambda_(detail::rate_of(p.rate, p.scale, "wsl::probability::exponential : il faut .rate ou .scale (pas les deux), > 0 et finis")),
+            : lambda_(detail::rate_of(p.rate, p.scale, "wsl::probability::laws::exponential : il faut .rate ou .scale (pas les deux), > 0 et finis")),
               rate_(lambda_.as_double())
         {
         }
@@ -196,7 +196,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
-            double const e = -wsl::special::log(detail::uniform_positive(g));
+            double const e = -wsl::random::detail::pm::log(detail::uniform_positive(g));
             return static_cast<T>(X.rate_ != 0 ? e / X.rate_ : detail::rounded(X.per_lambda(detail::normalized(e, 0.0))));
         }
 

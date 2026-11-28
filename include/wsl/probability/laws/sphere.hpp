@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois uniformes sur la sphère unité Sⁿ⁻¹ = {x ∈ Rⁿ : |x| = 1} et sur la boule unité.
 //
-//   wsl::probability::uniform_sphere<double, 3> S;                                  // dimension fixe
-//   wsl::probability::uniform_ball<double, wsl::probability::dynamic> B({.dimension = 10});      // dimension dynamique
+//   wsl::probability::laws::uniform_sphere<double, 3> S;                                  // dimension fixe
+//   wsl::probability::laws::uniform_ball<double, wsl::probability::dynamic> B({.dimension = 10});      // dimension dynamique
 //   S(g); B.pdf(x); S.surface_area(); B.volume();
 //
 // Sphère : densité par rapport à la mesure de surface, 1/|Sⁿ⁻¹| = Γ(n/2)/(2π^{n/2}),
@@ -23,7 +23,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -50,7 +50,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         template <class T, std::size_t N, class G>
         constexpr vector_of<T, N> uniform_direction(std::size_t n, G& g)
         {
-            normal<double> const standard({.mean = 0.0, .stddev = 1.0});
+            laws::normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             auto z = make_vector<double, N>(n);
             for (;;)
             {
@@ -103,7 +103,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr uniform_sphere(parameters p) : n_(p.dimension)
         {
             if (N != dynamic && n_ != N)
-                throw std::domain_error("wsl::probability::uniform_sphere : dimension différente de N");
+                throw std::domain_error("wsl::probability::laws::uniform_sphere : dimension différente de N");
             check();
         }
 
@@ -154,7 +154,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr void check() const
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::probability::uniform_sphere : il faut une dimension >= 1");
+                throw std::domain_error("wsl::probability::laws::uniform_sphere : il faut une dimension >= 1");
         }
         constexpr bool on_sphere(value_type const& x) const noexcept
         {
@@ -185,7 +185,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr uniform_ball(parameters p) : n_(p.dimension)
         {
             if (N != dynamic && n_ != N)
-                throw std::domain_error("wsl::probability::uniform_ball : dimension différente de N");
+                throw std::domain_error("wsl::probability::laws::uniform_ball : dimension différente de N");
             check();
         }
 
@@ -228,7 +228,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& B = *this;
             auto x = detail::uniform_direction<T, N>(B.n_, g);
             double const u = detail::uniform_positive(g);
-            double const r = B.n_ == 1 ? u : wsl::special::exp(wsl::special::log(u) / double(B.n_));
+            double const r = B.n_ == 1 ? u : wsl::random::detail::pm::exp(wsl::random::detail::pm::log(u) / double(B.n_));
             for (auto& v : x)
                 v = static_cast<T>(detail::sd::fmul(double(v), r));
             return x;
@@ -240,7 +240,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr void check() const
         {
             if (n_ < 1)
-                throw std::domain_error("wsl::probability::uniform_ball : il faut une dimension >= 1");
+                throw std::domain_error("wsl::probability::laws::uniform_ball : il faut une dimension >= 1");
         }
         constexpr detail::sd::double_double log_volume() const noexcept
         {

@@ -28,9 +28,9 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail
     using namespace floating_point_arithmetic::detail;
     using namespace elementary_functions::detail;
 }
-// Transition (refonte, étape 4a) : les fonctions élémentaires, trouvées avant les surcharges
-// de mdarray pour les tableaux ; l'étape 4b les appellera qualifiées, avec leur mode.
-namespace wsl::inline WSL_DEFAULTS::special_functions
+// Le socle double-double n'a qu'une version, portable (design/interfaces.md, décision 42) :
+// il appelle les fonctions élémentaires figées en mode portable.
+namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
 {
     using elementary_functions::detail::pinned_portable::sqrt;
     using elementary_functions::detail::pinned_portable::cbrt;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Le concept de loi de probabilité (voir design/random.md §4.3 et design/interfaces.md, décisions 8).
 //
@@ -285,9 +285,9 @@ namespace wsl::inline WSL_DEFAULTS::probability
             if constexpr (requires { typename L::reference_measure; })
                 return typename L::reference_measure{};
             else if constexpr (has_pmf<L>)
-                return counting{};
+                return measure_theory::counting{};
             else
-                return lebesgue{};
+                return measure_theory::lebesgue{};
         }
     }
     template <class L>

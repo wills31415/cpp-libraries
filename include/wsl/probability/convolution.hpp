@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : convolution P ∗ Q, loi de X + Y pour X ~ P et Y ~ Q indépendantes
 // (voir design/random.md §4.6).
 //
-//   auto S = wsl::probability::convolution(wsl::probability::normal({.mean = 1, .stddev = 3}), wsl::probability::normal({.mean = 2, .stddev = 4}));   // normal : N(3, 5)
-//   auto P = wsl::probability::convolution(wsl::probability::poisson({.mean = 2.0}), wsl::probability::binomial({.trials = 10, .p = 0.3}));  // convolution_law
+//   auto S = wsl::probability::convolution(wsl::probability::laws::normal({.mean = 1, .stddev = 3}), wsl::probability::laws::normal({.mean = 2, .stddev = 4}));   // normal : N(3, 5)
+//   auto P = wsl::probability::convolution(wsl::probability::laws::poisson({.mean = 2.0}), wsl::probability::laws::binomial({.trials = 10, .p = 0.3}));  // convolution_law
 //   P.pmf(4); P.cdf(6); P.quantile(0.9); P.mean(); P(g);
 //
 // convolution(P, P) est la loi de la somme de deux copies indépendantes (celle de 2X
@@ -40,7 +40,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/probability/laws/poisson.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <concepts>
@@ -56,54 +56,54 @@ namespace wsl::inline WSL_DEFAULTS::probability
     // -----------------------------------------------------------------------
     // Identités.
     // -----------------------------------------------------------------------
-    template <law_real T>
-    constexpr normal<T> sum_closure(normal<T> const& X, normal<T> const& Y)
+    template <laws::law_real T>
+    constexpr laws::normal<T> sum_closure(laws::normal<T> const& X, laws::normal<T> const& Y)
     {
         // variances additionnées (double-double), moyennes additionnées et arrondies une fois
-        return normal<T>(static_cast<T>(double(X.mean()) + double(Y.mean())), detail::add_scaled(X.exact_variance(), Y.exact_variance()));
+        return laws::normal<T>(static_cast<T>(double(X.mean()) + double(Y.mean())), detail::add_scaled(X.exact_variance(), Y.exact_variance()));
     }
-    template <law_real T>
-    constexpr cauchy<T> sum_closure(cauchy<T> const& X, cauchy<T> const& Y)
+    template <laws::law_real T>
+    constexpr laws::cauchy<T> sum_closure(laws::cauchy<T> const& X, laws::cauchy<T> const& Y)
     {
-        return cauchy<T>({.location = static_cast<T>(double(X.location()) + double(Y.location())), .scale = static_cast<T>(double(X.scale()) + double(Y.scale()))});
+        return laws::cauchy<T>({.location = static_cast<T>(double(X.location()) + double(Y.location())), .scale = static_cast<T>(double(X.scale()) + double(Y.scale()))});
     }
-    template <law_integer I>
-    constexpr poisson<I> sum_closure(poisson<I> const& X, poisson<I> const& Y)
+    template <laws::law_integer I>
+    constexpr laws::poisson<I> sum_closure(laws::poisson<I> const& X, laws::poisson<I> const& Y)
     {
-        return poisson<I>({.mean = X.mean() + Y.mean()});
+        return laws::poisson<I>({.mean = X.mean() + Y.mean()});
     }
-    template <law_real T>
-    constexpr chi_squared<T> sum_closure(chi_squared<T> const& X, chi_squared<T> const& Y)
+    template <laws::law_real T>
+    constexpr laws::chi_squared<T> sum_closure(laws::chi_squared<T> const& X, laws::chi_squared<T> const& Y)
     {
-        return chi_squared<T>({.degrees_of_freedom = static_cast<T>(double(X.degrees_of_freedom()) + double(Y.degrees_of_freedom()))});
+        return laws::chi_squared<T>({.degrees_of_freedom = static_cast<T>(double(X.degrees_of_freedom()) + double(Y.degrees_of_freedom()))});
     }
     // E(λ) = gamma(1, λ).
-    template <law_real T>
-    constexpr std::optional<gamma<T>> sum_closure(exponential<T> const& X, exponential<T> const& Y) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::gamma<T>> sum_closure(laws::exponential<T> const& X, laws::exponential<T> const& Y) noexcept
     {
         if (!(X.exact_rate() == Y.exact_rate()))
             return std::nullopt;
         auto const [r, s] = detail::parameters_of(X.exact_rate());
-        return gamma<T>({.rate = r, .scale = s, .shape = T(2)});
+        return laws::gamma<T>({.rate = r, .scale = s, .shape = T(2)});
     }
-    template <law_real T>
-    constexpr std::optional<gamma<T>> sum_closure(gamma<T> const& X, exponential<T> const& Y) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::gamma<T>> sum_closure(laws::gamma<T> const& X, laws::exponential<T> const& Y) noexcept
     {
         auto const [r, s] = detail::parameters_of(Y.exact_rate());
-        return sum_closure(X, gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
+        return sum_closure(X, laws::gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
     }
-    template <law_real T>
-    constexpr std::optional<gamma<T>> sum_closure(exponential<T> const& X, gamma<T> const& Y) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::gamma<T>> sum_closure(laws::exponential<T> const& X, laws::gamma<T> const& Y) noexcept
     {
         auto const [r, s] = detail::parameters_of(X.exact_rate());
-        return sum_closure(Y, gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
+        return sum_closure(Y, laws::gamma<T>({.rate = r, .scale = s, .shape = T(1)}));
     }
-    template <law_integer I>
-    constexpr std::optional<binomial<I>> sum_closure(binomial<I> const& X, binomial<I> const& Y) noexcept
+    template <laws::law_integer I>
+    constexpr std::optional<laws::binomial<I>> sum_closure(laws::binomial<I> const& X, laws::binomial<I> const& Y) noexcept
     {
         if (!(X.p() == Y.p()) || X.trials() > std::numeric_limits<I>::max() - Y.trials())
             return std::nullopt;
-        return binomial<I>({.trials = static_cast<I>(X.trials() + Y.trials()), .p = X.p()});
+        return laws::binomial<I>({.trials = static_cast<I>(X.trials() + Y.trials()), .p = X.p()});
     }
 
     namespace detail
@@ -218,8 +218,8 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 if (family_)
                     return static_cast<moment_type>(family_->skewness());
             double const v1 = x_.variance(), v2 = y_.variance(), v = v1 + v2;
-            double const k3 = fp::fmul(double(x_.skewness()), fp::fmul(v1, wsl::special::sqrt(v1))) + fp::fmul(double(y_.skewness()), fp::fmul(v2, wsl::special::sqrt(v2)));
-            return static_cast<moment_type>(k3 / (v * wsl::special::sqrt(v)));
+            double const k3 = fp::fmul(double(x_.skewness()), fp::fmul(v1, wsl::random::detail::pm::sqrt(v1))) + fp::fmul(double(y_.skewness()), fp::fmul(v2, wsl::random::detail::pm::sqrt(v2)));
+            return static_cast<moment_type>(k3 / (v * wsl::random::detail::pm::sqrt(v)));
         }
         constexpr moment_type excess_kurtosis() const noexcept requires has_variance<L1> && has_variance<L2> && has_excess_kurtosis<L1> && has_excess_kurtosis<L2>
         {

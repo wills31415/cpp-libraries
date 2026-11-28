@@ -1,14 +1,14 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi géométrique de paramètre p dans (0, 1] : nombre d'échecs avant le premier
 // succès d'épreuves de Bernoulli indépendantes, P(X = k) = p (1 − p)^k, k >= 0
 // (la convention de std::geometric_distribution et de R ; le nombre d'essais
 // est X + 1).
 //
-//   wsl::probability::geometric X({.p = 0.2});
+//   wsl::probability::laws::geometric X({.p = 0.2});
 //   X.mean(); X.pmf(3); X.cdf(3); X.quantile(0.5); X(g);
 //
 // Masse, répartition, survie : (1 − p)^k = e^{k log1p(−p)}, k log1p(−p) en
@@ -22,7 +22,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -48,7 +48,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr geometric(probability q) : p_(q.p)
         {
             if (!(p_ > 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::geometric : il faut 0 < p <= 1");
+                throw std::domain_error("wsl::probability::laws::geometric : il faut 0 < p <= 1");
             if (p_ < 1)
                 log_q_ = detail::log1p_dd(-p_);
         }
@@ -76,7 +76,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             if (p_ == 1)                                                    // loi dégénérée : 0/0
                 return std::numeric_limits<double>::quiet_NaN();
-            return (2 - p_) / wsl::special::sqrt(1 - p_);
+            return (2 - p_) / wsl::random::detail::pm::sqrt(1 - p_);
         }
         constexpr double excess_kurtosis() const noexcept
         {
@@ -185,7 +185,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             if (X.p_ == 1)
                 return 0;
-            double const r = wsl::special::log(detail::uniform_positive(g)) / X.log_q_.hi;   // >= 0
+            double const r = wsl::random::detail::pm::log(detail::uniform_positive(g)) / X.log_q_.hi;   // >= 0
             if (!(r < 0x1p62) || r >= static_cast<double>(std::numeric_limits<I>::max()))
                 return std::numeric_limits<I>::max();
             return static_cast<I>(r);                                       // ⌊r⌋

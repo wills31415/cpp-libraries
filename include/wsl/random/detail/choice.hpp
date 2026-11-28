@@ -13,7 +13,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <bit>
 #include <cstdint>

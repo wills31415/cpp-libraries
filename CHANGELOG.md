@@ -7,6 +7,13 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Rupture : l'en-tête de transition `<wsl/special>` (espace `wsl::special`) et sa cible
+  `wsl::special` sont retirés ; les fonctions sont dans `wsl::elementary_functions`
+  (`<wsl/elementary_functions>`) et `wsl::special_functions` (`<wsl/special_functions>`), avec
+  leurs modes. `wsl::special_functions` ne réexporte plus les fonctions élémentaires
+  (`sf::exp` n'existe plus : `ef::exp`). `probability` ne rend plus visibles sans
+  qualification les noms de `random` et des mesures de référence (en-tête interne
+  `probability/detail/transition.hpp` remplacé par `detail/base.hpp`). Aucun bit ne change.
 - Rupture, `wsl::random` et `wsl::probability` : le tirage est **approché par défaut**
   (design/interfaces.md, décisions 24 à 27) : `X(g)` prend la variante approchée de la loi si
   elle en a une (la ziggourat pour la normale…), son seul tirage sinon ; `X(g, wsl::exact)`

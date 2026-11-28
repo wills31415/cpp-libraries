@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : mélange fini de lois (voir design/random.md §4.6).
 //
-//   wsl::probability::mixture M(wsl::probability::weighted(0.3, wsl::probability::normal({.mean = -2, .stddev = 1})),
-//                  wsl::probability::weighted(0.7, wsl::probability::gamma({.rate = 1, .shape = 3})));
+//   wsl::probability::mixture M(wsl::probability::weighted(0.3, wsl::probability::laws::normal({.mean = -2, .stddev = 1})),
+//                  wsl::probability::weighted(0.7, wsl::probability::laws::gamma({.rate = 1, .shape = 3})));
 //   M.pdf(0.5); M.cdf(1.0); M.quantile(0.9); M.mean(); M.variance(); M(g);
 //
 // Composantes de types quelconques, de même value_type (réel ou entier) ; poids > 0
@@ -29,7 +29,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <array>
 #include <bit>
@@ -153,10 +153,10 @@ namespace wsl::inline WSL_DEFAULTS::probability
             double const m = mean_double(), v = variance_double();
             auto const s = average([m](auto const& c) {                    // E[(X − m)³ | i]
                 double const d = double(c.mean()) - m, vi = c.variance();
-                double const si = fp::fmul(double(c.skewness()), fp::fmul(vi, wsl::special::sqrt(vi)));
+                double const si = fp::fmul(double(c.skewness()), fp::fmul(vi, wsl::random::detail::pm::sqrt(vi)));
                 return (si + fp::fmul(fp::fmul(3.0, vi), d)) + fp::fmul(fp::fmul(d, d), d);
             });
-            return static_cast<moment_type>((s.hi + s.lo) / (v * wsl::special::sqrt(v)));
+            return static_cast<moment_type>((s.hi + s.lo) / (v * wsl::random::detail::pm::sqrt(v)));
         }
         constexpr moment_type excess_kurtosis() const noexcept
             requires(has_mean<L> && ...) && (has_variance<L> && ...) && (has_skewness<L> && ...) && (has_excess_kurtosis<L> && ...)
@@ -166,7 +166,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
             auto const s = average([m](auto const& c) {                    // E[(X − m)⁴ | i]
                 double const d = double(c.mean()) - m, vi = c.variance();
                 double const k = fp::fmul(double(c.excess_kurtosis()) + 3.0, fp::fmul(vi, vi));
-                double const t3 = fp::fmul(fp::fmul(4.0, d), fp::fmul(double(c.skewness()), fp::fmul(vi, wsl::special::sqrt(vi))));
+                double const t3 = fp::fmul(fp::fmul(4.0, d), fp::fmul(double(c.skewness()), fp::fmul(vi, wsl::random::detail::pm::sqrt(vi))));
                 double const d2 = fp::fmul(d, d);
                 return ((k + t3) + fp::fmul(fp::fmul(6.0, vi), d2)) + fp::fmul(d2, d2);
             });
@@ -217,7 +217,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 if (!(v == v))
                     return static_cast<value_type>(v);
                 if (v > -std::numeric_limits<double>::infinity())
-                    s = s + wsl::special::exp(v - top);
+                    s = s + wsl::random::detail::pm::exp(v - top);
             }
             auto const lw = detail::log(detail::normalized(M.total_weight_.hi, M.total_weight_.lo));
             auto const r = detail::sum({top, 0.0}, detail::sum(detail::log_precise(s), {-lw.hi, -lw.lo}));
@@ -408,7 +408,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 return 0;
             else if (cumulative_big_.empty())
             {
-                std::uint64_t const r = uniform_below(cumulative_[n - 1], g);
+                std::uint64_t const r = random::uniform_below(cumulative_[n - 1], g);
                 for (std::size_t i = 0; i + 1 < n; ++i)
                     if (r < cumulative_[i])
                         return i;

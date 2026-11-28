@@ -383,7 +383,7 @@ int main()
 
     // ---- Loi jointe et image par une fonction ----------------------------------------
     {
-        namespace sp = wsl::special;
+        namespace sp = wsl::special_functions::detail::pinned_portable;   // fonctions figées en mode portable
         wr::normal const N({.mean = 0.0, .stddev = 1.0});
         wr::exponential const E({.rate = 2.0});
         wr::product_measure const J(N, E, wr::poisson({.mean = 3.0}));
@@ -442,7 +442,7 @@ int main()
         auto const PB = wr::convolution(wr::poisson({.mean = 3.5}), wr::binomial({.trials = 20, .p = 0.3}));
         auto const ST = wr::convolution(wr::student_t({.degrees_of_freedom = 3.0}), wr::uniform({.lower = 0.0, .upper = 1.0}));
         wr::product_measure const J(wr::normal({.mean = 0.0, .stddev = 1.0}), wr::gamma({.rate = 1.0, .shape = 2.0}));
-        auto const LP = wr::pushforward(wr::normal({.mean = 0.0, .stddev = 1.0}), wr::increasing([](double t) { return wsl::special::exp(t); }, [](double t) { return wsl::special::log(t); }));
+        auto const LP = wr::pushforward(wr::normal({.mean = 0.0, .stddev = 1.0}), wr::increasing([](double t) { return wsl::special_functions::detail::pinned_portable::exp(t); }, [](double t) { return wsl::special_functions::detail::pinned_portable::log(t); }));
         ok &= check("sum (discrète)", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(PB, x)); }), 0xb95ba5ee227f675e);
         ok &= check("sum (continue)", fingerprint([&] { return bits(wr::native(ST, x)); }), 0xa5686f02baa4b6f2);
         ok &= check("independent", fingerprint([&] { auto const [u, w] = wr::native(J, x); return bits(u) ^ (bits(w) << 1); }), 0xf8b02c1c396edb9f);
@@ -454,7 +454,7 @@ int main()
                  ^ (bits(wr::cdf(LP, u + 0.5)) << 4) ^ (bits(wr::quantile(LP, u)) << 5);
         }, 1 << 9), 0xfb59f13d32d4c878);
         ok &= check("algebra functions", fingerprint([&] {
-            namespace fp = wsl::special::detail;
+            namespace fp = wsl::random::detail::sd;
             double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(20.0, u) - 10;
             return bits(wr::cdf(Z, t)) ^ (bits(wr::quantile(Z, u)) << 1) ^ (bits(wr::cdf(T, t + 13)) << 2) ^ (bits(wr::quantile(T, u)) << 3)
                  ^ (bits(wr::cdf(M, t)) << 4) ^ (bits(wr::quantile(M, u)) << 5) ^ (bits(wr::cquantile(wr::gamma({.rate = 1.0, .shape = 0.5}), u)) << 6);

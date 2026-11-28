@@ -27,7 +27,7 @@
 // exactement selon la loi. Une voie rapide en double-double décide presque
 // toujours ; la voie exacte, en grands entiers, tranche les cas serrés.
 
-#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
+#include <wsl/random/detail/portable_math.hpp>
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/uniform.hpp>
 #include <wsl/floating_point_arithmetic/detail/primitives.hpp>
@@ -144,7 +144,7 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
         // plus 2^-60 en absolu) décide sûrement. Sinon, le calcul exact.
         if (e1.fraction.size() == 1 && e2.fraction.size() == 1 && e1.integer < (1u << 20) && e2.integer < (1u << 20))
         {
-            namespace sd = wsl::special::detail;                             // produits protégés de la contraction :
+            namespace sd = random::detail::sd;                             // produits protégés de la contraction :
             double const u1 = sd::fmul(static_cast<double>(e1.fraction.word(0) >> 11), 0x1p-53);   // la décision, donc
             double const u2 = sd::fmul(static_cast<double>(e2.fraction.word(0) >> 11), 0x1p-53);   // le nombre de mots tirés,
             // en dépend (u₁ par défaut, à 2^-53 près)
@@ -283,7 +283,7 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
         }
         // mantissa · 2^scale est représentable en T (ou déborde vers ±∞) : exact en
         // double, puis converti sans arrondi.
-        auto const magnitude = static_cast<T>(wsl::special::detail::scale_by_power_of_two(static_cast<double>(mantissa), scale));
+        auto const magnitude = static_cast<T>(wsl::random::detail::sd::scale_by_power_of_two(static_cast<double>(mantissa), scale));
         return negative ? -magnitude : magnitude;
     }
 
@@ -320,7 +320,7 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
     constexpr bool round_quickly(double mu, double sigma, double divisor, bool negative, lazy_real const& v, T& result,
                                  double sigma_lo = 0.0) noexcept
     {
-        namespace sd = wsl::special::detail;
+        namespace sd = random::detail::sd;
         using F = format<T>;
         if (v.fraction.size() != 1 || v.integer >= (std::uint64_t{1} << 20))
             return false;

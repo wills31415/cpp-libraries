@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Weibull de forme k > 0 et d'échelle λ > 0 : P(X > x) = e^{−(x/λ)^k}, x >= 0.
 //
-//   wsl::probability::weibull W({.scale = 2, .shape = 1.5});
+//   wsl::probability::laws::weibull W({.scale = 2, .shape = 1.5});
 //   W.cdf(1.0); W.quantile(0.5); W.mean(); W(g);
 //
 // t = (x/λ)^k = e^{k (log x − log λ)} en double-double ; répartition −expm1(−t),
@@ -23,7 +23,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/laws/exponential.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -48,7 +48,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr weibull(parameters p) : k_(p.shape), lambda_(p.scale)
         {
             if (!(k_ > 0) || !detail::is_finite(k_) || !(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::probability::weibull : il faut shape > 0 et scale > 0, finis");
+                throw std::domain_error("wsl::probability::laws::weibull : il faut shape > 0 et scale > 0, finis");
         }
 
         constexpr T shape() const noexcept { return k_; }
@@ -88,9 +88,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             double const k = k_;
             namespace fp = detail::sd;                                       // (approché : la compensation n'est pas traitée)
-            double const g1 = wsl::special::tgamma(1 + 1 / k), g2 = wsl::special::tgamma(1 + 2 / k), g3 = wsl::special::tgamma(1 + 3 / k);
+            double const g1 = wsl::random::detail::pm::tgamma(1 + 1 / k), g2 = wsl::random::detail::pm::tgamma(1 + 2 / k), g3 = wsl::random::detail::pm::tgamma(1 + 3 / k);
             double const v = g2 - fp::fmul(g1, g1);
-            return static_cast<T>(((g3 - fp::fmul(fp::fmul(3.0, g1), v)) - fp::fmul(fp::fmul(g1, g1), g1)) / (v * wsl::special::sqrt(v)));
+            return static_cast<T>(((g3 - fp::fmul(fp::fmul(3.0, g1), v)) - fp::fmul(fp::fmul(g1, g1), g1)) / (v * wsl::random::detail::pm::sqrt(v)));
         }
         // γ (1 − 1/k) + log(λ/k) + 1
         constexpr T entropy() const noexcept
@@ -130,7 +130,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (!(v == v))
                 return x;
             if (!(v > 0) || v == std::numeric_limits<double>::infinity())
-                return v == 0 && double(X.k_) <= 1 ? static_cast<T>(double(X.k_) < 1 ? std::numeric_limits<double>::infinity() : -wsl::special::log(double(X.lambda_)))
+                return v == 0 && double(X.k_) <= 1 ? static_cast<T>(double(X.k_) < 1 ? std::numeric_limits<double>::infinity() : -wsl::random::detail::pm::log(double(X.lambda_)))
                                                    : -std::numeric_limits<T>::infinity();
             auto const l = X.log_density(v);
             return static_cast<T>(l.hi + l.lo);
@@ -178,7 +178,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
             if (e == 0)
                 return 0;
-            return static_cast<T>(detail::sd::fmul(double(X.lambda_), wsl::special::exp(wsl::special::log(e) / double(X.k_))));
+            return static_cast<T>(detail::sd::fmul(double(X.lambda_), wsl::random::detail::pm::exp(wsl::random::detail::pm::log(e) / double(X.k_))));
         }
 
         friend constexpr bool operator==(weibull const&, weibull const&) = default;

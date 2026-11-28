@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi logistique de position μ et d'échelle s > 0 : P(X <= x) = 1/(1 + e^{−z}),
 // z = (x − μ)/s.
 //
-//   wsl::probability::logistic L({.location = 0, .scale = 1});
+//   wsl::probability::laws::logistic L({.location = 0, .scale = 1});
 //   L.cdf(2.0); L.quantile(0.9); L(g);
 //
 // z en double-double ; queue e^{−|z|}/(1 + e^{−|z|}), densité e^{−|z|}/(s (1 + e^{−|z|})²) ;
@@ -20,7 +20,7 @@
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -73,7 +73,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr logistic(parameters p) : mu_(p.location), s_(p.scale)
         {
             if (!detail::is_finite(mu_) || !(s_ > 0) || !detail::is_finite(s_))
-                throw std::domain_error("wsl::probability::logistic : il faut location fini et scale > 0, fini");
+                throw std::domain_error("wsl::probability::laws::logistic : il faut location fini et scale > 0, fini");
         }
 
         constexpr T location() const noexcept { return mu_; }

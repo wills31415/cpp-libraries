@@ -1,18 +1,18 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Décomposition de Loader : celle de wsl::special (detail/loader.hpp).
 
-#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
+#include <wsl/random/detail/portable_math.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/special_functions/detail/loader.hpp>
 
 namespace wsl::inline WSL_DEFAULTS::probability::detail
 {
-    namespace sd = wsl::special::detail;
-    namespace xd = wsl::special::detail::extended;
+    namespace sd = random::detail::sd;
+    namespace xd = random::detail::xd;
 
     using xd::deviance;
     using xd::digamma_approximate;

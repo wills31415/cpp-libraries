@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi binomiale négative : nombre d'échecs avant le r-ième succès d'épreuves de Bernoulli
 // de paramètre p, r > 0 réel : P(X = k) = Γ(k + r)/(k! Γ(r)) p^r (1 − p)^k, k >= 0.
 //
-//   wsl::probability::negative_binomial X({.successes = 3.5, .p = 0.4});
+//   wsl::probability::laws::negative_binomial X({.successes = 3.5, .p = 0.4});
 //   X.mean(); X.pmf(6); X.cdf(6); X.quantile(0.99); X(g);
 //
 // Masse : r/(k + r) fois la masse binomiale de r succès en n = k + r épreuves (Loader,
@@ -25,7 +25,7 @@
 #include <wsl/probability/laws/gamma.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/poisson.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -51,7 +51,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr negative_binomial(parameters q) : r_(q.successes), p_(q.p)
         {
             if (!(r_ > 0) || !detail::is_finite(r_) || !(p_ > 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::negative_binomial : il faut successes > 0 fini et p dans (0, 1]");
+                throw std::domain_error("wsl::probability::laws::negative_binomial : il faut successes > 0 fini et p dans (0, 1]");
         }
 
         constexpr double successes() const noexcept { return r_; }
@@ -122,7 +122,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 0;
             if (X.p_ == 1)
                 return 1;
-            return wsl::special::ibeta(X.r_, static_cast<double>(k) + 1, X.p_);
+            return wsl::random::detail::pm::ibeta(X.r_, static_cast<double>(k) + 1, X.p_);
         }
 
         // P(X > k) = 1 − I_p(r, k + 1).
@@ -133,7 +133,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 1;
             if (X.p_ == 1)
                 return 0;
-            return wsl::special::ibetac(X.r_, static_cast<double>(k) + 1, X.p_);
+            return wsl::random::detail::pm::ibetac(X.r_, static_cast<double>(k) + 1, X.p_);
         }
 
         // Plus petit k tel que P(X <= k) >= u.
@@ -150,9 +150,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return top;
             double const q = 1 - X.p_;
             double const mean = sd::fmul(X.r_, q) / X.p_;
-            double const sd_ = wsl::special::sqrt(sd::fmul(X.r_, q)) / X.p_;
+            double const sd_ = wsl::random::detail::pm::sqrt(sd::fmul(X.r_, q)) / X.p_;
             double const z = detail::normal_quantile_guess(u);
-            double const skew = (2 - X.p_) / wsl::special::sqrt(sd::fmul(X.r_, q));
+            double const skew = (2 - X.p_) / wsl::random::detail::pm::sqrt(sd::fmul(X.r_, q));
             double guess = (mean + sd::fmul(z, sd_)) + sd::fmul(sd::fmul(sd::fmul(z, z) - 1.0, skew), sd_) / 6;   // Cornish–Fisher
             guess = guess < 0 ? 0 : guess > 0x1p61 ? 0x1p61 : guess;
             auto const ge = [&](I k) {                                      // I_p(r, k + 1) >= u

@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Fisher (F de Snedecor) à d₁ > 0 et d₂ > 0 degrés de liberté : quotient
 // (χ²(d₁)/d₁)/(χ²(d₂)/d₂).
 //
-//   wsl::probability::fisher_f F({.d1 = 5, .d2 = 10});
+//   wsl::probability::laws::fisher_f F({.d1 = 5, .d2 = 10});
 //   F.cdf(3.3); F.quantile(0.95); F(g);
 //
 // Par la loi bêta (a = d₁/2, b = d₂/2) : u = d₁x/(d₁x + d₂), 1 − u = d₂/(d₁x + d₂) en
@@ -24,7 +24,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/laws/gamma.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -50,13 +50,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             if (!(d1_ > 0) || !detail::is_finite(d1_) || !(d2_ > 0) || !detail::is_finite(d2_))
-                throw std::domain_error("wsl::probability::fisher_f : il faut d1 > 0 et d2 > 0, finis");
+                throw std::domain_error("wsl::probability::laws::fisher_f : il faut d1 > 0 et d2 > 0, finis");
             double const a = half(d1_), b = half(d2_);
             double const sa = a >= 1 ? a : a + 1, sb = b >= 1 ? b : b + 1;
             d_a_ = sa - 1.0 / 3;
-            c_a_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_a_));
+            c_a_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_a_));
             d_b_ = sb - 1.0 / 3;
-            c_b_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_b_));
+            c_b_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_b_));
         }
 
         constexpr T d1() const noexcept { return d1_; }
@@ -109,7 +109,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return std::numeric_limits<T>::quiet_NaN();
             if (d2 <= 6)                                                    // variance finie, moment d'ordre 3 infini
                 return std::numeric_limits<T>::infinity();
-            return static_cast<T>((detail::sd::fmul(2.0, d1) + d2 - 2) * wsl::special::sqrt(8 * (d2 - 4)) / ((d2 - 6) * wsl::special::sqrt(d1 * (d1 + d2 - 2))));
+            return static_cast<T>((detail::sd::fmul(2.0, d1) + d2 - 2) * wsl::random::detail::pm::sqrt(8 * (d2 - 4)) / ((d2 - 6) * wsl::random::detail::pm::sqrt(d1 * (d1 + d2 - 2))));
         }
         constexpr T excess_kurtosis() const noexcept
         {
@@ -212,9 +212,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double ga = detail::marsaglia_tsang(X.d_a_, X.c_a_, g);
             double gb = detail::marsaglia_tsang(X.d_b_, X.c_b_, g);
             if (a < 1)
-                ga = fp::fmul(ga, wsl::special::exp(wsl::special::log(detail::uniform_positive(g)) / a));
+                ga = fp::fmul(ga, wsl::random::detail::pm::exp(wsl::random::detail::pm::log(detail::uniform_positive(g)) / a));
             if (b < 1)
-                gb = fp::fmul(gb, wsl::special::exp(wsl::special::log(detail::uniform_positive(g)) / b));
+                gb = fp::fmul(gb, wsl::random::detail::pm::exp(wsl::random::detail::pm::log(detail::uniform_positive(g)) / b));
             return static_cast<T>((ga / a) / (gb / b));
         }
 

@@ -9,7 +9,7 @@
 // l'encadrent soient de part et d'autre de la valeur : c'est l'arrondi au plus proche
 // (jamais d'égalité : la valeur est irrationnelle, ou vaut μ si t = 0).
 
-#include <wsl/special.hpp>   // transition (étape 4) : noms wsl::special
+#include <wsl/random/detail/portable_math.hpp>
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/random/detail/big.hpp>
 #include <wsl/random/detail/lazy.hpp>
@@ -97,11 +97,11 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
         bool power = false;
         if (magnitude != 0)
         {
-            int const e = wsl::special::detail::exponent_of(magnitude);
+            int const e = wsl::random::detail::sd::exponent_of(magnitude);
             if (e >= F::min_exponent)
             {
                 ulp_e = e - F::digits + 1;
-                power = magnitude == wsl::special::detail::power_of_two(e) && e > F::min_exponent;
+                power = magnitude == wsl::random::detail::sd::power_of_two(e) && e > F::min_exponent;
             }
         }
         exact_dyadic const up{{false, big(1)}, ulp_e - 1}, down{{false, big(1)}, power ? ulp_e - 2 : ulp_e - 1};
@@ -186,8 +186,8 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
         // Candidat : t ≈ w 2^-b par ses 64 bits de tête.
         int const length = w.bit_length();
         int const shift = std::max(0, length - 64);
-        double const t = wsl::special::detail::scale_by_power_of_two(static_cast<double>(w.shifted_right(shift).bits_at(0)), shift - b);
-        double const step = wsl::special::detail::fmul(sigma, t);
+        double const t = wsl::random::detail::sd::scale_by_power_of_two(static_cast<double>(w.shifted_right(shift).bits_at(0)), shift - b);
+        double const step = wsl::random::detail::sd::fmul(sigma, t);
         return round_by_side<T>(side, static_cast<T>(negative ? mu - step : mu + step));
     }
 

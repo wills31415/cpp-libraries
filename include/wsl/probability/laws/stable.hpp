@@ -1,14 +1,14 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois stables S(α, β, γ, δ), paramétrisation S1 (celle de Chambers–Mallows–Stuck) :
 // E e^{itX} = exp(−γ^α |t|^α (1 − iβ sign(t) tan(πα/2)) + iδt) (α ≠ 1),
 //             exp(−γ |t| (1 + iβ (2/π) sign(t) log|t|) + iδt)        (α = 1),
 // 0 < α <= 2, −1 <= β <= 1.
 //
-//   wsl::probability::stable X({.location = 0, .scale = 1, .alpha = 1.5, .beta = 0.5});
+//   wsl::probability::laws::stable X({.location = 0, .scale = 1, .alpha = 1.5, .beta = 0.5});
 //   X.pdf(0.3); X.cdf(-2); X.quantile(0.99); X(g);
 //
 // Forme réduite Z : X = γZ + δ (α ≠ 1), γZ + (2/π)βγ log γ + δ (α = 1). Densité et
@@ -40,7 +40,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <random>
@@ -188,7 +188,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr stable(parameters p) : alpha_(p.alpha), beta_(p.beta), gamma_(p.scale), delta_(p.location)
         {
             if (!(alpha_ > 0 && alpha_ <= 2) || !(beta_ >= -1 && beta_ <= 1) || !(gamma_ > 0) || !detail::is_finite(gamma_) || !detail::is_finite(delta_))
-                throw std::domain_error("wsl::probability::stable : il faut 0 < alpha <= 2, −1 <= beta <= 1, scale > 0 fini, location fini");
+                throw std::domain_error("wsl::probability::laws::stable : il faut 0 < alpha <= 2, −1 <= beta <= 1, scale > 0 fini, location fini");
             double const a = alpha_, b = beta_;
             if (a < 2 && !(a == 1 && b == 0))
             {
@@ -273,11 +273,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             namespace sd = detail::sd;
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             double const a = X.alpha_, b = X.beta_;
             double u = 0;
             do
-                u = uniform_real<double>(g, wsl::exact);
+                u = random::uniform_real<double>(g, wsl::exact);
             while (u == 0);
             double const v = sd::fmul(detail::pi_hi, u - 0.5);
             double const w = detail::native_sample(exponential<double>({.rate = 1.0}), g);
@@ -532,7 +532,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const midpoint = [](double lo, double hi) {
                 if (lo == 0 || hi == 0 || (lo < 0) != (hi < 0) || hi - lo < 1)
                     return sd::fmul(lo, 0.5) + sd::fmul(hi, 0.5);
-                return lo > 0 ? wsl::special::sqrt(lo) * wsl::special::sqrt(hi) : -(wsl::special::sqrt(-lo) * wsl::special::sqrt(-hi));
+                return lo > 0 ? wsl::random::detail::pm::sqrt(lo) * wsl::random::detail::pm::sqrt(hi) : -(wsl::random::detail::pm::sqrt(-lo) * wsl::random::detail::pm::sqrt(-hi));
             };
             return detail::solve_part(evaluate, !upper, t, b, outward, midpoint);
         }

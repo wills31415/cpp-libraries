@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Matrices aléatoires : groupes orthogonal et unitaire sous la mesure de Haar, ensembles
 // gaussiens orthogonal (GOE) et unitaire (GUE).
 //
-//   wsl::probability::haar_orthogonal<double, 3> O;   wsl::probability::haar_unitary<double> U({.dimension = 4});
-//   wsl::probability::goe<double, 5> H;               wsl::probability::gue<double, 5> K;
+//   wsl::probability::laws::haar_orthogonal<double, 3> O;   wsl::probability::laws::haar_unitary<double> U({.dimension = 4});
+//   wsl::probability::laws::goe<double, 5> H;               wsl::probability::laws::gue<double, 5> K;
 //   auto Q = O(g);  H.log_pdf(H(g));
 //
 // Haar : Q de la factorisation QR d'une matrice gaussienne (réelle, ou complexe de
@@ -29,7 +29,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <complex>
 #include <cstddef>
@@ -136,7 +136,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr haar_orthogonal() requires(N != dynamic) : n_(N) {}
-        constexpr haar_orthogonal(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::haar_orthogonal : dimension invalide")) {}
+        constexpr haar_orthogonal(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::laws::haar_orthogonal : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<T, N>(n_, T(-1), T(1)); }
@@ -175,7 +175,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr haar_unitary() requires(N != dynamic) : n_(N) {}
-        constexpr haar_unitary(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::haar_unitary : dimension invalide")) {}
+        constexpr haar_unitary(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::laws::haar_unitary : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<std::complex<T>, N>(n_, {T(-1), T(-1)}, {T(1), T(1)}); }
@@ -217,7 +217,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr goe() requires(N != dynamic) : n_(N) {}
-        constexpr goe(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::goe : dimension invalide")) {}
+        constexpr goe(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::laws::goe : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const { return detail::box<T, N>(n_, -std::numeric_limits<T>::infinity(), std::numeric_limits<T>::infinity()); }
@@ -289,7 +289,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::approximate;
 
         constexpr gue() requires(N != dynamic) : n_(N) {}
-        constexpr gue(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::gue : dimension invalide")) {}
+        constexpr gue(parameters p) : n_(detail::checked<N>(p.dimension, "wsl::probability::laws::gue : dimension invalide")) {}
 
         constexpr std::size_t dimension() const noexcept { return n_; }
         constexpr interval<value_type> support() const

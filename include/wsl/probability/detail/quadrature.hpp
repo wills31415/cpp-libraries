@@ -1,14 +1,14 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Quadrature des lois : Gauss–Legendre à 12 nœuds (nœuds et poids en double-double,
 // calculés à la compilation), sur [a, b] et adaptative (intégrandes à l'échelle).
 
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/detail/trigonometry.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 namespace wsl::inline WSL_DEFAULTS::probability::detail
 {
@@ -27,7 +27,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         constexpr int m = legendre_order;
         for (int i = 0; i < m / 2; ++i)
         {
-            double const guess = wsl::special::cos(pi_hi * (static_cast<double>(i) + 0.75) / (static_cast<double>(m) + 0.5));
+            double const guess = wsl::random::detail::pm::cos(pi_hi * (static_cast<double>(i) + 0.75) / (static_cast<double>(m) + 0.5));
             sd::double_double x{guess, 0.0}, derivative{1.0, 0.0};
             for (int iteration = 0; iteration < 8; ++iteration)
             {

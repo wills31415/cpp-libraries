@@ -1,8 +1,8 @@
 #pragma once
 
-// Transition (refonte, passe 4b) : les fonctions élémentaires, figées en mode portable (et approché : la seule version), pour
-// les appelants pas encore convertis aux modes (special_functions, <wsl/special>, le mode
-// portable de mdarray). À retirer à la fin de la passe 4b.
+// Les fonctions élémentaires figées en mode portable et approché, pour le code qui n'a qu'une
+// version portable : les lois de probability (design/interfaces.md, décision 42, jusqu'à leur
+// conversion aux deux modes) et le mode portable de mdarray.
 
 #include <wsl/elementary_functions/algebraic.hpp>
 #include <wsl/elementary_functions/exponential.hpp>

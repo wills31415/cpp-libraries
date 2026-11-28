@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Algèbre des lois : image affine Y = aX + b d'une loi réelle (voir design/random.md §4.6).
 //
-//   wsl::probability::normal N({.mean = 1, .stddev = 2});
-//   auto Y = wsl::probability::affine(N, {.scale = 3, .shift = -1});   // wsl::probability::normal<> : N(2, 6), paramètres calculés
-//   wsl::probability::student_t T({.degrees_of_freedom = 4});
+//   wsl::probability::laws::normal N({.mean = 1, .stddev = 2});
+//   auto Y = wsl::probability::affine(N, {.scale = 3, .shift = -1});   // wsl::probability::laws::normal<> : N(2, 6), paramètres calculés
+//   wsl::probability::laws::student_t T({.degrees_of_freedom = 4});
 //   auto Z = wsl::probability::affine(T, {.scale = -2, .shift = 5});   // wsl::probability::affine_image<student_t<>>
 //   Z.cdf(1.0); Z.quantile(0.99); Z.mean(); Z(g);
 //
@@ -105,69 +105,69 @@ namespace wsl::inline WSL_DEFAULTS::probability
     // -----------------------------------------------------------------------
     // Identités : familles fermées.
     // -----------------------------------------------------------------------
-    template <law_real T>
-    constexpr normal<T> affine_closure(normal<T> const& X, double a, double b)
+    template <laws::law_real T>
+    constexpr laws::normal<T> affine_closure(laws::normal<T> const& X, double a, double b)
     {
         // variance a² v (double-double : un arrondi à 2^-106 au plus), moyenne a μ + b arrondie une fois
         detail::scaled const a2 = detail::normalized(detail::magnitude(a), 0.0) * detail::normalized(detail::magnitude(a), 0.0);
-        return normal<T>(static_cast<T>(detail::linear(a, double(X.mean()), b)), a2 * X.exact_variance());
+        return laws::normal<T>(static_cast<T>(detail::linear(a, double(X.mean()), b)), a2 * X.exact_variance());
     }
-    template <law_real T>
-    constexpr cauchy<T> affine_closure(cauchy<T> const& X, double a, double b)
+    template <laws::law_real T>
+    constexpr laws::cauchy<T> affine_closure(laws::cauchy<T> const& X, double a, double b)
     {
-        return cauchy<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
+        return laws::cauchy<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
     }
-    template <law_real T>
-    constexpr laplace<T> affine_closure(laplace<T> const& X, double a, double b)
+    template <laws::law_real T>
+    constexpr laws::laplace<T> affine_closure(laws::laplace<T> const& X, double a, double b)
     {
-        return laplace<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
+        return laws::laplace<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
     }
-    template <law_real T>
-    constexpr logistic<T> affine_closure(logistic<T> const& X, double a, double b)
+    template <laws::law_real T>
+    constexpr laws::logistic<T> affine_closure(laws::logistic<T> const& X, double a, double b)
     {
-        return logistic<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
+        return laws::logistic<T>({.location = static_cast<T>(detail::linear(a, double(X.location()), b)), .scale = static_cast<T>(detail::sd::fmul(detail::magnitude(a), double(X.scale())))});
     }
-    template <law_real T>
-    constexpr uniform<T> affine_closure(uniform<T> const& X, double a, double b)
+    template <laws::law_real T>
+    constexpr laws::uniform<T> affine_closure(laws::uniform<T> const& X, double a, double b)
     {
         auto const u = static_cast<T>(detail::linear(a, double(X.lower()), b)), v = static_cast<T>(detail::linear(a, double(X.upper()), b));
-        return a > 0 ? uniform<T>({.lower = u, .upper = v}) : uniform<T>({.lower = v, .upper = u});
+        return a > 0 ? laws::uniform<T>({.lower = u, .upper = v}) : laws::uniform<T>({.lower = v, .upper = u});
     }
 
-    template <law_real T>
-    constexpr std::optional<exponential<T>> scale_closure(exponential<T> const& X, double c) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::exponential<T>> scale_closure(laws::exponential<T> const& X, double c) noexcept
     {
         auto const l = X.exact_rate().divided(c);                           // λ/c exact
         if (!l)
             return std::nullopt;
         auto const [r, s] = detail::parameters_of(*l);
-        return exponential<T>({.rate = r, .scale = s});
+        return laws::exponential<T>({.rate = r, .scale = s});
     }
-    template <law_real T>
-    constexpr std::optional<weibull<T>> scale_closure(weibull<T> const& X, double c) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::weibull<T>> scale_closure(laws::weibull<T> const& X, double c) noexcept
     {
         auto const l = static_cast<T>(detail::sd::fmul(double(X.scale()), c));
         if (!(l > 0) || !detail::is_finite(l))
             return std::nullopt;
-        return weibull<T>({.scale = l, .shape = X.shape()});
+        return laws::weibull<T>({.scale = l, .shape = X.shape()});
     }
-    template <law_real T>
-    constexpr std::optional<pareto<T>> scale_closure(pareto<T> const& X, double c) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::pareto<T>> scale_closure(laws::pareto<T> const& X, double c) noexcept
     {
         auto const x = static_cast<T>(detail::sd::fmul(double(X.scale()), c));
         if (!(x > 0) || !detail::is_finite(x))
             return std::nullopt;
-        return pareto<T>({.scale = x, .shape = X.shape()});
+        return laws::pareto<T>({.scale = x, .shape = X.shape()});
     }
     // c e^Y = e^{Y + log c} : μ + log c, arrondi une fois.
-    template <law_real T>
-    constexpr std::optional<lognormal<T>> scale_closure(lognormal<T> const& X, double c) noexcept
+    template <laws::law_real T>
+    constexpr std::optional<laws::lognormal<T>> scale_closure(laws::lognormal<T> const& X, double c) noexcept
     {
         auto const m = detail::sum({double(X.log_mean()), 0.0}, detail::log_precise(c));
         auto const mu = static_cast<T>(m.hi + m.lo);
         if (!detail::is_finite(mu))
             return std::nullopt;
-        return lognormal<T>({.log_mean = mu, .log_stddev = X.log_stddev()});
+        return laws::lognormal<T>({.log_mean = mu, .log_stddev = X.log_stddev()});
     }
 
     // -----------------------------------------------------------------------

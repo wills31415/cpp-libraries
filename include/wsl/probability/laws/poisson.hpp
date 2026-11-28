@@ -1,11 +1,11 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Poisson de moyenne μ > 0 : P(N = k) = e^{−μ} μ^k / k!, k >= 0.
 //
-//   wsl::probability::poisson N({.mean = 3.5});
+//   wsl::probability::laws::poisson N({.mean = 3.5});
 //   N.variance(); N.pmf(2); N.log_pmf(40); N(g);
 //
 // Masse : décomposition de Loader, e^{−δ(k) − bd0(k, μ)} / √(2πk) (voir
@@ -22,7 +22,7 @@
 #include <wsl/random/detail/lazy.hpp>
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -49,17 +49,17 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace sd = detail::sd;
             if (!(mu_ > 0) || !detail::is_finite(mu_))
-                throw std::domain_error("wsl::probability::poisson : il faut mean > 0, fini");
+                throw std::domain_error("wsl::probability::laws::poisson : il faut mean > 0, fini");
             if (mu_ < 10)
-                exp_minus_mu_ = wsl::special::exp(-mu_);
+                exp_minus_mu_ = wsl::random::detail::pm::exp(-mu_);
             else                                                            // constantes de PTRS
             {
-                double const smu = wsl::special::sqrt(mu_);
+                double const smu = wsl::random::detail::pm::sqrt(mu_);
                 b_ = 0.931 + sd::fmul(2.53, smu);
                 a_ = -0.059 + sd::fmul(0.02483, b_);
-                log_inv_alpha_ = wsl::special::log(1.1239 + 1.1328 / (b_ - 3.4));
+                log_inv_alpha_ = wsl::random::detail::pm::log(1.1239 + 1.1328 / (b_ - 3.4));
                 vr_ = 0.9277 - 3.6224 / (b_ - 2);
-                log_mu_ = wsl::special::log(mu_);
+                log_mu_ = wsl::random::detail::pm::log(mu_);
             }
         }
 
@@ -70,7 +70,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             return mu_ >= static_cast<double>(std::numeric_limits<I>::max()) ? std::numeric_limits<I>::max() : static_cast<I>(mu_);
         }
-        constexpr double skewness() const noexcept { return 1 / wsl::special::sqrt(mu_); }
+        constexpr double skewness() const noexcept { return 1 / wsl::random::detail::pm::sqrt(mu_); }
         constexpr double excess_kurtosis() const noexcept { return 1 / mu_; }
 
         constexpr double pmf(I k) const noexcept
@@ -109,14 +109,14 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr double cdf(I k) const noexcept
         {
             auto const& X = *this;
-            return k < 0 ? 0.0 : wsl::special::gamma_q(static_cast<double>(k) + 1, X.mu_);
+            return k < 0 ? 0.0 : wsl::random::detail::pm::gamma_q(static_cast<double>(k) + 1, X.mu_);
         }
 
         // P(N > k) = P(k + 1, μ).
         constexpr double ccdf(I k) const noexcept
         {
             auto const& X = *this;
-            return k < 0 ? 1.0 : wsl::special::gamma_p(static_cast<double>(k) + 1, X.mu_);
+            return k < 0 ? 1.0 : wsl::random::detail::pm::gamma_p(static_cast<double>(k) + 1, X.mu_);
         }
 
         // Plus petit k tel que P(N <= k) >= p.
@@ -132,7 +132,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (p == 1)
                 return top;
             double const z = detail::normal_quantile_guess(p);
-            double const smu = wsl::special::sqrt(X.mu_);
+            double const smu = wsl::random::detail::pm::sqrt(X.mu_);
             double guess = (X.mu_ + sd::fmul(z, smu)) + (sd::fmul(z, z) - 1.0) / 6;   // Cornish–Fisher
             guess = guess < 0 ? 0 : guess >= static_cast<double>(top) / 2 ? static_cast<double>(top) / 2 : guess;
             auto const ge = [&](I k) {                                      // Q(k + 1, μ) >= p
@@ -150,7 +150,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             constexpr auto top = std::numeric_limits<I>::max();
             if (X.mu_ < 10)                                                 // inversion : P(N <= k) >= U
             {
-                double const u = uniform_real<double>(g, wsl::exact);
+                double const u = random::uniform_real<double>(g, wsl::exact);
                 double probability = X.exp_minus_mu_, sum = probability;
                 I k = 0;
                 while (u > sum && probability > 0 && k < top)
@@ -163,8 +163,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             }
             for (;;)                                                        // PTRS
             {
-                double const u = uniform_real<double>(g, wsl::exact) - 0.5;
-                double const v = uniform_real<double>(g, wsl::exact);
+                double const u = random::uniform_real<double>(g, wsl::exact) - 0.5;
+                double const v = random::uniform_real<double>(g, wsl::exact);
                 double const us = 0.5 - (u < 0 ? -u : u);
                 if (us == 0)
                     continue;
@@ -178,8 +178,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                     return static_cast<I>(k);
                 if (us < 0.013 && v > us)
                     continue;
-                double const lhs = wsl::special::log(v) + X.log_inv_alpha_ - wsl::special::log(X.a_ / sd::fmul(us, us) + X.b_);
-                double const rhs = -X.mu_ + sd::fmul(k, X.log_mu_) - wsl::special::lgamma(k + 1);
+                double const lhs = wsl::random::detail::pm::log(v) + X.log_inv_alpha_ - wsl::random::detail::pm::log(X.a_ / sd::fmul(us, us) + X.b_);
+                double const rhs = -X.mu_ + sd::fmul(k, X.log_mu_) - wsl::random::detail::pm::lgamma(k + 1);
                 if (lhs <= rhs)
                     return static_cast<I>(k);
             }

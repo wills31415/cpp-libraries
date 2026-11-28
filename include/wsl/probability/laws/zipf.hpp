@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi de Zipf (finie) sur {1, …, N} : P(X = k) = k^{−s}/H_{N,s}, H_{N,s} = Σ_{j=1}^{N} j^{−s},
 // s >= 0 (s = 0 : uniforme), N <= 2^53.
 //
-//   wsl::probability::zipf X({.size = 1000, .exponent = 1.2});
+//   wsl::probability::laws::zipf X({.size = 1000, .exponent = 1.2});
 //   X.pmf(3); X.cdf(10); X.quantile(0.9); X.mean(); X(g);
 //
 // Sommes S_p(a, b) = Σ_{j=a}^{b} j^p (p = −s, 1 − s, 2 − s) en double-double : directes pour
@@ -24,7 +24,7 @@
 #include <wsl/probability/detail/discrete.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <array>
 #include <cstdint>
@@ -39,7 +39,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
 // Outils internes : dans wsl::probability::detail (un seul « detail » visible depuis probability).
 namespace wsl::inline WSL_DEFAULTS::probability::detail::zipf_sums
 {
-        namespace sd = wsl::special::detail;
+        namespace sd = random::detail::sd;
         using dd = sd::double_double;
 
         // B_{2m}/(2m)!, m = 1 … 12, en double-double (numérateur, dénominateur de B_{2m}).
@@ -170,7 +170,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr zipf(parameters p) : n_(p.size), s_(p.exponent)
         {
             if (!(n_ >= 1) || double(n_) > 0x1p53 || !(s_ >= 0) || !detail::is_finite(s_))
-                throw std::domain_error("wsl::probability::zipf : il faut 1 <= size <= 2^53 et exponent >= 0, fini");
+                throw std::domain_error("wsl::probability::laws::zipf : il faut 1 <= size <= 2^53 et exponent >= 0, fini");
             h_ = detail::zipf_sums::power_sum(1.0, double(n_), -s_);
             if (s_ > 0)
                 setup_sampler();
@@ -239,10 +239,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             namespace sd = detail::sd;
             if (X.s_ == 0)
-                return uniform_int(I(1), X.n_, g);
+                return random::uniform_int(I(1), X.n_, g);
             for (;;)
             {
-                double const u = X.h_integral_n_ + sd::fmul(uniform_real<double>(g, wsl::exact), X.h_integral_x1_ - X.h_integral_n_);
+                double const u = X.h_integral_n_ + sd::fmul(random::uniform_real<double>(g, wsl::exact), X.h_integral_x1_ - X.h_integral_n_);
                 double const x = X.h_integral_inverse(u);
                 double k = x + 0.5;
                 k = k < 1 ? 1 : k > double(X.n_) ? double(X.n_) : double(std::int64_t(k));
@@ -309,25 +309,25 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr double helper1(double x) noexcept                 // log1p(x)/x
         {
             namespace sd = detail::sd;
-            return detail::magnitude(x) > 1e-8 ? wsl::special::log1p(x) / x : 1 - sd::fmul(x, 0.5 - sd::fmul(x, 1.0 / 3 - sd::fmul(0.25, x)));
+            return detail::magnitude(x) > 1e-8 ? wsl::random::detail::pm::log1p(x) / x : 1 - sd::fmul(x, 0.5 - sd::fmul(x, 1.0 / 3 - sd::fmul(0.25, x)));
         }
         static constexpr double helper2(double x) noexcept                 // expm1(x)/x
         {
             namespace sd = detail::sd;
-            return detail::magnitude(x) > 1e-8 ? wsl::special::expm1(x) / x : 1 + sd::fmul(sd::fmul(x, 0.5), 1 + sd::fmul(x / 3, 1 + sd::fmul(0.25, x)));
+            return detail::magnitude(x) > 1e-8 ? wsl::random::detail::pm::expm1(x) / x : 1 + sd::fmul(sd::fmul(x, 0.5), 1 + sd::fmul(x / 3, 1 + sd::fmul(0.25, x)));
         }
         constexpr double h_integral(double x) const noexcept
         {
-            double const l = wsl::special::log(x);
+            double const l = wsl::random::detail::pm::log(x);
             return detail::sd::fmul(helper2(detail::sd::fmul(1 - s_, l)), l);
         }
-        constexpr double h(double x) const noexcept { return wsl::special::exp(detail::sd::fmul(-s_, wsl::special::log(x))); }
+        constexpr double h(double x) const noexcept { return wsl::random::detail::pm::exp(detail::sd::fmul(-s_, wsl::random::detail::pm::log(x))); }
         constexpr double h_integral_inverse(double x) const noexcept
         {
             double t = detail::sd::fmul(x, 1 - s_);
             if (t < -1)
                 t = -1;
-            return wsl::special::exp(detail::sd::fmul(helper1(t), x));
+            return wsl::random::detail::pm::exp(detail::sd::fmul(helper1(t), x));
         }
         constexpr void setup_sampler() noexcept
         {

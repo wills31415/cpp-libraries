@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Socle des lois multivariées (voir design/random.md §12) : dimension fixe ou dynamique,
 // sur le modèle de std::span, vecteurs et matrices carrées.
 //
-//   wsl::probability::dirichlet<double, 3>                // valeurs std::array<double, 3>
-//   wsl::probability::dirichlet<double, wsl::probability::dynamic>     // valeurs std::vector<double>, dimension donnée par les paramètres
+//   wsl::probability::laws::dirichlet<double, 3>                // valeurs std::array<double, 3>
+//   wsl::probability::laws::dirichlet<double, wsl::probability::dynamic>     // valeurs std::vector<double>, dimension donnée par les paramètres
 //   wsl::probability::square_matrix<double, 2> S{{1, 0.5}, {0.5, 2}};   // ligne par ligne
 //
 // Calcul (detail) : produits scalaires et sommes en double-double, produits par fmul ;
@@ -16,7 +16,7 @@
 
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/detail/loader.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <array>
 #include <cstddef>
@@ -126,7 +126,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 double const v = r.hi + r.lo;
                 if (!(v > 0))
                     return false;
-                double const ljj = wsl::special::sqrt(v);
+                double const ljj = wsl::random::detail::pm::sqrt(v);
                 l[j, j] = ljj;
                 for (std::size_t i = j + 1; i < n; ++i)
                 {
@@ -239,7 +239,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
         {
             sd::double_double s{0.0, 0.0};
             for (std::size_t j = 0; j < p; ++j)
-                s = sum(s, {wsl::special::digamma(a - sd::fmul(double(j), 0.5)), 0.0});
+                s = sum(s, {wsl::random::detail::pm::digamma(a - sd::fmul(double(j), 0.5)), 0.0});
             return s.hi + s.lo;
         }
 

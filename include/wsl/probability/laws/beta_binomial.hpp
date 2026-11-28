@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi bêta-binomiale : binomiale de n épreuves dont le paramètre suit une loi bêta(α, β),
 // P(X = k) = C(n, k) B(k + α, n − k + β)/B(α, β), 0 <= k <= n.
 //
-//   wsl::probability::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
+//   wsl::probability::laws::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
 //   X.pmf(6); X.cdf(6); X.quantile(0.9); X.variance(); X(g);
 //
 // Masse : somme des huit log Γ (double-double, wsl::special), les termes −y de Stirling
@@ -26,7 +26,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/permutations.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -53,7 +53,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr beta_binomial(parameters q) : n_(q.trials), a_(q.alpha), b_(q.beta)
         {
             if (n_ < 0 || static_cast<std::uint64_t>(n_) > (std::uint64_t{1} << 53) || !(a_ > 0) || !(b_ > 0) || !detail::is_finite(a_) || !detail::is_finite(b_))
-                throw std::domain_error("wsl::probability::beta_binomial : il faut 0 <= trials <= 2^53, alpha > 0 et beta > 0 finis");
+                throw std::domain_error("wsl::probability::laws::beta_binomial : il faut 0 <= trials <= 2^53, alpha > 0 et beta > 0 finis");
         }
 
         constexpr I trials() const noexcept { return n_; }
@@ -130,7 +130,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return 0;
             if (u == 1)
                 return X.n_;
-            double guess = X.mean() + sd::fmul(detail::normal_quantile_guess(u), wsl::special::sqrt(X.variance()));
+            double guess = X.mean() + sd::fmul(detail::normal_quantile_guess(u), wsl::random::detail::pm::sqrt(X.variance()));
             guess = guess < 0 ? 0 : guess > double(X.n_) ? double(X.n_) : guess;
             auto const ge = [&](I k) {
                 if (k >= X.n_)
@@ -145,7 +145,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            double const p = detail::native_sample(wsl::probability::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
+            double const p = detail::native_sample(wsl::probability::laws::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
             return detail::native_sample(binomial<I>({.trials = X.n_, .p = p}), g);
         }
 

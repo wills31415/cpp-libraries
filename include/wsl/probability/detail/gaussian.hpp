@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Aides gaussiennes des lois : forme réduite (x − μ)/σ en double-double ou à l'échelle,
 // erfc(w)/2, Φ⁻¹, μ ± t arrondi une fois, Φ(w) à l'échelle.
 
 #include <wsl/random/detail/arithmetic.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 #include <algorithm>
 #include <concepts>
 
@@ -122,13 +122,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         double const q = upper ? 1.0 - p : p;
         if (q == 0.5)
             return {0.0, 0.0};
-        double const w = wsl::special::erfc_inv(2.0 * q);              // > 0
+        double const w = wsl::random::detail::pm::erfc_inv(2.0 * q);              // > 0
         double delta = 0;
         if (w < 0.25)                                                   // q > 0,36 : résidu (1/2 − q) − erf(w)/2
         {
             auto const [e_hi, e_lo] = sd::erf_small(w);
             double const r = ((0.5 - q) - sd::fmul(e_hi, 0.5)) - sd::fmul(e_lo, 0.5);   // la première différence est exacte
-            delta = sd::fmul(sd::fmul(r, 2.0 * half_sqrt_pi), wsl::special::exp(sd::fmul(w, w)));
+            delta = sd::fmul(sd::fmul(r, 2.0 * half_sqrt_pi), wsl::random::detail::pm::exp(sd::fmul(w, w)));
         }
         else                                                            // ρ = erfc(w)/(2q) − 1, δ = (√π/2) F ρ/(1 + ρ)
         {

@@ -1,14 +1,14 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi d'Erlang : somme de k exponentielles indépendantes de taux λ, gamma(k, λ) à forme
 // entière.
 //
-//   wsl::probability::erlang E({.rate = 2, .shape = 3});   E.cdf(1.0); E.quantile(0.5); E(g);
+//   wsl::probability::laws::erlang E({.rate = 2, .shape = 3});   E.cdf(1.0); E.quantile(0.5); E(g);
 //
-// Fonctions : celles de wsl::probability::gamma (sous 0,5 ulp). Tirage **exact** : somme paresseuse de k
+// Fonctions : celles de wsl::probability::laws::gamma (sous 0,5 ulp). Tirage **exact** : somme paresseuse de k
 // exponentielles exactes, arrondie correctement (detail/lazy_sum.hpp) ; coût O(k).
 
 #include <wsl/probability/laws/basic.hpp>
@@ -32,7 +32,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         // Intensité .rate ou échelle .scale, comme gamma (exactes toutes deux).
         struct parameters
         {
-            std::optional<ratio> rate = std::nullopt, scale = std::nullopt;
+            std::optional<random::ratio> rate = std::nullopt, scale = std::nullopt;
             std::int64_t shape;
         };
         using param_type = parameters;
@@ -90,7 +90,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr gamma<T> check(parameters const& p)
         {
             if (p.shape <= 0 || p.shape > (std::int64_t{1} << 53))
-                throw std::domain_error("wsl::probability::erlang : il faut 1 <= shape <= 2^53");
+                throw std::domain_error("wsl::probability::laws::erlang : il faut 1 <= shape <= 2^53");
             return gamma<T>({.rate = p.rate, .scale = p.scale, .shape = static_cast<T>(p.shape)});
         }
 

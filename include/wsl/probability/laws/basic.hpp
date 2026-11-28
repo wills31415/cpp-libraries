@@ -1,14 +1,14 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Premières lois : uniforme continue, uniforme discrète, Bernoulli.
 //
-//   wsl::probability::uniform X({.lower = 2, .upper = 6});              // [2, 6), double par défaut
-//   wsl::probability::uniform<float> Y({.lower = 0, .upper = 1});
-//   wsl::probability::discrete_uniform D({.lower = 1, .upper = 6});     // un dé : {1, …, 6}
-//   wsl::probability::bernoulli B({.p = 0.3});
+//   wsl::probability::laws::uniform X({.lower = 2, .upper = 6});              // [2, 6), double par défaut
+//   wsl::probability::laws::uniform<float> Y({.lower = 0, .upper = 1});
+//   wsl::probability::laws::discrete_uniform D({.lower = 1, .upper = 6});     // un dé : {1, …, 6}
+//   wsl::probability::laws::bernoulli B({.p = 0.3});
 //
 //   X.mean(); X.variance(); X.cdf(3.0); X.quantile(0.25); X(g);
 //
@@ -18,7 +18,7 @@
 #include <wsl/random/detail/arithmetic.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <concepts>
 #include <cstdint>
@@ -60,7 +60,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr uniform(bounds b) : low_(b.lower), high_(b.upper)
         {
             if (!(low_ < high_) || !detail::is_finite(low_) || !detail::is_finite(high_))
-                throw std::domain_error("wsl::probability::uniform : il faut lower < upper, finis");
+                throw std::domain_error("wsl::probability::laws::uniform : il faut lower < upper, finis");
         }
 
         constexpr T lower() const noexcept { return low_; }
@@ -155,7 +155,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return X.clamp(detail::interpolate(X.low_, X.high_, uniform_real<double>(g, wsl::exact)));
+            return X.clamp(detail::interpolate(X.low_, X.high_, random::uniform_real<double>(g, wsl::exact)));
         }
 
         friend constexpr bool operator==(uniform const&, uniform const&) = default;
@@ -209,7 +209,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr discrete_uniform(bounds b) : low_(b.lower), high_(b.upper)
         {
             if (high_ < low_)
-                throw std::domain_error("wsl::probability::discrete_uniform : il faut lower <= upper");
+                throw std::domain_error("wsl::probability::laws::discrete_uniform : il faut lower <= upper");
         }
 
         constexpr I lower() const noexcept { return low_; }
@@ -314,7 +314,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            return uniform_int(X.low_, X.high_, g);
+            return random::uniform_int(X.low_, X.high_, g);
         }
 
         friend constexpr bool operator==(discrete_uniform const&, discrete_uniform const&) = default;
@@ -371,7 +371,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr bernoulli(probability parameter) : p_(parameter.p)
         {
             if (!(p_ >= 0 && p_ <= 1))
-                throw std::domain_error("wsl::probability::bernoulli : p doit être dans [0, 1]");
+                throw std::domain_error("wsl::probability::laws::bernoulli : p doit être dans [0, 1]");
         }
 
         constexpr double p() const noexcept { return p_; }
@@ -393,7 +393,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             if (p_ == 0 || p_ == 1)
                 return 0;
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             return -(detail::sd::fmul(p_, sp::log(p_)) + detail::sd::fmul(1.0 - p_, sp::log1p(-p_)));
         }
 
@@ -405,7 +405,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr bool sample(G& g) const
         {
             auto const& X = *this;
-            return bernoulli_trial(X.p_, g);
+            return random::bernoulli_trial(X.p_, g);
         }
 
         friend constexpr bool operator==(bernoulli const&, bernoulli const&) = default;

@@ -1,13 +1,13 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi gamma de forme a > 0, de taux λ > 0 ou d'échelle θ = 1/λ :
 // densité λ^a x^{a−1} e^{−λx} / Γ(a) sur [0, +∞).
 //
-//   wsl::probability::gamma X({.rate = 2.0, .shape = 2.5});
-//   wsl::probability::gamma Y({.scale = 0.5, .shape = 2.5});        // la même loi
+//   wsl::probability::laws::gamma X({.rate = 2.0, .shape = 2.5});
+//   wsl::probability::laws::gamma Y({.scale = 0.5, .shape = 2.5});        // la même loi
 //   X.mean(); X.pdf(1.0); X.log_pdf(1.0); X(g);
 //
 // Le paramètre donné (taux ou échelle) est gardé tel quel : les calculs
@@ -33,7 +33,7 @@
 #include <wsl/probability/detail/loader.hpp>
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <limits>
 #include <optional>
@@ -85,11 +85,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                     v = 1.0 + sd::fmul(c, z);
                 } while (v <= 0);
                 v = sd::fmul(sd::fmul(v, v), v);
-                double const u = uniform_real<double>(g, wsl::exact);
+                double const u = random::uniform_real<double>(g, wsl::exact);
                 double const z2 = sd::fmul(z, z);
                 if (u < 1.0 - sd::fmul(0.0331, sd::fmul(z2, z2)))
                     return sd::fmul(d, v);
-                if (wsl::special::log(u) < sd::fmul(0.5, z2) + sd::fmul(d, (1.0 - v) + wsl::special::log(v)))
+                if (wsl::random::detail::pm::log(u) < sd::fmul(0.5, z2) + sd::fmul(d, (1.0 - v) + wsl::random::detail::pm::log(v)))
                     return sd::fmul(d, v);
             }
         }
@@ -109,7 +109,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
-            std::optional<ratio> rate = std::nullopt, scale = std::nullopt;
+            std::optional<random::ratio> rate = std::nullopt, scale = std::nullopt;
             T shape;
         };
         using param_type = parameters;
@@ -120,7 +120,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         }
 
         constexpr gamma(parameters p)
-            : gamma(p.shape, detail::rate_of(p.rate, p.scale, "wsl::probability::gamma : il faut .rate ou .scale (pas les deux), > 0 et finis"))
+            : gamma(p.shape, detail::rate_of(p.rate, p.scale, "wsl::probability::laws::gamma : il faut .rate ou .scale (pas les deux), > 0 et finis"))
         {
         }
 
@@ -143,7 +143,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const nu = double(shape_) - 1;
             return nu <= 0 ? T(0) : static_cast<T>(detail::rounded(per_rate(detail::normalized(nu, 0.0))));
         }
-        constexpr T skewness() const noexcept { return static_cast<T>(2 / wsl::special::sqrt(double(shape_))); }
+        constexpr T skewness() const noexcept { return static_cast<T>(2 / wsl::random::detail::pm::sqrt(double(shape_))); }
         constexpr T excess_kurtosis() const noexcept { return static_cast<T>(6 / double(shape_)); }
 
         constexpr T pdf(T x) const noexcept
@@ -332,7 +332,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             {
                 double const h = detail::marsaglia_tsang(X.d_, X.c_, g);
                 double const u = detail::uniform_positive(g);
-                y = fmul_exp(h, wsl::special::log(u) / double(X.shape_));
+                y = fmul_exp(h, wsl::random::detail::pm::log(u) / double(X.shape_));
             }
             if (X.rate_ != 0)
                 return static_cast<T>(y / X.rate_);
@@ -377,10 +377,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             if (!(shape_ > 0) || !detail::is_finite(shape_))
-                throw std::domain_error("wsl::probability::gamma : il faut shape > 0, fini");
+                throw std::domain_error("wsl::probability::laws::gamma : il faut shape > 0, fini");
             double const a = shape_ >= 1 ? double(shape_) : double(shape_) + 1;
             d_ = a - 1.0 / 3;
-            c_ = 1 / wsl::special::sqrt(fp::fmul(9.0, d_));
+            c_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_));
         }
 
         // P(X <= x) (ou P(X > x)) : P(a, t) de wsl::special en t = t_hi, corrigé de
@@ -425,7 +425,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
 
         static constexpr double fmul_exp(double h, double l) noexcept
         {
-            return detail::sd::fmul(h, wsl::special::exp(l));
+            return detail::sd::fmul(h, wsl::random::detail::pm::exp(l));
         }
 
         // λx (ou x/θ), à l'échelle.

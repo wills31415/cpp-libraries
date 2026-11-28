@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Variables aléatoires (voir design/variables.md) : applications mesurables X : Ω → E sur un
 // espace probabilisé commun. wsl::probability::variable(P) ajoute à Ω un facteur indépendant de
@@ -56,7 +56,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/pushforward.hpp>
 #include <wsl/probability/truncated.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <array>
@@ -1076,7 +1076,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
         template <class L>
         inline constexpr bool gaussian_leaves<variable<L>> = false;
         template <class T>
-        inline constexpr bool gaussian_leaves<variable<normal<T>>> = true;
+        inline constexpr bool gaussian_leaves<variable<laws::normal<T>>> = true;
         template <class Op, class... A>
         inline constexpr bool gaussian_leaves<expression<Op, A...>> = (gaussian_leaves<A> && ...);
         template <class L>
@@ -1097,7 +1097,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
         struct family_storage<N> { using type = std::optional<family_of_expression<N>>; };
         template <class N>
             requires(!has_family<N> && gaussian_family<N>)
-        struct family_storage<N> { using type = std::optional<normal<>>; };
+        struct family_storage<N> { using type = std::optional<laws::normal<>>; };
 
         // Termes a·Pᵢ (variables regroupées) et constante, pour une famille L.
         template <class L, class N>
@@ -1241,7 +1241,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 for (; j < raw.size() && std::get<0>(raw[j]) == id; ++j)
                     a += std::get<1>(raw[j]);
                 i = j;
-                double const a2 = sd::fmul(a, a), s = wsl::special::sqrt(v);
+                double const a2 = sd::fmul(a, a), s = wsl::random::detail::pm::sqrt(v);
                 k[0] += sd::fmul(a2, v);
                 k[1] += sd::fmul(sd::fmul(sd::fmul(a2, a), g1), sd::fmul(v, s));
                 k[2] += sd::fmul(sd::fmul(a2, a2), sd::fmul(g2, sd::fmul(v, v)));
@@ -1269,7 +1269,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
             {
                 double const v = Var(z_);
                 if (v > 0)
-                    family_ = normal<>({.mean = E(z_), .variance = v});
+                    family_ = laws::normal<>({.mean = E(z_), .variance = v});
             }
         }
 
@@ -1283,7 +1283,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
         double skewness() const requires detail::is_affine<N> && detail::leaves_have_shape<N>
         {
             auto const k = detail::cumulants(z_);
-            return k[0] > 0 ? k[1] / (k[0] * wsl::special::sqrt(k[0])) : std::numeric_limits<double>::quiet_NaN();
+            return k[0] > 0 ? k[1] / (k[0] * wsl::random::detail::pm::sqrt(k[0])) : std::numeric_limits<double>::quiet_NaN();
         }
         double excess_kurtosis() const requires detail::is_affine<N> && detail::leaves_have_shape<N>
         {
@@ -1344,7 +1344,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
 
     namespace detail::functions
     {
-        namespace sp = wsl::special;
+        namespace sp = wsl::random::detail::pm;
         // Bijections croissantes : f, f⁻¹, (f⁻¹)' (produits protégés de la contraction).
         inline constexpr auto exp = increasing([](auto x) { return sp::exp(x); }, [](auto y) { return sp::log(y); }, [](auto y) { return 1 / y; });
         inline constexpr auto log = increasing([](auto x) { return sp::log(x); }, [](auto y) { return sp::exp(y); }, [](auto y) { return sp::exp(y); });
@@ -1653,7 +1653,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
         Z z_;
         A a_;
         bool independent_ = false;
-        std::conditional_t<truncatable, std::optional<truncated<typename std::conditional_t<base_variable<Z>, Z, variable<normal<>>>::law_type>>, char> truncated_{};
+        std::conditional_t<truncatable, std::optional<truncated<typename std::conditional_t<base_variable<Z>, Z, variable<laws::normal<>>>::law_type>>, char> truncated_{};
     };
 
     // Variable aléatoire de loi celle de Z sachant A (nouvelle identité).

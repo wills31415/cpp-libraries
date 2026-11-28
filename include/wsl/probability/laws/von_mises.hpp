@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Lois de von Mises (sur le cercle) et de von Mises–Fisher (sur la sphère Sᵖ⁻¹).
 //
-//   wsl::probability::von_mises V({.location = 0.5, .concentration = 4});                   // angles dans [μ − π, μ + π]
-//   wsl::probability::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .concentration = 10});
+//   wsl::probability::laws::von_mises V({.location = 0.5, .concentration = 4});                   // angles dans [μ − π, μ + π]
+//   wsl::probability::laws::von_mises_fisher<double, 3> F({.mean_direction = {0, 0, 1}, .concentration = 10});
 //   V.pdf(1.0); V.circular_variance(); V(g); F.pdf(x); F.mean(); F(g);
 //
 // von Mises : densité e^{κ cos(x − μ)}/(2π I₀(κ)) sur [μ − π, μ + π], calculée comme
@@ -40,7 +40,7 @@
 #include <wsl/probability/multivariate.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/probability/laws/sphere.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <cstddef>
 #include <limits>
@@ -58,7 +58,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         // log(e^{−κ} I_ν(κ)), κ > 0, en double-double.
         constexpr sd::double_double log_scaled_bessel(double nu, double kappa) noexcept
         {
-            return sum(wsl::special::detail::log_cyl_bessel_i(nu, kappa), {-kappa, 0.0});
+            return sum(wsl::random::detail::sd::log_cyl_bessel_i(nu, kappa), {-kappa, 0.0});
         }
 
         // A_ν = I_{ν+1}(κ)/I_ν(κ), et 1 − A_ν, en double-double.
@@ -68,8 +68,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         };
         constexpr bessel_ratio bessel_ratio_of(double nu, double kappa) noexcept
         {
-            auto const l0 = wsl::special::detail::log_cyl_bessel_i(nu, kappa);
-            auto const l = sum(wsl::special::detail::log_cyl_bessel_i(nu + 1, kappa), {-l0.hi, -l0.lo});
+            auto const l0 = wsl::random::detail::sd::log_cyl_bessel_i(nu, kappa);
+            auto const l = sum(wsl::random::detail::sd::log_cyl_bessel_i(nu + 1, kappa), {-l0.hi, -l0.lo});
             sd::double_double a{0.0, 0.0};
             if (l.hi > -1500)
                 a = unscaled(exp_scaled(l.hi, l.lo));
@@ -105,7 +105,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                 if (fp::fmul(ks, w) > 2.0)
                     w = 2.0 / ks;
                 if (fp::fmul(kc, fp::fmul(w, w)) > 0.5)
-                    w = wsl::special::sqrt(0.5 / kc);
+                    w = wsl::random::detail::pm::sqrt(0.5 / kc);
                 return w;
             };
             auto const stop = [&](sd::double_double t0, scaled const& total, sd::double_double rest) {
@@ -144,7 +144,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr von_mises(parameters p) : mu_(p.location), kappa_(p.concentration)
         {
             if (!detail::is_finite(mu_) || !(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::probability::von_mises : il faut location fini et concentration >= 0, fini");
+                throw std::domain_error("wsl::probability::laws::von_mises : il faut location fini et concentration >= 0, fini");
             namespace fp = detail::sd;
             double const k = kappa_;
             log_norm_ = {fp::fmul(detail::half_log_2pi_hi, 2.0), fp::fmul(detail::half_log_2pi_lo, 2.0)};   // log 2π
@@ -153,8 +153,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             // Best–Fisher : τ = 1 + √(1 + 4κ²), ρ = (τ − √(2τ))/(2κ), r = (1 + ρ²)/(2ρ).
             if (k >= 0x1p-30)
             {
-                double const tau = 1 + wsl::special::sqrt(1 + fp::fmul(4.0, fp::fmul(k, k)));
-                double const rho = (tau - wsl::special::sqrt(fp::fmul(2.0, tau))) / fp::fmul(2.0, k);
+                double const tau = 1 + wsl::random::detail::pm::sqrt(1 + fp::fmul(4.0, fp::fmul(k, k)));
+                double const rho = (tau - wsl::random::detail::pm::sqrt(fp::fmul(2.0, tau))) / fp::fmul(2.0, k);
                 r_ = (1 + fp::fmul(rho, rho)) / fp::fmul(2.0, rho);
             }
         }
@@ -220,13 +220,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& V = *this;
             namespace fp = detail::sd;
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             double const mu = V.mu_, k = V.kappa_;
             if (V.r_ == 0)                                                  // κ minuscule : uniforme
-                return static_cast<T>(detail::interpolate(mu - detail::pi_hi, mu + detail::pi_hi, uniform_real<double>(g, wsl::exact)));
+                return static_cast<T>(detail::interpolate(mu - detail::pi_hi, mu + detail::pi_hi, random::uniform_real<double>(g, wsl::exact)));
             for (;;)
             {
-                double const u1 = uniform_real<double>(g, wsl::exact), u2 = detail::uniform_positive(g), u3 = uniform_real<double>(g, wsl::exact);
+                double const u1 = random::uniform_real<double>(g, wsl::exact), u2 = detail::uniform_positive(g), u3 = random::uniform_real<double>(g, wsl::exact);
                 double const z = sp::cos(fp::fmul(detail::pi_hi, u1));
                 double const f = (1 + fp::fmul(V.r_, z)) / (V.r_ + z);
                 double const c = fp::fmul(k, V.r_ - f);
@@ -323,7 +323,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (kappa_ > 0)                                                 // départ : loi normale d'écart type 1/√κ
             {
                 auto const z = detail::standard_quantile(t);               // < 0
-                phi = -fp::fmul(z.hi, 1.0 / wsl::special::sqrt(double(kappa_)));
+                phi = -fp::fmul(z.hi, 1.0 / wsl::random::detail::pm::sqrt(double(kappa_)));
                 if (!(phi < 3.0))
                     phi = 3.0;
             }
@@ -379,12 +379,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             namespace fp = detail::sd;
             std::size_t const n = mu_.size();
             if (n < 2)
-                throw std::domain_error("wsl::probability::von_mises_fisher : il faut une dimension >= 2");
+                throw std::domain_error("wsl::probability::laws::von_mises_fisher : il faut une dimension >= 2");
             if (!(kappa_ >= 0) || !detail::is_finite(kappa_))
-                throw std::domain_error("wsl::probability::von_mises_fisher : il faut concentration >= 0, fini");
+                throw std::domain_error("wsl::probability::laws::von_mises_fisher : il faut concentration >= 0, fini");
             auto const r2 = detail::dot(n, [&](std::size_t k) { return std::pair{double(mu_[k]), double(mu_[k])}; });
             if (!(r2.hi > 0) || !detail::is_finite(r2.hi))
-                throw std::domain_error("wsl::probability::von_mises_fisher : direction moyenne nulle ou non finie");
+                throw std::domain_error("wsl::probability::laws::von_mises_fisher : direction moyenne nulle ou non finie");
             detail::scaled const r = detail::sqrt(detail::normalized(r2.hi, r2.lo));
             for (auto& v : mu_)                                             // μ/|μ|
             {
@@ -405,9 +405,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 log_c_plus_kappa_ = detail::sum(l, {-b.hi, -b.lo});
                 // Wood : b = (p − 1)/(2κ + √(4κ² + (p − 1)²)), x₀ = (1 − b)/(1 + b), c = κx₀ + (p − 1) log(1 − x₀²).
                 double const m = p - 1;
-                b_ = m / (fp::fmul(2.0, k) + wsl::special::sqrt(fp::fmul(fp::fmul(4.0, k), k) + fp::fmul(m, m)));
+                b_ = m / (fp::fmul(2.0, k) + wsl::random::detail::pm::sqrt(fp::fmul(fp::fmul(4.0, k), k) + fp::fmul(m, m)));
                 x0_ = (1 - b_) / (1 + b_);
-                c_ = fp::fmul(k, x0_) + fp::fmul(m, wsl::special::log(fp::fmul(1 - x0_, 1 + x0_)));
+                c_ = fp::fmul(k, x0_) + fp::fmul(m, wsl::random::detail::pm::log(fp::fmul(1 - x0_, 1 + x0_)));
             }
         }
 
@@ -468,7 +468,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& F = *this;
             namespace fp = detail::sd;
-            namespace sp = wsl::special;
+            namespace sp = wsl::random::detail::pm;
             std::size_t const n = F.dimension();
             if (F.kappa_ == 0)
                 return detail::uniform_direction<T, N>(n, g);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Sommes exactes de réels paresseux, arrondies correctement (processus en temps
 // continu, marches à pas réels ; design/random.md §14, option B).
@@ -31,7 +31,7 @@
 #include <wsl/probability/laws/laplace.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -135,10 +135,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
     };
 
     template <class T, class G>
-    constexpr lazy_draw lazy_sample(normal<T> const& X, G& g)
+    constexpr lazy_draw lazy_sample(laws::normal<T> const& X, G& g)
     {
         lazy_real v = exact_half_normal(g);
-        bool const negative = (random_bits(g) >> 63) != 0;                  // même ordre que sample(normal)
+        bool const negative = (random::random_bits(g) >> 63) != 0;                  // même ordre que sample(normal)
         bool const root = !X.has_double_stddev();                           // σ = √v irrationnel : terme ±√v V
         dyadic_value c = to_dyadic(root ? 1.0 : double(X.stddev()));
         if (negative)
@@ -146,7 +146,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         return {to_dyadic(double(X.mean())), c, 1.0, std::move(v), root, X.exact_variance()};
     }
     template <class T, class G>
-    constexpr lazy_draw lazy_sample(exponential<T> const& X, G& g)
+    constexpr lazy_draw lazy_sample(laws::exponential<T> const& X, G& g)
     {
         if (double const r = X.exact_rate().as_double(); r != 0)
             return {{}, to_dyadic(1.0), r, exact_exponential(g), false, {1.0, 0.0, 0}};
@@ -154,17 +154,17 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
         return {{}, to_dyadic(f.sigma), f.divisor, exact_exponential(g), false, {1.0, 0.0, 0}};
     }
     template <class T, class G>
-    constexpr lazy_draw lazy_sample(laplace<T> const& X, G& g)
+    constexpr lazy_draw lazy_sample(laws::laplace<T> const& X, G& g)
     {
         lazy_real v = exact_exponential(g);
-        bool const negative = (random_bits(g) >> 63) != 0;
+        bool const negative = (random::random_bits(g) >> 63) != 0;
         dyadic_value c = to_dyadic(double(X.scale()));
         if (negative)
             c = -c;
         return {to_dyadic(double(X.location())), c, 1.0, std::move(v), false, {1.0, 0.0, 0}};
     }
     template <class T, class G>
-    constexpr lazy_draw lazy_sample(uniform<T> const& X, G&)
+    constexpr lazy_draw lazy_sample(laws::uniform<T> const& X, G&)
     {
         return {to_dyadic(double(X.lower())), to_dyadic(double(X.upper())) - to_dyadic(double(X.lower())), 1.0, lazy_real{}, false, {1.0, 0.0, 0}};
     }

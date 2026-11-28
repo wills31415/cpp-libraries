@@ -1,12 +1,12 @@
 #pragma once
 
 #include <wsl/modes.hpp>
-#include <wsl/probability/detail/transition.hpp>   // transition (étape 5a)
+#include <wsl/probability/detail/base.hpp>
 
 // Loi inverse-gaussienne (de Wald) de moyenne μ et de forme λ :
 // densité √(λ/(2πx³)) e^{−λ(x − μ)²/(2μ²x)}, x > 0.
 //
-//   wsl::probability::inverse_gaussian W({.mean = 1, .shape = 3});
+//   wsl::probability::laws::inverse_gaussian W({.mean = 1, .shape = 3});
 //   W.cdf(2.0); W.ccdf(50.0); W.quantile(0.99); W.variance(); W(g);
 //
 // Avec c = √(λ/x), a = c (x − μ)/μ, δ = 2c et R(s) = e^{s²/2} Φ(−s) (rapport de Mills) :
@@ -33,7 +33,7 @@
 #include <wsl/probability/law.hpp>
 #include <wsl/probability/laws/normal.hpp>
 #include <wsl/random/uniform.hpp>
-#include <wsl/special.hpp>
+#include <wsl/random/detail/portable_math.hpp>
 
 #include <bit>
 #include <cstdint>
@@ -238,7 +238,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr inverse_gaussian(parameters p) : mu_(p.mean), lambda_(p.shape)
         {
             if (!(mu_ > 0) || !detail::is_finite(mu_) || !(lambda_ > 0) || !detail::is_finite(lambda_))
-                throw std::domain_error("wsl::probability::inverse_gaussian : il faut mean > 0 et shape > 0, finis");
+                throw std::domain_error("wsl::probability::laws::inverse_gaussian : il faut mean > 0 et shape > 0, finis");
         }
 
         constexpr T mean() const noexcept { return mu_; }
@@ -321,10 +321,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const mu = W.mu_, lambda = W.lambda_;
             double const z = detail::native_sample(normal<double>({.mean = 0.0, .stddev = 1.0}), g);
             double const w = fp::fmul(mu, fp::fmul(z, z));
-            double const s = wsl::special::sqrt(fp::fmul(w, fp::fmul(4.0, lambda) + w));
+            double const s = wsl::random::detail::pm::sqrt(fp::fmul(w, fp::fmul(4.0, lambda) + w));
             double const x2 = mu + fp::fmul(mu, (w + s) / fp::fmul(2.0, lambda));
             double const x1 = fp::fmul(mu, mu / x2);
-            return static_cast<T>(bernoulli_trial(mu / (mu + x1), g) ? x1 : x2);
+            return static_cast<T>(random::bernoulli_trial(mu / (mu + x1), g) ? x1 : x2);
         }
 
         friend constexpr bool operator==(inverse_gaussian const&, inverse_gaussian const&) = default;
@@ -365,7 +365,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 double const next = side > 0 ? u - 16 : u + 16;
                 return next < -745.0 ? -745.0 : next > 709.7 ? 709.7 : next;
             };
-            auto const u = detail::solve_part(evaluate, !upper, t, {.start = wsl::special::log(mu), .max_step = 16}, outward, detail::arithmetic_midpoint);
+            auto const u = detail::solve_part(evaluate, !upper, t, {.start = wsl::random::detail::pm::log(mu), .max_step = 16}, outward, detail::arithmetic_midpoint);
             return nearest_double(detail::rounded(detail::exp_scaled(u.hi, u.lo)), t, upper);
         }
 

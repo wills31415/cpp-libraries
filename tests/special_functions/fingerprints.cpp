@@ -12,7 +12,9 @@
 // corriger. Une empreinte qui change partout, après une modification voulue d'un
 // algorithme : c'est une rupture, à noter au CHANGELOG, puis mettre à jour ici.
 
-#include <wsl/special.hpp>
+#include <wsl/elementary_functions.hpp>
+#include <wsl/special_functions.hpp>
+#include <wsl/special_functions/detail/pinned_portable.hpp>
 
 #include <array>
 #include <bit>
@@ -22,7 +24,7 @@
 #include <cstdio>
 #include <utility>
 
-namespace sp = wsl::special;
+namespace sp = wsl::special_functions::detail::pinned_portable;   // fonctions figées en mode portable
 
 namespace
 {
@@ -61,7 +63,7 @@ namespace
     double uniform(splitmix64& g, double low, double high)
     {
         double const u = double(g() >> 11) * 0x1p-53;
-        return low + wsl::special::detail::fmul(high - low, u);
+        return low + wsl::floating_point_arithmetic::detail::fmul(high - low, u);
     }
 
     template <class F>
@@ -254,7 +256,7 @@ int main()
     auto const digamma_float = fingerprint([&](splitmix64& g) { return of_float(sp::digamma(static_cast<float>(uniform(g, -40, 1e6)))); });
     auto const igamma_input = [&](splitmix64& g) {
         double const a = std::bit_cast<double>((std::uint64_t{1023 - 30 + g() % 64} << 52) | (g() >> 12));   // 2^-30 … 2^34
-        double const x = g() % 2 == 0 ? a + wsl::special::detail::fmul(uniform(g, -8, 8), sp::sqrt(a))
+        double const x = g() % 2 == 0 ? a + wsl::floating_point_arithmetic::detail::fmul(uniform(g, -8, 8), sp::sqrt(a))
                                       : a * std::bit_cast<double>((std::uint64_t{1023 - 6 + g() % 12} << 52) | (g() >> 12));
         return std::pair{a, x < 0 ? -x : x};
     };
