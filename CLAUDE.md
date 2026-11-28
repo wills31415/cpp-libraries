@@ -41,21 +41,39 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   détail sur le homelab ou les projets privés au-delà de leur nom).
 - Toute modification d'une bibliothèque s'accompagne d'une entrée dans la section
   `[Non publié]` de `CHANGELOG.md`, sous le nom de la bibliothèque.
-- Publication : `tools/release.sh X.Y.Z` (voir README). Ne publier, pousser ou
-  taguer qu'à la demande de l'utilisateur.
-- CI (`.github/workflows/ci.yml`) : GCC 14 et Clang 18 (Ubuntu 24.04) et Apple Clang
-  (macOS), Debug (-O1, ASan + UBSan) + Release, configurations FMA en Release seulement, `-DWSL_WERROR=ON`, plus `tests/package/`.
+- **Circuit** (design/interfaces.md, décisions 43 à 49) : jamais de push sur `main` (protégé) ;
+  une branche `<alias>/<sujet-en-anglais>` et une PR par étape, titre `<nom complet> : <résumé>`
+  en français, description au modèle (Quoi et pourquoi, Changements, Rupture, Vérification),
+  étiquette de nature (`rupture`, `nouveauté`, `correction`, `interne`) posée à la création ;
+  fusion automatique par commit de fusion (`gh pr merge --auto --merge`) quand la Synthèse est
+  verte. Étapes suivantes sur des branches enchaînées, recalées par rebase sur `main` après la
+  fusion de la précédente (jamais « Update branch »). Avant chaque push : `tools/check.sh`
+  (le hook `tools/git-hooks/pre-push` l'exige ; activer par
+  `git config core.hooksPath tools/git-hooks`).
+- Publication : `tools/release.sh prepare X.Y.Z` (PR de version), puis, fusionnée,
+  `tools/release.sh tag X.Y.Z` (la CI publie). Proposer une version à la fin d'un chantier
+  dont `[Non publié]` contient une nouveauté ou une rupture, un correctif aussitôt pour un
+  résultat faux ; ne publier ou taguer qu'à la demande de l'utilisateur.
+- Feuille de route : un ticket par chantier, avec sous-tickets (`gh issue list`). Limite
+  d'interaction « collaborateurs » à renouveler avant son échéance (voir la mémoire).
+- CI (`.github/workflows/ci.yml`) : blocs Release, Sanitizers (Debug -O1, ASan + UBSan), FMA
+  (`-march=x86-64-v3 -ffp-contract=fast`), chacun sur GCC 14 et Clang 18 (Ubuntu 24.04) et
+  Apple Clang (`macos-26-intel`), plus Paquet CMake, puis Synthèse ; `-DWSL_WERROR=ON`.
+  **Systèmes, versions et compilateurs : décision de l'utilisateur seul.**
   Reproduire la partie Linux en local : conteneur `ubuntu:24.04` avec
-  `cmake make g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
+  `cmake ninja-build g++-14 clang-18 libclang-rt-18-dev` (Docker est installé).
   Y compiler les tests **optimisés** (`-O2`, comme les jobs release) : certains
   avertissements de GCC (`-Warray-bounds`…) n'apparaissent qu'avec l'optimisation ;
   `-fsyntax-only` ne suffit pas.
-- La CI ne compile et ne teste que ce qu'un push peut avoir changé : chemins modifiés
-  depuis le dernier passage réussi (`tools/ci/changed_files.sh`), bibliothèques touchées
-  et celles qui en dépendent (`cmake/affected.cmake`, option `WSL_AFFECTED_BY`) ;
-  documentation seule (`cmake/ci_ignored_paths.txt`) : rien ; infrastructure, tag,
-  lancement manuel, passage hebdomadaire : tout. Une nouvelle bibliothèque est reconnue
-  par ses chemins (`include/wsl/<nom>…`, `tools/<nom>/`, `tests/test_<nom>…`).
+- Ce que la CI teste : PR → bibliothèques touchées par la PR (`tools/ci/changed_files.sh`,
+  `cmake/affected.cmake`, option `WSL_AFFECTED_BY`) et celles qui en dépendent ;
+  documentation seule (`cmake/ci_ignored_paths.txt`) : rien ; infrastructure, hebdomadaire,
+  manuel : tout ; fusion dans `main` : run léger ; tag : Publication seulement. Résumés et
+  annotations : `tools/ci/summary.py`. Une nouvelle bibliothèque est reconnue par ses chemins
+  (`include/wsl/<nom>…`, `tools/<nom>/`, `tests/<nom>…`).
+- Valeurs de référence : magasin adressé par contenu (`cmake/reference_store.cmake`,
+  `~/.cache/wsl/references` ou `WSL_REFERENCE_STORE`) ; mpmath figé
+  (`cmake/mpmath_version.txt`, en changer est un commit qui recalcule tout).
 - Les projets consomment le dépôt par FetchContent figé sur un tag ; l'outil personnel
   cpp-init (dépôt privé `wills31415/cpp-init`, `~/projets/cpp-init`) le configure par défaut.
 
@@ -67,9 +85,10 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   Noms et étiquettes : tests rangés comme les espaces de noms (`tests/mdarray/axis.cpp` →
   `mdarray.axis`), étiquettes en tête du fichier (`// Étiquettes : precision long`).
 - Vérification rapide : `tools/check.sh [release|fma|debug]…` (par défaut release et fma)
-  ne compile et ne teste que les bibliothèques touchées depuis le dernier push (même règle
-  que la CI, `cmake/affected.cmake`), dans `build/check-<configuration>` ; `--all` pour
-  tout. La suite debug complète est laissée à la CI.
+  ne compile et ne teste que les bibliothèques touchées depuis `main` (même règle que la CI
+  d'une PR), sur une copie figée (`build/check-src`) : on peut modifier le dépôt pendant ;
+  `--all` pour tout. Presets en Ninja, ccache s'il est installé (`~/.local/bin/ccache`,
+  binaire officiel, mise à jour à la main). La suite debug complète est laissée à la CI.
 - Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++23,
   sur les trois compilateurs de la CI.
 
@@ -193,12 +212,9 @@ l'ancien `wsl::special` et de l'ancien `wsl::random` en domaines (décision 37),
 retirées, documentation (`docs/`, `examples/`). cpp-init garde `wsl_libraries` tant que le
 dernier tag est `v0.1.0` (à changer au prochain tag).
 
-Ensuite, dans l'ordre :
-1. Fonctions de `ef` correctement arrondies (`wsl::exact`, méthode de Ziv, décision 41) :
-   exp, exp2, expm1, puis logarithmes, trigonométrie, cbrt et hypot, pow ; puis revoir
-   `WSL_EXACT` (strict, ou séparé en tirages exacts et arrondi correct).
-2. Lois et socle double-double dans les deux modes (règle D, décision 38), algèbre des lois
-   dans `measure_theory` avec sa généralisation aux mesures (décisions 39 et 42).
-3. Interface publique de `floating_point_arithmetic` ; référence engendrée depuis les
-   en-têtes (outil à choisir) ; langue de la documentation (décision 32).
-4. Lot 2 de mdarray (vues), puis les objets mathématiques de `design/algebra.md`.
+La feuille de route est en tickets sur GitHub (`gh issue list`), un par chantier, avec ses
+sous-tickets, dans l'ordre : #4 circuit de déploiement et v0.2.0 ; #11 arrondi correct de
+`ef` (Ziv, décision 41, puis revoir `WSL_EXACT`) ; #18 lois dans les deux modes et algèbre des
+lois dans `measure_theory` (décisions 38, 39, 42) ; #22 interface publique de
+`floating_point_arithmetic` ; #23 référence engendrée et langue de la documentation ; #24 lot 2
+de mdarray, puis les objets mathématiques de `design/algebra.md`.

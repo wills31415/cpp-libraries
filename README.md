@@ -118,11 +118,15 @@ machine : une version incompatible installée plus tard casse les anciens projet
 
 | Action | VSCode | Terminal |
 |---|---|---|
-| Compiler | ⇧⌘B | `cmake --preset debug && cmake --build --preset debug -j` |
+| Compiler | ⇧⌘B | `cmake --preset debug && cmake --build --preset debug` |
 | Tests (ASan + UBSan, sans les tests longs) | tâche « Tests » | `ctest --preset debug` |
 | Tests en Release (tous) | tâche « Tests (Release) » | `ctest --preset release` |
-| Vérification rapide (bibliothèques touchées, Release et fma) | — | `tools/check.sh` |
+| Vérification rapide (touché depuis `main`, Release et fma) | tâche « Vérification rapide » | `tools/check.sh` |
 | Déboguer le test ouvert | F5 → « Déboguer le test courant » | — |
+
+Presets en Ninja ; ccache est employé s'il est installé. Les valeurs de référence des tests de
+précision (mpmath) sont calculées une fois, puis restaurées d'un magasin partagé par tous les
+dossiers de build (`~/.cache/wsl/references`).
 
 Les tests sont rangés comme les espaces de noms : `tests/probability/laws.cpp` donne le test
 `probability.laws`, `tests/mdarray/axis.cpp` le test `mdarray.axis`. Une ligne
@@ -130,8 +134,26 @@ Les tests sont rangés comme les espaces de noms : `tests/probability/laws.cpp` 
 (`ctest -L precision`, `ctest -LE long`). Les exemples, `examples/<domaine>/<tâche>.cpp`,
 sont lancés comme tests `example.<domaine>.<tâche>` (étiquette `example`). Un test réussit
 s'il renvoie 0. `tests/package/` vérifie, en CI, l'installation et FetchContent du point de
-vue d'un consommateur. La CI ne compile que ce qu'un push peut avoir changé, et ce qui en
-dépend.
+vue d'un consommateur.
+
+### Circuit
+
+Une branche et une PR par étape ; `main` est protégé et ne reçoit que des commits de fusion de
+PR à la CI verte ([design/interfaces.md](design/interfaces.md), décisions 43 à 49) :
+
+```sh
+git config core.hooksPath tools/git-hooks      # une fois par clone : hook d'avant push
+git switch -c ef/correctly-rounded-exp
+# … commits « elementary_functions : … » …
+tools/check.sh                                  # exigé par le hook avant chaque push
+git push -u origin ef/correctly-rounded-exp
+gh pr create --fill --label nouveauté && gh pr merge --auto --merge
+```
+
+La CI d'une PR teste les bibliothèques qu'elle touche, et celles qui en dépendent, en blocs
+Release, Sanitizers et FMA (GCC 14, Clang 18, Apple Clang), plus le paquet CMake ; la
+Synthèse résume le run, et les erreurs sont annotées sur les lignes de la PR. La feuille de
+route est dans les [tickets](https://github.com/wills31415/cpp-libraries/issues).
 
 ### Ajouter une bibliothèque
 
@@ -148,18 +170,19 @@ dépend.
 ### Publier une version
 
 Numérotation `MAJEUR.MINEUR.CORRECTIF` ; tant que `MAJEUR` vaut 0, une version
-mineure peut casser l'interface, un correctif jamais.
+mineure peut casser l'interface, un correctif jamais. Une version emporte tout `[Non publié]`
+du CHANGELOG.
 
-1. Dans un commit poussé sur `main` : `VERSION` dans `project()` de
-   `CMakeLists.txt`, et la section `[Non publié]` du `CHANGELOG.md` renommée en
-   `[X.Y.Z] — date`.
-2. `tools/release.sh X.Y.Z` : vérifie version, journal, tests locaux et CI verte,
-   puis crée le tag `vX.Y.Z` et la release GitHub.
+1. `tools/release.sh prepare X.Y.Z` : PR de version (`project(VERSION)`, section
+   `[X.Y.Z] — date` du CHANGELOG), fusionnée automatiquement quand la CI complète est verte.
+2. `tools/release.sh tag X.Y.Z` : tag `vX.Y.Z` sur le commit de fusion ; la CI vérifie le tag
+   et publie la release (notes du CHANGELOG, puis PR incluses par nature).
 
 ## Outils
 
 - **`tools/release.sh`** : publication d'une version (voir plus haut).
-- **`tools/check.sh`** : vérification rapide des bibliothèques touchées.
+- **`tools/check.sh`** : vérification rapide des bibliothèques touchées, sur une copie figée.
+- **`tools/ci/`** : sélection des chemins, résumés et annotations, notes de version.
 - **`tools/elementary_functions/generate.py`** : tables et valeurs de référence (mpmath) des
   fonctions ; **`tools/elementary_functions/benchmark.sh`** : mesures de performance.
 - **`tools/random/`** : vecteurs des moteurs, tables de la ziggourat ;

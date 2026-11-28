@@ -7,6 +7,8 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Charte du circuit de déploiement (design/interfaces.md, décisions 43 à 49) ; CLAUDE.md et
+  README à jour ; feuille de route en tickets GitHub.
 - Boucle locale : `tools/check.sh` compare à main (comme la CI d'une PR), vérifie une copie
   figée (`build/check-src`) pour qu'on puisse modifier le dépôt pendant, résume par
   `tools/ci/summary.py` et enregistre l'état vérifié vert ; hook d'avant push
