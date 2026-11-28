@@ -1,6 +1,6 @@
 #pragma once
 
-// Transition (refonte, passe 4b) : les fonctions spéciales, figées en mode portable, pour les
+// Transition (refonte, passe 4b) : les fonctions spéciales, figées en mode portable (et approché : la seule version), pour les
 // appelants pas encore convertis aux modes (<wsl/special>, donc random et probability ; le
 // mode portable de mdarray). À retirer avec la passe 5b.
 
@@ -14,9 +14,9 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::pinned_portable
 
 #define WSL_SF_PINNED(name)                                                                                    \
     template <class... A>                                                                                      \
-    constexpr auto name(A... a) noexcept -> decltype(special_functions::name(a..., wsl::portable))            \
+    constexpr auto name(A... a) noexcept -> decltype(special_functions::name(a..., wsl::portable, wsl::approximate))            \
     {                                                                                                          \
-        return special_functions::name(a..., wsl::portable);                                                   \
+        return special_functions::name(a..., wsl::portable, wsl::approximate);                                                   \
     }
     WSL_SF_PINNED(erf)
     WSL_SF_PINNED(erfc)

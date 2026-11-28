@@ -237,7 +237,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
             s += 1;
         }
         double const z = 1 / sd::fmul(s, s);
-        return shift + ((wsl::elementary_functions::log(s, wsl::portable) - 0.5 / s)
+        return shift + ((wsl::elementary_functions::log(s, wsl::portable, wsl::approximate) - 0.5 / s)
                         - sd::fmul(z, 1.0 / 12 - sd::fmul(z, 1.0 / 120 - sd::fmul(z, 1.0 / 252))));
     }
 

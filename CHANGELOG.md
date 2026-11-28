@@ -7,6 +7,9 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- `WSL_EXACT` (provisoire, design/interfaces.md, décision 41) : mode strict, `exact` par défaut
+  partout ; une fonction sans version exacte est refusée à la compilation, même appelée sans
+  étiquette (`elementary_functions.compile_fail.global_exact`).
 - `wsl::special_functions` : chaque fonction prend ses étiquettes de mode, comme
   `elementary_functions` (déterministe par défaut, `wsl::portable` sur demande,
   `wsl::exact` refusé : aucune n'est correctement arrondie) ; tout appel interne porte son

@@ -23,9 +23,11 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail
                             && !(std::is_same_v<A, float> && ...) && !(std::is_same_v<A, double> && ...);
 }
 
+// Refus d'exact : demandé par une étiquette, ou par le défaut du projet (WSL_EXACT, mode strict
+// provisoire de la décision 41).
 #define WSL_SF_REFUSE_EXACT(name)                                                                              \
-    static_assert(!exact_requested<M...>, "wsl::special_functions::" #name " : pas de version exacte "        \
-                                          "(design/interfaces.md, décision 25)")
+    static_assert(!std::is_same_v<algorithm_of<M...>, exact_t>, "wsl::special_functions::" #name               \
+                  " : pas de version exacte (design/interfaces.md, décisions 25 et 41)")
 
 #define WSL_SF_FUNCTION_1(name, to_single)                                                                     \
     template <class... M>                                                                                      \

@@ -14,11 +14,14 @@
 #include <wsl/modes.hpp>
 
 #include <concepts>
+#include <type_traits>
 
+// Refus d'exact : demandé par une étiquette, ou par le défaut du projet (WSL_EXACT, mode strict
+// provisoire de la décision 41).
 #define WSL_EF_REFUSE_EXACT(name, EXACT)                                                                       \
-    static_assert(EXACT || !exact_requested<M...>,                                                             \
+    static_assert(EXACT || !std::is_same_v<algorithm_of<M...>, exact_t>,                                       \
                   "wsl::elementary_functions::" #name " : pas de version exacte (erreur < 0,51 ulp, pas "      \
-                  "l'arrondi correct ; design/interfaces.md, décision 25)")
+                  "l'arrondi correct ; design/interfaces.md, décisions 25 et 41)")
 
 #define WSL_EF_UNARY(name, to_single, EXACT)                                                                   \
     template <class... M>                                                                                      \

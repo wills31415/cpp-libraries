@@ -1,6 +1,6 @@
 #pragma once
 
-// Transition (refonte, passe 4b) : les fonctions élémentaires, figées en mode portable, pour
+// Transition (refonte, passe 4b) : les fonctions élémentaires, figées en mode portable (et approché : la seule version), pour
 // les appelants pas encore convertis aux modes (special_functions, <wsl/special>, le mode
 // portable de mdarray). À retirer à la fin de la passe 4b.
 
@@ -13,9 +13,9 @@ namespace wsl::inline WSL_DEFAULTS::elementary_functions::detail::pinned_portabl
 {
 #define WSL_EF_PINNED(name)                                                                                    \
     template <class... A>                                                                                      \
-    constexpr auto name(A... a) noexcept -> decltype(elementary_functions::name(a..., wsl::portable))         \
+    constexpr auto name(A... a) noexcept -> decltype(elementary_functions::name(a..., wsl::portable, wsl::approximate))         \
     {                                                                                                          \
-        return elementary_functions::name(a..., wsl::portable);                                                \
+        return elementary_functions::name(a..., wsl::portable, wsl::approximate);                                                \
     }
     WSL_EF_PINNED(exp)
     WSL_EF_PINNED(exp2)

@@ -173,7 +173,8 @@ mathématiques d'ici (design/algebra.md). Aucun projet ne combine aujourd'hui le
 Ordre (validé le 2026-11-28, exécuté en autonomie) : 0 prototype (relais sans extension,
 cibles ; arrêt s'il échoue) ; 1 rangement (`legacy/`, `dlist`, `docs/` → `design/`, cpp-init :
 confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ; 3 modes ;
-4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md. Exécution des étapes
+4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md ; puis chantier des
+fonctions de `ef` correctement arrondies (décision 41). Exécution des étapes
 4 à 6 en deux passes (2026-11-28) : d'abord le mécanique, sans changer un bit (4a special
 découpée, 5a random découpée, 6a mdarray sur fpa/ef/sf, puis retrait de `<wsl/special>`, la
 transition) ; ensuite le délicat (4b audit des `fmul` et modes de ef et sf, 5b modes de random

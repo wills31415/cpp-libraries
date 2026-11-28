@@ -141,7 +141,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
     // log(hi + lo), hi > 0 : log(hi) + lo/hi, à moins d'un ulp.
     constexpr double log_dd(double hi, double lo) noexcept
     {
-        return wsl::elementary_functions::log(hi, wsl::portable) + lo / hi;
+        return wsl::elementary_functions::log(hi, wsl::portable, wsl::approximate) + lo / hi;
     }
 
     // ---------------------------------------------------------------------
@@ -310,7 +310,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
             a.lo = sd::fmul(a.lo, 2.0);
             --a.e;
         }
-        double const s = wsl::elementary_functions::sqrt(a.hi, wsl::portable);
+        double const s = wsl::elementary_functions::sqrt(a.hi, wsl::portable, wsl::approximate);
         auto const [p, p_error] = sd::two_product(s, s);
         auto const [hi, lo] = sd::fast_two_sum(s, (((a.hi - p) - p_error) + a.lo) / (s + s));
         return normalized(hi, lo, a.e / 2);
