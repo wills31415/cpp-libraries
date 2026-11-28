@@ -8,7 +8,7 @@
 //   wsl::probability::laws::skew_normal X({.location = 0, .scale = 1, .shape = 4});
 //   X.pdf(0.5); X.cdf(-1); X.quantile(0.99); X.mean(); X(g);
 //
-// Densité : φ(z) et Φ(αz) à l'échelle (z en double-double, Φ par erfc de wsl::special), un
+// Densité : φ(z) et Φ(αz) à l'échelle (z en double-double, Φ par erfc de special_functions), un
 // arrondi. Répartition : Φ(z) − 2T(z, α) (T d'Owen) se compense dans la queue (α = 1 :
 // F = Φ², calculée Φ − Φ(1 − Φ)) ; on intègre donc la plus petite queue de la densité, du
 // côté de z par rapport à la moyenne, par morceaux et Gauss–Legendre à 12 nœuds (ceux de

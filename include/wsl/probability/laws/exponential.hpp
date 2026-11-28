@@ -39,7 +39,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::exact;
 
         // Intensité .rate ou échelle .scale (l'une des deux au plus ; aucune : λ = 1), double ou
-        // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
+        // rnd::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
             std::optional<random::ratio> rate = std::nullopt, scale = std::nullopt;

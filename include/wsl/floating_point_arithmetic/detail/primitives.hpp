@@ -2,10 +2,10 @@
 
 #include <wsl/modes.hpp>
 
-// Socle de wsl::special : conditions de la garantie bit-exacte, et opérations
+// Socle de elementary_functions et special_functions : conditions de la garantie bit-exacte, et opérations
 // flottantes élémentaires dont le résultat est imposé par IEEE 754.
 //
-// Toute fonction de wsl::special est écrite avec les seules opérations + − × ÷,
+// Toute fonction de elementary_functions et special_functions est écrite avec les seules opérations + − × ÷,
 // dont la norme IEEE 754 impose l'arrondi correct : leur résultat est donc le même
 // sur toute plateforme. Trois choses pourraient le changer, et sont exclues ici :
 //
@@ -25,19 +25,19 @@
 #include <type_traits>
 
 #if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)
-#error "wsl::special : -ffast-math (ou -ffinite-math-only) rend la garantie bit-exacte impossible"
+#error "wsl::floating_point_arithmetic : -ffast-math (ou -ffinite-math-only) rend la garantie bit-exacte impossible"
 #endif
 
 #if !defined(FLT_EVAL_METHOD) || FLT_EVAL_METHOD != 0
-#error "wsl::special : le calcul flottant doit se faire dans le type des opérandes (FLT_EVAL_METHOD == 0)"
+#error "wsl::floating_point_arithmetic : le calcul flottant doit se faire dans le type des opérandes (FLT_EVAL_METHOD == 0)"
 #endif
 
 #if !defined(__GNUC__)
-#error "wsl::special : seuls GCC et Clang sont pris en charge (barrière de contraction en assembleur)"
+#error "wsl::floating_point_arithmetic : seuls GCC et Clang sont pris en charge (barrière de contraction en assembleur)"
 #endif
 
 static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<float>::is_iec559,
-              "wsl::special : float et double doivent être les formats binary32 et binary64 d'IEEE 754");
+              "wsl::floating_point_arithmetic : float et double doivent être les formats binary32 et binary64 d'IEEE 754");
 
 namespace wsl::inline WSL_DEFAULTS::floating_point_arithmetic::detail
 {

@@ -114,7 +114,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             namespace fp = detail::sd;
             double const nu = nu_;
-            // −constante + ((ν + n)/2)(ψ((ν + n)/2) − ψ(ν/2)) (ψ par wsl::special)
+            // −constante + ((ν + n)/2)(ψ((ν + n)/2) − ψ(ν/2)) (ψ par special_functions)
             double const d = wsl::random::detail::pm::digamma(half_sum_.hi + half_sum_.lo) - wsl::random::detail::pm::digamma(fp::fmul(nu, 0.5));
             auto h = detail::sum({-constant_.hi, -constant_.lo}, detail::mul(half_sum_, {d, 0.0}));
             return static_cast<T>(h.hi + h.lo);

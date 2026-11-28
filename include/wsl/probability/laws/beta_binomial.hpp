@@ -9,7 +9,7 @@
 //   wsl::probability::laws::beta_binomial X({.trials = 20, .alpha = 2, .beta = 3});
 //   X.pmf(6); X.cdf(6); X.quantile(0.9); X.variance(); X(g);
 //
-// Masse : somme des huit log Γ (double-double, wsl::special), les termes −y de Stirling
+// Masse : somme des huit log Γ (double-double, special_functions), les termes −y de Stirling
 // s'annulant exactement ; erreur absolue du logarithme ~ 2^-106 n log n (0,5 ulp mesuré
 // jusqu'à n = 10^6). Répartition : la queue du côté de k (sous ou au-dessus de la moyenne),
 // sommée depuis k par le rapport de masses consécutives, en double-double — arrêt anticipé

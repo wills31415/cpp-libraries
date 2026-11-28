@@ -13,7 +13,7 @@
 // n réel en double-double) :
 //   √(r/(2π k (k + r))) e^{δ(k + r) − δ(r) − δ(k) − bd0(r, np) − bd0(k, nq)}, un arrondi ;
 // k = 0 : p^r. Répartition I_p(r, k + 1), survie 1 − I_p(r, k + 1) (bêta incomplète de
-// wsl::special) ; quantile exact (detail/discrete.hpp).
+// special_functions) ; quantile exact (detail/discrete.hpp).
 //
 // Tirage (approché, bit-exact) : mélange gamma–Poisson, λ ~ Γ(r, (1 − p)/p), X ~ P(λ).
 

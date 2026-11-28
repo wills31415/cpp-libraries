@@ -389,20 +389,28 @@ namespace law_reference_data
 endif()
 
 # ---------------------------------------------------------------------------
-# Exemples : examples/<nom>.cpp, un exécutable chacun
+# Exemples : examples/<domaine>/<tâche>.cpp (décision 32), un exécutable chacun, lancé
+# comme test « example.<domaine>.<tâche> » (étiquette example)
 # ---------------------------------------------------------------------------
 if(WSL_BUILD_EXAMPLES)
-    file(GLOB example_sources CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/examples/*.cpp)
-    foreach(source IN LISTS example_sources)
-        get_filename_component(example ${source} NAME_WE)
-        # En CI, un exemple n'est construit que s'il a changé ou s'il inclut une
-        # bibliothèque testée.
-        if(NOT WSL_TESTED STREQUAL "ALL" AND NOT example IN_LIST WSL_TESTED_EXAMPLES)
-            file(STRINGS ${source} includes REGEX "^#include <wsl/[a-z0-9_]+")
+    file(GLOB_RECURSE example_sources CONFIGURE_DEPENDS RELATIVE ${PROJECT_SOURCE_DIR}/examples
+         ${PROJECT_SOURCE_DIR}/examples/*.cpp)
+    foreach(relative IN LISTS example_sources)
+        string(REGEX REPLACE "\\.cpp$" "" path ${relative})
+        string(REPLACE "/" "." example "example.${path}")
+        # En CI, un exemple n'est construit que s'il a changé, si sa bibliothèque est testée
+        # ou s'il inclut une bibliothèque testée (examples/multiphysics/…).
+        if(NOT WSL_TESTED STREQUAL "ALL" AND NOT path IN_LIST WSL_TESTED_EXAMPLES)
+            wsl_owner(${path} owner)
             set(wanted FALSE)
+            if(NOT owner STREQUAL "" AND owner IN_LIST WSL_TESTED)
+                set(wanted TRUE)
+            endif()
+            file(STRINGS ${PROJECT_SOURCE_DIR}/examples/${relative} includes REGEX "^#include <wsl/[a-z0-9_/]+")
             foreach(line IN LISTS includes)
-                string(REGEX REPLACE "^#include <wsl/([a-z0-9_]+).*" "\\1" library "${line}")
-                if(library IN_LIST WSL_TESTED)
+                string(REGEX REPLACE "^#include <wsl/([a-z0-9_/]+).*" "\\1" header "${line}")
+                wsl_owner(${header} library)
+                if(NOT library STREQUAL "" AND library IN_LIST WSL_TESTED)
                     set(wanted TRUE)
                 endif()
             endforeach()
@@ -410,11 +418,16 @@ if(WSL_BUILD_EXAMPLES)
                 continue()
             endif()
         endif()
-        add_executable(${example} ${source})
+        get_filename_component(directory ${path} DIRECTORY)
+        get_filename_component(name ${path} NAME)
+        add_executable(${example} examples/${relative})
         target_link_libraries(${example} PRIVATE wsl::wsl wsl_options)
         set_target_properties(${example} PROPERTIES
             CXX_STANDARD 23
-            RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/examples)
+            OUTPUT_NAME ${name}
+            RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/examples/${directory})
+        add_test(NAME ${example} COMMAND ${example})
+        set_tests_properties(${example} PROPERTIES LABELS example)
     endforeach()
 endif()
 

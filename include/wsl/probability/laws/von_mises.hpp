@@ -11,7 +11,7 @@
 //
 // von Mises : densité e^{κ cos(x − μ)}/(2π I₀(κ)) sur [μ − π, μ + π], calculée comme
 // exp(−2κ sin²((x − μ)/2) − log 2π − log(e^{−κ} I₀(κ))) (sans compensation près du mode ;
-// x − μ et le sinus en double-double ; I₀ par wsl::special, detail::log_cyl_bessel_i),
+// x − μ et le sinus en double-double ; I₀ par special_functions, detail::log_cyl_bessel_i),
 // un arrondi. Longueur résultante moyenne A = I₁(κ)/I₀(κ), variance circulaire 1 − A,
 // entropie log(2π I₀(κ)) − κA. Répartition : la part la plus petite,
 // ∫_{|θ|}^π e^{κ(cos t − 1)} dt/(2π e^{−κ} I₀(κ)), par morceaux de Taylor en double-double

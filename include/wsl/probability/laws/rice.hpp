@@ -10,7 +10,7 @@
 //   wsl::probability::laws::rice R({.scale = 1.5, .noncentrality = 2.0});
 //   R.pdf(2.0); R.cdf(1.0); R.quantile(0.9); R.mean(); R(g);
 //
-// Densité en logarithme double-double (log I₀ de wsl::special, corrigé au premier ordre de
+// Densité en logarithme double-double (log I₀ de special_functions, corrigé au premier ordre de
 // l'arrondi de z = c y par I₁/I₀). Répartition par les séries de Marcum, termes positifs :
 // S = e^{−(y² + c²)/2} Σ_{k>=0} (c/y)^k I_k(c y), F = e^{−(y² + c²)/2} Σ_{k>=1} (y/c)^k I_k(c y),
 // la plus petite des deux (y face à √(c² + 2 log 2)), l'autre par complément ; quantiles

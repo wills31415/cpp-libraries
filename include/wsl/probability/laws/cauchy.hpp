@@ -11,7 +11,7 @@
 //   C.cdf(3.0); C.quantile(0.99); C.entropy(); C(g);
 //
 // z en double-double (comme pour la normale). Répartition : P(X > x) = atan(1/z)/π
-// pour z >= 1, 1/2 − atan(z)/π sinon (noyau atan de wsl::special à argument
+// pour z >= 1, 1/2 − atan(z)/π sinon (noyau atan de special_functions à argument
 // double-double) ; quantile x₀ + γ tan(π(p − ½)) = x₀ − γ cot(πp) pour p <= ½,
 // cos(πp) et sin(πp) en double-double, un seul arrondi.
 //

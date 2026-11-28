@@ -8,14 +8,14 @@
 // loi P ; les expressions (X + Y, 2 * X, …) sont des fonctions des variables de base,
 // évaluées paresseusement.
 //
-//   namespace wr = wsl::random;
-//   wr::variable X{wr::normal()};
-//   wr::variable Y{wr::exponential()};
+//   namespace proba = wsl::probability;
+//   proba::variable X{proba::laws::normal()};
+//   proba::variable Y{proba::laws::exponential()};
 //   auto Z = 2 * X + Y;
 //   Z(g);                                  // un ω : X et Y tirées une fois chacune
 //   (X - X)(g);                            // 0
-//   auto [x, z] = wr::evaluate(g, X, Z);   // même ω
-//   wr::E(Z); wr::Var(Z); wr::Cov(X, Z);   // par linéarité : 1, 5, 2
+//   auto [x, z] = proba::evaluate(g, X, Z);   // même ω
+//   proba::E(Z); proba::Var(Z); proba::Cov(X, Z);   // par linéarité : 1, 5, 2
 //
 // Identité (V1) : une variable de base reçoit un identifiant unique à sa création ; ses
 // copies désignent la même fonction de ω. X.independent_copy() : même loi, nouvelle identité.
@@ -42,7 +42,7 @@
 // Fonctions : wsl::probability::apply(f, X, Y…) applique f (ou une bijection monotone déclarée,
 // increasing / decreasing de pushforward.hpp) ; exp, log, sqrt, cbrt, expm1, log1p, atan,
 // erf (monotones, déclarées comme telles), sin, cos, tan, abs, pow, hypot, atan2, min, max,
-// toutes de wsl::special (bit-exactes). Calcul flottant ; law(f(X)), X variable de base :
+// toutes de special_functions (bit-exactes). Calcul flottant ; law(f(X)), X variable de base :
 // pushforward(loi de X, f) (répartition, quantiles, densité si f est monotone).
 //
 // Constantes : E, Var et Cov par linéarité sur la forme affine Σ aᵢ Xᵢ + b, les coefficients

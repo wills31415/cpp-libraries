@@ -7,6 +7,11 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Documentation : `docs/`, un guide par domaine (`docs/<domaine>/README.md`) et un index
+  (conventions, modes de calcul) ; README réécrit par domaine. Exemples rangés par domaine,
+  `examples/<domaine>/<tâche>.cpp`, lancés comme tests `example.<domaine>.<tâche>`
+  (étiquette `example`) : fonctions élémentaires et spéciales, tirages, lois, processus,
+  mdarray, permutations.
 - Rupture : l'en-tête de transition `<wsl/special>` (espace `wsl::special`) et sa cible
   `wsl::special` sont retirés ; les fonctions sont dans `wsl::elementary_functions`
   (`<wsl/elementary_functions>`) et `wsl::special_functions` (`<wsl/special_functions>`), avec

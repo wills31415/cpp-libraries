@@ -10,7 +10,7 @@
 //   K.pmf(1); K.cdf(-2); K.quantile(0.9); K.mean(); K(g);
 //
 // Masse en logarithme double-double : −(μ₁ + μ₂) + (k/2) log(μ₁/μ₂) + log I_|k|(z) (detail de
-// wsl::special) ; z = 2√(μ₁μ₂) n'est pas un double en général : log I_n(z_hi + z_lo) =
+// special_functions) ; z = 2√(μ₁μ₂) n'est pas un double en général : log I_n(z_hi + z_lo) =
 // log I_n(z_hi) + z_lo (I_{n+1}/I_n + n/z) au premier ordre (le second est sous 2^-100).
 // Répartition : la queue du côté de k sommée depuis k (termes décroissants au-delà du
 // mode), en double-double ; l'autre par complément. Quantile exact (detail/discrete.hpp).

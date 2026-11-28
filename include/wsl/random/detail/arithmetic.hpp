@@ -2,7 +2,7 @@
 
 #include <wsl/modes.hpp>
 
-// Arithmétique étendue des lois : celle de wsl::special (detail/extended.hpp), et ses
+// Arithmétique étendue des lois : celle de special_functions (detail/extended.hpp), et ses
 // compléments communs (opposé, somme, différence et complément à l'échelle, e^l arrondi…).
 
 #include <wsl/random/detail/portable_math.hpp>

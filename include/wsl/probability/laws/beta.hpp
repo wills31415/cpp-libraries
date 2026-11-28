@@ -17,7 +17,7 @@
 // k = α − 1, n = α + β − 2 (décomposition de Loader, detail/loader.hpp) ; sinon
 // directement, (α − 1) log x + (β − 1) log1p(−x) − log B(α, β), log B en
 // double-double sans compensation (detail::log_beta). Un seul arrondi.
-// Répartition, survie, quantile : ibeta, ibetac, ibeta_inv de wsl::special.
+// Répartition, survie, quantile : ibeta, ibetac, ibeta_inv de special_functions.
 // Entropie réécrite avec l'erreur de Stirling δ (n = α + β) :
 //     ½ log(αβ/n³) + ½ log 2π + ½(1 − 1/α − 1/β + 2/n) + δ(α) + δ(β) − δ(n)
 //     − (α − 1)δ'(α) − (β − 1)δ'(β) + (n − 2)δ'(n),

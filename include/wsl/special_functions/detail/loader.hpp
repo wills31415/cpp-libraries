@@ -78,7 +78,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
         // y < 16 : récurrence jusqu'à s = y + n dans [16, 17), lgamma(y) = lgamma(s) − log P,
         // P = y (y + 1) … (y + n − 1) à l'échelle (exact à 2^-100 près, quel que soit y) :
         //     δ(y) = δ(s) + (s − 1/2) log s − (y − 1/2) log y − log P − n.
-        // (lgamma_positive de wsl::special, précise à 2^-58 près, ne suffit pas ici.)
+        // (lgamma_positive de special_functions, précise à 2^-58 près, ne suffit pas ici.)
         int const n = 16 - static_cast<int>(y);
         auto const [s_hi, s_lo] = sd::two_sum(y, static_cast<double>(n));
         scaled product = normalized(y, 0.0);
@@ -111,7 +111,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
 
     // δ'(y) = ψ(y) − log y + 1/(2y), y > 0, en double-double (précis en valeur absolue) :
     // y >= 16, −Σ (2k − 1) c_k y^{−2k} (série de Stirling dérivée) ; sinon ψ par
-    // wsl::special (double-double) et le reste exactement.
+    // special_functions (double-double) et le reste exactement.
     constexpr sd::double_double stirling_error_derivative(double y) noexcept
     {
         if (y >= 16.0)

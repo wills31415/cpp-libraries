@@ -17,8 +17,8 @@
 //   a >= 1 : λ p(a − 1, λx),   a < 1 : (a/x) p(a, λx),   p(ν, t) = t^ν e^{−t}/Γ(ν + 1),
 // p(ν, t) = e^{−δ(ν) − bd0(ν, t)} / √(2πν) par la décomposition de Loader (voir
 // detail/loader.hpp), un seul arrondi. Répartition et survie : P(a, λx) et Q(a, λx)
-// de wsl::special, λx en double-double (correction du premier ordre f(t) t_lo) ;
-// quantile : l'inverse de wsl::special en double-double, divisé par λ (ou multiplié
+// de special_functions, λx en double-double (correction du premier ordre f(t) t_lo) ;
+// quantile : l'inverse de special_functions en double-double, divisé par λ (ou multiplié
 // par θ) avec un seul arrondi ; entropie réécrite avec l'erreur de Stirling δ :
 //     a − log λ + lgamma(a) + (1 − a)ψ(a) = ½ log a + ½ log 2π + ½ − 1/(2a) + δ(a) + (1 − a)δ'(a) − log λ,
 // sans les compensations de la forme usuelle.
@@ -106,7 +106,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         static constexpr exactness sampling = exactness::approximate;
 
         // Intensité .rate ou échelle .scale (l'une des deux au plus ; aucune : λ = 1), double ou
-        // wr::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
+        // rnd::ratio(a, b) : exactes toutes deux (λ rationnel, voir detail/rational.hpp).
         struct parameters
         {
             std::optional<random::ratio> rate = std::nullopt, scale = std::nullopt;
@@ -383,7 +383,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             c_ = 1 / wsl::random::detail::pm::sqrt(fp::fmul(9.0, d_));
         }
 
-        // P(X <= x) (ou P(X > x)) : P(a, t) de wsl::special en t = t_hi, corrigé de
+        // P(X <= x) (ou P(X > x)) : P(a, t) de special_functions en t = t_hi, corrigé de
         // f(t_hi) t_lo (f la densité de la gamma standard), t = λx (ou x/θ) en double-double.
         constexpr T tail(T x, bool upper) const noexcept
         {

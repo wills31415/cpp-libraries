@@ -25,8 +25,8 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
   noms, bibliothèques, abréviations et alias (11 à 23), modes `deterministic`/`portable` et
   `approximate`/`exact`, le défaut étant la permission (24 à 27), registre provisoire de `wsl::`
   (28), chemins, en-têtes sans extension, cibles, organisation du dépôt, paquet (29 à 33),
-  identité du dépôt et sort des anciennes bibliothèques (34 à 36). Tout nouveau code la suit ;
-  les sections ci-dessous marquées « jusqu'à la refonte » décrivent l'état actuel.
+  identité du dépôt et sort des anciennes bibliothèques (34 à 36), découpage, barrières,
+  mesures, processus, exactitude et lois (37 à 42). Tout nouveau code la suit.
 - **Priorités de conception** : simple pour l'utilisateur, compatibilités vérifiées à la
   compilation, options les plus rapides, reproductibilité.
 - Objets mathématiques (algèbre linéaire, tenseurs, analyse) : vision, méthode et feuille
@@ -73,13 +73,20 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Objectif : 0 avertissement avec `-Wall -Wextra -Wpedantic`, en C++23,
   sur les trois compilateurs de la CI.
 
-## Outils (jusqu'à la refonte)
+## Outils
 
-- `tools/release.sh` : publication d'une version.
+- `tools/release.sh` : publication d'une version ; `tools/check.sh` : vérification rapide.
+- `tools/elementary_functions/` (tables, références, mesures), `tools/random/` (vecteurs des
+  moteurs, ziggourat), `tools/probability/` (références des lois), `tools/mdarray/` (mesures).
 
-## wsl::special (fonctions bit-exactes ; jusqu'à la refonte)
+## Fonctions : floating_point_arithmetic, elementary_functions, special_functions
 
-- Conception et mesures : `design/special.md` ; lois de probabilité à venir : `design/random.md`.
+- Conception et mesures : `design/special.md` ; guides : `docs/<domaine>/README.md`.
+- Les lois et le socle double-double (`special_functions/detail/{extended,loader}.hpp`)
+  n'ont qu'une version, portable (décision 42) : ils appellent les fonctions figées en mode
+  portable (`detail::pinned_portable` de ef et sf, `random::detail::pm`), jamais `ef::exp(x)`
+  sans étiquette (bascule sans bruit en déterministe, attrapée par
+  `special_functions.no_contraction`).
 - **Règle d'écriture** : uniquement `+ − × ÷` (et `sqrt`, `fma` explicites), jamais de
   fonction transcendante de `<cmath>`. **Tout produit qui entre dans une addition ou une
   soustraction passe par `fpa::mul<R>`** (barrière en mode portable, fusion permise en mode
@@ -122,9 +129,9 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Reproduire la CI Linux, configurations FMA comprises, en local : conteneur
   `ubuntu:24.04` (voir plus haut), avec `-DCMAKE_CXX_FLAGS="-march=x86-64-v3 -ffp-contract=fast"`.
 
-## wsl::random (jusqu'à la refonte)
+## random, probability
 
-- Conception : `design/random.md`. Mêmes exigences que wsl::special : algorithmes fixés,
+- Conception : `design/random.md`. Mêmes exigences que les fonctions : algorithmes fixés,
   tirages bit-exacts partout ; le nombre de valeurs consommées sur le moteur fait partie
   du contrat. Jamais de loi de `<random>` (non reproductibles d'une bibliothèque à
   l'autre) ; les moteurs standard sont acceptés.
@@ -144,13 +151,21 @@ décision 34 ; ce qui n'en relève pas sort du dépôt ou y devient un domaine.
 - Tirages exacts (`detail/lazy.hpp`) : toute voie rapide ne doit rendre un résultat que
   s'il est certain, pour que résultat et nombre de mots tirés soient ceux de la voie
   exacte ; ses décisions dépendent de flottants : produits par `fmul` là aussi.
+- Tirage par défaut **approché** (`X(g)` : variante approchée si la loi en a une) ;
+  `X(g, wsl::exact)` refusé sans tirage exact (`L::sampling`). **Tout tirage interne d'une loi
+  ou d'une variable** passe par `detail::native_sample(X, g)` (le tirage natif), sinon un
+  tirage exact tire ses composantes en approché sans bruit. Les tests relèvent les empreintes
+  sur le tirage natif (`wr::native`).
 
 ## Structure
 
 - `include/wsl/<chemin>.hpp` : le chemin est l'espace de noms (décision 29) ; une
   bibliothèque par espace de noms de domaine, `wsl_add_library(<nom avec ::> … DEPENDS …)`.
 - `tests/<chemin>.cpp` : test « chemin.avec.points », en C++23 (décision 32).
-- `examples/*.cpp` : un exécutable chacun, lié à `wsl::wsl`.
+- `docs/<chemin>/README.md` : guide de chaque domaine (en français, langue à décider) ;
+  `docs/README.md` : index, conventions, modes.
+- `examples/<domaine>/<tâche>.cpp` : un exécutable chacun, lié à `wsl::wsl`, lancé comme
+  test `example.<domaine>.<tâche>` (étiquette `example`) ; cité par la documentation.
 - Compilateur imposé : `/usr/bin/clang++` (miniconda est en tête du PATH).
 
 ## Provenance
@@ -168,40 +183,22 @@ Les noms s'y choisissent librement : le paquet `wsl` de `~/projets/cpp-tensors` 
 dossier d'en-têtes) est un premier essai, qui s'adaptera en étant refondu sur les objets
 mathématiques d'ici (design/algebra.md). Aucun projet ne combine aujourd'hui les deux.
 
-## Refonte à faire (décidée, pas encore exécutée)
+## Refonte (faite, 2026-11-28) et feuille de route
 
-Ordre (validé le 2026-11-28, exécuté en autonomie) : 0 prototype (relais sans extension,
-cibles ; arrêt s'il échoue) ; 1 rangement (`legacy/`, `dlist`, `docs/` → `design/`, cpp-init :
-confirmation) ; 2 infrastructure (cibles, paquet, options, tests, CI : accord) ; 3 modes ;
-4 special ; 5 random ; 6 mdarray ; 7 documentation, README, CLAUDE.md ; puis chantier des
-fonctions de `ef` correctement arrondies (décision 41) ; conversion des lois aux deux modes et
-algèbre des lois dans `measure_theory` (décision 42). Exécution des étapes
-4 à 6 en deux passes (2026-11-28) : d'abord le mécanique, sans changer un bit (4a special
-découpée, 5a random découpée, 6a mdarray sur fpa/ef/sf, puis retrait de `<wsl/special>`, la
-transition) ; ensuite le délicat (4b audit des `fmul` et modes de ef et sf, 5b modes de random
-et `approximate` par défaut), fonction par fonction, bornes vérifiées dans les deux modes.
+La refonte décidée par la charte est exécutée : rangement (`legacy/`, `design/`, cpp-init à
+part), infrastructure (paquet `wsl`, cibles nommées par l'espace de noms, relais sans
+extension, tests rangés et étiquetés, contrôle des inclusions), modes (`<wsl/modes>`, ef et
+sf dans les deux modes, `WSL_EXACT` strict, tirage approché par défaut), découpage de
+l'ancien `wsl::special` et de l'ancien `wsl::random` en domaines (décision 37), transitions
+retirées, documentation (`docs/`, `examples/`). cpp-init garde `wsl_libraries` tant que le
+dernier tag est `v0.1.0` (à changer au prochain tag).
 
-- Organisation (décision 32) : `include/wsl/`, `docs/` (guides, `README.md` par dossier),
-  `examples/<domaine>/`, `tests/` (sans préfixe, nom dérivé du chemin, dossier dès deux
-  batteries, étiquettes de nature et `long`), `tools/`, `design/` (conception et charte).
-- Chemins d'après les espaces de noms (29) ; relais sans extension engendrés par CMake, après
-  un prototype qui étend `tests/package/` (30) ; cibles nommées par l'espace de noms,
-  `wsl::wsl` pour tout, contrôle des inclusions en CI (31).
-- ~~Paquet `find_package(wsl)`, options `WSL_*`, cibles, tests rangés (permutation, mdarray),
-  étiquettes, contrôle des inclusions~~ : fait (étape 2) ; `WSL_PORTABLE` et `WSL_EXACT` viennent
-  avec l'étape 3. cpp-init garde `wsl_libraries` tant que le dernier tag est `v0.1.0`.
-- ~~Modes (24 à 27)~~ : faits (étapes 3, 4b, 5b partie 1 : `approximate` par défaut pour les
-  tirages, `wsl::random::fast` retiré). Les lois restent portables (axe de la
-  reproductibilité accepté sans effet) en attendant leur conversion (5b partie 2, à décider).
-- ~~Découpage mécanique de special (4a) et random (5a)~~ : fait. random : `wsl::random`
-  (moteurs `random::engines`, primitives, tirages exacts), `wsl::probability` (lois
-  `probability::laws`, variables, algèbre des lois provisoirement), `wsl::probability::
-  stochastic_processes` (`processes`, `trajectory`), `wsl::measure_theory` (mesures de
-  référence) ; transitions `<wsl/special>` et `probability/detail/transition.hpp` : retirées
-  (les lois appellent `random::detail::pm`, fonctions figées en mode portable, décision 42).
-- Découpage de special et random selon les domaines (`floating_point_arithmetic`,
-  `elementary_functions`, `special_functions`, `random`, `probability`, `measure_theory`) ; carte : décision 37 ;
-  audit de chaque `fmul` en `fpa::mul` (selon le mode) ou `fpa::unfused_mul` (justesse) : décision 38.
-- ~~Anciennes bibliothèques dans `legacy/`, `dlist` rendue~~ : fait (étape 1).
-- ~~cpp-init vers un dépôt privé à lui~~ : fait (étape 1) ; il faudra y changer le nom du
-  paquet et la cible quand l'étape 2 les renommera. README réécrit à la refonte.
+Ensuite, dans l'ordre :
+1. Fonctions de `ef` correctement arrondies (`wsl::exact`, méthode de Ziv, décision 41) :
+   exp, exp2, expm1, puis logarithmes, trigonométrie, cbrt et hypot, pow ; puis revoir
+   `WSL_EXACT` (strict, ou séparé en tirages exacts et arrondi correct).
+2. Lois et socle double-double dans les deux modes (règle D, décision 38), algèbre des lois
+   dans `measure_theory` avec sa généralisation aux mesures (décisions 39 et 42).
+3. Interface publique de `floating_point_arithmetic` ; référence engendrée depuis les
+   en-têtes (outil à choisir) ; langue de la documentation (décision 32).
+4. Lot 2 de mdarray (vues), puis les objets mathématiques de `design/algebra.md`.

@@ -24,7 +24,7 @@
 // Tirage (approché, bit-exact) : Michael, Schucany et Haas (1976), une normale exacte et
 // une épreuve de Bernoulli exacte.
 //
-// Pas d'entropie : elle demande E₁(2λ/μ), absente de wsl::special.
+// Pas d'entropie : elle demande E₁(2λ/μ), absente de special_functions.
 
 #include <wsl/probability/laws/basic.hpp>
 #include <wsl/random/detail/arithmetic.hpp>

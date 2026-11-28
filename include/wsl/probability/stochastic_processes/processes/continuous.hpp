@@ -27,7 +27,7 @@
 // - Ornstein–Uhlenbeck, par changement de temps : X(t) = μ + a(t)(x₀ − μ) + r(t) W(u(t)),
 //   a = e^{−θt}, r = σ a/√(2θ), u = e^{2θt} − 1 (arrondis une fois par instant ; θt <= 350) ;
 // - brownien géométrique : s₀ e^{X(t)}, X brownien de dérive μ − σ²/2 exact, l'exponentielle
-//   arrondie par wsl::special::exp (approché : 0,5 ulp, pas d'arrondi correct garanti) ;
+//   arrondie par ef::exp (approché : 0,5 ulp, pas d'arrondi correct garanti) ;
 // - Poisson : Tₖ = Σ Eⱼ/λ, exponentielles exactes ; inhomogène : amincissement, candidat
 //   accepté avec probabilité f(t)/Λ exactement, f évaluée à l'instant arrondi (approché) ;
 //   composé : instants exacts, valeurs exactes si la loi des sauts se tire paresseusement

@@ -3,7 +3,7 @@
 #include <wsl/modes.hpp>
 #include <wsl/probability/detail/base.hpp>
 
-// Décomposition de Loader : celle de wsl::special (detail/loader.hpp).
+// Décomposition de Loader : celle de special_functions (detail/loader.hpp).
 
 #include <wsl/random/detail/portable_math.hpp>
 #include <wsl/random/detail/arithmetic.hpp>

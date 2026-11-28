@@ -13,7 +13,7 @@
 //   e^{δ(n) − δ(k) − δ(n−k) − bd0(k, np) − bd0(n−k, n(1−p))} √(n / (2π k (n−k))),
 // np et n(1 − p) en double-double, un seul arrondi. Répartition P(X <= k) =
 // 1 − I_p(k + 1, n − k) et survie I_p(k + 1, n − k) par la bêta incomplète de
-// wsl::special (p tel quel) ; quantile exact (voir detail/discrete.hpp).
+// special_functions (p tel quel) ; quantile exact (voir detail/discrete.hpp).
 //
 // Tirage (approché, bit-exact), avec p' = min(p, 1 − p) puis symétrie :
 // inversion séquentielle si n p' < 10, BTRS (rejet transformé, Hörmann 1993)

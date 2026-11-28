@@ -2,34 +2,59 @@
 
 [![CI](https://github.com/wills31415/cpp-libraries/actions/workflows/ci.yml/badge.svg)](https://github.com/wills31415/cpp-libraries/actions/workflows/ci.yml)
 
-Collection de bibliothèques C++ génériques, en en-têtes seuls, sous le namespace
-`wsl`. Objectif : du code réutilisable, optimisé et aussi proche du style et des
-garanties de la bibliothèque standard que possible.
+Une bibliothèque scientifique C++23 en en-têtes seuls : mathématiques, physique, calcul
+scientifique, et leurs fondations. Espace de noms `wsl` (nom provisoire, remplacé avant la
+première version stable). Objectif : des objets mathématiques au plus près de la
+bibliothèque standard (nommage, garanties, `constexpr`, concepts), les options les plus
+rapides par défaut, la **reproductibilité** au bit près sur demande, et des compatibilités
+vérifiées à la compilation.
 
-Testées à chaque commit avec GCC 14 et Clang 18 (libstdc++, Linux) et Apple Clang
-(libc++, macOS), en Debug (ASan + UBSan) et en Release, en C++23,
-avertissements traités comme des erreurs.
+Testée à chaque commit avec GCC 14 et Clang 18 (libstdc++, Linux) et Apple Clang (libc++,
+macOS), en Debug (ASan + UBSan) et en Release, avec et sans fma, avertissements traités
+comme des erreurs.
 
-## Catalogue
+```cpp
+#include <wsl/elementary_functions>
+#include <wsl/probability>
+#include <wsl/random>
 
-| Cible CMake | En-tête | Standard | Contenu |
-|---|---|---|---|
-| `wsl::permutation` | `<wsl/permutation.hpp>` | C++23 | Permutations de {0, …, n − 1} : composition, inverse, puissances, cycles, signature, inversions (O(n log n)), rang lexicographique, `constexpr` |
-| `wsl::special` | `<wsl/special.hpp>` | C++23 | Fonctions mathématiques **bit-exactes** (même résultat au bit près sur toute plateforme, `constexpr`) : `exp`, `exp2`, `expm1`, `log`, `log2`, `log10`, `log1p`, `pow`, `sin`, `cos`, `tan`, `atan`, `atan2`, `sqrt`, `cbrt`, `hypot`, `erf`, `erfc`, `erf_inv`, `erfc_inv`, `lgamma`, `tgamma`, `digamma`, `gamma_p`, `gamma_q`, `gamma_p_inv`, `gamma_q_inv`, `beta`, `lbeta`, `ibeta`, `ibetac`, `ibeta_inv`, `ibetac_inv`, `cyl_bessel_i` ([conception](design/special.md)) |
-| `wsl::random` | `<wsl/random.hpp>` | C++23 | Aléatoire reproductible au bit près sur toute plateforme : moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; entiers et réels uniformes **exacts**, épreuve de Bernoulli exacte, mélange ; lois de probabilité en objets mathématiques (opérations en membres, `X.cdf(x)`, tirage `X(g)` ; paramètres nommés et exacts ; `uniform`, `discrete_uniform`, `bernoulli`, `exponential`, `normal`, `geometric`, `poisson`, `binomial`, `gamma`, `beta`, `chi_squared`, `student_t`, `lognormal`, `cauchy`, `fisher_f`, `weibull`, `laplace`, `logistic`, `pareto`, `gumbel`, `frechet`, `rayleigh`, `triangular`, `arcsine`, `erlang`, `inverse_gaussian`, `negative_binomial`, `hypergeometric`, `beta_binomial`, `logarithmic`, `discrete_gaussian`, `skellam`, `zipf`, `rice`, `skew_normal`, `stable` : moments, densité ou masse, répartition, quantile et quantile de survie sous 0,51 ulp ; tirage exact pour les cinq premières, `laplace` et `erlang`) ; algèbre des lois aux noms de la théorie de la mesure : `affine`, `convolution` (identités de familles), `truncate`, `mixture`, `product_measure`, `pushforward` ; lois multivariées (`dirichlet`, `multinomial`, `multivariate_normal`, `multivariate_student_t`, `wishart`, `inverse_wishart`, `uniform_sphere`, `uniform_ball`, `von_mises`, `von_mises_fisher`, dimension fixe ou `wsl::random::dynamic`) ; objets combinatoires à tirage exact (`uniform_permutation`, `ewens`, `mallows`, `uniform_subset`, `bernoulli_subset`, `uniform_combination`, `uniform_word`, `uniform_integer_partition`, `uniform_set_partition`, `uniform_composition`, `erdos_renyi`, `uniform_graph`, `barabasi_albert`, `random_regular_graph`, `uniform_tree`, `uniform_binary_tree`) ; processus à trajectoires paresseuses et exactes (`markov_chain`, `random_walk`, `polya_urn`, `chinese_restaurant`, `brownian_motion`, `brownian_bridge`, `ornstein_uhlenbeck`, `poisson_process`, `compound_poisson`, `continuous_markov_chain`…) et `categorical` exacte ; matrices aléatoires (`haar_orthogonal`, `haar_unitary`, `goe`, `gue`) ([conception](design/random.md)) |
-| `wsl::mdarray` | `<wsl/mdarray.hpp>` | C++23 | Tableaux multidimensionnels (lot 1) : modes de calcul déterministe et portable (`wsl::portable(…)` : mêmes bits sur toute plateforme, fma comprise, fonctions de `wsl::special`) ; calcul par les axes, le membre de gauche décide (`c[i, k] = a[i, j] * b[j, k]`, `y[i] = tanh(W[i, j] * x[j] + b[i])`, `double n = sqrt(x[i] * x[i])`, `A[i, i] = 1`, `r[i] = sum(j)(a[i, j])`, `h[i, j] = 1.0 / (i + j + 1)`, garde-fous à la compilation) ; calcul sur tableaux entiers (`y = x * x`, `r = hypot(x, y)`, `mdarray c = a * b + 1`, fonctions de `<cmath>`, `vectorize`, masques et `where`, réductions `sum`, `prod`, `min`, `max`, `argmin`, `argmax`, `all`, `any`, `count`) ; axes (`wsl::axis()`, `wsl::axis<"mu", "nu">()`, `wsl::axes::i`…) ; conteneur `mdarray` (P1684 : sémantique de valeur, `std::array` sans allocation pour des étendues fixes, littéral `{{1, 2}, {3, 4}}`, `equal`) ; `extents`, `dextents`, `dims`, `layout_right`, `layout_left`, `layout_stride`, `mdspan` (noms et sémantique de `<mdspan>`, sans GCC 16 ni libc++, conversions avec `std::mdspan` là où il existe ; ajouts : `m[p]`, `at`, `contains`, `wrap`, `clamp`) ; positions `mdposition` et déplacements `mddisplacement` (modèle affine, ordre lexicographique et composante par composante, normes, hachage, formatage) ; division euclidienne `div_euclid`, `rem_euclid` ([conception](design/mdarray.md)) |
-| `wsl::wsl` | — | C++23 | Toutes les bibliothèques ci-dessus |
+namespace ef = wsl::elementary_functions;
+namespace proba = wsl::probability;
 
-Les anciennes bibliothèques (`array2d`, `graded`, `graded_io`, `elo`, `progress`) attendent
-leur refonte dans `legacy/`, figées ; `dlist` a quitté le dépôt. Refonte en cours :
-voir design/interfaces.md (décisions 10 à 40).
+double y = ef::exp(0.75, wsl::portable);                  // mêmes bits sur toute plateforme
+proba::laws::normal const N({.mean = 1.0, .stddev = 2.0});
+wsl::random::engines::pcg64 g(7);
+double p = N.cdf(3.0), x = N(g), z = N(g, wsl::exact);   // tirage approché, puis exact
+```
 
-Toutes les bibliothèques exigent C++23, transmis au projet consommateur : lier une
-cible `wsl::…` à un projet en C++20 le fait passer en C++23. L'historique des
-changements, bibliothèque par bibliothèque, est dans [CHANGELOG.md](CHANGELOG.md).
+## Domaines
 
-En préparation dans `wsl::random` : d'autres lois (Rice, zêta…)
-([conception](design/random.md)).
+Documentation : [docs/](docs/README.md), un guide par domaine ; exemples compilés et
+exécutés par la CI : [examples/](examples) ; conception et charte : [design/](design).
+
+| Domaine (alias conseillé) | Contenu |
+|---|---|
+| [`wsl::elementary_functions`](docs/elementary_functions/README.md) (`ef`) | `exp`, `log`, `pow`, `sin`, `atan2`, `cbrt`, `hypot`… reproductibles, `constexpr`, erreur près de 0,5 ulp |
+| [`wsl::special_functions`](docs/special_functions/README.md) (`sf`) | gamma, digamma, erreur et réciproques, gamma et bêta incomplètes et réciproques, Bessel `I_ν` |
+| [`wsl::random`](docs/random/README.md) (`rnd`) | moteurs `splitmix64`, `xoshiro256pp`, `pcg64`, `philox4x64` ; tirages uniformes exacts, mélange |
+| [`wsl::probability`](docs/probability/README.md) (`proba`) | plus de 80 lois (continues, discrètes, multivariées, combinatoires, matrices aléatoires), algèbre des lois, variables aléatoires |
+| [`wsl::probability::stochastic_processes`](docs/probability/stochastic_processes/README.md) (`stochproc`) | chaînes de Markov, marches, urnes, mouvement brownien, Ornstein–Uhlenbeck, Poisson… à trajectoires paresseuses |
+| [`wsl::measure_theory`](docs/measure_theory/README.md) (`meas`) | mesures de référence (à étendre) |
+| [`wsl::mdarray`](docs/mdarray/README.md) | tableaux multidimensionnels, calcul par les axes (`c[i, k] = a[i, j] * b[j, k]`), `mdspan` |
+| [`wsl::permutation`](docs/README.md#permutations) | permutations : composition, cycles, signature, rang |
+| [`wsl::floating_point_arithmetic`](docs/floating_point_arithmetic/README.md) (`fpa`) | primitives flottantes (interface à venir) |
+
+Les **modes de calcul** sont les mêmes partout : par défaut la voie la plus rapide
+(déterministe, approchée) ; `wsl::portable` exige les mêmes bits sur toute plateforme,
+`wsl::exact` le résultat exact ; une exigence impossible est refusée à la compilation
+([détails](docs/README.md#modes-de-calcul)).
+
+Chaque domaine a sa cible CMake du même nom (`wsl::random`,
+`wsl::probability::stochastic_processes`…) et son en-tête sans extension
+(`<wsl/random>`) ; `wsl::wsl` lie tout. Toutes exigent C++23, transmis au projet
+consommateur. L'historique des changements est dans [CHANGELOG.md](CHANGELOG.md). Les
+anciennes bibliothèques (`array2d`, `graded`, `graded_io`, `elo`, `progress`) attendent leur
+refonte dans `legacy/`, figées.
 
 ## Utiliser les bibliothèques dans un projet
 
@@ -94,22 +119,31 @@ machine : une version incompatible installée plus tard casse les anciens projet
 | Action | VSCode | Terminal |
 |---|---|---|
 | Compiler | ⇧⌘B | `cmake --preset debug && cmake --build --preset debug -j` |
-| Tests (ASan + UBSan) | tâche « Tests » | `ctest --preset debug` |
-| Tests en Release | tâche « Tests (Release) » | `ctest --preset release` |
+| Tests (ASan + UBSan, sans les tests longs) | tâche « Tests » | `ctest --preset debug` |
+| Tests en Release (tous) | tâche « Tests (Release) » | `ctest --preset release` |
+| Vérification rapide (bibliothèques touchées, Release et fma) | — | `tools/check.sh` |
 | Déboguer le test ouvert | F5 → « Déboguer le test courant » | — |
 
-Chaque `tests/test_<nom>.cpp` donne `test_<nom>`, compilé en C++23 (et, si une
-bibliothèque redescendait un jour plus bas, une fois par standard supporté :
-`test_<nom>_cxx20`…). Un test réussit s'il renvoie 0. `tests/package/` vérifie, en
-CI, l'installation et FetchContent du point de vue d'un consommateur.
+Les tests sont rangés comme les espaces de noms : `tests/probability/laws.cpp` donne le test
+`probability.laws`, `tests/mdarray/axis.cpp` le test `mdarray.axis`. Une ligne
+`// Étiquettes : precision long` en tête du fichier lui donne ses étiquettes
+(`ctest -L precision`, `ctest -LE long`). Les exemples, `examples/<domaine>/<tâche>.cpp`,
+sont lancés comme tests `example.<domaine>.<tâche>` (étiquette `example`). Un test réussit
+s'il renvoie 0. `tests/package/` vérifie, en CI, l'installation et FetchContent du point de
+vue d'un consommateur. La CI ne compile que ce qu'un push peut avoir changé, et ce qui en
+dépend.
 
 ### Ajouter une bibliothèque
 
-1. `include/wsl/<nom>.hpp`, dans le namespace `wsl`.
-2. `tests/test_<nom>.cpp`.
-3. Dans `CMakeLists.txt` : `wsl_add_library(<nom> STANDARD 23 [DEPENDS ...])`
-   et `wsl_add_test(<nom>)`.
-4. Une ligne dans le catalogue ci-dessus, une entrée dans `CHANGELOG.md`.
+1. Ses en-têtes dans `include/wsl/<chemin>`, le chemin étant l'espace de noms
+   (`include/wsl/linear_algebra.hpp`, `include/wsl/linear_algebra/…`), dans
+   `namespace wsl::inline WSL_DEFAULTS::<chemin>` si elle dépend des modes.
+2. Dans `CMakeLists.txt` : `wsl_add_library(<nom avec ::> STANDARD 23 [DEPENDS ...])` ;
+   les relais sans extension sont engendrés.
+3. Ses tests dans `tests/<chemin>.cpp` (ou `tests/<chemin>/<batterie>.cpp`), sa documentation
+   dans `docs/<chemin>/README.md`, un exemple dans `examples/<domaine>/`.
+4. Une entrée dans `CHANGELOG.md` ; les règles de nommage sont dans
+   [design/interfaces.md](design/interfaces.md) (§6).
 
 ### Publier une version
 
@@ -125,6 +159,12 @@ mineure peut casser l'interface, un correctif jamais.
 ## Outils
 
 - **`tools/release.sh`** : publication d'une version (voir plus haut).
+- **`tools/check.sh`** : vérification rapide des bibliothèques touchées.
+- **`tools/elementary_functions/generate.py`** : tables et valeurs de référence (mpmath) des
+  fonctions ; **`tools/elementary_functions/benchmark.sh`** : mesures de performance.
+- **`tools/random/`** : vecteurs des moteurs, tables de la ziggourat ;
+  **`tools/probability/`** : références des lois (mpmath) ;
+  **`tools/mdarray/benchmark.sh`** : performances de mdarray.
 
 ## Licence
 

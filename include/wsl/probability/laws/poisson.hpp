@@ -10,7 +10,7 @@
 //
 // Masse : décomposition de Loader, e^{−δ(k) − bd0(k, μ)} / √(2πk) (voir
 // detail/loader.hpp), un seul arrondi. Répartition P(N <= k) = Q(k + 1, μ) et survie
-// P(k + 1, μ) par la gamma incomplète de wsl::special ; quantile exact (recherche
+// P(k + 1, μ) par la gamma incomplète de special_functions ; quantile exact (recherche
 // depuis Cornish–Fisher, comparaisons en double-double, voir detail/discrete.hpp).
 //
 // Tirage (approché, bit-exact) : inversion séquentielle pour μ < 10 ; au-delà,

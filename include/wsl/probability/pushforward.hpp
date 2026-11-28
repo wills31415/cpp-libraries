@@ -18,7 +18,7 @@
 // dérivée de f⁻¹) : répartition F_X(f⁻¹(y)) (survie si f décroît), quantiles
 // f(Q_X(p)) (f(cQ_X(p)) si f décroît), médiane, support f(support) ; densité
 // f_X(f⁻¹(y)) |(f⁻¹)'(y)| et log-densité si la dérivée est donnée. Composition : la
-// précision et la reproductibilité au bit près dépendent de celles de f (wsl::special
+// précision et la reproductibilité au bit près dépendent de celles de f (special_functions
 // les garantit, <cmath> non). f est appliquée aux bornes du support (±∞ comprises).
 
 #include <wsl/probability/affine.hpp>

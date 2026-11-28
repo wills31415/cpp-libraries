@@ -11,8 +11,8 @@
 #
 # Correspondance : include/wsl/<chemin> et tests/<chemin> -> la bibliothèque la plus
 # profonde dont le chemin relève (wsl_owner, décision 32) ; tools/<nom>/ -> <nom> ;
-# tests/package/ : rien (job séparé) ; examples/<nom>.cpp -> cet
-# exemple ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
+# tests/package/ : rien (job séparé) ; examples/<domaine>/<tâche>.cpp ->
+# cet exemple (« <domaine>/<tâche> ») ; chemins de cmake/ci_ignored_paths.txt : rien ; tout autre chemin
 # (CMakeLists.txt, cmake/, presets, .github/…) -> ALL.
 
 function(wsl_affected_libraries file variable)
@@ -48,7 +48,7 @@ function(wsl_affected_libraries file variable)
             # Tests rangés comme les espaces de noms (décision 32).
             wsl_owner(${CMAKE_MATCH_1} library)
         endif()
-        if(path MATCHES "^examples/([a-z0-9_]+)\\.cpp$")
+        if(path MATCHES "^examples/([a-z0-9_/]+)\\.cpp$")
             list(APPEND examples ${CMAKE_MATCH_1})
             continue()
         endif()

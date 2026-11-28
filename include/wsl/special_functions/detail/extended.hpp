@@ -349,10 +349,10 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
 
     // e^x, x = x_hi + x_lo dans [−1500, 1400], à 2^-70 près relativement, à
     // l'échelle. Au-dessous de −1400 (hors de la réduction de Cody–Waite),
-    // e^x = 2^-1024 e^{x + 1024 ln 2}. Réduction de wsl::special (x = k ln2/128 + r),
+    // e^x = 2^-1024 e^{x + 1024 ln 2}. Réduction de special_functions (x = k ln2/128 + r),
     // puis e^r = 1 + r_hi + q, q = t + r t + r²/2 + … + r⁷/5040 (t = r_lo + x_lo,
     // reste < 2^-80) et T (1 + r_hi + q) avec T r_hi exact : le noyau de
-    // wsl::special::exp, à 2^-60 près, ne suffit pas pour rester sous 0,501 ulp
+    // ef::exp, à 2^-60 près, ne suffit pas pour rester sous 0,501 ulp
     // après les produits qui suivent.
     constexpr scaled exp_scaled(double x_hi, double x_lo) noexcept
     {
@@ -381,7 +381,7 @@ namespace wsl::inline WSL_DEFAULTS::special_functions::detail::extended
     }
 
     // e^x − 1, x = x_hi + x_lo dans [−40, 1], en double-double : la méthode de
-    // wsl::special::expm1, l'argument réduit gardé en double-double.
+    // ef::expm1, l'argument réduit gardé en double-double.
     constexpr sd::double_double expm1_double_double(double x_hi, double x_lo) noexcept
     {
         if (magnitude(x_hi) < 0x1p-54)                                      // e^x − 1 = x + x²/2 + …
