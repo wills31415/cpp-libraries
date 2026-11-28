@@ -102,7 +102,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # uv engendre les valeurs de référence (mpmath) qui manquent au magasin.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
 
       - name: ccache
         run: |
@@ -298,7 +298,7 @@ jobs:
           restore-keys: references-
           enableCrossOsArchive: true
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
         if: steps.references.outputs.cache-hit != 'true'
 
       - name: Calcul des familles manquantes
