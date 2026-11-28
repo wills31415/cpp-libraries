@@ -7,6 +7,7 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- CI : un bloc sauté s'affiche sous son seul nom (« Release »), sans l'expression brute.
 - Boucle locale : `tools/check.sh` compare à main (comme la CI d'une PR), vérifie une copie
   figée (`build/check-src`) pour qu'on puisse modifier le dépôt pendant, résume par
   `tools/ci/summary.py` et enregistre l'état vérifié vert ; hook d'avant push

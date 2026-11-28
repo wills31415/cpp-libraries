@@ -81,7 +81,7 @@ jobs:
           echo "Mode : $mode ; tests : $tests ; paquet : $package"
 
   release:
-    name: Release · ${{ matrix.compiler.name }}
+    name: ${{ matrix.compiler.name && format('Release · {0}', matrix.compiler.name) || 'Release' }}
     needs: changes
     if: needs.changes.outputs.tests == 'true'
     runs-on: ${{ matrix.compiler.os }}
@@ -212,7 +212,7 @@ jobs:
           key: ccache-${{ matrix.block }}-${{ matrix.compiler.name }}-${{ github.run_id }}
 
   sanitizers:
-    name: Sanitizers · ${{ matrix.compiler.name }}
+    name: ${{ matrix.compiler.name && format('Sanitizers · {0}', matrix.compiler.name) || 'Sanitizers' }}
     needs: changes
     if: needs.changes.outputs.tests == 'true'
     runs-on: ${{ matrix.compiler.os }}
@@ -232,7 +232,7 @@ jobs:
     steps: *build-steps
 
   fma:
-    name: FMA · ${{ matrix.compiler.name }}
+    name: ${{ matrix.compiler.name && format('FMA · {0}', matrix.compiler.name) || 'FMA' }}
     needs: changes
     if: needs.changes.outputs.tests == 'true'
     runs-on: ${{ matrix.compiler.os }}
