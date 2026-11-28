@@ -7,6 +7,12 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Boucle locale : `tools/check.sh` compare à main (comme la CI d'une PR), vérifie une copie
+  figée (`build/check-src`) pour qu'on puisse modifier le dépôt pendant, résume par
+  `tools/ci/summary.py` et enregistre l'état vérifié vert ; hook d'avant push
+  (`tools/git-hooks/pre-push`, `git config core.hooksPath tools/git-hooks`) qui refuse un push
+  dont le code n'est pas cet état ; `tools/release.sh prepare|tag X.Y.Z` (PR de version, puis
+  tag) ; tâche VSCode « Vérification rapide ».
 - CI restructurée : blocs Release, Sanitizers, FMA (GCC 14, Clang 18, Apple Clang sur macOS 26
   Intel) et Paquet CMake, puis Synthèse, seul contrôle exigé par la protection de main ; PR :
   bibliothèques touchées par la PR, run annulé au push suivant ; fusion dans main : run léger

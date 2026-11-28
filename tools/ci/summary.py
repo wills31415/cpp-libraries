@@ -173,7 +173,12 @@ def job(args):
         mark = {"ok": "✓", "fail": "✗", "skip": "—"}
         for t in sorted(tests, key=lambda t: (t["status"] != "fail", t["name"])):
             lines.append(f"| {t['name']} | {labels.get(t['name'], '')} | {duration(t['time'])} | {mark[t['status']]} |")
-    output("\n".join(lines))
+    if args.brief:
+        brief = [f"{args.name} : {'✓' if ok else '✗'} {passed} tests sur {len(tests)}"]
+        brief += [f"  ✗ {d['test']} : {d['detail']}" for d in details]
+        print("\n".join(brief))
+    else:
+        output("\n".join(lines))
     if args.json:
         Path(args.json).write_text(json.dumps({"name": args.name, "ok": ok, "passed": passed, "total": len(tests),
                                                "failures": details}, ensure_ascii=False), encoding="utf-8")
@@ -244,6 +249,7 @@ def main():
     j.add_argument("--build-dir")
     j.add_argument("--json")
     j.add_argument("--allow-empty", action="store_true", help="aucun test n'est pas un échec")
+    j.add_argument("--brief", action="store_true", help="résumé court sur la sortie (tools/check.sh)")
     s = sub.add_parser("synthesis")
     s.add_argument("--summaries", default="summaries")
     args = parser.parse_args()

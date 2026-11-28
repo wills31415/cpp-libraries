@@ -5,34 +5,66 @@
             "label": "Compiler",
             "type": "shell",
             "command": "cmake --preset debug && cmake --build --preset debug -j",
-            "options": { "cwd": "${workspaceFolder}" },
-            "group": { "kind": "build", "isDefault": true },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "problemMatcher": "$gcc",
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "Tests",
             "type": "shell",
             "command": "ctest --preset debug",
-            "options": { "cwd": "${workspaceFolder}" },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "dependsOn": "Compiler",
-            "group": { "kind": "test", "isDefault": true },
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
             "problemMatcher": []
         },
         {
             "label": "Tests (Release)",
             "type": "shell",
             "command": "cmake --preset release && cmake --build --preset release -j && ctest --preset release",
-            "options": { "cwd": "${workspaceFolder}" },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "group": "test",
             "problemMatcher": "$gcc",
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
+        },
+        {
+            "label": "Vérification rapide",
+            "detail": "tools/check.sh : bibliothèques touchées depuis main, release et FMA, sur une copie figée",
+            "type": "shell",
+            "command": "tools/check.sh",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "test",
+            "problemMatcher": "$gcc",
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "Exécuter le test courant",
             "type": "shell",
-            "command": "${workspaceFolder}/build/debug/tests/${fileBasenameNoExtension}",
-            "options": { "cwd": "${workspaceFolder}" },
+            "command": "f='${relativeFile}'; t=${f#tests/}; t=${t%.cpp}; \"${workspaceFolder}/build/debug/tests/${t//\\//.}\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "dependsOn": "Compiler",
             "problemMatcher": []
         },
@@ -40,9 +72,13 @@
             "label": "Installer dans ~/.local",
             "type": "shell",
             "command": "cmake --preset release && cmake --build --preset release -j && ctest --preset release && cmake --install build/release --prefix ~/.local",
-            "options": { "cwd": "${workspaceFolder}" },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "problemMatcher": "$gcc",
-            "presentation": { "clear": true }
+            "presentation": {
+                "clear": true
+            }
         },
         {
             "label": "Nettoyer",
