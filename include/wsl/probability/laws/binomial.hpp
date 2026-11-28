@@ -202,7 +202,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             I k = 0;
             if (X.b_ == 0)                                                  // inversion : P(X <= k) >= U
             {
-                double const u = uniform_real<double>(g);
+                double const u = uniform_real<double>(g, wsl::exact);
                 double probability = X.start_, sum = probability;
                 while (u > sum && k < X.n_ && probability > 0)
                 {
@@ -215,8 +215,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             {
                 for (;;)
                 {
-                    double const u = uniform_real<double>(g) - 0.5;
-                    double v = uniform_real<double>(g);
+                    double const u = uniform_real<double>(g, wsl::exact) - 0.5;
+                    double v = uniform_real<double>(g, wsl::exact);
                     double const us = 0.5 - (u < 0 ? -u : u);
                     if (us == 0)
                         continue;

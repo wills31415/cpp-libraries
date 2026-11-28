@@ -14,7 +14,7 @@
 // quantile exp(μ + σΦ⁻¹(p)), l'exposant en double-double, un seul arrondi. Moments
 // e^{μ + σ²/2}, (e^{σ²} − 1) e^{2μ + σ²}… de même.
 //
-// Tirage (approché, bit-exact) : e^Y, Y tirée exactement (wsl::probability::normal) ; wsl::probability::fast :
+// Tirage (approché, bit-exact) : e^Y, Y tirée exactement (wsl::probability::normal) ; wsl::approximate :
 // Y par la ziggourat.
 
 #include <wsl/probability/laws/basic.hpp>
@@ -183,10 +183,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return static_cast<T>(wsl::special::exp(double(wsl::probability::sample(normal<double>({.mean = X.mu_, .stddev = X.sigma_}), g))));
+            return static_cast<T>(wsl::special::exp(double(detail::native_sample(normal<double>({.mean = X.mu_, .stddev = X.sigma_}), g))));
         }
         template <std::uniform_random_bit_generator G>
-        constexpr T sample(G& g, fast_t) const
+        constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
             return static_cast<T>(wsl::special::exp(double(X.mu_) + detail::sd::fmul(double(X.sigma_), detail::ziggurat_normal(g))));

@@ -155,7 +155,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return X.clamp(detail::interpolate(X.low_, X.high_, uniform_real<double>(g)));
+            return X.clamp(detail::interpolate(X.low_, X.high_, uniform_real<double>(g, wsl::exact)));
         }
 
         friend constexpr bool operator==(uniform const&, uniform const&) = default;

@@ -27,6 +27,28 @@ namespace wr
     using namespace wsl::probability::stochastic_processes::processes;
     using namespace wsl::measure_theory;
     namespace detail = wsl::probability::detail;
+
+    // Le tirage natif, l'ancien défaut (exact pour une loi exacte, son seul tirage sinon) :
+    // celui que mesurent les empreintes de ces tests.
+    template <class X, class G>
+    constexpr auto native(X const& x, G& g)
+    {
+        if constexpr (requires { wsl::probability::detail::native_sample(x, g); })
+            return wsl::probability::detail::native_sample(x, g);
+        else if constexpr (requires { x.law(); })
+            return wsl::probability::detail::native_sample(x.law(), g);
+        else
+            return x(g, wsl::exact);
+    }
+    template <class X, class G>
+    constexpr auto native(X const& x, std::size_t n, G& g)
+    {
+        std::vector<decltype(native(x, g))> out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            out.push_back(native(x, g));
+        return out;
+    }
 }
 
 
@@ -155,7 +177,7 @@ int main()
     {
         wr::categorical const C({.p = {0.1, 1e-3, 2.5, 0.0, 7.0}});
         std::vector<std::size_t> const k{0, 1, 2, 3, 4};
-        assert(chi_square(k, draws, [&] { return wr::sample(C, g); }, [&](std::size_t i) { return wr::pmf(C, i); }) < 4);
+        assert(chi_square(k, draws, [&] { return wr::native(C, g); }, [&](std::size_t i) { return wr::pmf(C, i); }) < 4);
         double const total = 0.1 + 1e-3 + 2.5 + 7.0;
         assert(close(wr::pmf(C, 2), 2.5 / total, 1e-15) && wr::pmf(C, 3) == 0 && wr::pmf(C, 7) == 0 && wr::cdf(C, 4) == 1 && close(wr::cdf(C, 1) + wr::ccdf(C, 1), 1, 1e-15));
         assert(C.mode() == 4 && close(C.mean(), (1e-3 + 5.0 + 28.0) / total, 1e-15));
@@ -166,7 +188,7 @@ int main()
         int above = 0;
         for (int i = 0; i < 30000; ++i)
         {
-            auto const x = wr::sample(B, g);
+            auto const x = wr::native(B, g);
             assert(x != 1);
             above += x == 2;
         }
@@ -181,7 +203,7 @@ int main()
         for (std::size_t k : {1, 2, 7, 30})
         {
             wr::xoshiro256pp a(5), b(5);
-            auto const path = wr::sample(M.steps(k - 1), a);                    // k états
+            auto const path = wr::native(M.steps(k - 1), a);                    // k états
             std::vector<std::size_t> lazy;
             for (std::size_t x : wr::trajectory(M, b) | std::views::take(k))
                 lazy.push_back(x);
@@ -209,14 +231,14 @@ int main()
         for (std::int64_t v = -10; v <= 10; v += 2)
             ends.push_back(v);
         wr::binomial const B({.trials = 10, .p = 0.5});
-        assert(chi_square(ends, draws, [&] { return wr::sample(W.steps(10), g).back(); }, [&](std::int64_t v) { return wr::pmf(B, (v + 10) / 2); }) < 4);
+        assert(chi_square(ends, draws, [&] { return wr::native(W.steps(10), g).back(); }, [&](std::int64_t v) { return wr::pmf(B, (v + 10) / 2); }) < 4);
         assert(W.mean(10) == 0 && W.variance(10) == 10);
         wr::random_walk const V(wr::rademacher({.p = 0.3}), {.start = 5});
-        auto const p = wr::sample(V.steps(6), g);
+        auto const p = wr::native(V.steps(6), g);
         assert(p[0] == 5 && close(wr::pmf(V.steps(6), p), std::pow(0.3, double((p.back() - 5 + 6) / 2)) * std::pow(0.7, double(6 - (p.back() - 5 + 6) / 2)), 1e-14));
         assert(wr::pmf(V.steps(2), {5, 7, 8}) == 0 && wr::pmf(V.steps(2), {4, 5, 6}) == 0);
         wr::random_walk const P(wr::poisson({.mean = 2.0}));              // pas quelconques entiers
-        assert(close(P.mean(100), 200, 1e-15) && wr::sample(P.steps(100), g).back() > 100);
+        assert(close(P.mean(100), 200, 1e-15) && wr::native(P.steps(100), g).back() > 100);
     }
 
     // ---- Chaînes de Markov -------------------------------------------------------------
@@ -224,7 +246,7 @@ int main()
         wr::markov_chain const M({.transition = {{0.5, 0.3, 0.2}, {0.1, 0.8, 0.1}, {0.25, 0.25, 0.5}}, .start = 2});
         auto const at5 = M.at(5);
         std::vector<std::size_t> const states{0, 1, 2};
-        assert(chi_square(states, draws, [&] { return wr::sample(M.steps(5), g).back(); }, [&](std::size_t i) { return wr::pmf(at5, i); }) < 4);
+        assert(chi_square(states, draws, [&] { return wr::native(M.steps(5), g).back(); }, [&](std::size_t i) { return wr::pmf(at5, i); }) < 4);
         auto const pi = M.stationary(), far = M.at(200);
         for (std::size_t i = 0; i < 3; ++i)
             assert(std::abs(wr::pmf(pi, i) - wr::pmf(far, i)) < 1e-14);
@@ -242,7 +264,7 @@ int main()
         for (auto const& q : paths)
             t += wr::pmf(M.steps(3), q);
         assert(close(t, 1, 1e-14) && wr::pmf(M.steps(3), paths[0]) == 0);       // x₀ = 0 impossible
-        assert(chi_square(paths, draws, [&] { return wr::sample(M.steps(3), g); }, [&](std::vector<std::size_t> const& q) { return wr::pmf(M.steps(3), q); }) < 4);
+        assert(chi_square(paths, draws, [&] { return wr::native(M.steps(3), g); }, [&](std::vector<std::size_t> const& q) { return wr::pmf(M.steps(3), q); }) < 4);
         wr::markov_chain const L({.transition = {{1, 0}, {0.4, 0.6}}, .initial = {0.25, 0.75}});
         assert(L.is_absorbing(0) && !L.is_absorbing(1) && close(wr::pmf(L.at(3), 1), 0.75 * 0.216, 1e-15));
         assert(throws_domain_error([] { (void)wr::markov_chain({.transition = {{1, 0}, {0, 1}}, .start = 0}).stationary(); }));   // non unique
@@ -258,7 +280,7 @@ int main()
         for (std::int64_t a = 0; a <= 6; ++a)
             counts.push_back({a, 6 - a});
         assert(chi_square(counts, draws, [&] {
-            auto const c = wr::sample(U.steps(5), g);
+            auto const c = wr::native(U.steps(5), g);
             std::int64_t const zeros = std::ranges::count(c, std::size_t{0});
             return std::vector<std::int64_t>{zeros, 6 - zeros};
         }, [&](std::vector<std::int64_t> const& k) { return wr::pmf(D, k); }) < 4);
@@ -272,10 +294,10 @@ int main()
         for (std::int64_t a = 0; a <= 4; ++a)
             for (std::int64_t b = 0; a + b <= 4; ++b)
                 ks.push_back({a, b, 4 - a - b});
-        assert(chi_square(ks, draws, [&] { return wr::sample(M, g); }, [&](std::vector<std::int64_t> const& k) { return wr::pmf(M, k); }) < 4);
+        assert(chi_square(ks, draws, [&] { return wr::native(M, g); }, [&](std::vector<std::int64_t> const& k) { return wr::pmf(M, k); }) < 4);
         assert(close(M.mean()[2], 2.0, 1e-15) && close(M.variance()[0], 4 * 0.125 * 0.875 * 8 / 5, 1e-14));
         wr::polya_urn const R({.balls = {0.3, 0.7, 1.1}, .added = 0.25});  // poids non entiers : exacts
-        assert(chi_square(sequences(3, 3), draws, [&] { return wr::sample(R.steps(2), g); }, [&](std::vector<std::size_t> const& q) { return wr::pmf(R.steps(2), q); }) < 4);
+        assert(chi_square(sequences(3, 3), draws, [&] { return wr::native(R.steps(2), g); }, [&](std::vector<std::size_t> const& q) { return wr::pmf(R.steps(2), q); }) < 4);
         assert(throws_domain_error([] { (void)wr::polya_urn({.balls = {1, 1}, .added = 0}).at(3); }));
     }
 
@@ -299,7 +321,7 @@ int main()
         double k = 0;
         for (int i = 0; i < 500; ++i)
         {
-            auto const s = wr::sample(E, g);
+            auto const s = wr::native(E, g);
             k += double(*std::ranges::max_element(s) + 1);
         }
         assert(std::abs(k / 500 - E.mean_blocks()) < 0.3 && close(E.mean_blocks(), wr::ewens({.size = 200, .theta = 2.0}).mean_cycles(), 1e-15));
@@ -307,7 +329,7 @@ int main()
         double kp = 0;
         for (int i = 0; i < 500; ++i)
         {
-            auto const s = wr::sample(PY, g);
+            auto const s = wr::native(PY, g);
             kp += double(*std::ranges::max_element(s) + 1);
         }
         assert(std::abs(kp / 500 - PY.mean_blocks()) < 0.8);
@@ -322,7 +344,7 @@ int main()
         wr::categorical const C({.p = {0.1, 0.25, 0.3, 0.05, 0.3}});
         wr::markov_chain const M({.transition = {{0.5, 0.3, 0.2}, {0.1, 0.8, 0.1}, {0.25, 0.25, 0.5}}, .start = 0});
         auto const take = [&](fnv1a& h, auto const& process, std::size_t n) { for (auto v : wr::trajectory(process, x) | std::views::take(n)) h.add(static_cast<std::uint64_t>(v)); };
-        ok &= check("categorical", fingerprint([&](fnv1a& h) { h.add(wr::sample(C, x)); }), 0x75204fe3d6fc7447);
+        ok &= check("categorical", fingerprint([&](fnv1a& h) { h.add(wr::native(C, x)); }), 0x75204fe3d6fc7447);
         ok &= check("random_walk", fingerprint([&](fnv1a& h) { take(h, wr::random_walk(wr::rademacher({.p = 0.6})), 20); }, 1 << 9), 0xe141a7ef8f3eb38a);
         ok &= check("markov_chain", fingerprint([&](fnv1a& h) { take(h, M, 20); }, 1 << 9), 0xbd7b75b6f3dea6a4);
         ok &= check("polya_urn", fingerprint([&](fnv1a& h) { take(h, wr::polya_urn({.balls = {1, 2, 0.5}, .added = 1.5}), 20); }, 1 << 9), 0x0c3d0a6d77d909e4);

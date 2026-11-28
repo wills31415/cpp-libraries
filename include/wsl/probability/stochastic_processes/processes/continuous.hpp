@@ -226,7 +226,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             return {parameters{mu_, sigma_, x0_}, detail::to_dyadic(s.step), s.step};
         }
 
-        // Variante rapide (wsl::probability::fast) : accroissements par la ziggourat, somme double-double.
+        // Variante rapide (wsl::approximate) : accroissements par la ziggourat, somme double-double.
         struct fast_walker_type
         {
             double mu, sigma, h, c;
@@ -267,7 +267,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
         return process_view<brownian_motion::walker_type, G>(b.walker(s), g);
     }
     template <std::uniform_random_bit_generator G>
-    constexpr auto trajectory(brownian_motion const& b, G& g, grid_step s, fast_t)
+    constexpr auto trajectory(brownian_motion const& b, G& g, grid_step s, approximate_t)
     {
         return process_view<brownian_motion::fast_walker_type, G>(b.fast_walker(s), g);
     }
@@ -508,7 +508,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             constexpr value_type sample(G& g) const
             {
                 auto const& L = *this;
-                auto x = wsl::probability::sample(L.log_.on_grid(L.times_), g);
+                auto x = detail::native_sample(L.log_.on_grid(L.times_), g);
                 for (auto& v : x)
                     v = detail::sd::fmul(L.s0_, wsl::special::exp(v));
                 return x;
@@ -575,7 +575,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             template <class G>
             constexpr double next(G& g)
             {
-                t = detail::sum(t, {wsl::probability::sample(exponential<double>({.rate = lambda}), g, fast), 0.0});
+                t = detail::sum(t, {wsl::probability::sample(exponential<double>({.rate = lambda}), g, wsl::approximate), 0.0});
                 return t.hi + t.lo;
             }
         };
@@ -618,7 +618,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
     };
 
     template <std::uniform_random_bit_generator G>
-    constexpr auto trajectory(poisson_process const& p, G& g, fast_t)
+    constexpr auto trajectory(poisson_process const& p, G& g, approximate_t)
     {
         return process_view<poisson_process::fast_walker_type, G>({p.rate()}, g);
     }
@@ -740,7 +740,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                 if constexpr (detail::lazy_samplable<L, G>)
                     values.add(detail::lazy_sample(p->jump_, g), g);
                 else
-                    values.add_constant(detail::to_dyadic(double(wsl::probability::sample(p->jump_, g))));
+                    values.add_constant(detail::to_dyadic(double(detail::native_sample(p->jump_, g))));
                 return {t, values.rounded(g)};
             }
         };
@@ -854,7 +854,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
                     return {std::numeric_limits<double>::infinity(), x};
                 }
                 times.add(detail::lazy_sample(exponential<double>({.rate = q}), g), g);
-                x = static_cast<std::size_t>(wsl::probability::sample(c->jumps_[x], g));
+                x = static_cast<std::size_t>(detail::native_sample(c->jumps_[x], g));
                 return {times.rounded(g), x};
             }
         };

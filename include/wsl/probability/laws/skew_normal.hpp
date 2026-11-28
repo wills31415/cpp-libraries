@@ -239,7 +239,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             normal<double> const N({.mean = 0.0, .stddev = 1.0});
-            double const u = wsl::probability::sample(N, g), v = wsl::probability::sample(N, g);
+            double const u = detail::native_sample(N, g), v = detail::native_sample(N, g);
             double const z = v < detail::sd::fmul(double(X.alpha_), u) ? u : -u;
             return static_cast<T>(double(X.xi_) + detail::sd::fmul(double(X.omega_), z));
         }

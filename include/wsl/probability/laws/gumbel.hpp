@@ -159,7 +159,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            double const e = wsl::probability::sample(exponential<double>({.rate = 1.0}), g);
+            double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
             auto const l = detail::log_precise(e);
             return static_cast<T>(detail::affine(X.mu_, X.beta_, -l.hi, -l.lo));
         }
@@ -286,7 +286,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& F = *this;
-            double const e = wsl::probability::sample(exponential<double>({.rate = 1.0}), g);
+            double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
             double const w = wsl::special::exp(-wsl::special::log(e) / double(F.alpha_));
             return static_cast<T>(double(F.m_) + detail::sd::fmul(double(F.s_), w));
         }

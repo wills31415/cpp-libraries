@@ -117,7 +117,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& A = *this;
-            return A.inverse(uniform_real<double>(g), false);
+            return A.inverse(uniform_real<double>(g, wsl::exact), false);
         }
 
         friend constexpr bool operator==(arcsine const&, arcsine const&) = default;

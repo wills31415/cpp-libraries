@@ -141,25 +141,25 @@ namespace wsl::inline WSL_DEFAULTS::probability
             auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
-                    return Y.solve(uniform_real<double>(g), false);
+                    return Y.solve(uniform_real<double>(g, wsl::exact), false);
             for (;;)
             {
-                value_type const x = wsl::probability::sample(Y.law_, g);
+                value_type const x = detail::native_sample(Y.law_, g);
                 if (x >= Y.low_ && x <= Y.high_)
                     return x;
             }
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& Y = *this;
             if constexpr (has_quantile<L> && has_cquantile<L>)
                 if (Y.mass_ < 0.25)
-                    return Y.solve(uniform_real<double>(g), false);
+                    return Y.solve(uniform_real<double>(g, wsl::exact), false);
             for (;;)
             {
-                value_type const x = wsl::probability::sample(Y.law_, g, fast);
+                value_type const x = wsl::probability::sample(Y.law_, g, wsl::approximate);
                 if (x >= Y.low_ && x <= Y.high_)
                     return x;
             }

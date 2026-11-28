@@ -27,6 +27,28 @@ namespace wr
     using namespace wsl::probability::stochastic_processes::processes;
     using namespace wsl::measure_theory;
     namespace detail = wsl::probability::detail;
+
+    // Le tirage natif, l'ancien défaut (exact pour une loi exacte, son seul tirage sinon) :
+    // celui que mesurent les empreintes de ces tests.
+    template <class X, class G>
+    constexpr auto native(X const& x, G& g)
+    {
+        if constexpr (requires { wsl::probability::detail::native_sample(x, g); })
+            return wsl::probability::detail::native_sample(x, g);
+        else if constexpr (requires { x.law(); })
+            return wsl::probability::detail::native_sample(x.law(), g);
+        else
+            return x(g, wsl::exact);
+    }
+    template <class X, class G>
+    constexpr auto native(X const& x, std::size_t n, G& g)
+    {
+        std::vector<decltype(native(x, g))> out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            out.push_back(native(x, g));
+        return out;
+    }
 }
 
 
@@ -87,7 +109,7 @@ namespace
     {
         std::map<V, int> counts;
         for (int i = 0; i < draws; ++i)
-            ++counts[wr::sample(law, g)];
+            ++counts[wr::native(law, g)];
         double chi = 0, total = 0;
         for (auto const& o : objects)
         {
@@ -269,12 +291,12 @@ int main()
         wr::ewens const big({.size = 2000, .theta = 3.0});
         double cycles = 0;
         for (int i = 0; i < 200; ++i)
-            cycles += double(wr::sample(big, g).cycle_count());
+            cycles += double(wr::native(big, g).cycle_count());
         assert(std::abs(cycles / 200 - big.mean_cycles()) < 0.6);
         wr::mallows const near({.size = 300, .q = 1 - 1e-4});
         double inv = 0;
         for (int i = 0; i < 200; ++i)
-            inv += double(wr::sample(near, g).inversions());
+            inv += double(wr::native(near, g).inversions());
         assert(std::abs(inv / 200 - near.mean_inversions()) / near.mean_inversions() < 0.02);
         assert(wr::pmf(E, wsl::permutation(5)) == 0 && wr::log_pmf(M, wsl::permutation(7)) == -INFINITY);
         assert(throws_domain_error([] { wr::ewens X({.size = 3, .theta = 0.0}); }) && throws_domain_error([] { wr::mallows X({.size = 3, .q = -1.0}); }));
@@ -292,7 +314,7 @@ int main()
                     words.push_back({a, b, c});
         assert(chi_square(wr::uniform_word({.length = 3, .alphabet = 3}), g, words, draws) < 4);
         wr::uniform_combination const C({.size = 1000000, .count = 50});
-        auto const s = wr::sample(C, g);
+        auto const s = wr::native(C, g);
         assert(s.size() == 50 && wr::pmf(C, s) > 0 && close(C.entropy(), std::lgamma(1000001.0) - std::lgamma(51.0) - std::lgamma(999951.0), 1e-12));
         assert(wr::pmf(C, {1, 0}) == 0 && wr::pmf(wr::uniform_subset({.size = 3}), {0, 3}) == 0 && wr::pmf(wr::uniform_word({.length = 2, .alphabet = 2}), {0, 2}) == 0);
         assert(throws_domain_error([] { wr::uniform_combination X({.size = 3, .count = 4}); }));
@@ -308,7 +330,7 @@ int main()
         assert(wr::uniform_integer_partition({.total = 100}).count() == 190569292);
         assert(close(wr::uniform_integer_partition({.total = 1000}).count(), 24061467864032622473692149727991.0, 1e-15));
         wr::uniform_integer_partition const P({.total = 500});
-        auto const q = wr::sample(P, g);
+        auto const q = wr::native(P, g);
         std::size_t total = 0;
         for (std::size_t v : q)
             total += v;
@@ -338,11 +360,11 @@ int main()
             }
         assert((chi_square(wr::barabasi_albert({.vertices = 4, .edges = 1}), g, ba, draws, [&](wr::edge_list const& e) { return pr[static_cast<std::size_t>(std::ranges::find(ba, e) - ba.begin())]; }) < 4));
         wr::barabasi_albert const B({.vertices = 2000, .edges = 3});
-        auto const be = wr::sample(B, g);
+        auto const be = wr::native(B, g);
         assert(be.size() == B.edge_count() && std::ranges::adjacent_find(be) == be.end() && wsl::probability::detail::is_edge_list(be, 2000));
-        auto const re = wr::sample(wr::random_regular_graph({.vertices = 500, .degree = 3}), g);
+        auto const re = wr::native(wr::random_regular_graph({.vertices = 500, .degree = 3}), g);
         assert(std::ranges::all_of(degrees(re, 500), [](std::size_t d) { return d == 3; }) && wsl::probability::detail::is_edge_list(re, 500));
-        auto const er = wr::sample(wr::erdos_renyi({.vertices = 300, .p = 0.1}), g);
+        auto const er = wr::native(wr::erdos_renyi({.vertices = 300, .p = 0.1}), g);
         assert(std::abs(double(er.size()) - 4485) < 6 * std::sqrt(4485 * 0.9) && wr::pmf(wr::erdos_renyi({.vertices = 3, .p = 0.5}), {{0, 1}, {0, 2}}) == 0.125);
         assert(throws_domain_error([] { wr::random_regular_graph X({.vertices = 5, .degree = 3}); }) && throws_domain_error([] { wr::uniform_graph X({.vertices = 4, .edges = 7}); }));
     }
@@ -359,10 +381,10 @@ int main()
         assert(binary.size() == 14);                                         // Catalan C₄
         assert(chi_square(wr::uniform_binary_tree({.vertices = 4}), g, binary, draws) < 4);
         wr::uniform_tree const T({.vertices = 1000});
-        auto const t = wr::sample(T, g);
+        auto const t = T(g);
         assert(wsl::probability::detail::is_tree(t, 1000) && wr::pmf(T, t) == 0 && wr::log_pmf(T, t) == -T.entropy());   // n^{−(n−2)} sous-déborde
         wr::uniform_binary_tree const A({.vertices = 1000});
-        auto const a = wr::sample(A, g);
+        auto const a = wr::native(A, g);
         assert(a.size() == 1000 && wr::log_pmf(A, a) == -A.entropy() && close(A.entropy(), std::lgamma(2001.0) - 2 * std::lgamma(1001.0) - std::log(1001.0), 1e-13));
         assert(wr::pmf(wr::uniform_tree({.vertices = 2}), {{0, 1}}) == 1 && wr::pmf(wr::uniform_tree({.vertices = 4}), {{0, 1}, {1, 2}, {0, 2}}) == 0);
     }
@@ -393,7 +415,7 @@ int main()
         }
         assert(chi_square(wr::uniform_composition({.total = 6}), g, comps, draws) < 4);
         assert(comps3.size() == 10 && chi_square(wr::uniform_composition({.total = 6, .parts = 3}), g, comps3, draws) < 4);
-        auto const sp = wr::sample(wr::uniform_set_partition({.size = 150}), g);
+        auto const sp = wr::native(wr::uniform_set_partition({.size = 150}), g);
         assert(wr::pmf(wr::uniform_set_partition({.size = 150}), sp) > 0 && wr::pmf(wr::uniform_set_partition({.size = 3}), {0, 2, 1}) == 0);
     }
 
@@ -403,32 +425,32 @@ int main()
         wr::xoshiro256pp x(42);
         auto const add_perm = [](fnv1a& h, wsl::permutation const& p) { for (std::size_t v : p) h.add(v); };
         auto const add_vec = [](fnv1a& h, std::vector<std::size_t> const& v) { h.add(v.size()); for (std::size_t e : v) h.add(e); };
-        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, wr::sample(wr::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
-        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, wr::sample(wr::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
-        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, wr::sample(wr::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
-        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, wr::sample(wr::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
+        ok &= check("uniform_permutation", fingerprint([&](fnv1a& h) { add_perm(h, wr::native(wr::uniform_permutation({.size = 20}), x)); }), 0xc24e2f0c1702f325);
+        ok &= check("ewens", fingerprint([&](fnv1a& h) { add_perm(h, wr::native(wr::ewens({.size = 20, .theta = 1.7}), x)); }), 0x16e0ba54eb024465);
+        ok &= check("mallows", fingerprint([&](fnv1a& h) { add_perm(h, wr::native(wr::mallows({.size = 20, .q = 0.8}), x)); }), 0x1dbf2a90e4629485);
+        ok &= check("mallows (q > 1)", fingerprint([&](fnv1a& h) { add_perm(h, wr::native(wr::mallows({.size = 20, .q = 1.05}), x)); }), 0xd7a97235d3517c65);
         ok &= check("subsets", fingerprint([&](fnv1a& h) {
-            add_vec(h, wr::sample(wr::uniform_subset({.size = 70}), x));
-            add_vec(h, wr::sample(wr::bernoulli_subset({.size = 30, .p = 0.2}), x));
-            add_vec(h, wr::sample(wr::uniform_combination({.size = 100, .count = 7}), x));
-            add_vec(h, wr::sample(wr::uniform_word({.length = 9, .alphabet = 26}), x));
+            add_vec(h, wr::native(wr::uniform_subset({.size = 70}), x));
+            add_vec(h, wr::native(wr::bernoulli_subset({.size = 30, .p = 0.2}), x));
+            add_vec(h, wr::native(wr::uniform_combination({.size = 100, .count = 7}), x));
+            add_vec(h, wr::native(wr::uniform_word({.length = 9, .alphabet = 26}), x));
         }), 0x0ed6bf2a62e76d9b);
         auto const add_edges = [](fnv1a& h, wr::edge_list const& e) { h.add(e.size()); for (auto [u, v] : e) h.add((std::uint64_t(u) << 32) | v); };
         ok &= check("graphs", fingerprint([&](fnv1a& h) {
-            add_edges(h, wr::sample(wr::erdos_renyi({.vertices = 12, .p = 0.3}), x));
-            add_edges(h, wr::sample(wr::uniform_graph({.vertices = 12, .edges = 15}), x));
-            add_edges(h, wr::sample(wr::barabasi_albert({.vertices = 20, .edges = 2}), x));
-            add_edges(h, wr::sample(wr::random_regular_graph({.vertices = 12, .degree = 3}), x));
+            add_edges(h, wr::native(wr::erdos_renyi({.vertices = 12, .p = 0.3}), x));
+            add_edges(h, wr::native(wr::uniform_graph({.vertices = 12, .edges = 15}), x));
+            add_edges(h, wr::native(wr::barabasi_albert({.vertices = 20, .edges = 2}), x));
+            add_edges(h, wr::native(wr::random_regular_graph({.vertices = 12, .degree = 3}), x));
         }, 1 << 10), 0x553dd3266e70997e);
         ok &= check("trees", fingerprint([&](fnv1a& h) {
-            add_edges(h, wr::sample(wr::uniform_tree({.vertices = 30}), x));
-            for (auto c : wr::sample(wr::uniform_binary_tree({.vertices = 20}), x).children)
+            add_edges(h, wr::native(wr::uniform_tree({.vertices = 30}), x));
+            for (auto c : wr::native(wr::uniform_binary_tree({.vertices = 20}), x).children)
                 h.add((std::uint64_t(c[0]) << 32) ^ c[1]);
         }, 1 << 10), 0xd9ba05da9d874029);
         wr::uniform_set_partition const SP({.size = 25});
-        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, wr::sample(SP, x)); add_vec(h, wr::sample(wr::uniform_composition({.total = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
+        ok &= check("set_partition", fingerprint([&](fnv1a& h) { add_vec(h, wr::native(SP, x)); add_vec(h, wr::native(wr::uniform_composition({.total = 15, .parts = 4}), x)); }, 1 << 10), 0xb24e8c428ebea7a8);
         wr::uniform_integer_partition const P({.total = 60});
-        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, wr::sample(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
+        ok &= check("integer_partition", fingerprint([&](fnv1a& h) { add_vec(h, wr::native(P, x)); }, 1 << 10), 0x85ac6c433bff617f);
     }
     assert(ok);
     std::printf("test_random_combinatorics : ok\n");

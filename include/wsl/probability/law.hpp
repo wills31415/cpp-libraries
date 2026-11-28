@@ -22,7 +22,7 @@
 // Toutes s'appellent par les objets-fonctions de wsl::random — X.pdf(x),
 // wsl::probability::mean(X), X(g) —, qui prennent le membre de la loi
 // (X.pdf(x), X.mean(), X.sample(g)) ou, à défaut, une fonction libre trouvée par ADL (lois
-// tierces). Les lois qui héritent de law_interface ont en plus X(g), X(g, wsl::probability::fast),
+// tierces). Les lois qui héritent de law_interface ont en plus X(g), X(g, wsl::approximate),
 // X(n, g), X.density(x).
 //
 // Ce qui n'existe pas mathématiquement — l'espérance d'une loi de Cauchy — ou
@@ -46,12 +46,8 @@ namespace wsl::inline WSL_DEFAULTS::probability
         approximate     // algorithme classique, erreur documentée ; toujours bit-exact
     };
 
-    // Demande explicite du tirage rapide : sample(X, g, wsl::probability::fast).
-    struct fast_t
-    {
-        explicit fast_t() = default;
-    };
-    inline constexpr fast_t fast{};
+    // Plus d'étiquette fast : le tirage approché est le défaut, wsl::exact demande le tirage exact
+    // (design/interfaces.md, décisions 24 à 27).
 
     // Intervalle fermé [lower, upper] (bornes éventuellement infinies).
     template <class T>
@@ -141,8 +137,10 @@ namespace wsl::inline WSL_DEFAULTS::probability
         WSL_RANDOM_OPERATION(support)
 #undef WSL_RANDOM_OPERATION
 
-        // sample(X, g) ; sample(X, g, fast) : la variante rapide de la loi, sinon le tirage par défaut.
-        struct sample_fn
+        // Le tirage natif d'une loi : law.sample(g) (exact pour une loi dont sampling vaut exact,
+        // son seul tirage sinon). Les appels internes de la bibliothèque passent par lui, pour
+        // qu'un tirage exact tire ses composantes exactement.
+        struct native_sample_fn
         {
             template <class L, std::uniform_random_bit_generator G>
                 requires requires(L const& law, G& g) { law.sample(g); } || requires(L const& law, G& g) { sample(law, g); }
@@ -153,16 +151,40 @@ namespace wsl::inline WSL_DEFAULTS::probability
                 else
                     return sample(law, g);
             }
-            template <class L, std::uniform_random_bit_generator G>
-                requires requires(sample_fn f, L const& law, G& g) { f(law, g); }
-            constexpr auto operator()(L const& law, G& g, fast_t f) const
+        };
+
+        // sample(X, g, M...) : le tirage dans le mode des étiquettes (décisions 24 à 27).
+        // Approché par défaut : la variante approchée de la loi (law.sample(g, approximate)) si
+        // elle en a une, sinon son tirage natif ; exact sur wsl::exact : le tirage natif, refusé à
+        // la compilation pour une loi sans tirage exact (décision 25). L'axe de la
+        // reproductibilité est accepté sans effet : tous les tirages sont portables.
+        struct sample_fn;
+    }
+    namespace detail
+    {
+        inline constexpr cpo::native_sample_fn native_sample{};
+    }
+    namespace detail::cpo
+    {
+        struct sample_fn
+        {
+            template <class L, std::uniform_random_bit_generator G, class... M>
+                requires mode_set<M...> && requires(native_sample_fn f, L const& law, G& g) { f(law, g); }
+            constexpr auto operator()(L const& law, G& g, M...) const
             {
-                if constexpr (requires { law.sample(g, f); })
-                    return law.sample(g, f);
-                else if constexpr (requires { sample(law, g, f); })
-                    return sample(law, g, f);
+                if constexpr (std::same_as<algorithm_of<M...>, exact_t>)
+                {
+                    static_assert(L::sampling == exactness::exact,
+                                  "wsl::probability : cette loi n'a pas de tirage exact (wsl::exact refusé, "
+                                  "design/interfaces.md, décision 25)");
+                    return native_sample_fn{}(law, g);
+                }
+                else if constexpr (requires { law.sample(g, approximate); })
+                    return law.sample(g, approximate);
+                else if constexpr (requires { sample(law, g, approximate); })
+                    return sample(law, g, approximate);
                 else
-                    return (*this)(law, g);
+                    return native_sample_fn{}(law, g);
             }
         };
 
@@ -272,39 +294,26 @@ namespace wsl::inline WSL_DEFAULTS::probability
     using reference_measure_t = decltype(detail::reference_measure_of<L>());
 
     // -----------------------------------------------------------------------
-    // Base commune des lois (paramètre this explicite) : X(g), X(g, fast), X(n, g),
-    // X(n, g, fast) et X.density(x), X.log_density(x), à partir de X.sample(g) et de
+    // Base commune des lois (paramètre this explicite) : X(g, étiquettes…), X(n, g, étiquettes…) et X.density(x), X.log_density(x), à partir de X.sample(g) et de
     // X.pdf / X.pmf. X(n, g) rend exactement les n valeurs, et consomme exactement les
     // mots du moteur, de n appels X(g) successifs.
     // -----------------------------------------------------------------------
     struct law_interface
     {
-        template <class Self, std::uniform_random_bit_generator G>
-        constexpr auto operator()(this Self const& self, G& g)
+        template <class Self, std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr auto operator()(this Self const& self, G& g, M... m)
         {
-            return wsl::probability::sample(self, g);
+            return wsl::probability::sample(self, g, m...);
         }
-        template <class Self, std::uniform_random_bit_generator G>
-        constexpr auto operator()(this Self const& self, G& g, fast_t f)
+        template <class Self, std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr auto operator()(this Self const& self, std::size_t n, G& g, M... m)
         {
-            return wsl::probability::sample(self, g, f);
-        }
-        template <class Self, std::uniform_random_bit_generator G>
-        constexpr auto operator()(this Self const& self, std::size_t n, G& g)
-        {
-            std::vector<std::remove_cvref_t<decltype(wsl::probability::sample(self, g))>> out;
+            std::vector<std::remove_cvref_t<decltype(wsl::probability::sample(self, g, m...))>> out;
             out.reserve(n);
             for (std::size_t i = 0; i < n; ++i)
-                out.push_back(wsl::probability::sample(self, g));
-            return out;
-        }
-        template <class Self, std::uniform_random_bit_generator G>
-        constexpr auto operator()(this Self const& self, std::size_t n, G& g, fast_t f)
-        {
-            std::vector<std::remove_cvref_t<decltype(wsl::probability::sample(self, g, f))>> out;
-            out.reserve(n);
-            for (std::size_t i = 0; i < n; ++i)
-                out.push_back(wsl::probability::sample(self, g, f));
+                out.push_back(wsl::probability::sample(self, g, m...));
             return out;
         }
         template <class Self, class X>

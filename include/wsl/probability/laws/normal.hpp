@@ -11,7 +11,7 @@
 //
 // Tirage exact : |Z| tirée exactement (rejet exponentiel décidé en arithmétique
 // d'intervalles sur des réels paresseux, voir detail/lazy.hpp), signe uniforme,
-// puis l'arrondi correct de μ + σ Z. Tirage rapide (wsl::probability::fast) : ziggourat.
+// puis l'arrondi correct de μ + σ Z. Tirage rapide (wsl::approximate) : ziggourat.
 //
 // Densité, répartition, survie, quantile : z en double-double, erfc et son
 // développement au premier ordre pour l'argument double-double, un seul arrondi
@@ -69,7 +69,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                     double const y = ziggurat_r + a;
                     return negative ? -y : y;
                 }
-                double const y = ziggurat_f[i] + sd::fmul(uniform_real<double>(g), ziggurat_f[i + 1] - ziggurat_f[i]);
+                double const y = ziggurat_f[i] + sd::fmul(uniform_real<double>(g, wsl::exact), ziggurat_f[i + 1] - ziggurat_f[i]);
                 if (y < wsl::special::exp(sd::fmul(sd::fmul(x, x), -0.5)))  // dans le coin, sous la courbe
                     return negative ? -x : x;
             }
@@ -254,7 +254,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
 
         // Ziggourat (approché, bit-exact) : μ + σ Z, deux arrondis (σ arrondi s'il n'est pas un double).
         template <std::uniform_random_bit_generator G>
-        constexpr T sample(G& g, fast_t) const
+        constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
             return static_cast<T>(double(X.mean_) + detail::sd::fmul(double(X.stddev()), detail::ziggurat_normal(g)));

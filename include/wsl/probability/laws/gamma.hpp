@@ -85,7 +85,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
                     v = 1.0 + sd::fmul(c, z);
                 } while (v <= 0);
                 v = sd::fmul(sd::fmul(v, v), v);
-                double const u = uniform_real<double>(g);
+                double const u = uniform_real<double>(g, wsl::exact);
                 double const z2 = sd::fmul(z, z);
                 if (u < 1.0 - sd::fmul(0.0331, sd::fmul(z2, z2)))
                     return sd::fmul(d, v);

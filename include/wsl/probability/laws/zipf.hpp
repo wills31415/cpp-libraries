@@ -242,7 +242,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 return uniform_int(I(1), X.n_, g);
             for (;;)
             {
-                double const u = X.h_integral_n_ + sd::fmul(uniform_real<double>(g), X.h_integral_x1_ - X.h_integral_n_);
+                double const u = X.h_integral_n_ + sd::fmul(uniform_real<double>(g, wsl::exact), X.h_integral_x1_ - X.h_integral_n_);
                 double const x = X.h_integral_inverse(u);
                 double k = x + 0.5;
                 k = k < 1 ? 1 : k > double(X.n_) ? double(X.n_) : double(std::int64_t(k));

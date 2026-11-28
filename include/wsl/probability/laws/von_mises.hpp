@@ -223,10 +223,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             namespace sp = wsl::special;
             double const mu = V.mu_, k = V.kappa_;
             if (V.r_ == 0)                                                  // κ minuscule : uniforme
-                return static_cast<T>(detail::interpolate(mu - detail::pi_hi, mu + detail::pi_hi, uniform_real<double>(g)));
+                return static_cast<T>(detail::interpolate(mu - detail::pi_hi, mu + detail::pi_hi, uniform_real<double>(g, wsl::exact)));
             for (;;)
             {
-                double const u1 = uniform_real<double>(g), u2 = detail::uniform_positive(g), u3 = uniform_real<double>(g);
+                double const u1 = uniform_real<double>(g, wsl::exact), u2 = detail::uniform_positive(g), u3 = uniform_real<double>(g, wsl::exact);
                 double const z = sp::cos(fp::fmul(detail::pi_hi, u1));
                 double const f = (1 + fp::fmul(V.r_, z)) / (V.r_ + z);
                 double const c = fp::fmul(k, V.r_ - f);
@@ -477,7 +477,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double w = 0;
             for (;;)
             {
-                double const z = wsl::probability::sample(z_law, g);
+                double const z = detail::native_sample(z_law, g);
                 double const u = detail::uniform_positive(g);
                 w = (1 - fp::fmul(1 + F.b_, z)) / (1 - fp::fmul(1 - F.b_, z));
                 double const t = 1 - fp::fmul(F.x0_, w);

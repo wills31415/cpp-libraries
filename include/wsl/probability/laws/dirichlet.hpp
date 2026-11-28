@@ -161,7 +161,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             detail::sd::double_double s{0.0, 0.0};
             for (std::size_t i = 0; i < D.dimension(); ++i)
             {
-                double const v = wsl::probability::sample(D.gammas_[i], g);
+                double const v = detail::native_sample(D.gammas_[i], g);
                 x[i] = static_cast<T>(v);
                 s = detail::sum(s, {v, 0.0});
             }

@@ -107,14 +107,14 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& J = *this;
-            return std::apply([&g](auto const&... c) { return value_type{wsl::probability::sample(c, g)...}; }, J.laws_);   // accolades : dans l'ordre
+            return std::apply([&g](auto const&... c) { return value_type{detail::native_sample(c, g)...}; }, J.laws_);   // accolades : dans l'ordre
         }
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& J = *this;
-            return std::apply([&g](auto const&... c) { return value_type{wsl::probability::sample(c, g, fast)...}; }, J.laws_);
+            return std::apply([&g](auto const&... c) { return value_type{wsl::probability::sample(c, g, wsl::approximate)...}; }, J.laws_);
         }
 
         friend constexpr bool operator==(product_measure const& a, product_measure const& b) noexcept { return a.laws_ == b.laws_; }

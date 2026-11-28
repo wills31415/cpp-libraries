@@ -277,10 +277,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             double const a = X.alpha_, b = X.beta_;
             double u = 0;
             do
-                u = uniform_real<double>(g);
+                u = uniform_real<double>(g, wsl::exact);
             while (u == 0);
             double const v = sd::fmul(detail::pi_hi, u - 0.5);
-            double const w = wsl::probability::sample(exponential<double>({.rate = 1.0}), g);
+            double const w = detail::native_sample(exponential<double>({.rate = 1.0}), g);
             double z = 0;
             if (a == 1)
             {

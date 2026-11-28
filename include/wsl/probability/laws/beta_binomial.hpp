@@ -145,8 +145,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            double const p = wsl::probability::sample(wsl::probability::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
-            return wsl::probability::sample(binomial<I>({.trials = X.n_, .p = p}), g);
+            double const p = detail::native_sample(wsl::probability::beta<double>({.alpha = X.a_, .beta = X.b_}), g);
+            return detail::native_sample(binomial<I>({.trials = X.n_, .p = p}), g);
         }
 
         friend constexpr bool operator==(beta_binomial const& a, beta_binomial const& b) noexcept { return a.n_ == b.n_ && a.a_ == b.a_ && a.b_ == b.b_; }

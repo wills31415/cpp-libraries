@@ -27,7 +27,6 @@ namespace wsl::inline WSL_DEFAULTS::probability
     using random::uniform_below;
     using random::uniform_int;
     using random::uniform_real;
-    using random::uniform_real_fast;
 
     using measure_theory::counting;
     using measure_theory::lebesgue;

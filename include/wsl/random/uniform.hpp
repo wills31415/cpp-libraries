@@ -118,9 +118,11 @@ namespace wsl::inline WSL_DEFAULTS::random
     // quand il en reste assez (presque toujours : une valeur consommée), d'un mot
     // neuf sinon.
     // -----------------------------------------------------------------------
-    template <std::floating_point T = double, std::uniform_random_bit_generator G>
+    namespace detail
+    {
+    template <std::floating_point T, std::uniform_random_bit_generator G>
         requires(std::same_as<T, float> || std::same_as<T, double>)
-    constexpr T uniform_real(G& g)
+    constexpr T uniform_real_exact(G& g)
     {
         constexpr int mantissa = std::numeric_limits<T>::digits - 1;        // 52 ou 23
         constexpr int last_normal = -std::numeric_limits<T>::min_exponent + 1;   // 1022 ou 126 : k maximal normal
@@ -154,15 +156,30 @@ namespace wsl::inline WSL_DEFAULTS::random
         return std::bit_cast<T>(static_cast<Bits>(n));
     }
 
-    // Réel uniforme rapide sur [0, 1) : les 53 (24) bits de tête d'une valeur.
-    template <std::floating_point T = double, std::uniform_random_bit_generator G>
+    // Réel uniforme approché sur [0, 1) : les 53 (24) bits de tête d'une valeur, sur une grille
+    // de pas 2^-53 (2^-24).
+    template <std::floating_point T, std::uniform_random_bit_generator G>
         requires(std::same_as<T, float> || std::same_as<T, double>)
-    constexpr T uniform_real_fast(G& g)
+    constexpr T uniform_real_approximate(G& g)
     {
         if constexpr (std::same_as<T, double>)
             return static_cast<double>(random_bits(g) >> 11) * 0x1p-53;
         else
             return static_cast<float>(random_bits(g) >> 40) * 0x1p-24f;
+    }
+    }
+
+    // Réel uniforme sur [0, 1), dans le mode des étiquettes (design/interfaces.md, décisions 24
+    // à 27) : approché par défaut (une valeur, grille de pas 2^-53), exact sur wsl::exact (chaque
+    // flottant x avec probabilité x⁺ − x, presque toujours une valeur). Les deux sont portables.
+    template <std::floating_point T = double, std::uniform_random_bit_generator G, class... M>
+        requires(std::same_as<T, float> || std::same_as<T, double>) && mode_set<M...>
+    constexpr T uniform_real(G& g, M...)
+    {
+        if constexpr (std::same_as<algorithm_of<M...>, exact_t>)
+            return detail::uniform_real_exact<T>(g);
+        else
+            return detail::uniform_real_approximate<T>(g);
     }
 
     // -----------------------------------------------------------------------

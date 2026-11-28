@@ -25,6 +25,28 @@ namespace wr
     using namespace wsl::probability::stochastic_processes::processes;
     using namespace wsl::measure_theory;
     namespace detail = wsl::probability::detail;
+
+    // Le tirage natif, l'ancien défaut (exact pour une loi exacte, son seul tirage sinon) :
+    // celui que mesurent les empreintes de ces tests.
+    template <class X, class G>
+    constexpr auto native(X const& x, G& g)
+    {
+        if constexpr (requires { wsl::probability::detail::native_sample(x, g); })
+            return wsl::probability::detail::native_sample(x, g);
+        else if constexpr (requires { x.law(); })
+            return wsl::probability::detail::native_sample(x.law(), g);
+        else
+            return x(g, wsl::exact);
+    }
+    template <class X, class G>
+    constexpr auto native(X const& x, std::size_t n, G& g)
+    {
+        std::vector<decltype(native(x, g))> out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            out.push_back(native(x, g));
+        return out;
+    }
 }
 
 
@@ -66,7 +88,7 @@ int main()
         // types : arithmétique usuelle
         wr::variable const K{wr::poisson({.mean = 3.0})};
         static_assert(std::is_same_v<decltype((K + K)(g)), std::int64_t> && std::is_same_v<decltype((K + X)(g)), double>);
-        static_assert(std::is_same_v<decltype(X(3, g)), std::vector<double>> && std::is_same_v<decltype((X + 1)(3, g)), std::vector<double>>);
+        static_assert(std::is_same_v<decltype(wr::native(X, 3, g)), std::vector<double>> && std::is_same_v<decltype((X + 1)(3, g)), std::vector<double>>);
     }
 
     // ---- Constantes par linéarité ----------------------------------------------------------------
@@ -82,7 +104,7 @@ int main()
         double s = 0;
         int const n = 200000;
         for (int i = 0; i < n; ++i)
-            s += Z(g);
+            s += wr::native(Z, g);
         assert(std::abs(s / n - wr::E(Z)) < 0.05);
         static_assert(!has_expectation<decltype(X * Y)> && has_expectation<decltype(X * 2)>);   // non affine : pas de linéarité
     }
@@ -104,7 +126,7 @@ int main()
         wr::normal const N({.mean = 1.0, .variance = 18.0});
         std::vector<double> d;
         for (int i = 0; i < 20000; ++i)
-            d.push_back(Z(g));
+            d.push_back(wr::native(Z, g));
         std::ranges::sort(d);
         double ks = 0;
         for (std::size_t i = 0; i < d.size(); ++i)
@@ -120,8 +142,8 @@ int main()
         // voie rapide : calcul flottant sur les tirages rapides des lois, mêmes valeurs
         wr::xoshiro256pp a(5), b(5);
         wr::variable const Y{wr::exponential()};
-        double const f = (2 * X + Y)(a, wr::fast);
-        double const fx = wr::normal({.mean = 0.5, .stddev = 3.0})(b, wr::fast), fy = wr::exponential()(b, wr::fast);
+        double const f = (2 * X + Y)(a, wsl::approximate);
+        double const fx = wr::normal({.mean = 0.5, .stddev = 3.0})(b, wsl::approximate), fy = wr::exponential()(b, wsl::approximate);
         assert(f == 2 * fx + fy && a == b);
     }
     // ---- Lot 1c : loi d'une expression (V4) ----------------------------------------------------
@@ -218,7 +240,7 @@ int main()
         auto const Mx = wr::given(X + U, U > 0.5);                          // sans identité : tirage seul
         double m = 0;
         for (int i = 0; i < 40000; ++i)
-            m += Mx(g);
+            m += wr::native(Mx, g);
         assert(std::abs(m / 40000 - 0.75) < 0.03);                          // E[X + U | U > ½] = 0,75
         bool thrown = false;
         try { (void)wr::given(X, X > INFINITY); } catch (std::domain_error const&) { thrown = true; }

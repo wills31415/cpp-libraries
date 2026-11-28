@@ -7,6 +7,17 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Rupture, `wsl::random` et `wsl::probability` : le tirage est **approché par défaut**
+  (design/interfaces.md, décisions 24 à 27) : `X(g)` prend la variante approchée de la loi si
+  elle en a une (la ziggourat pour la normale…), son seul tirage sinon ; `X(g, wsl::exact)`
+  demande le tirage exact, refusé à la compilation pour une loi qui n'en a pas.
+  `wsl::random::fast` disparaît (remplacé par `wsl::approximate`), comme
+  `uniform_real_fast` : `rnd::uniform_real(g)` est approché, `rnd::uniform_real(g,
+  wsl::exact)` exact. `X(n, g, étiquettes…)`, `sample(X, g, étiquettes…)` et les variables
+  aléatoires suivent la même règle. Les tirages restent portables au bit près ; l'axe de la
+  reproductibilité est accepté sans effet. Les appels internes de la bibliothèque tirent
+  leurs composantes par le tirage natif de chaque loi, pour qu'un tirage exact le reste. Les
+  empreintes des tests sont relevées sur le tirage natif (`wr::native`), inchangées.
 - `WSL_EXACT` (provisoire, design/interfaces.md, décision 41) : mode strict, `exact` par défaut
   partout ; une fonction sans version exacte est refusée à la compilation, même appelée sans
   étiquette (`elementary_functions.compile_fail.global_exact`).

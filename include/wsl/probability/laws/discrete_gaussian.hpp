@@ -134,7 +134,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (;;)
             {
                 bool const negative = bernoulli_trial(0.5, g);
-                I const d = wsl::probability::sample(magnitude, g);
+                I const d = detail::native_sample(magnitude, g);
                 if (negative && d == 0)
                     continue;
                 double const dd = negative ? -double(d) : double(d);

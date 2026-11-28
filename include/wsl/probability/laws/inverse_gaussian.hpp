@@ -319,7 +319,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& W = *this;
             namespace fp = detail::sd;
             double const mu = W.mu_, lambda = W.lambda_;
-            double const z = wsl::probability::sample(normal<double>({.mean = 0.0, .stddev = 1.0}), g);
+            double const z = detail::native_sample(normal<double>({.mean = 0.0, .stddev = 1.0}), g);
             double const w = fp::fmul(mu, fp::fmul(z, z));
             double const s = wsl::special::sqrt(fp::fmul(w, fp::fmul(4.0, lambda) + w));
             double const x2 = mu + fp::fmul(mu, (w + s) / fp::fmul(2.0, lambda));

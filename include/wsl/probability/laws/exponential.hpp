@@ -6,11 +6,11 @@
 // Loi exponentielle de paramètre λ > 0 (rate) : densité λ e^{−λx} sur [0, +∞).
 //
 //   wsl::probability::exponential X({.rate = 2});
-//   X.mean(); X.cdf(1.0); X.quantile(0.5); X(g); X(g, wsl::probability::fast);
+//   X.mean(); X.cdf(1.0); X.quantile(0.5); X(g); X(g, wsl::approximate);
 //
 // Tirage exact : E exponentielle de paramètre 1 tirée exactement (von Neumann,
 // réel paresseux), puis l'arrondi correct de E/λ — la valeur tirée suit donc la
-// loi exacte arrondie au flottant le plus proche. Tirage rapide (wsl::probability::fast) :
+// loi exacte arrondie au flottant le plus proche. Tirage rapide (wsl::approximate) :
 // inversion, −log(U)/λ, deux arrondis.
 //
 // Densité, répartition, survie, quantile : λx en double-double (produit exact),
@@ -193,7 +193,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
 
         // Inversion : −log(U)/λ, U uniforme dans (0, 1) (approché, bit-exact).
         template <std::uniform_random_bit_generator G>
-        constexpr T sample(G& g, fast_t) const
+        constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
             double const e = -wsl::special::log(detail::uniform_positive(g));

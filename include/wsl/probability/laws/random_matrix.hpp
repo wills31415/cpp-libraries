@@ -151,7 +151,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             std::vector<std::vector<double>> re(n, std::vector<double>(n)), im;
             for (auto& column : re)
                 for (auto& v : column)
-                    v = wsl::probability::sample(standard, g);
+                    v = detail::native_sample(standard, g);
             detail::orthonormalize<false>(n, re, im);
             auto q = detail::make_matrix<T, N>(n);
             for (std::size_t j = 0; j < n; ++j)
@@ -190,8 +190,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             for (std::size_t j = 0; j < n; ++j)
                 for (std::size_t i = 0; i < n; ++i)
                 {
-                    re[j][i] = wsl::probability::sample(half, g);
-                    im[j][i] = wsl::probability::sample(half, g);
+                    re[j][i] = detail::native_sample(half, g);
+                    im[j][i] = detail::native_sample(half, g);
                 }
             detail::orthonormalize<true>(n, re, im);
             auto q = detail::make_matrix<std::complex<T>, N>(n);
@@ -260,7 +260,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto h = detail::make_matrix<T, N>(n);
             for (std::size_t i = 0; i < n; ++i)
                 for (std::size_t j = i; j < n; ++j)
-                    h[i, j] = h[j, i] = static_cast<T>(wsl::probability::sample(i == j ? one : half, g));
+                    h[i, j] = h[j, i] = static_cast<T>(detail::native_sample(i == j ? one : half, g));
             return h;
         }
 
@@ -337,11 +337,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 for (std::size_t j = i; j < n; ++j)
                 {
                     if (i == j)
-                        h[i, i] = {static_cast<T>(wsl::probability::sample(one, g)), T(0)};
+                        h[i, i] = {static_cast<T>(detail::native_sample(one, g)), T(0)};
                     else
                     {
-                        T const a = static_cast<T>(wsl::probability::sample(half, g));
-                        T const b = static_cast<T>(wsl::probability::sample(half, g));
+                        T const a = static_cast<T>(detail::native_sample(half, g));
+                        T const b = static_cast<T>(detail::native_sample(half, g));
                         h[i, j] = {a, b};
                         h[j, i] = {a, -b};
                     }

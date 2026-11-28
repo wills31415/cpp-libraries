@@ -189,10 +189,9 @@ et `approximate` par défaut), fonction par fonction, bornes vérifiées dans le
 - ~~Paquet `find_package(wsl)`, options `WSL_*`, cibles, tests rangés (permutation, mdarray),
   étiquettes, contrôle des inclusions~~ : fait (étape 2) ; `WSL_PORTABLE` et `WSL_EXACT` viennent
   avec l'étape 3. cpp-init garde `wsl_libraries` tant que le dernier tag est `v0.1.0`.
-- ~~Modes (24 à 27) : `<wsl/modes>`, mdarray adapté~~ : fait (étape 3). Restent avec leur
-  découpage : `wsl::random::fast` et `sampling` (étape 5, `approximate` par défaut) ; special
-  et random entreront dans l'espace de noms en ligne du défaut (`namespace
-  wsl::inline WSL_DEFAULTS…`, générateurs de tables compris) aux étapes 4 et 5.
+- ~~Modes (24 à 27)~~ : faits (étapes 3, 4b, 5b partie 1 : `approximate` par défaut pour les
+  tirages, `wsl::random::fast` retiré). Les lois restent portables (axe de la
+  reproductibilité accepté sans effet) en attendant leur conversion (5b partie 2, à décider).
 - ~~Découpage mécanique de special (4a) et random (5a)~~ : fait. random : `wsl::random`
   (moteurs `random::engines`, primitives, tirages exacts), `wsl::probability` (lois
   `probability::laws`, variables, algèbre des lois provisoirement), `wsl::probability::

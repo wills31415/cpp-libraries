@@ -56,7 +56,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            return wsl::probability::sample(X.g_, g);
+            return detail::native_sample(X.g_, g);
         }
 
         friend constexpr bool operator==(chi_squared const& a, chi_squared const& b) noexcept { return a.k_ == b.k_; }

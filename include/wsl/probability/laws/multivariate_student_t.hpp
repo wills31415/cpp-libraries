@@ -148,8 +148,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto z = detail::make_vector<double, N>(X.dimension());
             normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (auto& v : z)
-                v = wsl::probability::sample(standard, g);
-            double const w = wsl::probability::sample(X.chi_, g);
+                v = detail::native_sample(standard, g);
+            double const w = detail::native_sample(X.chi_, g);
             double const f = wsl::special::sqrt(double(X.nu_) / w);         // √(ν/V)
             value_type x = detail::make_vector<T, N>(X.dimension());
             for (std::size_t i = 0; i < X.dimension(); ++i)

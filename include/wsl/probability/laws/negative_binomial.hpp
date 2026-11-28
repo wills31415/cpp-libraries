@@ -170,10 +170,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             if (X.p_ == 1)
                 return 0;
             double const scale = (1 - X.p_) / X.p_;
-            double const lambda = wsl::probability::sample(gamma<double>(typename gamma<double>::parameters{.scale = scale, .shape = X.r_}), g);
+            double const lambda = detail::native_sample(gamma<double>(typename gamma<double>::parameters{.scale = scale, .shape = X.r_}), g);
             if (!(lambda > 0))
                 return 0;
-            return wsl::probability::sample(poisson<I>({.mean = lambda}), g);
+            return detail::native_sample(poisson<I>({.mean = lambda}), g);
         }
 
         friend constexpr bool operator==(negative_binomial const& a, negative_binomial const& b) noexcept { return a.r_ == b.r_ && a.p_ == b.p_; }

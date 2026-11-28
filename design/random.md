@@ -8,6 +8,8 @@
 > interfaces** ([interfaces.md](interfaces.md), §6) est appliquée : les §1 à §7 décrivent
 > l'interface actuelle, les §8 à §21 sont le journal des phases (écritures mises à jour).
 
+> **Mise à jour (refonte, 2026-11-28)** : le tirage approché est désormais le défaut, `wsl::exact` demande le tirage exact, et `wsl::random::fast` (comme `uniform_real_fast`) a disparu au profit de `wsl::approximate` (design/interfaces.md, décisions 24 à 27). Les mentions ci-dessous de `wsl::random::fast` se lisent `wsl::approximate`, et « par défaut » se lit « natif ».
+
 ## 1. Vision ✅
 
 Pouvoir tirer selon **toutes** les lois de probabilité — de l'uniforme à Dirichlet et

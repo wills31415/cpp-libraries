@@ -140,7 +140,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
                 if (rest == 0)
                     break;
                 double const c = M.conditional_[i];
-                I const v = c >= 1 ? rest : c <= 0 ? I(0) : wsl::probability::sample(binomial<I>({.trials = rest, .p = c}), g);
+                I const v = c >= 1 ? rest : c <= 0 ? I(0) : detail::native_sample(binomial<I>({.trials = rest, .p = c}), g);
                 k[i] = v;
                 rest = static_cast<I>(rest - v);
             }

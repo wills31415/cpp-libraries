@@ -166,7 +166,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto const& X = *this;
             if (X.lower() == X.upper())
                 return X.lower();
-            double const u = uniform_real<double>(g);
+            double const u = uniform_real<double>(g, wsl::exact);
             I const m = X.mode() < X.lower() ? X.lower() : X.mode() > X.upper() ? X.upper() : X.mode();
             // F(m − 1) et masses vers le bas, puis vers le haut
             auto const [v, is_f] = X.distribution(m > X.lower() ? m - 1 : m);

@@ -175,7 +175,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            double const e = wsl::probability::sample(exponential<double>({.rate = 1.0}), g);
+            double const e = detail::native_sample(exponential<double>({.rate = 1.0}), g);
             if (e == 0)
                 return 0;
             return static_cast<T>(detail::sd::fmul(double(X.lambda_), wsl::special::exp(wsl::special::log(e) / double(X.k_))));

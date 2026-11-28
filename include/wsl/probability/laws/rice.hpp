@@ -111,16 +111,16 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr T sample(G& g) const
         {
             auto const& X = *this;
-            double const a = normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)})(g);
-            double const b = normal<double>({.mean = 0.0, .stddev = double(X.sigma_)})(g);
+            double const a = detail::native_sample(normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)}), g);
+            double const b = detail::native_sample(normal<double>({.mean = 0.0, .stddev = double(X.sigma_)}), g);
             return static_cast<T>(wsl::special::hypot(a, b));
         }
         template <std::uniform_random_bit_generator G>
-        constexpr T sample(G& g, fast_t) const
+        constexpr T sample(G& g, approximate_t) const
         {
             auto const& X = *this;
-            double const a = normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)})(g, wsl::probability::fast);
-            double const b = normal<double>({.mean = 0.0, .stddev = double(X.sigma_)})(g, wsl::probability::fast);
+            double const a = normal<double>({.mean = double(X.nu_), .stddev = double(X.sigma_)})(g, wsl::approximate);
+            double const b = normal<double>({.mean = 0.0, .stddev = double(X.sigma_)})(g, wsl::approximate);
             return static_cast<T>(wsl::special::hypot(a, b));
         }
 

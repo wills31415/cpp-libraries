@@ -30,7 +30,7 @@
 // valeur exacte (réels paresseux partagés par toutes les expressions d'un même ω : `lazy_sum`),
 // coefficients et diviseurs exacts ; ailleurs (produits de variables, autres lois, coefficient
 // non représentable), calcul flottant sur les valeurs des variables de base, elles-mêmes
-// tirées exactement. Z(g, wsl::probability::fast) : calcul flottant sur des tirages rapides.
+// tirées exactement. Z(g, wsl::approximate) : calcul flottant sur des tirages rapides.
 //
 // Loi (V4) : wsl::probability::law(X) est la loi de X ; law(Z) d'une expression, une
 // expression_law : tirage de Z, moments par les cumulants (κₙ(Σ aᵢ Xᵢ) = Σ aᵢⁿ κₙ(Xᵢ),
@@ -172,7 +172,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                     {
                         first = j;
                         with_index<n>(j, [&]<std::size_t J>() {
-                            std::get<J>(slots) = fast ? std::get<J>(leaf)->law()(g, wsl::probability::fast) : std::get<J>(leaf)->law()(g);
+                            std::get<J>(slots) = fast ? std::get<J>(leaf)->law()(g, wsl::approximate) : detail::native_sample(std::get<J>(leaf)->law(), g);
                         });
                         continue;
                     }
@@ -776,7 +776,7 @@ namespace wsl::inline WSL_DEFAULTS::probability
                     lazy_[J] = {&reals_[J], std::move(d.offset), std::move(d.coefficient), d.divisor, d.root, d.variance};
                 }
                 else
-                    std::get<J>(slots_) = law(g_);
+                    std::get<J>(slots_) = detail::native_sample(law, g_);
             }
             template <std::size_t J, std::size_t F>
             constexpr void share()
@@ -824,12 +824,20 @@ namespace wsl::inline WSL_DEFAULTS::probability
             return expression<detail::component_op, variable>(detail::component_op{i}, *this);
         }
 
-        template <std::uniform_random_bit_generator G>
-        constexpr value_type operator()(G& g) const { return law_(g); }
-        template <std::uniform_random_bit_generator G>
-        constexpr value_type operator()(G& g, fast_t) const { return law_(g, wsl::probability::fast); }
-        template <std::uniform_random_bit_generator G>
-        constexpr std::vector<value_type> operator()(std::size_t n, G& g) const { return law_(n, g); }
+        // Tirage dans le mode des étiquettes : approché par défaut, exact sur wsl::exact (décisions
+        // 24 à 27).
+        template <std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr value_type operator()(G& g, M... m) const
+        {
+            return law_(g, m...);
+        }
+        template <std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr std::vector<value_type> operator()(std::size_t n, G& g, M... m) const
+        {
+            return law_(n, g, m...);
+        }
 
     private:
         L law_;
@@ -854,28 +862,33 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr Op const& operation() const noexcept { return op_; }
         constexpr std::tuple<A...> const& arguments() const noexcept { return args_; }
 
-        // Un ω neuf : chaque variable de base tirée une fois ; exact pour une combinaison affine.
-        template <std::uniform_random_bit_generator G>
-        constexpr value_type operator()(G& g) const
+        // Un ω neuf, dans le mode des étiquettes (décisions 24 à 27). wsl::exact : chaque variable
+        // de base tirée une fois, exactement (exact pour une combinaison affine) ; approché, le
+        // défaut : calcul flottant sur des tirages approchés.
+        template <std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr value_type operator()(G& g, M...) const
         {
-            auto const leaf = detail::leaves(*this);
-            detail::omega w(g, leaf);
-            return w.template value_of<0>(*this);
+            if constexpr (std::same_as<algorithm_of<M...>, exact_t>)
+            {
+                auto const leaf = detail::leaves(*this);
+                detail::omega w(g, leaf);
+                return w.template value_of<0>(*this);
+            }
+            else
+            {
+                auto const values = detail::draw_leaves(g, detail::leaves(*this), true);
+                return detail::value_at<0>(*this, values);
+            }
         }
-        // Calcul flottant sur des tirages rapides.
-        template <std::uniform_random_bit_generator G>
-        constexpr value_type operator()(G& g, fast_t) const
-        {
-            auto const values = detail::draw_leaves(g, detail::leaves(*this), true);
-            return detail::value_at<0>(*this, values);
-        }
-        template <std::uniform_random_bit_generator G>
-        constexpr std::vector<value_type> operator()(std::size_t n, G& g) const
+        template <std::uniform_random_bit_generator G, class... M>
+            requires mode_set<M...>
+        constexpr std::vector<value_type> operator()(std::size_t n, G& g, M... m) const
         {
             std::vector<value_type> out;
             out.reserve(n);
             for (std::size_t i = 0; i < n; ++i)
-                out.push_back((*this)(g));
+                out.push_back((*this)(g, m...));
             return out;
         }
 
@@ -1287,9 +1300,9 @@ namespace wsl::inline WSL_DEFAULTS::probability
         value_type cquantile(double q) const requires has_family { return family_ ? family_->cquantile(q) : nan(); }
 
         template <std::uniform_random_bit_generator G>
-        value_type sample(G& g) const { return z_(g); }
+        value_type sample(G& g) const { return z_(g, wsl::exact); }          // le tirage natif de l'expression
         template <std::uniform_random_bit_generator G>
-        value_type sample(G& g, fast_t) const { return z_(g, wsl::probability::fast); }
+        value_type sample(G& g, approximate_t) const { return z_(g, wsl::approximate); }
 
     private:
         static constexpr value_type nan() noexcept { return std::numeric_limits<value_type>::quiet_NaN(); }

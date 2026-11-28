@@ -98,14 +98,14 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& Y = *this;
-            return std::invoke(Y.f_, wsl::probability::sample(Y.law_, g));
+            return std::invoke(Y.f_, detail::native_sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& Y = *this;
-            return std::invoke(Y.f_, wsl::probability::sample(Y.law_, g, fast));
+            return std::invoke(Y.f_, wsl::probability::sample(Y.law_, g, wsl::approximate));
         }
 
     private:
@@ -185,14 +185,14 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& Y = *this;
-            return Y.forward(wsl::probability::sample(Y.law_, g));
+            return Y.forward(detail::native_sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& Y = *this;
-            return Y.forward(wsl::probability::sample(Y.law_, g, fast));
+            return Y.forward(wsl::probability::sample(Y.law_, g, wsl::approximate));
         }
 
     private:

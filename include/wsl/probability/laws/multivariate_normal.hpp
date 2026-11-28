@@ -14,7 +14,7 @@
 // Entropie (n/2)(1 + log 2π) + Σ log Lᵢᵢ ; marginale i : N(μᵢ, √Σᵢᵢ).
 //
 // Tirage (approché, bit-exact) : μ + L z, z de composantes normales centrées réduites
-// tirées exactement (wsl::probability::fast : ziggourat), dans l'ordre ; chaque composante arrondie
+// tirées exactement (wsl::approximate : ziggourat), dans l'ordre ; chaque composante arrondie
 // une fois.
 
 #include <wsl/random/detail/arithmetic.hpp>
@@ -117,11 +117,11 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             auto z = detail::make_vector<double, N>(X.dimension());
             normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (auto& v : z)
-                v = wsl::probability::sample(standard, g);
+                v = detail::native_sample(standard, g);
             return X.transform(z);
         }
         template <std::uniform_random_bit_generator G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& X = *this;
             auto z = detail::make_vector<double, N>(X.dimension());

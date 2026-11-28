@@ -148,10 +148,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         {
             auto const& X = *this;
             namespace sd = detail::sd;
-            double const v = uniform_real<double>(g);
+            double const v = uniform_real<double>(g, wsl::exact);
             if (v >= X.p_)
                 return 1;
-            double const u = uniform_real<double>(g);
+            double const u = uniform_real<double>(g, wsl::exact);
             double const q = -wsl::special::expm1(sd::fmul(-(X.L_.hi), u));
             if (v <= sd::fmul(q, q))
             {

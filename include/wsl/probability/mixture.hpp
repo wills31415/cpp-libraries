@@ -275,14 +275,14 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& M = *this;
-            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(wsl::probability::sample(c, g)); });
+            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(detail::native_sample(c, g)); });
         }
         template <std::uniform_random_bit_generator G>
             requires(samplable<L, G> && ...)
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& M = *this;
-            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(wsl::probability::sample(c, g, fast)); });
+            return M.visit(M.choose(g), [&g](auto const& c) { return static_cast<value_type>(wsl::probability::sample(c, g, wsl::approximate)); });
         }
 
         friend constexpr bool operator==(mixture const& a, mixture const& b) noexcept { return a.laws_ == b.laws_ && a.w_ == b.w_; }

@@ -136,16 +136,16 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr I sample(G& g) const
         {
             auto const& X = *this;
-            I const a = wsl::probability::sample(poisson<I>({.mean = X.mu1_}), g);
-            I const b = wsl::probability::sample(poisson<I>({.mean = X.mu2_}), g);
+            I const a = detail::native_sample(poisson<I>({.mean = X.mu1_}), g);
+            I const b = detail::native_sample(poisson<I>({.mean = X.mu2_}), g);
             return a - b;
         }
         template <std::uniform_random_bit_generator G>
-        constexpr I sample(G& g, fast_t) const
+        constexpr I sample(G& g, approximate_t) const
         {
             auto const& X = *this;
-            I const a = wsl::probability::sample(poisson<I>({.mean = X.mu1_}), g, wsl::probability::fast);
-            I const b = wsl::probability::sample(poisson<I>({.mean = X.mu2_}), g, wsl::probability::fast);
+            I const a = wsl::probability::sample(poisson<I>({.mean = X.mu1_}), g, wsl::approximate);
+            I const b = wsl::probability::sample(poisson<I>({.mean = X.mu2_}), g, wsl::approximate);
             return a - b;
         }
 

@@ -32,6 +32,28 @@ namespace wr
     using namespace wsl::probability::stochastic_processes::processes;
     using namespace wsl::measure_theory;
     namespace detail = wsl::probability::detail;
+
+    // Le tirage natif, l'ancien défaut (exact pour une loi exacte, son seul tirage sinon) :
+    // celui que mesurent les empreintes de ces tests.
+    template <class X, class G>
+    constexpr auto native(X const& x, G& g)
+    {
+        if constexpr (requires { wsl::probability::detail::native_sample(x, g); })
+            return wsl::probability::detail::native_sample(x, g);
+        else if constexpr (requires { x.law(); })
+            return wsl::probability::detail::native_sample(x.law(), g);
+        else
+            return x(g, wsl::exact);
+    }
+    template <class X, class G>
+    constexpr auto native(X const& x, std::size_t n, G& g)
+    {
+        std::vector<decltype(native(x, g))> out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            out.push_back(native(x, g));
+        return out;
+    }
 }
 
 namespace
@@ -95,7 +117,7 @@ namespace
     {
         std::vector<double> v;
         for (int i = 0; i < n; ++i)
-            v.push_back(double(wr::sample(law, g)));
+            v.push_back(double(wr::native(law, g)));
         std::ranges::sort(v);
         double worst = 0;
         for (std::size_t i = 0; i < v.size(); ++i)
@@ -115,7 +137,7 @@ namespace
         long long below = 0, above = 0;
         for (int i = 0; i < draws; ++i)
         {
-            long long const k = wr::sample(law, g);
+            long long const k = wr::native(law, g);
             if (k < low)
                 ++below;
             else if (k > high)
@@ -171,7 +193,7 @@ static_assert([] { wr::uniform X({.lower = 2, .upper = 6}); return std::is_same_
 static_assert(wr::uniform({.lower = 2.0, .upper = 6.0}).mean() == 4.0);
 static_assert(wr::cdf(wr::uniform({.lower = 2.0, .upper = 6.0}), 3.0) == 0.25);
 static_assert(wr::quantile(wr::discrete_uniform({.lower = 1, .upper = 6}), 0.5) == 3);
-static_assert([] { wr::pcg64 g(1); auto const x = wr::sample(wr::discrete_uniform({.lower = 1, .upper = 6}), g); return x >= 1 && x <= 6; }());
+static_assert([] { wr::pcg64 g(1); auto const x = wr::native(wr::discrete_uniform({.lower = 1, .upper = 6}), g); return x >= 1 && x <= 6; }());
 
 static_assert(wr::probability_law<wr::exponential<>> && wr::probability_law<wr::normal<float>>);
 static_assert(wr::has_pdf<wr::exponential<>> && wr::has_mode<wr::exponential<>> && wr::has_quantile<wr::normal<>>);
@@ -180,8 +202,8 @@ static_assert([] { wr::normal X({.mean = 0, .stddev = 1}); return std::is_same_v
 static_assert(wr::cdf(wr::exponential({.rate = 1.0}), 0.0) == 0 && wr::cdf(wr::normal({.mean = 2.0, .stddev = 3.0}), 2.0) == 0.5);
 static_assert(wr::quantile(wr::normal({.mean = 2.0, .stddev = 3.0}), 0.5) == 2.0);
 // Tirages exacts en évaluation constante (réels paresseux, grands entiers, voie lente comprise).
-static_assert([] { wr::pcg64 g(3); return wr::sample(wr::exponential({.rate = 2.0}), g) > 0; }());
-static_assert([] { wr::pcg64 g(4); double const x = wr::sample(wr::normal({.mean = 0.0, .stddev = 0x1p-900}), g); return x == x; }());
+static_assert([] { wr::pcg64 g(3); return wr::native(wr::exponential({.rate = 2.0}), g) > 0; }());
+static_assert([] { wr::pcg64 g(4); double const x = wr::native(wr::normal({.mean = 0.0, .stddev = 0x1p-900}), g); return x == x; }());
 
 static_assert(wr::probability_law<wr::geometric<>> && wr::probability_law<wr::poisson<int>> && wr::probability_law<wr::binomial<>>);
 static_assert(wr::has_pmf<wr::geometric<>> && wr::has_cdf<wr::geometric<>> && wr::has_quantile<wr::geometric<>>);
@@ -189,7 +211,7 @@ static_assert(wr::has_pmf<wr::poisson<>> && wr::has_cdf<wr::poisson<>> && wr::ha
 static_assert(wr::geometric<>::sampling == wr::exactness::approximate && wr::poisson<>::sampling == wr::exactness::approximate);
 static_assert([] { wr::binomial X({.trials = 20, .p = 0.3}); return std::is_same_v<decltype(X), wr::binomial<std::int64_t>>; }());
 static_assert(wr::pmf(wr::geometric({.p = 0.5}), 1) == 0.25 && wr::quantile(wr::geometric({.p = 0.5}), 0.75) == 1);
-static_assert([] { wr::pcg64 g(5); return wr::sample(wr::poisson({.mean = 30.0}), g) > 0 && wr::sample(wr::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
+static_assert([] { wr::pcg64 g(5); return wr::native(wr::poisson({.mean = 30.0}), g) > 0 && wr::native(wr::binomial({.trials = 100, .p = 0.5}), g) > 0; }());
 
 static_assert(wr::probability_law<wr::gamma<>> && wr::probability_law<wr::beta<float>>);
 static_assert(wr::probability_law<wr::chi_squared<>> && wr::probability_law<wr::student_t<>> && wr::probability_law<wr::lognormal<float>> && wr::probability_law<wr::cauchy<>>);
@@ -203,7 +225,7 @@ static_assert(wr::has_pdf<wr::gamma<>> && wr::has_cdf<wr::gamma<>> && wr::has_qu
 static_assert([] { wr::gamma X({.rate = 3, .shape = 2}); wr::gamma Y({.scale = 3, .shape = 2}); return std::is_same_v<decltype(X), wr::gamma<double>> && std::is_same_v<decltype(Y), wr::gamma<double>>; }());
 static_assert([] { wr::beta X({.alpha = 2, .beta = 5}); return std::is_same_v<decltype(X), wr::beta<double>>; }());
 static_assert(wr::gamma({.rate = 2.0, .shape = 3.0}).mean() == 1.5 && wr::gamma({.scale = 2.0, .shape = 3.0}).mean() == 6);
-static_assert([] { wr::pcg64 g(6); return wr::sample(wr::gamma({.rate = 1.0, .shape = 0.5}), g) > 0 && wr::sample(wr::beta({.alpha = 2.0, .beta = 0.5}), g) < 1; }());
+static_assert([] { wr::pcg64 g(6); return wr::native(wr::gamma({.rate = 1.0, .shape = 0.5}), g) > 0 && wr::native(wr::beta({.alpha = 2.0, .beta = 0.5}), g) < 1; }());
 
 int main()
 {
@@ -233,18 +255,18 @@ int main()
         std::vector<double> values;
         for (int i = 0; i < 20000; ++i)
         {
-            double const x = wr::sample(X, g);
+            double const x = wr::native(X, g);
             assert(x >= 2 && x < 6);
             values.push_back(x);
         }
         assert(kolmogorov_smirnov(X, values) < 1.95);
         wr::uniform const tiny({.lower = 1.0, .upper = std::nextafter(1.0, 2.0)});   // un seul flottant possible
         for (int i = 0; i < 100; ++i)
-            assert(wr::sample(tiny, g) == 1.0);
+            assert(wr::native(tiny, g) == 1.0);
         wr::uniform<float> const F({.lower = -1, .upper = 1});
         for (int i = 0; i < 10000; ++i)
         {
-            float const x = wr::sample(F, g);
+            float const x = F(g);
             assert(x >= -1 && x < 1);
         }
         assert(F.mean() == 0 && wr::cdf(F, 0.5f) == 0.75f);
@@ -265,7 +287,7 @@ int main()
         assert(wr::quantile(D, 0.5 + 0x1p-52) == 4);                            // juste au-dessus de 3/6
         std::array<int, 7> counts{};
         for (int i = 0; i < 60000; ++i)
-            ++counts[static_cast<std::size_t>(wr::sample(D, g))];
+            ++counts[static_cast<std::size_t>(D(g))];
         for (int k = 1; k <= 6; ++k)
             assert(std::abs(counts[static_cast<std::size_t>(k)] - 10000) < 450);
 
@@ -285,7 +307,7 @@ int main()
         assert(std::abs(B.entropy() - 0.6108643020548935) < 1e-15);
         int hits = 0;
         for (int i = 0; i < 100000; ++i)
-            hits += wr::sample(B, g);
+            hits += wr::native(B, g);
         assert(std::abs(hits / 100000.0 - 0.3) < 0.005);
         assert((wr::bernoulli({.p = 0}).support() == wr::interval<bool>{false, false}));
         assert(wr::bernoulli({.p = 1e-300}).variance() == 1e-300 && wr::bernoulli({.p = 0}).entropy() == 0);
@@ -312,15 +334,15 @@ int main()
         std::vector<double> exact, fast;
         for (int i = 0; i < 20000; ++i)
         {
-            exact.push_back(wr::sample(E, g));
-            fast.push_back(wr::sample(E, g, wr::fast));
+            exact.push_back(wr::native(E, g));
+            fast.push_back(wr::sample(E, g, wsl::approximate));
         }
         assert(std::ranges::all_of(exact, [](double x) { return x >= 0; }));
         assert(kolmogorov_smirnov(E, exact) < 1.95 && kolmogorov_smirnov(E, fast) < 1.95);
         wr::exponential<float> const F({.rate = 0.5f});
         std::vector<double> floats;
         for (int i = 0; i < 20000; ++i)
-            floats.push_back(wr::sample(F, g));
+            floats.push_back(F(g));
         assert(kolmogorov_smirnov(wr::exponential({.rate = 0.5}), floats) < 1.95);
     }
 
@@ -349,8 +371,8 @@ int main()
         int tail = 0;
         for (int i = 0; i < 40000; ++i)
         {
-            exact.push_back(wr::sample(N, g));
-            fast.push_back(wr::sample(N, g, wr::fast));
+            exact.push_back(wr::native(N, g));
+            fast.push_back(wr::sample(N, g, wsl::approximate));
             tail += std::abs(fast.back() - 1) > 2 * 3.6541528853610088;     // queue de la ziggourat
         }
         assert(kolmogorov_smirnov(N, exact) < 1.95 && kolmogorov_smirnov(N, fast) < 1.95);
@@ -358,12 +380,12 @@ int main()
         wr::normal<float> const F({.mean = -3, .stddev = 0.25f});
         std::vector<double> floats;
         for (int i = 0; i < 20000; ++i)
-            floats.push_back(wr::sample(F, g));
+            floats.push_back(F(g));
         assert(kolmogorov_smirnov(wr::normal({.mean = -3.0, .stddev = 0.25}), floats) < 1.95);
         // Tirage exact par la voie lente (σ hors de la voie rapide) : même loi.
         std::vector<double> slow;
         for (int i = 0; i < 300; ++i)
-            slow.push_back(wr::sample(T, g));
+            slow.push_back(T(g));
         assert(kolmogorov_smirnov(T, slow) < 1.95);
     }
 
@@ -375,7 +397,7 @@ int main()
         assert(wr::quantile(G, 0.75) == 1 && wr::quantile(G, std::nextafter(0.75, 1.0)) == 2 && wr::quantile(G, 0.0) == 0);
         assert(wr::quantile(G, 1.0) == std::numeric_limits<std::int64_t>::max() && wr::log_pmf(G, 3) == -4 * std::log(2.0));
         wr::geometric const one({.p = 1});
-        assert(wr::pmf(one, 0) == 1 && wr::pmf(one, 1) == 0 && wr::cdf(one, 0) == 1 && one.mean() == 0 && wr::sample(one, g) == 0);
+        assert(wr::pmf(one, 0) == 1 && wr::pmf(one, 1) == 0 && wr::cdf(one, 0) == 1 && one.mean() == 0 && wr::native(one, g) == 0);
         wr::geometric const tiny({.p = 0x1p-60});
         assert(tiny.mean() == 0x1p60 - 1 && wr::cdf(tiny, std::numeric_limits<std::int64_t>::max()) > 0.99);
         assert(throws_domain_error([] { wr::geometric X({.p = 0}); }) && throws_domain_error([] { wr::geometric X({.p = 1.5}); }));
@@ -412,7 +434,7 @@ int main()
             total += wr::pmf(B, k);
         assert(std::abs(total - 1) < 1e-15);
         assert(wr::pmf(wr::binomial({.trials = 5, .p = 0.0}), 0) == 1 && wr::pmf(wr::binomial({.trials = 5, .p = 1.0}), 5) == 1);
-        assert(wr::sample(wr::binomial({.trials = 5, .p = 1.0}), g) == 5 && wr::sample(wr::binomial({.trials = 0, .p = 0.5}), g) == 0);
+        assert(wr::native(wr::binomial({.trials = 5, .p = 1.0}), g) == 5 && wr::native(wr::binomial({.trials = 0, .p = 0.5}), g) == 0);
         assert(throws_domain_error([] { wr::binomial X({.trials = -1, .p = 0.5}); }) && throws_domain_error([] { wr::binomial X({.trials = 3, .p = 2}); }));
         for (auto [n, p] : {std::pair{20LL, 0.3}, {1000LL, 0.004}, {1000LL, 0.3}, {1000LL, 0.9}, {100000000LL, 0.5}, {50LL, 0.97}})
         {
@@ -441,7 +463,7 @@ int main()
         double s = 0;
         wr::gamma const big({.rate = 0.5, .shape = 400.0});
         for (int i = 0; i < 20000; ++i)
-            s += wr::sample(big, g);
+            s += wr::native(big, g);
         assert(std::abs(s / 20000 - 800) < 4 * std::sqrt(1600.0 / 20000));
     }
 
@@ -497,7 +519,7 @@ int main()
     {
         wr::chi_squared const C({.degrees_of_freedom = 4});
         assert(C.mean() == 4 && C.variance() == 8 && C.mode() == 2 && std::abs(wr::cdf(C, 2.0) - (1 - 2 * std::exp(-1.0))) < 1e-16);
-        assert(kolmogorov_smirnov(C, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(C, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(C, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::native(C, g)); return v; }()) < 1.95);
         wr::student_t const T1({.degrees_of_freedom = 1}), T5({.degrees_of_freedom = 5});
         assert(std::isnan(T1.mean()) && T5.mean() == 0 && std::abs(T5.variance() - 5.0 / 3) < 1e-16 && std::isinf(wr::student_t({.degrees_of_freedom = 1.5}).variance()));
         // t à 1 degré de liberté = Cauchy standard.
@@ -513,23 +535,23 @@ int main()
             double const t = wr::quantile(T5, u);
             assert(u == 0.5 ? t == 0 : std::abs(wr::cdf(T5, t) / u - 1) < 1e-14);
         }
-        assert(kolmogorov_smirnov(T5, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(T5, g)); return v; }()) < 1.95);
-        assert(kolmogorov_smirnov(wr::student_t({.degrees_of_freedom = 0.7}), [&] { std::vector<double> v; wr::student_t const T({.degrees_of_freedom = 0.7}); for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(T, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(T5, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::native(T5, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(wr::student_t({.degrees_of_freedom = 0.7}), [&] { std::vector<double> v; wr::student_t const T({.degrees_of_freedom = 0.7}); for (int i = 0; i < 20000; ++i) v.push_back(T(g)); return v; }()) < 1.95);
         wr::lognormal const L({.log_mean = 0.3, .log_stddev = 0.5});
         assert(std::abs(L.median() - std::exp(0.3)) < 3e-16 && std::abs(L.mean() - std::exp(0.3 + 0.125)) < 1e-15 && std::abs(wr::cdf(L, L.median()) - 0.5) < 2e-16);
         assert(wr::cdf(L, 0.0) == 0 && wr::pdf(L, -1.0) == 0 && wr::quantile(L, 0.0) == 0 && wr::quantile(L, 1.0) == INFINITY);
-        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(L, g)); return v; }()) < 1.95);
-        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(L, g, wr::fast)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::native(L, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(L, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(L, g, wsl::approximate)); return v; }()) < 1.95);
         wr::cauchy const C2({.location = 1, .scale = 2});
         assert(wr::cdf(C2, 3.0) == 0.75 && wr::quantile(C2, 0.75) == 3 && C2.median() == 1 && std::abs(C2.entropy() - std::log(8 * 3.141592653589793)) < 1e-15);
-        assert(kolmogorov_smirnov(C2, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::sample(C2, g)); return v; }()) < 1.95);
+        assert(kolmogorov_smirnov(C2, [&] { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(wr::native(C2, g)); return v; }()) < 1.95);
         assert(throws_domain_error([] { wr::student_t X({.degrees_of_freedom = 0}); }) && throws_domain_error([] { wr::cauchy X({.location = 0, .scale = -1}); }));
         assert(throws_domain_error([] { wr::chi_squared X({.degrees_of_freedom = -2}); }) && throws_domain_error([] { wr::lognormal X({.log_mean = 0, .log_stddev = 0}); }));
     }
 
     // ---- Lois dérivées, second lot --------------------------------------------------
     {
-        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::sample(law, g))); return v; };
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::native(law, g))); return v; };
         wr::fisher_f const F({.d1 = 5, .d2 = 10});
         assert(F.mean() == 1.25 && wr::fisher_f({.d1 = 3, .d2 = 2}).mean() == INFINITY && std::isinf(wr::fisher_f({.d1 = 3, .d2 = 3}).variance()));
         assert(wr::pdf(wr::fisher_f({.d1 = 2, .d2 = 5}), 0.0) == 1 && wr::pdf(F, 0.0) == 0 && wr::pdf(wr::fisher_f({.d1 = 1, .d2 = 5}), 0.0) == INFINITY);
@@ -559,7 +581,7 @@ int main()
 
     // ---- Compléments : Gumbel, Fréchet, Rayleigh, triangulaire, arcsinus, Erlang ----
     {
-        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::sample(law, g))); return v; };
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::native(law, g))); return v; };
         wr::gumbel const Gu({.location = 1, .scale = 2});
         wr::frechet const Fr({.location = 0.5, .scale = 2, .shape = 3});
         wr::rayleigh const Ra({.scale = 2});
@@ -593,7 +615,7 @@ int main()
             wr::inverse_gaussian const W({.mean = mu, .shape = lambda});
             std::vector<double> v;
             for (int i = 0; i < 5000; ++i)
-                v.push_back(wr::sample(W, g));
+                v.push_back(wr::native(W, g));
             assert(kolmogorov_smirnov(W, v) < 1.95);
             double const m = std::accumulate(v.begin(), v.end(), 0.0) / double(v.size());
             assert(std::abs(m - mu) < 8 * std::sqrt(W.variance() / double(v.size())));
@@ -624,7 +646,7 @@ int main()
             wr::von_mises const V({.location = 1.0, .concentration = kappa});
             std::vector<double> v;
             for (int i = 0; i < 2000; ++i)
-                v.push_back(wr::sample(V, g));
+                v.push_back(V(g));
             assert(kolmogorov_smirnov(V, v) < 1.95);
             assert(wr::cdf(V, 1.0) == 0.5 && wr::ccdf(V, 1.0) == 0.5 && wr::quantile(V, 0.5) == 1.0);
             assert(wr::cdf(V, 1.0 - 3.2) == 0 && wr::cdf(V, 1.0 + 3.2) == 1 && wr::quantile(V, 0.0) == 1.0 - 3.141592653589793);
@@ -713,7 +735,7 @@ int main()
             wr::skew_normal const X({.location = 0.5, .scale = 2.0, .shape = a});
             std::vector<double> v;
             for (int i = 0; i < 3000; ++i)
-                v.push_back(wr::sample(X, g));
+                v.push_back(wr::native(X, g));
             assert(kolmogorov_smirnov(X, v) < 1.95);
             for (double p : {1e-200, 1e-6, 0.3, 0.5, 0.9})
             {
@@ -733,7 +755,7 @@ int main()
 
     // ---- Lois stables ----
     {
-        auto draws = [&](auto const& law, int n) { std::vector<double> v; for (int i = 0; i < n; ++i) v.push_back(wr::sample(law, g)); return v; };
+        auto draws = [&](auto const& law, int n) { std::vector<double> v; for (int i = 0; i < n; ++i) v.push_back(wr::native(law, g)); return v; };
         wr::stable const Gs({.scale = 1.5, .alpha = 2.0, .beta = 0.4});   // normale de variance 2γ²
         wr::stable const Ca({.location = 1.0, .scale = 0.5, .alpha = 1.0, .beta = 0.0});
         wr::stable const Lv({.alpha = 0.5, .beta = 1.0});                  // Lévy : densité √(1/2π) y^{−3/2} e^{−1/(2y)}
@@ -773,7 +795,7 @@ int main()
         for (double v : wr::samples(N, a) | std::views::take(100))
             lazy.push_back(v);
         for (double v : lazy)
-            assert(v == wr::sample(N, b));
+            assert(v == wr::native(N, b));
         assert(a == b);                                                     // même consommation
         // membres et appel X(g), X(n, g) : mêmes valeurs et même consommation que sample
         assert(N.pdf(0.5) == wr::pdf(N, 0.5) && N.density(0.5) == N.pdf(0.5) && P.density(2) == P.pmf(2) && P.cdf(3) == wr::cdf(P, 3));
@@ -783,7 +805,12 @@ int main()
             assert(v == N(d));
         for (double v : batch)
             assert(v == wr::sample(N, e));
-        assert(c == d && d == e && N(c, wr::fast) == wr::sample(N, d, wr::fast));
+        assert(c == d && d == e && N(c, wsl::approximate) == wr::sample(N, d, wsl::approximate));
+        // Le défaut est approché (décision 27) : X(g) == X(g, wsl::approximate) ; wsl::exact
+        // donne le tirage natif d'une loi exacte ; l'axe de la reproductibilité est sans effet.
+        wr::xoshiro256pp g1(5), g2(5), g3(5), g4(5);
+        assert(N(g1) == N(g2, wsl::approximate) && N(g3, wsl::exact) == wr::native(N, g4) && g1 == g2 && g3 == g4);
+        assert(N(g1, wsl::portable) == N(g2, wsl::deterministic, wsl::approximate));
     }
 
     // ---- Tirage rapide demandé : à défaut de méthode propre, le tirage par défaut ----
@@ -791,7 +818,7 @@ int main()
         wr::xoshiro256pp a(5), b(5);
         wr::uniform const X({.lower = 0, .upper = 1});
         for (int i = 0; i < 100; ++i)
-            assert(wr::sample(X, a, wr::fast) == wr::sample(X, b));
+            assert(wr::sample(X, a, wsl::approximate) == wr::native(X, b));
     }
 
     // ---- Adaptateur vers <random> -------------------------------------------------
@@ -815,12 +842,12 @@ int main()
         wr::uniform<float> const F({.lower = 0, .upper = 7});
         wr::discrete_uniform const D({.lower = -1000, .upper = 1000000});
         wr::bernoulli const B({.p = 0.125});
-        ok &= check("uniform", fingerprint([&] { return std::bit_cast<std::uint64_t>(wr::sample(U, x)); }), 0xe9028c88f6ddde7f);
-        ok &= check("uniform float", fingerprint([&] { return std::uint64_t{std::bit_cast<std::uint32_t>(wr::sample(F, x))}; }), 0x53a47c22e845da0b);
-        ok &= check("discrete_uniform", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(D, x)); }), 0x3f058c88c4d229e8);
-        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wr::sample(B, x)}; }), 0x88e84634bf3325c5);
+        ok &= check("uniform", fingerprint([&] { return std::bit_cast<std::uint64_t>(U(x)); }), 0xe9028c88f6ddde7f);
+        ok &= check("uniform float", fingerprint([&] { return std::uint64_t{std::bit_cast<std::uint32_t>(F(x))}; }), 0x53a47c22e845da0b);
+        ok &= check("discrete_uniform", fingerprint([&] { return static_cast<std::uint64_t>(D(x)); }), 0x3f058c88c4d229e8);
+        ok &= check("bernoulli", fingerprint([&] { return std::uint64_t{wr::native(B, x)}; }), 0x88e84634bf3325c5);
         ok &= check("uniform quantile", fingerprint([&] {
-            double const p = wr::uniform_real(x);
+            double const p = wr::uniform_real(x, wsl::exact);
             return std::bit_cast<std::uint64_t>(wr::quantile(U, p)) ^ std::bit_cast<std::uint64_t>(wr::cdf(U, wr::quantile(U, p)));
         }), 0x40887993489ea177);
         wr::exponential const E({.rate = 0.75});
@@ -828,47 +855,47 @@ int main()
         wr::normal const N({.mean = 10, .stddev = 0.5});
         wr::normal<float> const NF({.mean = 0, .stddev = 1});
         auto bits = [](auto v) { if constexpr (sizeof(v) == 8) return std::bit_cast<std::uint64_t>(v); else return std::uint64_t{std::bit_cast<std::uint32_t>(v)}; };
-        ok &= check("exponential", fingerprint([&] { return bits(wr::sample(E, x)); }), 0x93410ac575f17399);
-        ok &= check("exponential float", fingerprint([&] { return bits(wr::sample(EF, x)); }), 0x707f86aa03e3abe5);
-        ok &= check("exponential fast", fingerprint([&] { return bits(wr::sample(E, x, wr::fast)); }), 0xf0883bbac7b578e0);
-        ok &= check("normal", fingerprint([&] { return bits(wr::sample(N, x)); }), 0xb505dc877374dd0a);
-        ok &= check("normal float", fingerprint([&] { return bits(wr::sample(NF, x)); }), 0x1c5f8b545c8869d7);
-        ok &= check("normal fast", fingerprint([&] { return bits(wr::sample(N, x, wr::fast)); }), 0xd599f5eebf8f926d);
+        ok &= check("exponential", fingerprint([&] { return bits(wr::native(E, x)); }), 0x93410ac575f17399);
+        ok &= check("exponential float", fingerprint([&] { return bits(wr::native(EF, x)); }), 0x707f86aa03e3abe5);
+        ok &= check("exponential fast", fingerprint([&] { return bits(wr::sample(E, x, wsl::approximate)); }), 0xf0883bbac7b578e0);
+        ok &= check("normal", fingerprint([&] { return bits(wr::native(N, x)); }), 0xb505dc877374dd0a);
+        ok &= check("normal float", fingerprint([&] { return bits(wr::native(NF, x)); }), 0x1c5f8b545c8869d7);
+        ok &= check("normal fast", fingerprint([&] { return bits(wr::sample(N, x, wsl::approximate)); }), 0xd599f5eebf8f926d);
         ok &= check("normal functions", fingerprint([&] {
-            double const p = wr::uniform_real(x), y = wr::quantile(N, p);
+            double const p = wr::uniform_real(x, wsl::exact), y = wr::quantile(N, p);
             return bits(y) ^ bits(wr::cdf(N, y)) ^ (bits(wr::ccdf(N, y)) << 1) ^ (bits(wr::pdf(N, y)) << 2) ^ (bits(wr::log_pdf(N, y)) << 3);
         }, 1 << 13), 0x16ac969b0974669b);
         ok &= check("exponential functions", fingerprint([&] {
-            double const p = wr::uniform_real(x), y = wr::quantile(E, p);
+            double const p = wr::uniform_real(x, wsl::exact), y = wr::quantile(E, p);
             return bits(y) ^ bits(wr::cdf(E, y)) ^ (bits(wr::ccdf(E, y)) << 1) ^ (bits(wr::pdf(E, y)) << 2) ^ (bits(wr::log_pdf(E, y)) << 3);
         }, 1 << 13), 0x7fd190e1632d6e27);
         wr::geometric const Gf({.p = 0.05});
         wr::poisson const Ps({.mean = 4.25}), Pl({.mean = 812.5});
         wr::binomial const Bs({.trials = 30, .p = 0.2}), Bl({.trials = 100000, .p = 0.7});
-        ok &= check("geometric", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(Gf, x)); }), 0xf0cebc4b03f0655d);
-        ok &= check("poisson inversion", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(Ps, x)); }), 0xab8d234f51d7332e);
-        ok &= check("poisson PTRS", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(Pl, x)); }), 0x4bfc82d01b403440);
-        ok &= check("binomial inversion", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(Bs, x)); }), 0x758aa2af1860fcd7);
-        ok &= check("binomial BTRS", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(Bl, x)); }), 0xc68cde3109166ca4);
+        ok &= check("geometric", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(Gf, x)); }), 0xf0cebc4b03f0655d);
+        ok &= check("poisson inversion", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(Ps, x)); }), 0xab8d234f51d7332e);
+        ok &= check("poisson PTRS", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(Pl, x)); }), 0x4bfc82d01b403440);
+        ok &= check("binomial inversion", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(Bs, x)); }), 0x758aa2af1860fcd7);
+        ok &= check("binomial BTRS", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(Bl, x)); }), 0xc68cde3109166ca4);
         ok &= check("discrete functions", fingerprint([&] {
             auto const k = static_cast<long long>(wr::uniform_below(2000, x));
             return bits(wr::pmf(Gf, k)) ^ (bits(wr::cdf(Gf, k)) << 1) ^ (bits(wr::pmf(Pl, k)) << 2) ^ (bits(wr::log_pmf(Pl, k)) << 3)
-                 ^ (bits(wr::pmf(Bl, k + 69000)) << 4) ^ (bits(wr::log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(wr::quantile(Gf, wr::uniform_real(x)));
+                 ^ (bits(wr::pmf(Bl, k + 69000)) << 4) ^ (bits(wr::log_pmf(Bs, k % 31)) << 5) ^ static_cast<std::uint64_t>(wr::quantile(Gf, wr::uniform_real(x, wsl::exact)));
         }, 1 << 13), 0x994f5c2864bf1649);
         wr::gamma const Ga({.rate = 1.5, .shape = 3.75}), Ga_s({.scale = 2.0, .shape = 0.4});
         wr::gamma<float> const Ga_f({.rate = 1, .shape = 9});
         wr::beta const Be_a({.alpha = 2.5, .beta = 7.0}), Be_s({.alpha = 0.3, .beta = 0.8});
-        ok &= check("gamma", fingerprint([&] { return bits(wr::sample(Ga, x)); }), 0xf1ec39e9eacde03c);
-        ok &= check("gamma small shape", fingerprint([&] { return bits(wr::sample(Ga_s, x)); }), 0x965ae0d5f9d27c99);
-        ok &= check("gamma float", fingerprint([&] { return bits(wr::sample(Ga_f, x)); }), 0xe510068f6c674400);
-        ok &= check("beta", fingerprint([&] { return bits(wr::sample(Be_a, x)); }), 0x78abaeb973605116);
-        ok &= check("beta small shapes", fingerprint([&] { return bits(wr::sample(Be_s, x)); }), 0xa2504ea65588f633);
+        ok &= check("gamma", fingerprint([&] { return bits(wr::native(Ga, x)); }), 0xf1ec39e9eacde03c);
+        ok &= check("gamma small shape", fingerprint([&] { return bits(wr::native(Ga_s, x)); }), 0x965ae0d5f9d27c99);
+        ok &= check("gamma float", fingerprint([&] { return bits(wr::native(Ga_f, x)); }), 0xe510068f6c674400);
+        ok &= check("beta", fingerprint([&] { return bits(wr::native(Be_a, x)); }), 0x78abaeb973605116);
+        ok &= check("beta small shapes", fingerprint([&] { return bits(wr::native(Be_s, x)); }), 0xa2504ea65588f633);
         ok &= check("gamma beta functions", fingerprint([&] {
-            double const u = wr::uniform_real(x), y = 20 * u;
+            double const u = wr::uniform_real(x, wsl::exact), y = 20 * u;
             return bits(wr::pdf(Ga, y)) ^ (bits(wr::log_pdf(Ga_s, y)) << 1) ^ (bits(wr::pdf(Be_a, u)) << 2) ^ (bits(wr::log_pdf(Be_s, u)) << 3);
         }, 1 << 13), 0x9d4f36e7cb669b74);
         ok &= check("phase 4 functions", fingerprint([&] {
-            double const u = wr::uniform_real(x);
+            double const u = wr::uniform_real(x, wsl::exact);
             auto const k = static_cast<long long>(wr::uniform_below(2000, x));
             return bits(wr::cdf(Ga, 10 * u)) ^ (bits(wr::quantile(Ga_s, u)) << 1) ^ (bits(wr::cdf(Be_a, u)) << 2) ^ (bits(wr::quantile(Be_s, u)) << 3)
                  ^ (bits(wr::cdf(Pl, k)) << 4) ^ static_cast<std::uint64_t>(wr::quantile(Bl, u)) ^ (bits(Ga.entropy() + Be_s.entropy()) << 5);
@@ -877,13 +904,13 @@ int main()
         wr::student_t const St({.degrees_of_freedom = 3.5});
         wr::lognormal const Ln({.log_mean = -1, .log_stddev = 0.8});
         wr::cauchy const Cy({.location = 5, .scale = 0.5});
-        ok &= check("chi_squared", fingerprint([&] { return bits(wr::sample(Cq, x)); }), 0x8b01e521b2059e12);
-        ok &= check("student_t", fingerprint([&] { return bits(wr::sample(St, x)); }), 0xb833b44187ecf66a);
-        ok &= check("lognormal", fingerprint([&] { return bits(wr::sample(Ln, x)); }), 0xc6350ba1601077cb);
-        ok &= check("cauchy", fingerprint([&] { return bits(wr::sample(Cy, x)); }), 0xf82fd9546762bb11);
+        ok &= check("chi_squared", fingerprint([&] { return bits(wr::native(Cq, x)); }), 0x8b01e521b2059e12);
+        ok &= check("student_t", fingerprint([&] { return bits(wr::native(St, x)); }), 0xb833b44187ecf66a);
+        ok &= check("lognormal", fingerprint([&] { return bits(wr::native(Ln, x)); }), 0xc6350ba1601077cb);
+        ok &= check("cauchy", fingerprint([&] { return bits(wr::native(Cy, x)); }), 0xf82fd9546762bb11);
         ok &= check("derived functions", fingerprint([&] {
             namespace fp = wsl::special::detail;                            // entrées protégées de la contraction
-            double const u = wr::uniform_real(x), t = fp::fmul(20.0, u) - 10;
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(20.0, u) - 10;
             return bits(wr::cdf(St, t)) ^ (bits(wr::quantile(St, u)) << 1) ^ (bits(wr::pdf(Ln, fp::fmul(3.0, u))) << 2) ^ (bits(wr::quantile(Ln, u)) << 3)
                  ^ (bits(wr::cdf(Cy, t)) << 4) ^ (bits(wr::quantile(Cy, u)) << 5) ^ (bits(wr::cdf(Cq, fp::fmul(10.0, u))) << 6);
         }, 1 << 10), 0x6e71d9a455e07fde);
@@ -892,14 +919,14 @@ int main()
         wr::laplace const Lp({.location = -2, .scale = 0.75});
         wr::logistic const Lo({.location = 4, .scale = 1.5});
         wr::pareto const Pa({.scale = 2, .shape = 1.7});
-        ok &= check("fisher_f", fingerprint([&] { return bits(wr::sample(Ff, x)); }), 0x2d8f53b32c9947ee);
-        ok &= check("weibull", fingerprint([&] { return bits(wr::sample(Wb, x)); }), 0x6b695ec07d8c4fb3);
-        ok &= check("laplace", fingerprint([&] { return bits(wr::sample(Lp, x)); }), 0x514ae68e514769b0);
-        ok &= check("logistic", fingerprint([&] { return bits(wr::sample(Lo, x)); }), 0x0dc308ffc659ed1d);
-        ok &= check("pareto", fingerprint([&] { return bits(wr::sample(Pa, x)); }), 0x6a50d8d1248f5578);
+        ok &= check("fisher_f", fingerprint([&] { return bits(wr::native(Ff, x)); }), 0x2d8f53b32c9947ee);
+        ok &= check("weibull", fingerprint([&] { return bits(wr::native(Wb, x)); }), 0x6b695ec07d8c4fb3);
+        ok &= check("laplace", fingerprint([&] { return bits(wr::native(Lp, x)); }), 0x514ae68e514769b0);
+        ok &= check("logistic", fingerprint([&] { return bits(wr::native(Lo, x)); }), 0x0dc308ffc659ed1d);
+        ok &= check("pareto", fingerprint([&] { return bits(wr::native(Pa, x)); }), 0x6a50d8d1248f5578);
         ok &= check("second functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(20.0, u) - 10, y = fp::fmul(8.0, u);
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(20.0, u) - 10, y = fp::fmul(8.0, u);
             return bits(wr::cdf(Ff, y)) ^ (bits(wr::quantile(Ff, u)) << 1) ^ (bits(wr::pdf(Wb, y)) << 2) ^ (bits(wr::quantile(Wb, u)) << 3)
                  ^ (bits(wr::cdf(Lp, t)) << 4) ^ (bits(wr::quantile(Lo, u)) << 5) ^ (bits(wr::ccdf(Pa, y + 2)) << 6);
         }, 1 << 10), 0x572d7f7b8ca7f626);
@@ -910,83 +937,83 @@ int main()
         wr::arcsine const Ar({.lower = 0, .upper = 1});
         wr::erlang const Er({.rate = 0.5, .shape = 3});
         ok &= check("complements", fingerprint([&] {
-            return bits(wr::sample(Gu, x)) ^ (bits(wr::sample(Fr, x)) << 1) ^ (bits(wr::sample(Ra, x)) << 2) ^ (bits(wr::sample(Tr, x)) << 3) ^ (bits(wr::sample(Ar, x)) << 4) ^ (bits(wr::sample(Er, x)) << 5);
+            return bits(wr::native(Gu, x)) ^ (bits(wr::native(Fr, x)) << 1) ^ (bits(wr::native(Ra, x)) << 2) ^ (bits(wr::native(Tr, x)) << 3) ^ (bits(wr::native(Ar, x)) << 4) ^ (bits(wr::native(Er, x)) << 5);
         }, 1 << 12), 0x8048e3cc57673536);
         ok &= check("complement functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(8.0, u);
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(8.0, u);
             return bits(wr::cdf(Gu, t)) ^ (bits(wr::quantile(Fr, u)) << 1) ^ (bits(wr::pdf(Ra, t)) << 2) ^ (bits(wr::cquantile(Tr, u)) << 3) ^ (bits(wr::cdf(Ar, u)) << 4) ^ (bits(wr::pdf(Fr, t + 0.1)) << 5);
         }, 1 << 10), 0x31ef6ddc23202445);
         wr::inverse_gaussian const Ig({.mean = 1.5, .shape = 0.8});
-        ok &= check("inverse_gaussian", fingerprint([&] { return bits(wr::sample(Ig, x)); }), 0xb65cd37eac96c4a3);
+        ok &= check("inverse_gaussian", fingerprint([&] { return bits(wr::native(Ig, x)); }), 0xb65cd37eac96c4a3);
         ok &= check("inverse_gaussian functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(40.0, u);
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(40.0, u);
             return bits(wr::cdf(Ig, t)) ^ (bits(wr::ccdf(Ig, t)) << 1) ^ (bits(wr::pdf(Ig, t)) << 2) ^ (bits(wr::quantile(Ig, u)) << 3) ^ (bits(wr::cquantile(Ig, u)) << 4);
         }, 1 << 8), 0x2c052dfac3fa0be4);
         wr::von_mises const Vm({.location = 0.25, .concentration = 7.5});
         ok &= check("von_mises functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(6.0, u) - 2.75;
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(6.0, u) - 2.75;
             return bits(wr::cdf(Vm, t)) ^ (bits(wr::ccdf(Vm, t)) << 1) ^ (bits(wr::quantile(Vm, u)) << 2) ^ (bits(wr::cquantile(Vm, u)) << 3);
         }, 1 << 8), 0xedcd34abd3d9dd7f);
         wr::negative_binomial const Nb({.successes = 2.5, .p = 0.3});
         wr::hypergeometric const Hg({.population = 500, .successes = 120, .draws = 60});
-        ok &= check("discrete lot 3", fingerprint([&] { return bits(double(wr::sample(Nb, x))) ^ (bits(double(wr::sample(Hg, x))) << 1); }, 1 << 12), 0x1abf82d977d052a7);
+        ok &= check("discrete lot 3", fingerprint([&] { return bits(double(wr::native(Nb, x))) ^ (bits(double(wr::native(Hg, x))) << 1); }, 1 << 12), 0x1abf82d977d052a7);
         ok &= check("discrete lot 3 functions", fingerprint([&] {
-            double const u = wr::uniform_real(x);
+            double const u = wr::uniform_real(x, wsl::exact);
             long long const k = static_cast<long long>(wr::uniform_below(30, x));
             return bits(wr::pmf(Nb, k)) ^ (bits(wr::cdf(Nb, k)) << 1) ^ (bits(double(wr::quantile(Nb, u))) << 2) ^ (bits(wr::pmf(Hg, k)) << 3) ^ (bits(wr::ccdf(Hg, k)) << 4) ^ (bits(double(wr::quantile(Hg, u))) << 5);
         }, 1 << 9), 0x2fa168fb952bbce9);
         wr::beta_binomial const Bb({.trials = 40, .alpha = 0.7, .beta = 2.5});
         wr::logarithmic const Lg({.p = 0.95});
         wr::discrete_gaussian const Dg({.location = -1.3, .scale = 4.2});
-        ok &= check("discrete lot 4", fingerprint([&] { return bits(double(wr::sample(Bb, x))) ^ (bits(double(wr::sample(Lg, x))) << 1) ^ (bits(double(wr::sample(Dg, x))) << 2); }, 1 << 12), 0x5715c99366cd16cf);
+        ok &= check("discrete lot 4", fingerprint([&] { return bits(double(wr::native(Bb, x))) ^ (bits(double(wr::native(Lg, x))) << 1) ^ (bits(double(wr::native(Dg, x))) << 2); }, 1 << 12), 0x5715c99366cd16cf);
         ok &= check("discrete lot 4 functions", fingerprint([&] {
-            double const u = wr::uniform_real(x);
+            double const u = wr::uniform_real(x, wsl::exact);
             long long const k = static_cast<long long>(wr::uniform_below(40, x));
             return bits(wr::pmf(Bb, k)) ^ (bits(wr::cdf(Bb, k)) << 1) ^ (bits(double(wr::quantile(Bb, u))) << 2) ^ (bits(wr::pmf(Lg, k)) << 3) ^ (bits(wr::ccdf(Lg, k)) << 4)
                  ^ (bits(double(wr::quantile(Lg, u))) << 5) ^ (bits(wr::cdf(Dg, k - 20)) << 6) ^ (bits(double(wr::quantile(Dg, u))) << 7);
         }, 1 << 9), 0x26b8cef1aa562a21);
         wr::skew_normal const Sn({.location = -0.5, .scale = 1.5, .shape = 3.0});
-        ok &= check("skew_normal", fingerprint([&] { return bits(wr::sample(Sn, x)); }, 1 << 12), 0x646d26c92778b5d5);
+        ok &= check("skew_normal", fingerprint([&] { return bits(wr::native(Sn, x)); }, 1 << 12), 0x646d26c92778b5d5);
         ok &= check("skew_normal functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(10.0, u) - 4;
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(10.0, u) - 4;
             return bits(wr::pdf(Sn, t)) ^ (bits(wr::cdf(Sn, t)) << 1) ^ (bits(wr::ccdf(Sn, t)) << 2) ^ (bits(wr::quantile(Sn, u)) << 3);
         }, 1 << 7), 0x564a5825a3a680fd);
         wr::stable const S1({.location = 0.2, .scale = 0.8, .alpha = 1.3, .beta = -0.6});
         wr::stable const S2({.scale = 3.0, .alpha = 1.0, .beta = 0.5});
-        ok &= check("stable", fingerprint([&] { return bits(wr::sample(S1, x)) ^ (bits(wr::sample(S2, x)) << 1); }, 1 << 12), 0x3e15bab78fbb0172);
+        ok &= check("stable", fingerprint([&] { return bits(wr::native(S1, x)) ^ (bits(wr::native(S2, x)) << 1); }, 1 << 12), 0x3e15bab78fbb0172);
         ok &= check("stable functions", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(10.0, u) - 5;
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(10.0, u) - 5;
             return bits(wr::pdf(S1, t)) ^ (bits(wr::cdf(S1, t)) << 1) ^ (bits(wr::ccdf(S2, t)) << 2);
         }, 1 << 5), 0xba852547a6b18b91);
         wr::normal const NV({.mean = 0.5, .variance = 2.0});                 // √2 : tirage exact par les carrés
         wr::normal<float> const NVF({.mean = -1.0f, .variance = 3.0f});
-        ok &= check("normal variance", fingerprint([&] { return bits(wr::sample(NV, x)) ^ (std::uint64_t{std::bit_cast<std::uint32_t>(wr::sample(NVF, x))} << 1); }, 1 << 12), 0x2df7ca19b86ab85d);
+        ok &= check("normal variance", fingerprint([&] { return bits(wr::native(NV, x)) ^ (std::uint64_t{std::bit_cast<std::uint32_t>(wr::native(NVF, x))} << 1); }, 1 << 12), 0x2df7ca19b86ab85d);
         ok &= check("normal variance fns", fingerprint([&] {
             namespace fp = wsl::special::detail;
-            double const u = wr::uniform_real(x), t = fp::fmul(12.0, u) - 6;
+            double const u = wr::uniform_real(x, wsl::exact), t = fp::fmul(12.0, u) - 6;
             return bits(NV.pdf(t)) ^ (bits(NV.cdf(t)) << 1) ^ (bits(NV.ccdf(t)) << 2) ^ (bits(NV.quantile(u)) << 3);
         }, 1 << 12), 0xe9abcd992c0dde7d);
         wr::skellam const SK({.mean1 = 3.5, .mean2 = 1.25});
-        ok &= check("skellam", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(SK, x)); }, 1 << 12), 0x3603842a3cbc0d13);
+        ok &= check("skellam", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(SK, x)); }, 1 << 12), 0x3603842a3cbc0d13);
         ok &= check("skellam functions", fingerprint([&] {
             long long const k = static_cast<long long>(wr::uniform_below(30, x)) - 12;
             return bits(SK.pmf(k)) ^ (bits(SK.cdf(k)) << 1) ^ (bits(SK.ccdf(k)) << 2);
         }, 1 << 10), 0x01f121fa1149564f);
         wr::zipf const ZP({.size = 1000, .exponent = 1.3});
-        ok &= check("zipf", fingerprint([&] { return static_cast<std::uint64_t>(wr::sample(ZP, x)); }, 1 << 12), 0xcf20e17a6221804c);
+        ok &= check("zipf", fingerprint([&] { return static_cast<std::uint64_t>(wr::native(ZP, x)); }, 1 << 12), 0xcf20e17a6221804c);
         ok &= check("zipf functions", fingerprint([&] {
             long long const k = 1 + static_cast<long long>(wr::uniform_below(1000, x));
             return bits(ZP.pmf(k)) ^ (bits(ZP.cdf(k)) << 1) ^ (bits(ZP.ccdf(k)) << 2);
         }, 1 << 10), 0x458210ef1666a63d);
         wr::rice const RC({.scale = 1.5, .noncentrality = 2.0});
-        ok &= check("rice", fingerprint([&] { return bits(wr::sample(RC, x)); }, 1 << 12), 0xba4941ebb4520dcc);
+        ok &= check("rice", fingerprint([&] { return bits(wr::native(RC, x)); }, 1 << 12), 0xba4941ebb4520dcc);
         ok &= check("rice functions", fingerprint([&] {
-            double const u = wr::uniform_real(x), t = wsl::special::detail::fmul(8.0, u);   // entrées protégées de la contraction
+            double const u = wr::uniform_real(x, wsl::exact), t = wsl::special::detail::fmul(8.0, u);   // entrées protégées de la contraction
             return bits(RC.pdf(t)) ^ (bits(RC.cdf(t)) << 1) ^ (bits(RC.ccdf(t)) << 2) ^ (bits(RC.quantile(u)) << 3);
         }, 1 << 8), 0x36a6e864e0bde893);
     }
@@ -1083,7 +1110,7 @@ int main()
             std::uint64_t const w = (h() >> 11) >> (h() % 50);
             int const b = static_cast<int>(h() % 80);
             bool const negative = (h() & 1) != 0;
-            double const mu = i % 3 == 0 ? 0.0 : fp::fmul(wr::uniform_real(h) - 0.5, 1e3);
+            double const mu = i % 3 == 0 ? 0.0 : fp::fmul(wr::uniform_real(h, wsl::exact) - 0.5, 1e3);
             double const exact = wsl::probability::detail::round_root_affine<double>(mu, square, wsl::special::sqrt(2.0), negative, wsl::probability::detail::big(w), b);
             if (w == 0)
             {
@@ -1137,7 +1164,7 @@ int main()
 
     // ---- Rice ---------------------------------------------------------------------------------------
     {
-        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::sample(law, g))); return v; };
+        auto draws = [&](auto const& law) { std::vector<double> v; for (int i = 0; i < 20000; ++i) v.push_back(double(wr::native(law, g))); return v; };
         for (auto [s, n] : {std::pair{1.0, 0.0}, {1.5, 2.0}, {0.5, 0.2}, {2.0, 40.0}})
         {
             wr::rice const R({.scale = s, .noncentrality = n});

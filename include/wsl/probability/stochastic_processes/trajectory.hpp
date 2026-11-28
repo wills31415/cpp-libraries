@@ -126,12 +126,12 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
             template <class G>
             constexpr auto first(G& g) const
             {
-                return wsl::probability::sample(law, g);
+                return detail::native_sample(law, g);
             }
             template <class G>
             constexpr auto next(G& g) const
             {
-                return wsl::probability::sample(law, g);
+                return detail::native_sample(law, g);
             }
         };
 }

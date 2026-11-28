@@ -336,17 +336,17 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& S = *this;
-            value_type const a = wsl::probability::sample(S.x_, g);
-            value_type const b = wsl::probability::sample(S.y_, g);
+            value_type const a = detail::native_sample(S.x_, g);
+            value_type const b = detail::native_sample(S.y_, g);
             return add(a, b);
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L1, G> && samplable<L2, G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& S = *this;
-            value_type const a = wsl::probability::sample(S.x_, g, fast);
-            value_type const b = wsl::probability::sample(S.y_, g, fast);
+            value_type const a = wsl::probability::sample(S.x_, g, wsl::approximate);
+            value_type const b = wsl::probability::sample(S.y_, g, wsl::approximate);
             return add(a, b);
         }
 

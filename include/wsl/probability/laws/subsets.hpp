@@ -473,7 +473,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
         constexpr value_type sample(G& g) const
         {
             auto const& C = *this;
-            auto const cuts = C.k_ == 0 ? wsl::probability::sample(uniform_subset({.size = C.n_ - 1}), g) : wsl::probability::sample(uniform_combination({.size = C.n_ - 1, .count = C.k_ - 1}), g);
+            auto const cuts = C.k_ == 0 ? detail::native_sample(uniform_subset({.size = C.n_ - 1}), g) : detail::native_sample(uniform_combination({.size = C.n_ - 1, .count = C.k_ - 1}), g);
             value_type c;
             std::size_t last = 0;
             for (std::size_t x : cuts)

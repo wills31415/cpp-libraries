@@ -312,14 +312,14 @@ namespace wsl::inline WSL_DEFAULTS::probability
         constexpr value_type sample(G& g) const
         {
             auto const& Y = *this;
-            return Y.image(wsl::probability::sample(Y.law_, g));
+            return Y.image(detail::native_sample(Y.law_, g));
         }
         template <std::uniform_random_bit_generator G>
             requires samplable<L, G>
-        constexpr value_type sample(G& g, fast_t) const
+        constexpr value_type sample(G& g, approximate_t) const
         {
             auto const& Y = *this;
-            return Y.image(wsl::probability::sample(Y.law_, g, fast));
+            return Y.image(wsl::probability::sample(Y.law_, g, wsl::approximate));
         }
 
         friend constexpr bool operator==(affine_image const& p, affine_image const& q) noexcept

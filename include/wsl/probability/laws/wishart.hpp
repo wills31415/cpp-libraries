@@ -54,9 +54,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
             normal<double> const standard({.mean = 0.0, .stddev = 1.0});
             for (std::size_t i = 0; i < p; ++i)
             {
-                a[i, i] = wsl::special::sqrt(wsl::probability::sample(chi[i], g));
+                a[i, i] = wsl::special::sqrt(detail::native_sample(chi[i], g));
                 for (std::size_t j = 0; j < i; ++j)
-                    a[i, j] = wsl::probability::sample(standard, g);
+                    a[i, j] = detail::native_sample(standard, g);
             }
             return a;
         }

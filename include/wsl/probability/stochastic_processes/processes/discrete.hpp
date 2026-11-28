@@ -187,13 +187,13 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             constexpr state_type next(G& g)
             {
                 if constexpr (std::integral<state_type>)
-                    return x = detail::saturated_sum(x, static_cast<state_type>(wsl::probability::sample(step, g)));
+                    return x = detail::saturated_sum(x, static_cast<state_type>(detail::native_sample(step, g)));
                 else
                 {
                     if constexpr (detail::lazy_samplable<L, G>)
                         sum.add(detail::lazy_sample(step, g), g);
                     else
-                        sum.add_constant(detail::to_dyadic(double(wsl::probability::sample(step, g))));
+                        sum.add_constant(detail::to_dyadic(double(detail::native_sample(step, g))));
                     return static_cast<state_type>(sum.template rounded<double>(g, detail::to_dyadic(double(x)), {}, 0, detail::to_dyadic(1.0)));
                 }
             }
@@ -317,9 +317,9 @@ namespace wsl::inline WSL_DEFAULTS::probability::stochastic_processes::processes
             markov_chain const* chain;
             std::size_t x = 0;
             template <class G>
-            constexpr std::size_t first(G& g) { return x = static_cast<std::size_t>(wsl::probability::sample(chain->initial_law_, g)); }
+            constexpr std::size_t first(G& g) { return x = static_cast<std::size_t>(detail::native_sample(chain->initial_law_, g)); }
             template <class G>
-            constexpr std::size_t next(G& g) { return x = static_cast<std::size_t>(wsl::probability::sample(chain->rows_[x], g)); }
+            constexpr std::size_t next(G& g) { return x = static_cast<std::size_t>(detail::native_sample(chain->rows_[x], g)); }
         };
         constexpr walker_type walker() const { return {this}; }
         constexpr detail::finite_path<markov_chain> steps(std::size_t n) const { return {*this, n}; }

@@ -78,10 +78,10 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             return s.template rounded<T>(g, {}, {}, 0, detail::to_dyadic(1.0));
         }
         template <std::uniform_random_bit_generator G>
-        constexpr T sample(G& g, fast_t) const
+        constexpr T sample(G& g, approximate_t) const
         {
             auto const& E = *this;
-            return wsl::probability::sample(E.g_, g);
+            return detail::native_sample(E.g_, g);
         }
 
         friend constexpr bool operator==(erlang const& a, erlang const& b) noexcept { return a.k_ == b.k_ && a.g_ == b.g_; }

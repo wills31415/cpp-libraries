@@ -55,7 +55,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::detail
             for (;;)
             {
                 for (auto& v : z)
-                    v = wsl::probability::sample(standard, g);
+                    v = detail::native_sample(standard, g);
                 auto const r2 = dot(n, [&](std::size_t k) { return std::pair{z[k], z[k]}; });
                 if (r2.hi > 0)                                              // (probabilité nulle d'échouer)
                 {

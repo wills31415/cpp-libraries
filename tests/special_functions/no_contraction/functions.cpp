@@ -78,10 +78,10 @@ extern "C"
     double check_normal_quantile(double m, double s, double p) { return wr::quantile(wr::normal({.mean = m, .stddev = s}), p); }
     double check_normal_entropy(double m, double s) { return wr::normal({.mean = m, .stddev = s}).entropy(); }
     double check_exponential_sample(double l, wr::xoshiro256pp& g) { return wr::sample(wr::exponential({.rate = l}), g); }
-    double check_exponential_fast(double l, wr::xoshiro256pp& g) { return wr::sample(wr::exponential({.rate = l}), g, wr::fast); }
+    double check_exponential_fast(double l, wr::xoshiro256pp& g) { return wr::sample(wr::exponential({.rate = l}), g, wsl::approximate); }
     double check_normal_sample(double m, double s, wr::xoshiro256pp& g) { return wr::sample(wr::normal({.mean = m, .stddev = s}), g); }
     float check_normal_sample_float(float m, float s, wr::xoshiro256pp& g) { return wr::sample(wr::normal<float>({.mean = m, .stddev = s}), g); }
-    double check_normal_fast(double m, double s, wr::xoshiro256pp& g) { return wr::sample(wr::normal({.mean = m, .stddev = s}), g, wr::fast); }
+    double check_normal_fast(double m, double s, wr::xoshiro256pp& g) { return wr::sample(wr::normal({.mean = m, .stddev = s}), g, wsl::approximate); }
     double check_geometric_pmf(double p, long long k) { return wr::pmf(wr::geometric({.p = p}), k); }
     double check_geometric_cdf(double p, long long k) { return wr::cdf(wr::geometric({.p = p}), k); }
     long long check_geometric_quantile(double p, double u) { return wr::quantile(wr::geometric({.p = p}), u); }

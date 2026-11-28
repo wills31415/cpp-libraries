@@ -29,6 +29,28 @@ namespace wr
     using namespace wsl::probability::stochastic_processes::processes;
     using namespace wsl::measure_theory;
     namespace detail = wsl::probability::detail;
+
+    // Le tirage natif, l'ancien défaut (exact pour une loi exacte, son seul tirage sinon) :
+    // celui que mesurent les empreintes de ces tests.
+    template <class X, class G>
+    constexpr auto native(X const& x, G& g)
+    {
+        if constexpr (requires { wsl::probability::detail::native_sample(x, g); })
+            return wsl::probability::detail::native_sample(x, g);
+        else if constexpr (requires { x.law(); })
+            return wsl::probability::detail::native_sample(x.law(), g);
+        else
+            return x(g, wsl::exact);
+    }
+    template <class X, class G>
+    constexpr auto native(X const& x, std::size_t n, G& g)
+    {
+        std::vector<decltype(native(x, g))> out;
+        out.reserve(n);
+        for (std::size_t i = 0; i < n; ++i)
+            out.push_back(native(x, g));
+        return out;
+    }
 }
 
 
@@ -145,7 +167,7 @@ int main()
             std::vector<double> times;
             for (std::size_t i = 0; i < k; ++i)
                 times.push_back(0.25 * double(i));
-            auto const grid = wr::sample(B.on_grid(times), a);
+            auto const grid = wr::native(B.on_grid(times), a);
             std::vector<double> lazy;
             for (auto [t, v] : wr::trajectory(B, b, {.step = 0.25}) | std::views::take(k))
                 lazy.push_back(v);
@@ -154,18 +176,18 @@ int main()
         std::vector<double> at1, increments;
         for (int i = 0; i < n; ++i)
         {
-            auto const x = wr::sample(B.on_grid({1.0, 3.0}), g);
+            auto const x = wr::native(B.on_grid({1.0, 3.0}), g);
             at1.push_back(x[0]);
             increments.push_back(x[1] - x[0]);
         }
         assert(ks_against(at1, B.at(1.0)) < 1.95);
         assert(ks_against(increments, wr::normal({.mean = 1.0, .stddev = 2.0 * std::sqrt(2.0)})) < 1.95);   // accroissement indépendant
-        assert(wr::sample(B.on_grid({0.0}), g)[0] == 1.0);
+        assert(wr::native(B.on_grid({0.0}), g)[0] == 1.0);
         std::vector<double> fast;
         for (int i = 0; i < n; ++i)
         {
             double last = 0;
-            for (auto [t, v] : wr::trajectory(B, g, {.step = 0.5}, wr::fast) | std::views::take(3))
+            for (auto [t, v] : wr::trajectory(B, g, {.step = 0.5}, wsl::approximate) | std::views::take(3))
                 last = v;
             fast.push_back(last);
         }
@@ -179,7 +201,7 @@ int main()
         std::vector<double> mid;
         for (int i = 0; i < n; ++i)
         {
-            auto const x = wr::sample(D.on_grid({0.0, 0.5, 2.0}), g);
+            auto const x = wr::native(D.on_grid({0.0, 0.5, 2.0}), g);
             assert(x[0] == 1 && x[2] == -1);                                 // extrémités exactes
             mid.push_back(x[1]);
         }
@@ -188,7 +210,7 @@ int main()
         std::vector<double> o1, o5;
         for (int i = 0; i < n; ++i)
         {
-            auto const x = wr::sample(O.on_grid({0.4, 5.0}), g);
+            auto const x = wr::native(O.on_grid({0.4, 5.0}), g);
             o1.push_back(x[0]);
             o5.push_back(x[1]);
         }
@@ -197,12 +219,12 @@ int main()
         wr::xoshiro256pp a(3), b(3);
         for (auto [t, v] : wr::trajectory(O, a, {.step = 0.5}) | std::views::take(4))
             lazy.push_back(v);
-        assert(lazy == wr::sample(O.on_grid({0.0, 0.5, 1.0, 1.5}), b));
-        assert(throws_domain_error([&] { (void)wr::sample(O.on_grid({300.0}), g); }));   // θ t > 350
+        assert(lazy == wr::native(O.on_grid({0.0, 0.5, 1.0, 1.5}), b));
+        assert(throws_domain_error([&] { (void)wr::native(O.on_grid({300.0}), g); }));   // θ t > 350
         wr::geometric_brownian_motion const S({.drift = 0.05, .volatility = 0.2, .start = 100});
         std::vector<double> s1;
         for (int i = 0; i < n; ++i)
-            s1.push_back(wr::sample(S.on_grid({1.0}), g)[0]);
+            s1.push_back(wr::native(S.on_grid({1.0}), g)[0]);
         assert(ks_against(s1, S.at(1.0)) < 1.95);
     }
 
@@ -213,7 +235,7 @@ int main()
         std::vector<int> counts(40, 0);
         for (int i = 0; i < n; ++i)
         {
-            auto const t = wr::sample(N.on(3.0), g);
+            auto const t = wr::native(N.on(3.0), g);
             assert(std::ranges::is_sorted(t) && (t.empty() || t.back() <= 3.0));
             ++counts[std::min<std::size_t>(t.size(), 39)];
             if (t.size() >= 2)
@@ -238,7 +260,7 @@ int main()
         wr::inhomogeneous_poisson_process const M([](double t) { return 1 + std::sin(t); }, 2.0);
         double total = 0;
         for (int i = 0; i < 4000; ++i)
-            total += double(wr::sample(M.on(5.0), g).size());
+            total += double(wr::native(M.on(5.0), g).size());
         double const expected = 5 + (1 - std::cos(5.0));                    // ∫₀⁵ (1 + sin t) dt
         assert(std::abs(total / 4000 - expected) < 0.15);
         wr::compound_poisson const C(2.0, wr::exponential({.rate = 0.5}));
@@ -287,16 +309,16 @@ int main()
         wr::random_walk const W(wr::normal({.mean = 0.0, .stddev = 1.0}));
         std::vector<double> x10, e5;
         for (int i = 0; i < n; ++i)
-            x10.push_back(wr::sample(W.steps(10), g).back());
+            x10.push_back(wr::native(W.steps(10), g).back());
         assert(ks_against(x10, wr::normal({.mean = 0.0, .stddev = std::sqrt(10.0)})) < 1.95);
         wr::random_walk const E(wr::exponential({.rate = 2.0}));
         for (int i = 0; i < n; ++i)
-            e5.push_back(wr::sample(E.steps(5), g).back());
+            e5.push_back(wr::native(E.steps(5), g).back());
         assert(ks_against(e5, wr::gamma({.rate = 2.0, .shape = 5.0})) < 1.95);   // somme exacte d'exponentielles
         wr::random_walk const G(wr::gamma({.rate = 1.0, .shape = 2.0}), {.start = 1.0});   // pas non paresseux
         double s = 0;
         for (int i = 0; i < 4000; ++i)
-            s += wr::sample(G.steps(4), g).back();
+            s += wr::native(G.steps(4), g).back();
         assert(std::abs(s / 4000 - 9) < 0.15);
     }
 
@@ -351,7 +373,7 @@ int main()
         wr::random_walk const W(wr::normal({.mean = 0.2, .variance = 2.0}));
         std::vector<double> values;
         for (int i = 0; i < n; ++i)
-            values.push_back(wr::sample(W.steps(5), g).back());
+            values.push_back(wr::native(W.steps(5), g).back());
         wr::normal const N5({.mean = 1.0, .variance = 10.0});
         assert(kolmogorov_smirnov(values, [&](double t) { return N5.cdf(t); }) < 1.95);
     }

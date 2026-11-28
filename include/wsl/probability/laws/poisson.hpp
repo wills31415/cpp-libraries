@@ -150,7 +150,7 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             constexpr auto top = std::numeric_limits<I>::max();
             if (X.mu_ < 10)                                                 // inversion : P(N <= k) >= U
             {
-                double const u = uniform_real<double>(g);
+                double const u = uniform_real<double>(g, wsl::exact);
                 double probability = X.exp_minus_mu_, sum = probability;
                 I k = 0;
                 while (u > sum && probability > 0 && k < top)
@@ -163,8 +163,8 @@ namespace wsl::inline WSL_DEFAULTS::probability::laws
             }
             for (;;)                                                        // PTRS
             {
-                double const u = uniform_real<double>(g) - 0.5;
-                double const v = uniform_real<double>(g);
+                double const u = uniform_real<double>(g, wsl::exact) - 0.5;
+                double const v = uniform_real<double>(g, wsl::exact);
                 double const us = 0.5 - (u < 0 ? -u : u);
                 if (us == 0)
                     continue;

@@ -82,7 +82,7 @@ namespace wsl::inline WSL_DEFAULTS::random::detail
     constexpr double uniform_positive(G& g)
     {
         for (;;)
-            if (double const u = uniform_real<double>(g); u != 0)
+            if (double const u = uniform_real<double>(g, wsl::exact); u != 0)
                 return u;
     }
 
