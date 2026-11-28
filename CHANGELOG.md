@@ -7,6 +7,12 @@ par bibliothèque, pour savoir quoi vérifier en montant de version dans un proj
 ## [Non publié]
 
 ### Toutes les bibliothèques
+- Compilation des tests plus rapide : valeurs de référence (mpmath) dans un **magasin
+  adressé par contenu** (`cmake/reference_store.cmake` ; clé : générateurs, modules et version
+  de mpmath, désormais figée à 1.4.1 ; magasin `~/.cache/wsl/references`, ou
+  `WSL_REFERENCE_STORE`), partagé par tous les dossiers de build : un dossier neuf restaure les
+  12 familles en moins d'une seconde au lieu de 10 minutes de calcul ; deux générateurs à la
+  fois au plus. Presets en Ninja ; ccache employé s'il est installé (`WSL_CCACHE`).
 - Documentation : `docs/`, un guide par domaine (`docs/<domaine>/README.md`) et un index
   (conventions, modes de calcul) ; README réécrit par domaine. Exemples rangés par domaine,
   `examples/<domaine>/<tâche>.cpp`, lancés comme tests `example.<domaine>.<tâche>`

@@ -18,6 +18,22 @@ option(WSL_WERROR "Traiter les avertissements des tests et exemples comme des er
 # les tests et exemples des bibliothèques touchées, et de celles qui en dépendent, sont
 # construits (cmake/affected.cmake). Vide : tout.
 set(WSL_AFFECTED_BY "" CACHE FILEPATH "Fichier des chemins modifiés (CI)")
+# Valeurs de référence (mpmath) : un magasin adressé par contenu, partagé par tous les dossiers
+# de build de la machine ; en CI, conservé d'un run à l'autre par actions/cache.
+if(DEFINED ENV{WSL_REFERENCE_STORE})
+    set(default_store $ENV{WSL_REFERENCE_STORE})
+else()
+    set(default_store $ENV{HOME}/.cache/wsl/references)
+endif()
+set(WSL_REFERENCE_STORE ${default_store} CACHE PATH "Magasin des valeurs de référence (mpmath)")
+# ccache pour les tests et exemples, s'il est installé (aucun effet sur les consommateurs).
+option(WSL_CCACHE "Compiler les tests et exemples par ccache s'il est installé" ${PROJECT_IS_TOP_LEVEL})
+if(WSL_CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
+    find_program(WSL_CCACHE_PROGRAM ccache HINTS $ENV{HOME}/.local/bin)
+    if(WSL_CCACHE_PROGRAM)
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${WSL_CCACHE_PROGRAM})
+    endif()
+endif()
 
 include(GNUInstallDirs)
 
@@ -221,21 +237,46 @@ if(WSL_BUILD_TESTS)
     enable_testing()
 
 
-    # Valeurs de référence de wsl::special (mpmath) : engendrées dans le dossier de
-    # build, pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
+    # Valeurs de référence des fonctions et des lois (mpmath) : engendrées dans le dossier
+    # de build par le magasin (cmake/reference_store.cmake), pas versionnées. Il faut uv, ou un python3 muni de mpmath ; sinon, seul
     # le test de précision est sauté.
+    # mpmath est figé : sa version entre dans la clé du magasin, et en changer est un commit.
+    set(WSL_MPMATH_VERSION 1.4.1)
     find_program(WSL_UV uv HINTS $ENV{HOME}/.local/bin)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     set(reference_generator "")
+    set(reference_salt "mpmath ${WSL_MPMATH_VERSION}")
     if(WSL_UV)
-        set(reference_generator ${WSL_UV} run --no-project --quiet --with mpmath python)
+        set(reference_generator ${WSL_UV} run --no-project --quiet --with mpmath==${WSL_MPMATH_VERSION} python)
     elseif(Python3_Interpreter_FOUND)
-        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import mpmath"
-                        RESULT_VARIABLE no_mpmath OUTPUT_QUIET ERROR_QUIET)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import mpmath; print(mpmath.__version__)"
+                        RESULT_VARIABLE no_mpmath OUTPUT_VARIABLE python_mpmath
+                        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
         if(no_mpmath EQUAL 0)
             set(reference_generator ${Python3_EXECUTABLE})
+            set(reference_salt "mpmath ${python_mpmath}")
+            if(NOT python_mpmath VERSION_EQUAL WSL_MPMATH_VERSION)
+                message(WARNING "python3 a mpmath ${python_mpmath}, la version figée est ${WSL_MPMATH_VERSION}")
+            endif()
         endif()
     endif()
+    # Une famille de références : OUTPUT calculé par COMMAND (liste), clé sur INPUTS.
+    # Chaque générateur occupe déjà tous les cœurs (multiprocessing) : deux à la fois au plus,
+    # pour laisser de la place à la compilation (Ninja).
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS wsl_references=2)
+    function(wsl_reference name output inputs)
+        list(JOIN inputs "|" joined_inputs)
+        list(JOIN ARGN "|" joined_command)
+        add_custom_command(
+            OUTPUT ${output}
+            COMMAND ${CMAKE_COMMAND} -DNAME=${name} -DOUTPUT=${output} -DSTORE=${WSL_REFERENCE_STORE}
+                    "-DSALT=${reference_salt}" "-DINPUTS=${joined_inputs}" "-DCOMMAND=${joined_command}"
+                    -P ${PROJECT_SOURCE_DIR}/cmake/reference_store.cmake
+            DEPENDS ${inputs} ${PROJECT_SOURCE_DIR}/cmake/reference_store.cmake
+            COMMENT "Valeurs de référence (mpmath) : ${name}"
+            JOB_POOL wsl_references
+            VERBATIM)
+    endfunction()
 
     # Tests rangés comme les espaces de noms (design/interfaces.md, décision 32) :
     # tests/<chemin>.cpp, nommé d'après son chemin (tests/mdarray/axis.cpp →
@@ -301,11 +342,8 @@ if(WSL_BUILD_TESTS)
     wsl_is_tested(probability random_tested)
     if(reference_generator AND special_tested)
         set(references ${PROJECT_BINARY_DIR}/generated/data/special_elementary_reference.hpp)
-        add_custom_command(
-            OUTPUT ${references}
-            COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py --references ${references}
-            DEPENDS ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py
-            COMMENT "Valeurs de référence de wsl::special (mpmath)")
+        wsl_reference(functions ${references} ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py
+            ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py --references ${references})
         add_custom_target(special_references DEPENDS ${references})
         # tests/special_functions/precision.cpp (enregistré avec l'arbre des tests).
         add_dependencies(special_functions.precision special_references)
@@ -331,12 +369,10 @@ if(WSL_BUILD_TESTS)
             elseif(family STREQUAL "derived")
                 set(extra ${law_sources}/base.py)
             endif()
-            add_custom_command(
-                OUTPUT ${output}
-                COMMAND ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${family} ${output}
-                DEPENDS ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${law_sources}/${family}.py ${law_sources}/common.py
-                        ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py ${extra}
-                COMMENT "Valeurs de référence des lois de wsl::random : ${family} (mpmath)")
+            set(inputs ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${law_sources}/${family}.py
+                       ${law_sources}/common.py ${PROJECT_SOURCE_DIR}/tools/elementary_functions/generate.py ${extra})
+            wsl_reference(law-${family} ${output} "${inputs}"
+                ${reference_generator} ${PROJECT_SOURCE_DIR}/tools/probability/law_references.py ${family} ${output})
             list(APPEND law_outputs ${output})
             string(APPEND law_includes "#include \"data/random_law_reference/${family}.hpp\"\n")
         endforeach()
