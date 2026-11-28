@@ -41,7 +41,6 @@ env:
   CCACHE_VERSION: 4.14.3
   # Magasin des valeurs de référence (cmake/reference_store.cmake), partagé entre systèmes.
   WSL_REFERENCE_STORE: ${{ github.workspace }}/.references
-  REFERENCE_KEY: references-${{ hashFiles('tools/elementary_functions/generate.py', 'tools/probability/**', 'include/wsl/special_functions/detail/extended.hpp', 'cmake/reference_store.cmake', 'cmake/mpmath_version.txt') }}
 
 jobs:
   changes:
@@ -52,10 +51,15 @@ jobs:
       files: ${{ steps.list.outputs.files }}
       tests: ${{ steps.list.outputs.tests }}
       package: ${{ steps.list.outputs.package }}
+      reference_key: ${{ steps.key.outputs.key }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Clé du cache des références : les générateurs, leurs modules et la version de mpmath.
+      - id: key
+        run: echo "key=references-${{ hashFiles('tools/elementary_functions/generate.py', 'tools/probability/**', 'include/wsl/special_functions/detail/extended.hpp', 'cmake/reference_store.cmake', 'cmake/mpmath_version.txt') }}" >> "$GITHUB_OUTPUT"
 
       - id: list
         run: |
@@ -125,7 +129,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .references
-          key: ${{ env.REFERENCE_KEY }}
+          key: ${{ needs.changes.outputs.reference_key }}
           restore-keys: references-
           enableCrossOsArchive: true
 
@@ -196,7 +200,7 @@ jobs:
         continue-on-error: true
         with:
           path: .references
-          key: ${{ env.REFERENCE_KEY }}
+          key: ${{ needs.changes.outputs.reference_key }}
           enableCrossOsArchive: true
 
       - name: ccache (enregistrement)
@@ -290,7 +294,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .references
-          key: ${{ env.REFERENCE_KEY }}
+          key: ${{ needs.changes.outputs.reference_key }}
           restore-keys: references-
           enableCrossOsArchive: true
 
@@ -308,7 +312,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .references
-          key: ${{ env.REFERENCE_KEY }}
+          key: ${{ needs.changes.outputs.reference_key }}
           enableCrossOsArchive: true
 
   synthesis:
