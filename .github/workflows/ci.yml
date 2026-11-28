@@ -53,7 +53,7 @@ jobs:
       package: ${{ steps.list.outputs.package }}
       reference_key: ${{ steps.key.outputs.key }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -99,7 +99,7 @@ jobs:
       CCACHE_MAXSIZE: 300M
       CCACHE_BASEDIR: ${{ github.workspace }}
     steps: &build-steps
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # uv engendre les valeurs de référence (mpmath) qui manquent au magasin.
       - uses: astral-sh/setup-uv@v10.3.3
@@ -126,7 +126,7 @@ jobs:
 
       - name: Références (cache)
         id: references
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .references
           key: ${{ needs.changes.outputs.reference_key }}
@@ -134,7 +134,7 @@ jobs:
           enableCrossOsArchive: true
 
       - name: ccache (cache)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .ccache
           key: ccache-${{ matrix.block }}-${{ matrix.compiler.name }}-${{ github.run_id }}
@@ -176,7 +176,7 @@ jobs:
 
       - name: Résumé (pour la Synthèse)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: summary-${{ matrix.block }}-${{ strategy.job-index }}
           path: ${{ runner.temp }}/summary.json
@@ -185,7 +185,7 @@ jobs:
 
       - name: Journaux (échec)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.block }}-${{ strategy.job-index }}
           path: |
@@ -196,7 +196,7 @@ jobs:
 
       - name: Références (enregistrement)
         if: always() && steps.references.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: .references
@@ -205,7 +205,7 @@ jobs:
 
       - name: ccache (enregistrement)
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: .ccache
@@ -257,7 +257,7 @@ jobs:
     if: needs.changes.outputs.package == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Installation
         run: |
@@ -287,11 +287,11 @@ jobs:
     if: needs.changes.outputs.mode == 'light'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache
         id: references
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .references
           key: ${{ needs.changes.outputs.reference_key }}
@@ -309,7 +309,7 @@ jobs:
 
       - name: Enregistrement
         if: steps.references.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .references
           key: ${{ needs.changes.outputs.reference_key }}
@@ -321,9 +321,9 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: summary-*
           path: summaries
@@ -343,7 +343,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
